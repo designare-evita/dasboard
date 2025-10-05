@@ -1,21 +1,18 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { getSearchConsoleData, getGa4Data } from '@/lib/google-api';
-import { authOptions } from '@/lib/auth'; 
-
-// HINWEIS: Wir müssen die authOptions exportieren.
-// Öffnen Sie 'src/app/api/auth/[...nextauth]/route.ts' und ändern Sie 'const handler = NextAuth(...)'
-// zu 'export const authOptions = { ... }; const handler = NextAuth(authOptions);'
+import { authOptions } from '@/lib/auth'; // Korrekter Import
 
 export async function GET() {
-  // const session = await getServerSession(authOptions);
+  // Session wird jetzt ausgelesen, um den Benutzer zu identifizieren
+  const session = await getServerSession(authOptions);
 
-  // if (!session || !session.user) {
-  //   return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
-  // }
+  if (!session || !session.user) {
+    // Wenn niemand eingeloggt ist, wird der Zugriff verweigert
+    return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
+  }
   
-  // ToDo: Die Kundendomain und GA4-ID dynamisch aus der Datenbank laden,
-  // basierend auf der session.user.email
+  // ToDo: Die Kundendomain und GA4-ID dynamisch aus der Datenbank laden
   const customerSiteUrl = 'https://www.max-online.at/'; // Temporär hartcodiert
   const customerGa4PropertyId = 'properties/421293385'; // Temporär hartcodiert
 
