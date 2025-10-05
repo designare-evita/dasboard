@@ -2,7 +2,7 @@
 
 import { useSession, signOut } from "next-auth/react";
 import { useEffect, useState } from "react";
-import KpiCard from "@/components/dashboard/kpi-card.tsx";
+import KpiCard from "@/components/kpi-card";
 
 export default function DashboardPage() {
   const { data: session, status } = useSession();
