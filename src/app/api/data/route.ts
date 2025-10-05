@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { getSearchConsoleData, getGa4Data } from '@/lib/google-api';
-// Wir importieren hier die handler-Optionen, die wir in der auth-Datei definiert haben
-// import { authOptions } from '../auth/[...nextauth]/route'; // Pfad anpassen falls nötig
+import { authOptions } from '@/lib/auth'; 
 
 // HINWEIS: Wir müssen die authOptions exportieren.
 // Öffnen Sie 'src/app/api/auth/[...nextauth]/route.ts' und ändern Sie 'const handler = NextAuth(...)'
