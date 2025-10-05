@@ -1,10 +1,9 @@
-// src/app/admin/page.tsx
 'use client';
 
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import Header from '@/components/layout/Header'; // Importieren Sie die neue Komponente
+import Header from '@/components/layout/Header';
 
 export default function AdminPage() {
   const { data: session, status } = useSession();
@@ -37,7 +36,7 @@ export default function AdminPage() {
     return <div>Lade...</div>;
   }
 
-  // @ts-ignore
+  // Der @ts-ignore-Kommentar wurde entfernt
   if (status === 'unauthenticated' || (session?.user?.role !== 'ADMIN' && session?.user?.role !== 'SUPERADMIN')) {
     router.push('/');
     return null;
@@ -45,12 +44,11 @@ export default function AdminPage() {
 
   return (
     <div className="p-8 max-w-4xl mx-auto">
-      <Header /> {/* Verwenden Sie hier die neue Header-Komponente */}
+      <Header />
       
       <div className="bg-white p-6 rounded-lg shadow-md mt-6">
         <h2 className="text-xl font-bold mb-4">Neuen Kunden anlegen</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* ... Ihr Formular-Code bleibt unverändert ... */}
           <div>
             <label className="block text-sm font-medium text-gray-700">Kunden E-Mail</label>
             <input name="email" type="email" required className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"/>
@@ -78,3 +76,4 @@ export default function AdminPage() {
     </div>
   );
 }
+
