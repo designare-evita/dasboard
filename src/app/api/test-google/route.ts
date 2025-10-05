@@ -4,7 +4,7 @@ import { getSearchConsoleData, getGa4Data } from '@/lib/google-api';
 export async function GET() {
   try {
     // --- BITTE HIER IHRE TESTDATEN EINTRAGEN ---
-    const testSiteUrl = 'https://www.max-online.at/';  // Wichtig: Für Domain-Properties 'sc-domain:' voranstellen
+    const testSiteUrl = 'https://max-online.at/';  // Wichtig: Für Domain-Properties 'sc-domain:' voranstellen
     const testGa4PropertyId = 'properties/314388177'; // Ersetzen Sie dies mit der echten ID Ihrer GA4-Testproperty
     // -----------------------------------------
 
