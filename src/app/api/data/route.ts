@@ -17,7 +17,7 @@ export async function GET() {
     console.log(`[API /data] Session gefunden für Benutzer: ${session.user.email}`); // LOG 3
     
     // ToDo: Diese Werte später dynamisch aus der Datenbank laden
-    const customerSiteUrl = 'https://www.max-online.at/'; 
+    const customerSiteUrl = 'https://max-online.at/'; 
     const customerGa4PropertyId = 'properties/314388177'; 
 
     console.log(`[API /data] Rufe Google-Daten ab für GSC: ${customerSiteUrl} und GA4: ${customerGa4PropertyId}`); // LOG 4
