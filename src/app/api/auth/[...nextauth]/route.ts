@@ -2,15 +2,11 @@ import NextAuth from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
 import { getUserByEmail } from "@/lib/database";
 import bcrypt from 'bcryptjs';
-import { User } from "@/types"; // Importieren Sie den User-Typ
+import { User } from "@/types";
 
 const handler = NextAuth({
-  session: {
-    strategy: "jwt",
-  },
-  pages: {
-    signIn: '/login',
-  },
+  session: { strategy: "jwt" },
+  pages: { signIn: '/login' },
   providers: [
     CredentialsProvider({
       name: "Credentials",
@@ -19,14 +15,20 @@ const handler = NextAuth({
         password: { label: "Password", type: "password" }
       },
       async authorize(credentials) {
+        console.log('[Authorize] Starte Autorisierungsprozess...');
         if (!credentials?.email || !credentials.password) {
+          console.log('[Authorize] Fehler: E-Mail oder Passwort fehlen.');
           return null;
         }
 
-        const user = await getUserByEmail(credentials.email);
+        console.log(`[Authorize] Suche Benutzer in DB mit E-Mail: ${credentials.email.toLowerCase()}`);
+        const user = await getUserByEmail(credentials.email.toLowerCase());
+
         if (!user || !user.password) {
+          console.log('[Authorize] ERGEBNIS: Benutzer wurde nicht in der Datenbank gefunden.');
           return null;
         }
+        console.log(`[Authorize] Benutzer ${user.email} gefunden. Vergleiche Passwörter...`);
 
         const isPasswordCorrect = await bcrypt.compare(
           credentials.password,
@@ -34,9 +36,11 @@ const handler = NextAuth({
         );
 
         if (!isPasswordCorrect) {
+          console.log('[Authorize] ERGEBNIS: Passwort-Vergleich fehlgeschlagen.');
           return null;
         }
         
+        console.log('[Authorize] ERGEBNIS: Login erfolgreich!');
         return { 
           id: user.id, 
           email: user.email, 
@@ -47,15 +51,10 @@ const handler = NextAuth({
   ],
   callbacks: {
     async jwt({ token, user }) {
-      // Wenn der 'user' beim Login übergeben wird, fügen wir seine Rolle zum Token hinzu
-      if (user) {
-        token.role = user.role;
-      }
+      if (user) token.role = user.role;
       return token;
     },
     async session({ session, token }) {
-      // Wir fügen die Rolle aus dem Token zur Session hinzu,
-      // damit sie im Frontend verfügbar ist.
       if (session?.user && token?.role) {
         session.user.role = token.role as User['role'];
       }
