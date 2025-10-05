@@ -29,6 +29,7 @@ export const authOptions: NextAuthOptions = {
         const isPasswordCorrect = await bcrypt.compare(credentials.password, user.password);
         if (!isPasswordCorrect) return null;
         
+        // Die 'authorize'-Funktion gibt die 'id' korrekt zurück
         return { 
           id: user.id, 
           email: user.email, 
@@ -38,20 +39,18 @@ export const authOptions: NextAuthOptions = {
     })
   ],
   callbacks: {
-    // Dieser Callback wird aufgerufen, NACHDEM 'authorize' erfolgreich war.
-    // Wir nehmen die Daten vom 'user'-Objekt und packen sie in den JWT-Token.
+    // Dieser Callback muss die 'id' vom 'user' in den 'token' übernehmen
     async jwt({ token, user }) {
       if (user) {
-        token.id = user.id; // <-- KORREKTUR HINZUGEFÜGT
+        token.id = user.id; // Diese Zeile ist entscheidend
         token.role = user.role;
       }
       return token;
     },
-    // Dieser Callback baut die finale Session zusammen, die im Frontend/Backend ankommt.
-    // Wir nehmen die Daten aus dem Token und packen sie in das 'session.user'-Objekt.
+    // Dieser Callback muss die 'id' vom 'token' in die 'session' übernehmen
     async session({ session, token }) {
       if (session?.user) {
-        session.user.id = token.id; // <-- KORREKTUR HINZUGEFÜGT
+        session.user.id = token.id; // Diese Zeile ist entscheidend
         session.user.role = token.role as User['role'];
       }
       return session;
