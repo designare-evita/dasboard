@@ -1,4 +1,3 @@
-// src/app/admin/page.tsx
 'use client';
 
 import { useSession } from 'next-auth/react';
@@ -12,7 +11,7 @@ export default function AdminPage() {
     return <div>Lade...</div>;
   }
 
-  // @ts-expect-error // Wir erwarten hier einen Fehler, da 'role' nicht im Standard-Typ enthalten ist
+  // Die '@ts-expect-error'-Zeile wurde hier entfernt, da sie nicht mehr benötigt wird.
   if (status === 'unauthenticated' || (session?.user?.role !== 'ADMIN' && session?.user?.role !== 'SUPERADMIN')) {
     // Wenn nicht eingeloggt oder keine Admin-Rechte, zur Startseite umleiten
     router.push('/');
@@ -23,7 +22,7 @@ export default function AdminPage() {
     <div className="p-8">
       <h1 className="text-3xl font-bold">Admin Bereich</h1>
       <p className="mt-4">Willkommen im Admin-Bereich. Hier können Sie neue Kunden anlegen und verwalten.</p>
-
+      
       {/* Hier kommt als Nächstes das Formular zum Anlegen neuer Kunden hin */}
     </div>
   );
