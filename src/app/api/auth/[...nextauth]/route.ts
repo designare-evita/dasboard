@@ -2,13 +2,14 @@ import NextAuth from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
 import { getUserByEmail } from "@/lib/database";
 import bcrypt from 'bcryptjs';
+import { User } from "@/types"; // Importieren Sie den User-Typ
 
 const handler = NextAuth({
   session: {
     strategy: "jwt",
   },
   pages: {
-    signIn: '/login', // Leitet zu unserer custom Login-Seite um
+    signIn: '/login',
   },
   providers: [
     CredentialsProvider({
@@ -22,47 +23,41 @@ const handler = NextAuth({
           return null;
         }
 
-        // 1. Benutzer in der Datenbank suchen
         const user = await getUserByEmail(credentials.email);
         if (!user || !user.password) {
-          console.log("Benutzer nicht gefunden oder hat kein Passwort.");
           return null;
         }
 
-        // 2. Passwörter vergleichen
         const isPasswordCorrect = await bcrypt.compare(
           credentials.password,
           user.password
         );
 
         if (!isPasswordCorrect) {
-          console.log("Passwort ist falsch.");
           return null;
         }
         
-        console.log("Login erfolgreich für:", user.email);
-        
-        // 3. Benutzer-Objekt zurückgeben (ohne Passwort!)
         return { 
           id: user.id, 
           email: user.email, 
           role: user.role 
-          // Wichtig: Niemals das Passwort hier zurückgeben!
         };
       }
     })
   ],
-  // Callbacks, um die Rolle in die Session aufzunehmen
   callbacks: {
     async jwt({ token, user }) {
+      // Wenn der 'user' beim Login übergeben wird, fügen wir seine Rolle zum Token hinzu
       if (user) {
-        token.role = (user as any).role;
+        token.role = user.role;
       }
       return token;
     },
     async session({ session, token }) {
-      if (session?.user) {
-        (session.user as any).role = token.role;
+      // Wir fügen die Rolle aus dem Token zur Session hinzu,
+      // damit sie im Frontend verfügbar ist.
+      if (session?.user && token?.role) {
+        session.user.role = token.role as User['role'];
       }
       return session;
     },
