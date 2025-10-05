@@ -16,7 +16,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="de">
       <body className={inter.className}>
         {/* Wickeln Sie die "children" in den Provider ein */}
         <Providers>{children}</Providers>
