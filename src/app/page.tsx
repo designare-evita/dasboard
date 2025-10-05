@@ -23,20 +23,17 @@ export default function DashboardPage() {
   const { data: session, status } = useSession();
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  // NEU: Ein Zustand, um Fehler zu speichern und anzuzeigen
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
-      // Nur Daten abrufen, wenn der Benutzer authentifiziert ist
       if (status === 'authenticated') {
         setIsLoading(true);
-        setError(null); // Fehler zurücksetzen
+        setError(null);
         try {
           const response = await fetch('/api/data');
           const data = await response.json();
 
-          // NEU: Prüfen, ob die API einen Fehler zurückgegeben hat
           if (!response.ok) {
             throw new Error(data.message || `API-Fehler: Status ${response.status}`);
           }
@@ -51,15 +48,13 @@ export default function DashboardPage() {
       }
     };
     fetchData();
-  }, [status]); // Effekt wird ausgeführt, sobald sich der Login-Status ändert
+  }, [status]);
 
 
-  // Ladezustand
   if (status === "loading" || (isLoading && status === 'authenticated')) {
     return <div className="p-8 text-center">Daten werden geladen...</div>;
   }
   
-  // NEU: Wenn ein Fehler aufgetreten ist, zeigen wir ihn an
   if (error) {
     return (
       <div className="p-8 text-center text-red-600">
@@ -70,14 +65,25 @@ export default function DashboardPage() {
     );
   }
 
-  // Berechnung der Kennzahlen
   const totalClicks = dashboardData?.gscData?.reduce((sum: number, row: GscDataRow) => sum + row.clicks, 0);
   const totalUsers = dashboardData?.ga4Data?.rows[0]?.metricValues[0]?.value;
+
+  // @ts-ignore // Ignorieren Sie den TypeScript-Fehler für 'role', da wir wissen, dass er durch unsere Konfiguration existiert
+  const userRole = session?.user?.role;
 
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Dashboard</h1>
+        <div className="flex items-center gap-4">
+          <h1 className="text-3xl font-bold">Dashboard</h1>
+          {/* --- HIER IST DIE HINZUGEFÜGTE ÄNDERUNG --- */}
+          {userRole === 'ADMIN' || userRole === 'SUPERADMIN' ? (
+            <a href="/admin" className="text-blue-500 hover:underline">
+              Admin Bereich
+            </a>
+          ) : null}
+          {/* ----------------------------------------- */}
+        </div>
         <button 
           onClick={() => signOut({ callbackUrl: '/login' })} 
           className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded"
