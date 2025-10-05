@@ -1,8 +1,9 @@
 'use client';
 
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 import KpiCard from "@/components/kpi-card";
+import Header from "@/components/layout/Header"; // Importieren der neuen Header-Komponente
 
 // Daten-Typen (Interfaces), damit unser Code sauber bleibt
 interface GscDataRow {
@@ -65,32 +66,16 @@ export default function DashboardPage() {
     );
   }
 
+  // Berechnung der Kennzahlen
   const totalClicks = dashboardData?.gscData?.reduce((sum: number, row: GscDataRow) => sum + row.clicks, 0);
   const totalUsers = dashboardData?.ga4Data?.rows[0]?.metricValues[0]?.value;
 
-  // Die '@ts-ignore'-Zeile wurde hier entfernt, da sie nicht mehr benötigt wird.
-  const userRole = session?.user?.role;
-
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
-      <div className="flex justify-between items-center mb-8">
-        <div className="flex items-center gap-4">
-          <h1 className="text-3xl font-bold">Dashboard</h1>
-          {userRole === 'ADMIN' || userRole === 'SUPERADMIN' ? (
-            <a href="/admin" className="text-blue-500 hover:underline">
-              Admin Bereich
-            </a>
-          ) : null}
-        </div>
-        <button 
-          onClick={() => signOut({ callbackUrl: '/login' })} 
-          className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded"
-        >
-          Abmelden
-        </button>
-      </div>
+      {/* Die alte Kopfzeile wird durch die wiederverwendbare Header-Komponente ersetzt */}
+      <Header />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
         <KpiCard 
           title="Gesamte Klicks (GSC)"
           value={totalClicks?.toLocaleString('de-DE') || 'N/A'}
@@ -101,6 +86,7 @@ export default function DashboardPage() {
           value={Number(totalUsers).toLocaleString('de-DE') || 'N/A'}
           description="Letzte 12 Monate"
         />
+        {/* Hier können später weitere Karten hinzugefügt werden */}
       </div>
 
       <div className="mt-8 bg-white p-6 rounded-lg shadow-md">
