@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 
 export default function TestPage() {
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<object | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
