@@ -8,7 +8,7 @@ import { authOptions } from '@/lib/auth';
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
 
-  // @ts-ignore
+  // Der '@ts-ignore'-Kommentar wurde hier entfernt
   if (session?.user?.role !== 'ADMIN' && session?.user?.role !== 'SUPERADMIN') {
     return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
   }
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
 
     const hashedPassword = await bcrypt.hash(password, 10);
     
-    // @ts-ignore
+    // Der '@ts-ignore'-Kommentar wurde hier entfernt
     const adminId = session.user.id; 
 
     await sql`
@@ -33,6 +33,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: 'Benutzer erfolgreich erstellt' }, { status: 201 });
   } catch (error) {
     console.error('Fehler beim Erstellen des Benutzers:', error);
+    // Geben Sie eine spezifischere Fehlermeldung bei doppelten E-Mails zurück
+    if (error instanceof Error && error.message.includes('duplicate key value violates unique constraint "users_email_key"')) {
+      return NextResponse.json({ message: 'Ein Benutzer mit dieser E-Mail-Adresse existiert bereits.' }, { status: 409 });
+    }
     return NextResponse.json({ message: 'Fehler beim Erstellen des Benutzers' }, { status: 500 });
   }
 }
