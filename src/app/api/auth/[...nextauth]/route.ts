@@ -1,34 +1,72 @@
 import NextAuth from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
+import { getUserByEmail } from "@/lib/database";
+import bcrypt from 'bcryptjs';
 
-// Dies ist die zentrale Konfigurationsdatei für Ihre Authentifizierung.
-// Wir fügen hier später die Logik hinzu, um Benutzer aus Ihrer Datenbank zu überprüfen.
 const handler = NextAuth({
+  session: {
+    strategy: "jwt",
+  },
+  pages: {
+    signIn: '/login', // Leitet zu unserer custom Login-Seite um
+  },
   providers: [
     CredentialsProvider({
-      // The name to display on the sign in form (e.g. "Sign in with...")
       name: "Credentials",
       credentials: {
-        email: { label: "Email", type: "text", placeholder: "test@example.com" },
+        email: { label: "Email", type: "text" },
         password: { label: "Password", type: "password" }
       },
-      async authorize(credentials, req) {
-        // Hier kommt die Logik hin, um den Benutzer in der Datenbank zu suchen
-        // Für den Moment geben wir einfach einen Beispiel-Benutzer zurück, damit es funktioniert.
-        const user = { id: "1", name: "Test User", email: "test@example.com" }
-
-        if (user) {
-          // Any object returned will be saved in `user` property of the JWT
-          return user
-        } else {
-          // If you return null then an error will be displayed
-          return null
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials.password) {
+          return null;
         }
+
+        // 1. Benutzer in der Datenbank suchen
+        const user = await getUserByEmail(credentials.email);
+        if (!user || !user.password) {
+          console.log("Benutzer nicht gefunden oder hat kein Passwort.");
+          return null;
+        }
+
+        // 2. Passwörter vergleichen
+        const isPasswordCorrect = await bcrypt.compare(
+          credentials.password,
+          user.password
+        );
+
+        if (!isPasswordCorrect) {
+          console.log("Passwort ist falsch.");
+          return null;
+        }
+        
+        console.log("Login erfolgreich für:", user.email);
+        
+        // 3. Benutzer-Objekt zurückgeben (ohne Passwort!)
+        return { 
+          id: user.id, 
+          email: user.email, 
+          role: user.role 
+          // Wichtig: Niemals das Passwort hier zurückgeben!
+        };
       }
     })
   ],
-  // Hier können später weitere Konfigurationen wie Session-Strategie etc. folgen
+  // Callbacks, um die Rolle in die Session aufzunehmen
+  callbacks: {
+    async jwt({ token, user }) {
+      if (user) {
+        token.role = (user as any).role;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (session?.user) {
+        (session.user as any).role = token.role;
+      }
+      return session;
+    },
+  }
 })
 
-// NextAuth.js exportiert die GET und POST Handler für uns.
 export { handler as GET, handler as POST }
