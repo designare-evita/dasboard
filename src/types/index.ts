@@ -5,6 +5,8 @@ export interface User {
   password?: string; // Das Passwort sollte nie an das Frontend gesendet werden
   role: 'SUPERADMIN' | 'ADMIN' | 'BENUTZER';
   domain?: string;
+  gsc_site_url?: string; // NEU: Feld für die GSC URL
+  ga4_property_id?: string; // NEU: Feld für die GA4 ID
   createdByAdminId?: string;
   createdAt: Date;
 }
