@@ -32,7 +32,7 @@ export async function GET() {
       propertyId = `properties/${user.ga4_property_id}`;
     } else {
       // Wenn es ein ADMIN oder SUPERADMIN ist, zeigen wir weiterhin die Test-Daten an
-      siteUrl = 'https://www.max-online.at/'; 
+      siteUrl = 'https://max-online.at/'; 
       propertyId = 'properties/421293385';
     }
 
