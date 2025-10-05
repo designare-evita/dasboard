@@ -2,9 +2,9 @@
 
 import { useSession, signOut } from "next-auth/react";
 import { useEffect, useState } from "react";
-import KpiCard from "@/components/kpi-card"; // Pfad korrigiert
+import KpiCard from "@/components/kpi-card";
 
-// --- NEU: Eine genaue Beschreibung unserer Daten ---
+// Daten-Typen (Interfaces), damit unser Code sauber bleibt
 interface GscDataRow {
   keys: string[];
   clicks: number;
@@ -12,44 +12,66 @@ interface GscDataRow {
   ctr: number;
   position: number;
 }
-
 interface DashboardData {
   gscData: GscDataRow[];
   ga4Data: {
-    rows: {
-      metricValues: { value: string }[];
-    }[];
+    rows: { metricValues: { value: string }[] }[];
   };
 }
-// ----------------------------------------------------
 
 export default function DashboardPage() {
   const { data: session, status } = useSession();
-  // --- GEÄNDERT: 'any' durch unsere neue Datenbeschreibung ersetzt ---
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  // NEU: Ein Zustand, um Fehler zu speichern und anzuzeigen
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
+      // Nur Daten abrufen, wenn der Benutzer authentifiziert ist
       if (status === 'authenticated') {
         setIsLoading(true);
-        const response = await fetch('/api/data');
-        const data = await response.json();
-        setDashboardData(data);
-        setIsLoading(false);
+        setError(null); // Fehler zurücksetzen
+        try {
+          const response = await fetch('/api/data');
+          const data = await response.json();
+
+          // NEU: Prüfen, ob die API einen Fehler zurückgegeben hat
+          if (!response.ok) {
+            throw new Error(data.message || `API-Fehler: Status ${response.status}`);
+          }
+
+          setDashboardData(data);
+        } catch (err) {
+          console.error("Fehler beim Abrufen der Dashboard-Daten:", err);
+          setError((err as Error).message);
+        } finally {
+          setIsLoading(false);
+        }
       }
     };
     fetchData();
-  }, [status]);
+  }, [status]); // Effekt wird ausgeführt, sobald sich der Login-Status ändert
 
 
-  if (status === "loading" || isLoading) {
-    return <div className="p-8">Daten werden geladen...</div>;
+  // Ladezustand
+  if (status === "loading" || (isLoading && status === 'authenticated')) {
+    return <div className="p-8 text-center">Daten werden geladen...</div>;
   }
   
-  // --- GEÄNDERT: 'any' durch unsere neue Datenbeschreibung ersetzt ---
-  const totalClicks = dashboardData?.gscData?.reduce((sum: number, row: GscDataRow) => sum + row.clicks, 0);
+  // NEU: Wenn ein Fehler aufgetreten ist, zeigen wir ihn an
+  if (error) {
+    return (
+      <div className="p-8 text-center text-red-600">
+        <h1 className="text-2xl font-bold">Fehler beim Laden der Daten</h1>
+        <p className="mt-4">Die API hat folgende Fehlermeldung zurückgegeben:</p>
+        <pre className="mt-2 p-4 bg-red-100 rounded-md text-left">{error}</pre>
+      </div>
+    );
+  }
 
+  // Berechnung der Kennzahlen
+  const totalClicks = dashboardData?.gscData?.reduce((sum: number, row: GscDataRow) => sum + row.clicks, 0);
   const totalUsers = dashboardData?.ga4Data?.rows[0]?.metricValues[0]?.value;
 
   return (
