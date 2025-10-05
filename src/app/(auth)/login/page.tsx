@@ -1,4 +1,4 @@
-'use client'; // Diese Seite ist interaktiv und läuft im Browser
+'use client';
 
 import { useState } from 'react';
 import { signIn } from 'next-auth/react';
@@ -18,7 +18,7 @@ export default function LoginPage() {
 
     try {
       const result = await signIn('credentials', {
-        redirect: false, // Wir leiten manuell weiter, um Fehler besser zu behandeln
+        redirect: false,
         email,
         password,
       });
@@ -27,8 +27,7 @@ export default function LoginPage() {
         setError('Login fehlgeschlagen. Überprüfen Sie Ihre E-Mail und Ihr Passwort.');
         setLoading(false);
       } else {
-        // Login erfolgreich, weiterleiten zum Dashboard
-        router.push('/'); 
+        router.push('/');
       }
     } catch (err) {
       setError('Ein unerwarteter Fehler ist aufgetreten.');
@@ -37,33 +36,33 @@ export default function LoginPage() {
   };
 
   return (
-    <div style={{ maxWidth: '400px', margin: '100px auto' }}>
-      <h1>Login</h1>
+    <div className="mx-auto mt-24 max-w-md p-8 bg-white shadow-lg rounded-lg">
+      <h1 className="text-2xl font-bold mb-6 text-center">Login</h1>
       <form onSubmit={handleSubmit}>
-        <div style={{ marginBottom: '1rem' }}>
-          <label htmlFor="email">E-Mail</label>
+        <div className="mb-4">
+          <label htmlFor="email" className="block mb-2 text-sm font-medium text-gray-700">E-Mail</label>
           <input
             id="email"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            style={{ width: '100%', padding: '8px' }}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
-        <div style={{ marginBottom: '1rem' }}>
-          <label htmlFor="password">Passwort</label>
+        <div className="mb-6">
+          <label htmlFor="password" className="block mb-2 text-sm font-medium text-gray-700">Passwort</label>
           <input
             id="password"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            style={{ width: '100%', padding: '8px' }}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
-        {error && <p style={{ color: 'red' }}>{error}</p>}
-        <button type="submit" disabled={loading} style={{ padding: '10px 20px' }}>
+        {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
+        <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400">
           {loading ? 'Anmelden...' : 'Anmelden'}
         </button>
       </form>
