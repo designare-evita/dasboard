@@ -33,7 +33,7 @@ export async function GET() {
     } else {
       // Wenn es ein ADMIN oder SUPERADMIN ist, zeigen wir weiterhin die Test-Daten an
       siteUrl = 'https://max-online.at/'; 
-      propertyId = 'properties/421293385';
+      propertyId = 'properties/314388177';
     }
 
     // 3. Google APIs mit den dynamischen Daten aufrufen
