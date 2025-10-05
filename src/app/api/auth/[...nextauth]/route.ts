@@ -1,10 +1,12 @@
-import NextAuth from "next-auth"
-import CredentialsProvider from "next-auth/providers/credentials"
+import NextAuth, { NextAuthOptions } from "next-auth";
+import CredentialsProvider from "next-auth/providers/credentials";
 import { getUserByEmail } from "@/lib/database";
 import bcrypt from 'bcryptjs';
 import { User } from "@/types";
 
-const handler = NextAuth({
+// Wir definieren die Konfiguration jetzt in einer exportierbaren Konstante.
+// Dies ist notwendig, damit andere Server-Komponenten die Konfiguration lesen können.
+export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
   },
@@ -38,6 +40,7 @@ const handler = NextAuth({
           return null;
         }
         
+        // Geben das Benutzerobjekt für die Session zurück
         return { 
           id: user.id, 
           email: user.email, 
@@ -60,6 +63,9 @@ const handler = NextAuth({
       return session;
     },
   }
-})
+};
 
-export { handler as GET, handler as POST }
+// NextAuth wird mit den definierten Optionen initialisiert.
+const handler = NextAuth(authOptions);
+
+export { handler as GET, handler as POST };
