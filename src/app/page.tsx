@@ -68,7 +68,7 @@ export default function DashboardPage() {
   const totalClicks = dashboardData?.gscData?.reduce((sum: number, row: GscDataRow) => sum + row.clicks, 0);
   const totalUsers = dashboardData?.ga4Data?.rows[0]?.metricValues[0]?.value;
 
-  // @ts-ignore // Ignorieren Sie den TypeScript-Fehler für 'role', da wir wissen, dass er durch unsere Konfiguration existiert
+  // Die '@ts-ignore'-Zeile wurde hier entfernt, da sie nicht mehr benötigt wird.
   const userRole = session?.user?.role;
 
   return (
@@ -76,13 +76,11 @@ export default function DashboardPage() {
       <div className="flex justify-between items-center mb-8">
         <div className="flex items-center gap-4">
           <h1 className="text-3xl font-bold">Dashboard</h1>
-          {/* --- HIER IST DIE HINZUGEFÜGTE ÄNDERUNG --- */}
           {userRole === 'ADMIN' || userRole === 'SUPERADMIN' ? (
             <a href="/admin" className="text-blue-500 hover:underline">
               Admin Bereich
             </a>
           ) : null}
-          {/* ----------------------------------------- */}
         </div>
         <button 
           onClick={() => signOut({ callbackUrl: '/login' })} 
