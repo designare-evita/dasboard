@@ -1,9 +1,10 @@
 'use client';
 
-import { useSession } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import { useEffect, useState } from "react";
 import KpiCard from "@/components/kpi-card";
-import Header from "@/components/layout/Header"; // Importieren der neuen Header-Komponente
+import Header from "@/components/layout/Header";
+import Link from "next/link"; // Importieren der Link-Komponente
 
 // Daten-Typen (Interfaces), damit unser Code sauber bleibt
 interface GscDataRow {
@@ -66,9 +67,11 @@ export default function DashboardPage() {
     );
   }
 
-  // Berechnung der Kennzahlen
   const totalClicks = dashboardData?.gscData?.reduce((sum: number, row: GscDataRow) => sum + row.clicks, 0);
   const totalUsers = dashboardData?.ga4Data?.rows[0]?.metricValues[0]?.value;
+
+  // Der überflüssige Kommentar wurde hier entfernt, da die Typen jetzt korrekt sind.
+  const userRole = session?.user?.role;
 
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
@@ -86,7 +89,6 @@ export default function DashboardPage() {
           value={Number(totalUsers).toLocaleString('de-DE') || 'N/A'}
           description="Letzte 12 Monate"
         />
-        {/* Hier können später weitere Karten hinzugefügt werden */}
       </div>
 
       <div className="mt-8 bg-white p-6 rounded-lg shadow-md">
@@ -98,3 +100,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+
