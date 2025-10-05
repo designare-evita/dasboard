@@ -12,7 +12,7 @@ export default function AdminPage() {
     return <div>Lade...</div>;
   }
 
-  // @ts-ignore // Ignorieren Sie den Fehler für 'role', da wir wissen, dass er existiert
+  // @ts-expect-error // Wir erwarten hier einen Fehler, da 'role' nicht im Standard-Typ enthalten ist
   if (status === 'unauthenticated' || (session?.user?.role !== 'ADMIN' && session?.user?.role !== 'SUPERADMIN')) {
     // Wenn nicht eingeloggt oder keine Admin-Rechte, zur Startseite umleiten
     router.push('/');
