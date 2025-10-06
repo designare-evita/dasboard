@@ -16,7 +16,7 @@ export async function GET(request: Request) {
   try {
     const { rows } = await sql<User>`SELECT id, email, domain FROM users WHERE role = 'BENUTZER'`;
     return NextResponse.json(rows);
-  } catch (error) {
+  } catch (error: unknown) { // 'any' durch 'unknown' ersetzen
     console.error('Fehler beim Abrufen der Benutzer:', error);
     return NextResponse.json({ message: 'Fehler beim Abrufen der Benutzer' }, { status: 500 });
   }
@@ -46,9 +46,9 @@ export async function POST(request: Request) {
       
       return NextResponse.json({ message: 'Benutzer erfolgreich erstellt' }, { status: 201 });
 
-  } catch (error: any) {
-    // Fehlerbehandlung für doppelte E-Mail-Adressen
-    if (error.code === '23505') { // 'unique_violation' in Postgres
+  } catch (error: unknown) { // 'any' durch 'unknown' ersetzen
+    // Spezifischere Fehlerbehandlung für doppelte E-Mails
+    if (error && typeof error === 'object' && 'code' in error && error.code === '23505') { 
         return NextResponse.json({ message: 'Ein Benutzer mit dieser E-Mail-Adresse existiert bereits.' }, { status: 409 });
     }
     console.error('Fehler beim Erstellen des Benutzers:', error);
