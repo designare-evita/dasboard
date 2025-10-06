@@ -2,10 +2,12 @@ import { NextResponse } from 'next/server';
 import { sql } from '@vercel/postgres';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { User } from '@/types';
 
-// GET a single user by ID
+// Holt die Daten für einen einzelnen Benutzer (wird für das Bearbeiten-Formular benötigt)
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
+  // @ts-ignore
   if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
     return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
   }
@@ -13,7 +15,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
   const { id } = params;
 
   try {
-    const data = await sql`SELECT id, email, domain, gsc_site_url, ga4_property_id FROM users WHERE id = ${id}`;
+    const data = await sql<User>`SELECT id, email, domain, gsc_site_url, ga4_property_id FROM users WHERE id = ${id}`;
     if (data.rows.length === 0) {
       return NextResponse.json({ message: 'Benutzer nicht gefunden' }, { status: 404 });
     }
@@ -24,9 +26,10 @@ export async function GET(request: Request, { params }: { params: { id: string }
   }
 }
 
-// UPDATE a user by ID
+// Aktualisiert die Daten eines Benutzers
 export async function PUT(request: Request, { params }: { params: { id: string } }) {
     const session = await getServerSession(authOptions);
+    // @ts-ignore
     if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
         return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
     }
@@ -51,9 +54,10 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     }
 }
 
-// DELETE a user by ID
+// Löscht einen Benutzer
 export async function DELETE(request: Request, { params }: { params: { id: string } }) {
     const session = await getServerSession(authOptions);
+    // @ts-ignore
     if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
         return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
     }
@@ -61,6 +65,12 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
     const { id } = params;
 
     try {
+        // Sicherheitsprüfung: Verhindert, dass sich ein Admin selbst löscht
+        const userToDelete = await sql`SELECT id, email FROM users WHERE id = ${id}`;
+        if (userToDelete.rows[0]?.email === session.user.email) {
+            return NextResponse.json({ message: 'Sie können sich nicht selbst löschen.' }, { status: 403 });
+        }
+
         await sql`DELETE FROM users WHERE id = ${id}`;
         return NextResponse.json({ message: 'Benutzer erfolgreich gelöscht' });
     } catch (error) {
@@ -68,3 +78,4 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
         return NextResponse.json({ message: 'Fehler beim Löschen des Benutzers' }, { status: 500 });
     }
 }
+
