@@ -31,7 +31,7 @@ export default function EditUserPage({ params }: PageProps) {
         }
         const data = await response.json();
         setUser(data);
-      } catch (err) {
+      } catch (err: unknown) { // 'any' durch 'unknown' ersetzen
         setMessage(err instanceof Error ? err.message : 'Ein unbekannter Fehler ist aufgetreten.');
       } finally {
         setIsLoading(false);
@@ -65,7 +65,7 @@ export default function EditUserPage({ params }: PageProps) {
       setMessage('Benutzer erfolgreich aktualisiert. Sie werden weitergeleitet...');
       setIsSuccess(true);
       setTimeout(() => router.push('/admin'), 2000);
-    } catch (err) {
+    } catch (err: unknown) { // 'any' durch 'unknown' ersetzen
       setMessage(`Fehler: ${err instanceof Error ? err.message : 'Ein unbekannter Fehler ist aufgetreten.'}`);
       setIsSuccess(false);
     }
