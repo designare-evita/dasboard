@@ -6,7 +6,15 @@ import Header from '@/components/layout/Header';
 import { User } from '@/types';
 import Link from 'next/link';
 
-export default function EditUserPage({ params }: { params: { id: string } }) {
+// Definieren Sie einen klaren, spezifischen Typ für die Props dieser Seite.
+type EditUserPageProps = {
+  params: {
+    id: string;
+  };
+};
+
+// Verwenden Sie diesen Typ für die Props der Komponente.
+export default function EditUserPage({ params }: EditUserPageProps) {
   const router = useRouter();
   const { id } = params;
   const [user, setUser] = useState<Partial<User> | null>(null);
@@ -14,7 +22,6 @@ export default function EditUserPage({ params }: { params: { id: string } }) {
   const [isSuccess, setIsSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Unveränderte Logik zum Abrufen der Benutzerdaten
   useEffect(() => {
     const fetchUser = async () => {
       setIsLoading(true);
@@ -37,7 +44,6 @@ export default function EditUserPage({ params }: { params: { id: string } }) {
     }
   }, [id]);
 
-  // Angepasste Logik zum Senden des Formulars
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setMessage('Aktualisiere Benutzer...');
@@ -66,7 +72,8 @@ export default function EditUserPage({ params }: { params: { id: string } }) {
       setIsSuccess(false);
     }
   };
-
+  
+  // Rendert das Seitenlayout
   const PageWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-2xl mx-auto">
@@ -76,7 +83,6 @@ export default function EditUserPage({ params }: { params: { id: string } }) {
     </div>
   );
 
-  // Verbesserter Lade-Zustand
   if (isLoading) {
     return (
       <PageWrapper>
@@ -85,7 +91,6 @@ export default function EditUserPage({ params }: { params: { id: string } }) {
     );
   }
 
-  // Verbesserter "Nicht gefunden"-Zustand
   if (!user) {
     return (
       <PageWrapper>
@@ -100,7 +105,6 @@ export default function EditUserPage({ params }: { params: { id: string } }) {
     );
   }
 
-  // Neues, verbessertes Layout für das Formular
   return (
     <PageWrapper>
       <div className="bg-white p-8 rounded-lg shadow-md">
