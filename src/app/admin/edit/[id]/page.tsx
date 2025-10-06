@@ -3,8 +3,8 @@ import EditUserForm from './EditUserForm';
 import type { User } from '@/types';
 import { headers } from 'next/headers';
 
-// ✅ RICHTIGEN PageProps-Typ EXPLIZIT EXPORTIEREN
-export type PageProps = { params: { id: string } };
+// ✅ KORRIGIERT: params muss ein Promise sein in Next.js 15
+export type PageProps = { params: Promise<{ id: string }> };
 
 async function getBaseUrl() {
   const h = await headers();
@@ -25,7 +25,8 @@ async function getUser(id: string): Promise<Partial<User> | null> {
 }
 
 export default async function EditUserPage({ params }: PageProps) {
-  const { id } = params;
+  // ✅ KORRIGIERT: params muss mit await aufgelöst werden
+  const { id } = await params;
   const user = await getUser(id);
 
   return (
