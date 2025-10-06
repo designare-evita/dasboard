@@ -81,8 +81,7 @@ export default function AdminPage() {
 
   // Authentifizierungs-Check (unverändert)
   if (status === 'loading') return <div className="p-8 text-center">Lade...</div>;
-  if (status === 'unauthenticated' || !session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
-  router.push('/');
+if (status === 'unauthenticated' || !session?.user || ((session.user as any).role !== 'ADMIN' && (session.user as any).role !== 'SUPERADMIN')) {
   return null;
 }
 
