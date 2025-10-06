@@ -5,17 +5,14 @@ import { authOptions } from '@/lib/auth';
 import { User } from '@/types';
 
 // Holt die Daten für einen einzelnen Benutzer (wird für das Bearbeiten-Formular benötigt)
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params;
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getServerSession(authOptions);
   // @ts-expect-error 'role' ist eine benutzerdefinierte Eigenschaft des Session-Benutzers
   if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
     return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
   }
 
-  const { id } = params;
+  const { id } = await params;
 
   try {
     const data = await sql<User>`SELECT id, email, domain, gsc_site_url, ga4_property_id FROM users WHERE id = ${id}`;
@@ -30,18 +27,14 @@ export async function GET(
 }
 
 // Aktualisiert die Daten eines Benutzers
-export async function PUT(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params;
-  const body = await request.json();
+export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
+    const session = await getServerSession(authOptions);
     // @ts-expect-error 'role' ist eine benutzerdefinierte Eigenschaft des Session-Benutzers
     if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
         return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
     }
 
-    const { id } = params;
+    const { id } = await params;
     const { email, domain, gsc_site_url, ga4_property_id } = await request.json();
 
     if (!email || !domain || !gsc_site_url || !ga4_property_id) {
@@ -62,17 +55,14 @@ export async function PUT(
 }
 
 // Löscht einen Benutzer
-export async function DELETE(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params;
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+    const session = await getServerSession(authOptions);
     // @ts-expect-error 'role' ist eine benutzerdefinierte Eigenschaft des Session-Benutzers
     if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
         return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
     }
 
-    const { id } = params;
+    const { id } = await params;
 
     try {
         // Sicherheitsprüfung: Verhindert, dass sich ein Admin selbst löscht
