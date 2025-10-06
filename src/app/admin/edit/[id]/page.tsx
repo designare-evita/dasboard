@@ -3,8 +3,6 @@ import EditUserForm from './EditUserForm';
 import type { User } from '@/types';
 import { headers } from 'next/headers';
 
-
-// Hilfsfunktion: Origin zur Laufzeit ermitteln (funktioniert lokal & auf Vercel)
 async function getBaseUrl() {
   const h = await headers();
   const proto = h.get('x-forwarded-proto') ?? 'http';
@@ -15,11 +13,7 @@ async function getBaseUrl() {
 async function getUser(id: string): Promise<Partial<User> | null> {
   try {
     const baseUrl = await getBaseUrl();
-    const res = await fetch(`${baseUrl}/api/users/${id}`, {
-      method: 'GET',
-      cache: 'no-store',
-      headers: { 'Content-Type': 'application/json' },
-    });
+    const res = await fetch(`${baseUrl}/api/users/${id}`, { method: 'GET', cache: 'no-store' });
     if (!res.ok) return null;
     return await res.json();
   } catch {
@@ -27,13 +21,12 @@ async function getUser(id: string): Promise<Partial<User> | null> {
   }
 }
 
-// ⚠️ Kein lokaler Typname "PageProps" – direkt inline typisieren
-export default async function EditUserPage({
-  params,
-}: {
-  params: { id: string };
-}) {
-  const { id } = params;
+// ⚠️ Workaround: props als any, params robust ermitteln (Promise ODER Objekt)
+export default async function EditUserPage(props: any) {
+  const raw = props?.params;
+  const params = (raw && typeof raw.then === 'function') ? await raw : raw;
+  const { id } = params as { id: string };
+
   const user = await getUser(id);
 
   return (
@@ -45,10 +38,7 @@ export default async function EditUserPage({
             <div className="p-8 text-center bg-white rounded-lg shadow-md">
               <h2 className="text-xl font-bold text-red-600">Benutzer nicht gefunden</h2>
               <p className="mt-2 text-gray-600">Bitte zurück zur Übersicht.</p>
-              <a
-                href="/admin"
-                className="mt-4 inline-block bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700"
-              >
+              <a href="/admin" className="mt-4 inline-block bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700">
                 Zurück zur Übersicht
               </a>
             </div>
