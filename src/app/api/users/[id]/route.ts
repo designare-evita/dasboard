@@ -7,7 +7,7 @@ import { User } from '@/types';
 // Holt die Daten für einen einzelnen Benutzer (wird für das Bearbeiten-Formular benötigt)
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
-  // @ts-expect-error
+  // @ts-expect-error 'role' ist eine benutzerdefinierte Eigenschaft des Session-Benutzers
   if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
     return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
   }
@@ -29,7 +29,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
 // Aktualisiert die Daten eines Benutzers
 export async function PUT(request: Request, { params }: { params: { id: string } }) {
     const session = await getServerSession(authOptions);
-    // @ts-expect-error
+    // @ts-expect-error 'role' ist eine benutzerdefinierte Eigenschaft des Session-Benutzers
     if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
         return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
     }
@@ -57,7 +57,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
 // Löscht einen Benutzer
 export async function DELETE(request: Request, { params }: { params: { id: string } }) {
     const session = await getServerSession(authOptions);
-    // @ts-expect-error
+    // @ts-expect-error 'role' ist eine benutzerdefinierte Eigenschaft des Session-Benutzers
     if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
         return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
     }
