@@ -2,79 +2,56 @@ import { NextResponse } from 'next/server';
 import { sql } from '@vercel/postgres';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import bcrypt from 'bcryptjs';
 import { User } from '@/types';
 
-// Holt die Daten für einen einzelnen Benutzer (wird für das Bearbeiten-Formular benötigt)
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+// Holt alle Benutzer (für die Admin-Übersicht)
+export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
   // @ts-expect-error 'role' ist eine benutzerdefinierte Eigenschaft des Session-Benutzers
   if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
     return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
   }
 
-  const { id } = params;
-
   try {
-    const data = await sql<User>`SELECT id, email, domain, gsc_site_url, ga4_property_id FROM users WHERE id = ${id}`;
-    if (data.rows.length === 0) {
-      return NextResponse.json({ message: 'Benutzer nicht gefunden' }, { status: 404 });
-    }
-    return NextResponse.json(data.rows[0]);
+    const { rows } = await sql<User>`SELECT id, email, domain FROM users WHERE role = 'BENUTZER'`;
+    return NextResponse.json(rows);
   } catch (error) {
-    console.error('Fehler beim Abrufen des Benutzers:', error);
-    return NextResponse.json({ message: 'Fehler beim Abrufen des Benutzers' }, { status: 500 });
+    console.error('Fehler beim Abrufen der Benutzer:', error);
+    return NextResponse.json({ message: 'Fehler beim Abrufen der Benutzer' }, { status: 500 });
   }
 }
 
-// Aktualisiert die Daten eines Benutzers
-export async function PUT(request: Request, { params }: { params: { id: string } }) {
-    const session = await getServerSession(authOptions);
-    // @ts-expect-error 'role' ist eine benutzerdefinierte Eigenschaft des Session-Benutzers
-    if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
-        return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
+// Erstellt einen neuen Benutzer (Kunden)
+export async function POST(request: Request) {
+  const session = await getServerSession(authOptions);
+  // @ts-expect-error 'role' ist eine benutzerdefinierte Eigenschaft des Session-Benutzers
+  if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
+      return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
+  }
+  
+  try {
+      const { email, password, domain, gsc_site_url, ga4_property_id } = await request.json();
+
+      if (!email || !password || !domain || !gsc_site_url || !ga4_property_id) {
+          return NextResponse.json({ message: 'Alle Felder sind erforderlich' }, { status: 400 });
+      }
+
+      const hashedPassword = await bcrypt.hash(password, 10);
+      
+      await sql`
+          INSERT INTO users (email, password, role, domain, gsc_site_url, ga4_property_id)
+          VALUES (${email.toLowerCase()}, ${hashedPassword}, 'BENUTZER', ${domain}, ${gsc_site_url}, ${ga4_property_id})
+      `;
+      
+      return NextResponse.json({ message: 'Benutzer erfolgreich erstellt' }, { status: 201 });
+
+  } catch (error: any) {
+    // Fehlerbehandlung für doppelte E-Mail-Adressen
+    if (error.code === '23505') { // 'unique_violation' in Postgres
+        return NextResponse.json({ message: 'Ein Benutzer mit dieser E-Mail-Adresse existiert bereits.' }, { status: 409 });
     }
-
-    const { id } = params;
-    const { email, domain, gsc_site_url, ga4_property_id } = await request.json();
-
-    if (!email || !domain || !gsc_site_url || !ga4_property_id) {
-        return NextResponse.json({ message: 'Alle Felder sind erforderlich' }, { status: 400 });
-    }
-
-    try {
-        await sql`
-            UPDATE users
-            SET email = ${email.toLowerCase()}, domain = ${domain}, gsc_site_url = ${gsc_site_url}, ga4_property_id = ${ga4_property_id}
-            WHERE id = ${id}
-        `;
-        return NextResponse.json({ message: 'Benutzer erfolgreich aktualisiert' });
-    } catch (error) {
-        console.error('Fehler beim Aktualisieren des Benutzers:', error);
-        return NextResponse.json({ message: 'Fehler beim Aktualisieren des Benutzers' }, { status: 500 });
-    }
-}
-
-// Löscht einen Benutzer
-export async function DELETE(request: Request, { params }: { params: { id: string } }) {
-    const session = await getServerSession(authOptions);
-    // @ts-expect-error 'role' ist eine benutzerdefinierte Eigenschaft des Session-Benutzers
-    if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
-        return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
-    }
-
-    const { id } = params;
-
-    try {
-        // Sicherheitsprüfung: Verhindert, dass sich ein Admin selbst löscht
-        const userToDelete = await sql`SELECT id, email FROM users WHERE id = ${id}`;
-        if (userToDelete.rows[0]?.email === session.user.email) {
-            return NextResponse.json({ message: 'Sie können sich nicht selbst löschen.' }, { status: 403 });
-        }
-
-        await sql`DELETE FROM users WHERE id = ${id}`;
-        return NextResponse.json({ message: 'Benutzer erfolgreich gelöscht' });
-    } catch (error) {
-        console.error('Fehler beim Löschen des Benutzers:', error);
-        return NextResponse.json({ message: 'Fehler beim Löschen des Benutzers' }, { status: 500 });
-    }
+    console.error('Fehler beim Erstellen des Benutzers:', error);
+    return NextResponse.json({ message: 'Interner Serverfehler' }, { status: 500 });
+  }
 }
