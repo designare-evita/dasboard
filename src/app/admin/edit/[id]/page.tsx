@@ -13,19 +13,27 @@ async function getBaseUrl() {
 async function getUser(id: string): Promise<Partial<User> | null> {
   try {
     const baseUrl = await getBaseUrl();
-    const res = await fetch(`${baseUrl}/api/users/${id}`, { method: 'GET', cache: 'no-store' });
+    const res = await fetch(`${baseUrl}/api/users/${id}`, {
+      method: 'GET',
+      cache: 'no-store',
+    });
     if (!res.ok) return null;
-    return await res.json();
+    return res.json();
   } catch {
     return null;
   }
 }
 
-// Workaround: props als any, params robust ermitteln (Promise ODER Objekt)
-export default async function EditUserPage(props: any) {
-  const raw = props?.params;
-  const params = (raw && typeof raw.then === 'function') ? await raw : raw;
-  const { id } = params as { id: string };
+// 👇 Kein 'any' mehr, sondern generischer Typschutz
+type Props =
+  | { params: { id: string } }
+  | { params: Promise<{ id: string }> };
+
+export default async function EditUserPage(props: Props) {
+  // params kann Promise oder Objekt sein:
+  const raw = props.params;
+  const params = raw instanceof Promise ? await raw : raw;
+  const { id } = params;
 
   const user = await getUser(id);
 
@@ -37,8 +45,10 @@ export default async function EditUserPage(props: any) {
           {!user ? (
             <div className="p-8 text-center bg-white rounded-lg shadow-md">
               <h2 className="text-xl font-bold text-red-600">Benutzer nicht gefunden</h2>
-              <p className="mt-2 text-gray-600">Bitte zurück zur Übersicht.</p>
-              <a href="/admin" className="mt-4 inline-block bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700">
+              <a
+                href="/admin"
+                className="mt-4 inline-block bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700"
+              >
                 Zurück zur Übersicht
               </a>
             </div>
