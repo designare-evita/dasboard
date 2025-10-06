@@ -1,53 +1,44 @@
+// @/app/admin/users/[id]/edit/page.tsx
+
 import Header from '@/components/layout/Header';
 import EditUserForm from './EditUserForm';
 import type { User } from '@/types';
-import { headers } from 'next/headers';
 
-// ✅ RICHTIGEN PageProps-Typ EXPLIZIT EXPORTIEREN
+// ✅ Der PageProps-Typ bleibt unverändert
 export type PageProps = { params: { id: string } };
 
-async function getBaseUrl() {
-  const h = await headers();
-  const proto = h.get('x-forwarded-proto') ?? 'http';
-  const host = h.get('x-forwarded-host') ?? h.get('host') ?? 'localhost:3000';
-  return `${proto}://${host}`;
-}
+// HINZUGEFÜGT: Ein Platzhalter-Benutzerobjekt
+// Dieses Objekt simuliert die Daten, die normalerweise von der API kommen würden.
+// Du kannst die Werte hier anpassen, um verschiedene Szenarien zu testen.
+const mockUser: Partial<User> = {
+  email: 'test@beispiel.com',
+  name: 'Max Mustermann',
+  // Füge hier weitere Benutzereigenschaften hinzu, die dein Formular benötigt
+};
 
-async function getUser(id: string): Promise<Partial<User> | null> {
-  try {
-    const baseUrl = await getBaseUrl();
-    const res = await fetch(`${baseUrl}/api/users/${id}`, { method: 'GET', cache: 'no-store' });
-    if (!res.ok) return null;
-    return await res.json();
-  } catch {
-    return null;
-  }
-}
-
-export default async function EditUserPage({ params }: PageProps) {
+// Die Komponente ist nicht mehr "async", da wir nicht auf eine Datenabfrage warten.
+export default function EditUserPage({ params }: PageProps) {
   const { id } = params;
-  const user = await getUser(id);
+  
+  // Wir verwenden direkt unser Platzhalter-Objekt anstatt "await getUser(id)".
+  const user = mockUser;
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-2xl mx-auto">
         <Header />
         <main className="mt-6">
-          {!user ? (
-            <div className="p-8 text-center bg-white rounded-lg shadow-md">
-              <h2 className="text-xl font-bold text-red-600">Benutzer nicht gefunden</h2>
-              <a href="/admin" className="mt-4 inline-block bg-blue-600 text-white py-2 px-4 rounded-md">
-                Zurück zur Übersicht
-              </a>
-            </div>
-          ) : (
-            <div className="bg-white p-8 rounded-lg shadow-md">
-              <h2 className="text-2xl font-bold mb-6">
-                Benutzer <span className="text-indigo-600">{user.email}</span> bearbeiten
-              </h2>
-              <EditUserForm id={id} user={user} />
-            </div>
-          )}
+          {/* Die Logik zur Anzeige des Formulars bleibt fast gleich.
+            Anstatt zu prüfen, ob der Benutzer nicht gefunden wurde, zeigen wir
+            das Formular direkt mit den Platzhalterdaten an.
+          */}
+          <div className="bg-white p-8 rounded-lg shadow-md">
+            <h2 className="text-2xl font-bold mb-6">
+              Benutzer <span className="text-indigo-600">{user.email}</span> bearbeiten
+            </h2>
+            {/* Das Formular erhält den Platzhalter-Benutzer als Prop */}
+            <EditUserForm id={id} user={user} />
+          </div>
         </main>
       </div>
     </div>
