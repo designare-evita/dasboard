@@ -6,15 +6,13 @@ import Header from '@/components/layout/Header';
 import { User } from '@/types';
 import Link from 'next/link';
 
-// Definieren Sie einen klaren, spezifischen Typ für die Props dieser Seite.
-type EditUserPageProps = {
-  params: {
-    id: string;
-  };
+// Dies ist die standardmäßige und korrekte Methode, um die Props
+// für eine dynamische Seite im Next.js App Router zu typisieren.
+type PageProps = {
+  params: { id: string };
 };
 
-// Verwenden Sie diesen Typ für die Props der Komponente.
-export default function EditUserPage({ params }: EditUserPageProps) {
+export default function EditUserPage({ params }: PageProps) {
   const router = useRouter();
   const { id } = params;
   const [user, setUser] = useState<Partial<User> | null>(null);
@@ -73,7 +71,6 @@ export default function EditUserPage({ params }: EditUserPageProps) {
     }
   };
   
-  // Rendert das Seitenlayout
   const PageWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-2xl mx-auto">
