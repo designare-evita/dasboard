@@ -3,6 +3,9 @@ import EditUserForm from './EditUserForm';
 import type { User } from '@/types';
 import { headers } from 'next/headers';
 
+// ✅ RICHTIGEN PageProps-Typ EXPLIZIT EXPORTIEREN
+export type PageProps = { params: { id: string } };
+
 async function getBaseUrl() {
   const h = await headers();
   const proto = h.get('x-forwarded-proto') ?? 'http';
@@ -13,28 +16,16 @@ async function getBaseUrl() {
 async function getUser(id: string): Promise<Partial<User> | null> {
   try {
     const baseUrl = await getBaseUrl();
-    const res = await fetch(`${baseUrl}/api/users/${id}`, {
-      method: 'GET',
-      cache: 'no-store',
-    });
+    const res = await fetch(`${baseUrl}/api/users/${id}`, { method: 'GET', cache: 'no-store' });
     if (!res.ok) return null;
-    return res.json();
+    return await res.json();
   } catch {
     return null;
   }
 }
 
-// 👇 Kein 'any' mehr, sondern generischer Typschutz
-type Props =
-  | { params: { id: string } }
-  | { params: Promise<{ id: string }> };
-
-export default async function EditUserPage(props: Props) {
-  // params kann Promise oder Objekt sein:
-  const raw = props.params;
-  const params = raw instanceof Promise ? await raw : raw;
+export default async function EditUserPage({ params }: PageProps) {
   const { id } = params;
-
   const user = await getUser(id);
 
   return (
@@ -45,10 +36,7 @@ export default async function EditUserPage(props: Props) {
           {!user ? (
             <div className="p-8 text-center bg-white rounded-lg shadow-md">
               <h2 className="text-xl font-bold text-red-600">Benutzer nicht gefunden</h2>
-              <a
-                href="/admin"
-                className="mt-4 inline-block bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700"
-              >
+              <a href="/admin" className="mt-4 inline-block bg-blue-600 text-white py-2 px-4 rounded-md">
                 Zurück zur Übersicht
               </a>
             </div>
