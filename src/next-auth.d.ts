@@ -1,5 +1,3 @@
-// src/next-auth.d.ts
-
 import { DefaultSession, DefaultUser } from "next-auth";
 import { JWT, DefaultJWT } from "next-auth/jwt";
 import { User as CustomUser } from "./types";
@@ -23,3 +21,5 @@ declare module "next-auth/jwt" {
     role: CustomUser['role'];
   }
 }
+
+
