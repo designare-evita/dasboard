@@ -1,12 +1,22 @@
 import Header from '@/components/layout/Header';
 import EditUserForm from './EditUserForm';
 import type { User } from '@/types';
+import { headers } from 'next/headers';
 
-type Props = { params: { id: string } };
+// 🛡️ KEIN 'use client' HIER!
+
+// Hilfsfunktion: Origin zur Laufzeit ermitteln (funktioniert lokal & auf Vercel)
+async function getBaseUrl() {
+  const h = await headers();
+  const proto = h.get('x-forwarded-proto') ?? 'http';
+  const host = h.get('x-forwarded-host') ?? h.get('host') ?? 'localhost:3000';
+  return `${proto}://${host}`;
+}
 
 async function getUser(id: string): Promise<Partial<User> | null> {
   try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/users/${id}`, {
+    const baseUrl = await getBaseUrl();
+    const res = await fetch(`${baseUrl}/api/users/${id}`, {
       method: 'GET',
       cache: 'no-store',
       headers: { 'Content-Type': 'application/json' },
@@ -18,7 +28,12 @@ async function getUser(id: string): Promise<Partial<User> | null> {
   }
 }
 
-export default async function EditUserPage({ params }: Props) {
+// ⚠️ Kein lokaler Typname "PageProps" – direkt inline typisieren
+export default async function EditUserPage({
+  params,
+}: {
+  params: { id: string };
+}) {
   const { id } = params;
   const user = await getUser(id);
 
@@ -43,7 +58,6 @@ export default async function EditUserPage({ params }: Props) {
               <h2 className="text-2xl font-bold mb-6">
                 Benutzer <span className="text-indigo-600">{user.email}</span> bearbeiten
               </h2>
-              {/* Client-Form übernimmt State/Submit */}
               <EditUserForm id={id} user={user} />
             </div>
           )}
