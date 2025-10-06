@@ -1,14 +1,43 @@
-// src/app/api/users/route.ts
 import { NextResponse } from 'next/server';
 import { sql } from '@vercel/postgres';
 import bcrypt from 'bcryptjs';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { User } from '@/types';
 
+// NEU: GET-Funktion zum Abrufen der Benutzerliste
+export async function GET() {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
+    return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
+  }
+
+  try {
+    let users;
+    if (session.user.role === 'SUPERADMIN') {
+      // Super-Admin sieht alle Benutzer mit der Rolle 'BENUTZER'
+      console.log('Abrufen aller Kunden für Super-Admin');
+      const data = await sql<User>`SELECT id, email, domain, role, "createdAt" FROM users WHERE role = 'BENUTZER' ORDER BY "createdAt" DESC`;
+      users = data.rows;
+    } else {
+      // Normaler Admin sieht nur die Kunden, die er selbst erstellt hat
+      console.log(`Abrufen der Kunden für Admin ID: ${session.user.id}`);
+      const data = await sql<User>`SELECT id, email, domain, role, "createdAt" FROM users WHERE "createdByAdminId" = ${session.user.id} ORDER BY "createdAt" DESC`;
+      users = data.rows;
+    }
+    return NextResponse.json(users);
+  } catch (error) {
+    console.error('Fehler beim Abrufen der Benutzerliste:', error);
+    return NextResponse.json({ message: 'Fehler beim Abrufen der Benutzerliste' }, { status: 500 });
+  }
+}
+
+
+// Bestehende POST-Funktion zum Erstellen von Benutzern
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
 
-  // Der '@ts-ignore'-Kommentar wurde hier entfernt
   if (session?.user?.role !== 'ADMIN' && session?.user?.role !== 'SUPERADMIN') {
     return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
   }
@@ -21,8 +50,6 @@ export async function POST(request: Request) {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    
-    // Der '@ts-ignore'-Kommentar wurde hier entfernt
     const adminId = session.user.id; 
 
     await sql`
@@ -33,10 +60,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: 'Benutzer erfolgreich erstellt' }, { status: 201 });
   } catch (error) {
     console.error('Fehler beim Erstellen des Benutzers:', error);
-    // Geben Sie eine spezifischere Fehlermeldung bei doppelten E-Mails zurück
     if (error instanceof Error && error.message.includes('duplicate key value violates unique constraint "users_email_key"')) {
       return NextResponse.json({ message: 'Ein Benutzer mit dieser E-Mail-Adresse existiert bereits.' }, { status: 409 });
     }
     return NextResponse.json({ message: 'Fehler beim Erstellen des Benutzers' }, { status: 500 });
   }
 }
+
