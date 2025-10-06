@@ -21,7 +21,7 @@ async function getUser(id: string): Promise<Partial<User> | null> {
   }
 }
 
-// ⚠️ Workaround: props als any, params robust ermitteln (Promise ODER Objekt)
+// Workaround: props als any, params robust ermitteln (Promise ODER Objekt)
 export default async function EditUserPage(props: any) {
   const raw = props?.params;
   const params = (raw && typeof raw.then === 'function') ? await raw : raw;
