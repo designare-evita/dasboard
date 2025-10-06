@@ -3,7 +3,6 @@ import EditUserForm from './EditUserForm';
 import type { User } from '@/types';
 import { headers } from 'next/headers';
 
-// 🛡️ KEIN 'use client' HIER!
 
 // Hilfsfunktion: Origin zur Laufzeit ermitteln (funktioniert lokal & auf Vercel)
 async function getBaseUrl() {
