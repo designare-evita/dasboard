@@ -2,14 +2,10 @@ import Header from '@/components/layout/Header';
 import EditUserForm from './EditUserForm';
 import type { User } from '@/types';
 
-type PageProps = {
-  params: { id: string };
-};
+type Props = { params: { id: string } };
 
 async function getUser(id: string): Promise<Partial<User> | null> {
   try {
-    // Wenn Sie keine öffentliche BASE_URL nutzen möchten, können Sie
-    // stattdessen server actions / direkte DB-Queries verwenden.
     const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/users/${id}`, {
       method: 'GET',
       cache: 'no-store',
@@ -22,7 +18,7 @@ async function getUser(id: string): Promise<Partial<User> | null> {
   }
 }
 
-export default async function EditUserPage({ params }: PageProps) {
+export default async function EditUserPage({ params }: Props) {
   const { id } = params;
   const user = await getUser(id);
 
@@ -47,6 +43,7 @@ export default async function EditUserPage({ params }: PageProps) {
               <h2 className="text-2xl font-bold mb-6">
                 Benutzer <span className="text-indigo-600">{user.email}</span> bearbeiten
               </h2>
+              {/* Client-Form übernimmt State/Submit */}
               <EditUserForm id={id} user={user} />
             </div>
           )}
