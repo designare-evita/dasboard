@@ -60,14 +60,14 @@ export const authOptions: NextAuthOptions = {
   },
   callbacks: {
     // JWT mit Benutzerdaten anreichern
-    async jwt({ token, user }) {
-      if (user) {
-        token.id = user.id;
-        // @ts-ignore
-        token.role = user.role;
-      }
-      return token;
-    },
+  async jwt({ token, user }) {
+  if (user) {
+    token.id = user.id;
+    // @ts-expect-error - Das User-Objekt vom authorize-Callback hat eine 'role'-Eigenschaft
+    token.role = user.role;
+  }
+  return token;
+},
     // Session mit den Daten aus dem JWT anreichern
     async session({ session, token }) {
       if (session.user) {
