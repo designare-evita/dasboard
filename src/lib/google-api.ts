@@ -34,7 +34,6 @@ export async function getSearchConsoleData(
   siteUrl: string,
   startDate: string,
   endDate: string
-  // HIER IST DIE KORREKTUR: Der Bindestrich wurde entfernt
 ): Promise<Pick<DateRangeData, 'clicks' | 'impressions'>> {
   const auth = createAuth();
   const searchconsole = google.searchconsole({ version: 'v1', auth });
@@ -50,9 +49,10 @@ export async function getSearchConsoleData(
       clicks: rows?.[0]?.clicks ?? 0,
       impressions: rows?.[0]?.impressions ?? 0,
     };
-  } catch (error: any) {
+  } catch (error: unknown) { // CORRECTED: 'any' replaced with 'unknown'
     console.error('Detaillierter Fehler von der Search Console API:', JSON.stringify(error, null, 2));
-    throw new Error(`Search Console API-Abfrage fehlgeschlagen: ${error.message}`);
+    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+    throw new Error(`Search Console API-Abfrage fehlgeschlagen: ${errorMessage}`);
   }
 }
 
@@ -60,7 +60,6 @@ export async function getAnalyticsData(
   propertyId: string,
   startDate: string,
   endDate: string
-  // HIER IST DIE KORREKTUR: Der Bindestrich wurde entfernt
 ): Promise<Pick<DateRangeData, 'sessions' | 'totalUsers'>> {
   const auth = createAuth();
   const analytics = google.analyticsdata({ version: 'v1beta', auth });
@@ -79,8 +78,9 @@ export async function getAnalyticsData(
       sessions: parseInt(rows?.[0]?.metricValues?.[0]?.value ?? '0', 10),
       totalUsers: parseInt(rows?.[0]?.metricValues?.[1]?.value ?? '0', 10),
     };
-  } catch (error: any) {
+  } catch (error: unknown) { // CORRECTED: 'any' replaced with 'unknown'
     console.error('Detaillierter Fehler von der Analytics API:', JSON.stringify(error, null, 2));
-    throw new Error(`Analytics API-Abfrage fehlgeschlagen: ${error.message}`);
+    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+    throw new Error(`Analytics API-Abfrage fehlgeschlagen: ${errorMessage}`);
   }
 }
