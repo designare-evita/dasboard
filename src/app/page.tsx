@@ -3,7 +3,6 @@
 
 import { useSession } from "next-auth/react";
 import useApiData from "@/hooks/use-api-data";
-import Header from "@/components/layout/Header";
 import KpiCard from "@/components/kpi-card";
 import Link from "next/link";
 
@@ -30,7 +29,6 @@ export default function DashboardPage() {
 
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
-      <Header />
       <main className="mt-6">
         {error && <div className="p-6 text-center bg-red-100 rounded-lg text-red-700">{error}</div>}
 
