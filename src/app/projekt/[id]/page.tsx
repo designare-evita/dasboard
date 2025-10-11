@@ -3,7 +3,6 @@
 
 import { useSession } from "next-auth/react";
 import useApiData from "@/hooks/use-api-data";
-import Header from "@/components/layout/Header";
 import KpiCard from "@/components/kpi-card";
 import Link from "next/link";
 import { useParams } from 'next/navigation'; // Hook, um die ID aus der URL zu lesen
@@ -29,7 +28,6 @@ export default function ProjektDetailPage() {
 
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
-      <Header />
       <main className="mt-6">
         <div className="mb-6">
             <Link href="/" className="text-blue-600 hover:underline">
