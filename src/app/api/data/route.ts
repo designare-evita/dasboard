@@ -3,7 +3,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-// HIER IST DIE KORREKTUR: getGa4Data -> getAnalyticsData
+// KORREKTUR: Der Import heißt 'getAnalyticsData'
 import { getSearchConsoleData, getAnalyticsData } from '@/lib/google-api'; 
 import { sql } from '@vercel/postgres';
 import { User } from '@/types';
@@ -59,7 +59,7 @@ export async function GET() {
     ] = await Promise.all([
       getSearchConsoleData(userData.gsc_site_url, formatDate(startDateCurrent), formatDate(endDateCurrent)),
       getSearchConsoleData(userData.gsc_site_url, formatDate(startDatePrevious), formatDate(endDatePrevious)),
-      // HIER IST DIE KORREKTUR: getGa4Data -> getAnalyticsData
+      // KORREKTUR: Der Funktionsaufruf heißt 'getAnalyticsData'
       getAnalyticsData(userData.ga4_property_id, formatDate(startDateCurrent), formatDate(endDateCurrent)),
       getAnalyticsData(userData.ga4_property_id, formatDate(startDatePrevious), formatDate(endDatePrevious))
     ]);
