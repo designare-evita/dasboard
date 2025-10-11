@@ -15,6 +15,44 @@ function calculateChange(current: number, previous: number): number {
     return Math.round(change * 10) / 10;
 }
 
+// Neue, saubere Funktion, um die KPI-Daten für EINEN Benutzer abzurufen
+async function getDashboardDataForUser(user: Partial<User>) {
+    if (!user.gsc_site_url || !user.ga4_property_id) {
+        // Dies ist kein Fehler, sondern bedeutet nur, dass für diesen User nichts konfiguriert ist.
+        return null;
+    }
+
+    const today = new Date();
+    const endDateCurrent = new Date(today);
+    endDateCurrent.setDate(endDateCurrent.getDate() - 1);
+    const startDateCurrent = new Date(endDateCurrent);
+    startDateCurrent.setDate(startDateCurrent.getDate() - 29);
+
+    const endDatePrevious = new Date(startDateCurrent);
+    endDatePrevious.setDate(endDatePrevious.getDate() - 1);
+    const startDatePrevious = new Date(endDatePrevious);
+    startDatePrevious.setDate(startDatePrevious.getDate() - 29);
+
+    const [gscCurrent, gscPrevious, gaCurrent, gaPrevious] = await Promise.all([
+        getSearchConsoleData(user.gsc_site_url, formatDate(startDateCurrent), formatDate(endDateCurrent)),
+        getSearchConsoleData(user.gsc_site_url, formatDate(startDatePrevious), formatDate(endDatePrevious)),
+        getAnalyticsData(user.ga4_property_id, formatDate(startDateCurrent), formatDate(endDateCurrent)),
+        getAnalyticsData(user.ga4_property_id, formatDate(startDatePrevious), formatDate(endDatePrevious))
+    ]);
+    
+    return {
+        searchConsole: {
+            clicks: { value: gscCurrent.clicks ?? 0, change: calculateChange(gscCurrent.clicks ?? 0, gscPrevious.clicks ?? 0) },
+            impressions: { value: gscCurrent.impressions ?? 0, change: calculateChange(gscCurrent.impressions ?? 0, gscPrevious.impressions ?? 0) },
+        },
+        analytics: {
+            sessions: { value: gaCurrent.sessions ?? 0, change: calculateChange(gaCurrent.sessions ?? 0, gaPrevious.sessions ?? 0) },
+            totalUsers: { value: gaCurrent.totalUsers ?? 0, change: calculateChange(gaCurrent.totalUsers ?? 0, gaPrevious.totalUsers ?? 0) },
+        },
+    };
+}
+
+
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) {
@@ -22,52 +60,42 @@ export async function GET() {
   }
 
   try {
-    let usersToFetch: Partial<User>[] = [];
+    const { role, id } = session.user;
 
-    // *** HIER IST DIE NEUE LOGIK FÜR DIE ROLLEN ***
-    if (session.user.role === 'SUPERADMIN') {
-      // Super Admin: Alle Kunden (Rolle 'USER') abrufen
-      const { rows } = await sql<User>`
-        SELECT id, email, domain, gsc_site_url, ga4_property_id 
-        FROM users 
-        WHERE role = 'USER'
+    // Fall 1: Super Admin
+    if (role === 'SUPERADMIN') {
+      const { rows: projects } = await sql<User>`
+        SELECT id, email, domain FROM users WHERE role = 'USER'
       `;
-      usersToFetch = rows;
-
-    } else {
-      // Normaler Benutzer (oder Admin ohne zugewiesene Kunden, für den Moment)
-      const { rows } = await sql<User>`
-        SELECT gsc_site_url, ga4_property_id, email, domain
-        FROM users 
-        WHERE email = ${session.user.email}
-      `;
-      usersToFetch = rows;
+      return NextResponse.json(projects);
     }
 
-    // Wenn keine Benutzer/Projekte gefunden wurden, eine leere Liste zurückgeben
-    if (usersToFetch.length === 0) {
-      return NextResponse.json([]);
+    // Fall 2: Admin
+    if (role === 'ADMIN') {
+        const { rows: projects } = await sql<User>`
+            SELECT id, email, domain FROM users WHERE role = 'USER' AND created_by = ${id}
+        `;
+        return NextResponse.json(projects);
     }
     
-    // Wenn es nur einen Benutzer gibt (Normalfall für Kunden), nur dessen Daten laden
-    if (usersToFetch.length === 1 && session.user.role !== 'SUPERADMIN') {
-        const user = usersToFetch[0];
-        if (!user.gsc_site_url || !user.ga4_property_id) {
-             return NextResponse.json({ message: 'Google-Properties nicht konfiguriert.' }, { status: 404 });
+    // Fall 3: Kunde (USER)
+    if (role === 'USER') {
+        const { rows } = await sql<User>`
+            SELECT gsc_site_url, ga4_property_id FROM users WHERE id = ${id}
+        `;
+        const user = rows[0];
+        if (!user) {
+            return NextResponse.json({ message: 'Benutzer nicht gefunden.' }, { status: 404 });
         }
-        // ... (Logik zum Abrufen der Daten für einen einzelnen Benutzer bleibt gleich)
-        // ... (Code aus Platzgründen gekürzt, die Logik ist dieselbe)
-        return NextResponse.json({ /* ... Datenobjekt ... */ });
+        const dashboardData = await getDashboardDataForUser(user);
+        if (!dashboardData) {
+            return NextResponse.json({ message: 'Für diesen Benutzer sind keine Google-Properties konfiguriert.' }, { status: 404 });
+        }
+        return NextResponse.json(dashboardData);
     }
 
-    // Für Super Admin: Eine Liste aller Projekte mit minimalen Daten zurückgeben
-    const projects = usersToFetch.map(user => ({
-      id: user.id,
-      email: user.email,
-      domain: user.domain,
-    }));
-
-    return NextResponse.json(projects);
+    // Fallback, falls die Rolle unbekannt ist
+    return NextResponse.json({ message: 'Unbekannte Benutzerrolle.' }, { status: 403 });
 
   } catch (error) {
     console.error('Fehler in der /api/data Route:', error);
