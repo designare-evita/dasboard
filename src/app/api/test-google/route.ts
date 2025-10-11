@@ -1,33 +1,39 @@
+// src/app/api/test-google/route.ts
+
 import { NextResponse } from 'next/server';
-import { getSearchConsoleData, getGa4Data } from '@/lib/google-api';
+// HIER IST DIE KORREKTUR: getGa4Data -> getAnalyticsData
+import { getSearchConsoleData, getAnalyticsData } from '@/lib/google-api';
 
 export async function GET() {
   try {
-    // --- BITTE HIER IHRE TESTDATEN EINTRAGEN ---
-    const testSiteUrl = 'https://max-online.at/';  // Wichtig: Für Domain-Properties 'sc-domain:' voranstellen
-    const testGa4PropertyId = 'properties/314388177'; // Ersetzen Sie dies mit der echten ID Ihrer GA4-Testproperty
-    // -----------------------------------------
+    // Harte Test-Daten (ersetze diese bei Bedarf mit echten Werten)
+    const TEST_SITE_URL = 'https://max-online.at/'; // Ersetze dies mit einer echten GSC-URL
+    const TEST_GA4_PROPERTY_ID = 'properties/314388177'; // Ersetze dies mit einer echten GA4 Property ID
 
-    console.log(`Starte Test für GSC: ${testSiteUrl}`);
-    const gscData = await getSearchConsoleData(testSiteUrl);
-    console.log('GSC Daten erfolgreich abgerufen.');
+    // Daten für die letzten 30 Tage abrufen
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(endDate.getDate() - 30);
+    
+    const formattedStartDate = startDate.toISOString().split('T')[0];
+    const formattedEndDate = endDate.toISOString().split('T')[0];
 
-    console.log(`Starte Test für GA4: ${testGa4PropertyId}`);
-    const ga4Data = await getGa4Data(testGa4PropertyId);
-    console.log('GA4 Daten erfolgreich abgerufen.');
+    const [gscData, ga4Data] = await Promise.all([
+      getSearchConsoleData(TEST_SITE_URL, formattedStartDate, formattedEndDate),
+      // HIER IST DIE KORREKTUR: getGa4Data -> getAnalyticsData
+      getAnalyticsData(TEST_GA4_PROPERTY_ID, formattedStartDate, formattedEndDate)
+    ]);
 
     return NextResponse.json({
-      message: 'Test erfolgreich!',
-      searchConsoleData: gscData,
-      ga4Data: ga4Data,
+      message: 'Google API Test erfolgreich!',
+      searchConsole: gscData,
+      analytics: ga4Data,
     });
 
   } catch (error) {
-    console.error('Ein Fehler ist beim Test aufgetreten:', error);
-    // Wir schicken den Fehler auch an das Frontend, um ihn im Browser zu sehen
-    return NextResponse.json(
-      { message: 'Test fehlgeschlagen!', error: (error as Error).message },
-      { status: 500 }
-    );
+    console.error('Fehler in der Google API Test-Route:', error);
+    // Gib eine detailliertere Fehlermeldung im JSON-Format zurück
+    const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
+    return NextResponse.json({ message: 'Fehler beim Testen der Google API', error: errorMessage }, { status: 500 });
   }
 }
