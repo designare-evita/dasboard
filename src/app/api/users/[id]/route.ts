@@ -6,14 +6,21 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { User } from '@/types';
 
+// Der zweite Parameter ist ein Kontextobjekt, das die Parameter enthält.
+type RouteContext = {
+  params: {
+    id: string;
+  };
+};
+
 // Holt die Daten für einen einzelnen Benutzer
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+export async function GET(request: Request, context: RouteContext) {
   const session = await getServerSession(authOptions);
   if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
     return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
   }
 
-  const { id } = params;
+  const { id } = context.params; // ID aus context.params holen
 
   try {
     const { rows } = await sql<User>`
@@ -32,13 +39,13 @@ export async function GET(request: Request, { params }: { params: { id: string }
 }
 
 // Aktualisiert die Daten eines Benutzers
-export async function PUT(request: Request, { params }: { params: { id: string } }) {
+export async function PUT(request: Request, context: RouteContext) {
   const session = await getServerSession(authOptions);
   if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
     return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
   }
 
-  const { id } = params;
+  const { id } = context.params; // ID aus context.params holen
   const body = await request.json();
   const { email, domain, gsc_site_url, ga4_property_id } = body;
 
@@ -56,13 +63,13 @@ export async function PUT(request: Request, { params }: { params: { id: string }
 }
 
 // Löscht einen Benutzer
-export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(request: Request, context: RouteContext) {
   const session = await getServerSession(authOptions);
   if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
     return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
   }
 
-  const { id } = params;
+  const { id } = context.params; // ID aus context.params holen
 
   try {
     const userToDelete = await sql`SELECT email FROM users WHERE id = ${id}`;
