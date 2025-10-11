@@ -3,29 +3,26 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-// KORREKTUR: Der Import heißt 'getAnalyticsData'
-import { getSearchConsoleData, getAnalyticsData } from '@/lib/google-api'; 
+import { getSearchConsoleData, getAnalyticsData } from '@/lib/google-api';
 import { sql } from '@vercel/postgres';
 import { User } from '@/types';
 
-// Hilfsfunktion zur Datumsformatierung (YYYY-MM-DD)
+// ... (Hilfsfunktionen formatDate und calculateChange bleiben gleich)
 function formatDate(date: Date): string {
-  return date.toISOString().split('T')[0];
+    return date.toISOString().split('T')[0];
+}
+function calculateChange(current: number, previous: number): number {
+    if (previous === 0) return current > 0 ? 100 : 0;
+    const change = ((current - previous) / previous) * 100;
+    return Math.round(change * 10) / 10;
 }
 
-// Hilfsfunktion zur Berechnung der prozentualen Veränderung
-function calculateChange(current: number, previous: number): number {
-  if (previous === 0) {
-    return current > 0 ? 100 : 0;
-  }
-  const change = ((current - previous) / previous) * 100;
-  return Math.round(change * 10) / 10;
-}
 
 export async function GET() {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.email) {
-    return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
+  // Wir prüfen jetzt auf die Tokens in der Session
+  if (!session?.accessToken || !session?.refreshToken) {
+    return NextResponse.json({ message: 'Nicht autorisiert oder Tokens fehlen.' }, { status: 401 });
   }
 
   try {
@@ -37,19 +34,26 @@ export async function GET() {
     const userData = rows[0];
 
     if (!userData?.gsc_site_url || !userData?.ga4_property_id) {
-      return NextResponse.json({ message: 'Google-Properties nicht für diesen Benutzer konfiguriert.' }, { status: 404 });
+      return NextResponse.json({ message: 'Google-Properties nicht konfiguriert.' }, { status: 404 });
     }
+    
+    // Erstelle ein Token-Objekt für die API-Aufrufe
+    const userTokens = {
+        accessToken: session.accessToken,
+        refreshToken: session.refreshToken
+    };
 
+    // Zeiträume definieren (letzte 30 Tage vs. die 30 Tage davor)
     const today = new Date();
     const endDateCurrent = new Date(today);
-    endDateCurrent.setDate(endDateCurrent.getDate() - 1);
+    endDateCurrent.setDate(endDateCurrent.getDate() - 1); // Gestern
     const startDateCurrent = new Date(endDateCurrent);
-    startDateCurrent.setDate(startDateCurrent.getDate() - 29);
+    startDateCurrent.setDate(startDateCurrent.getDate() - 29); // 30 Tage zurück
 
     const endDatePrevious = new Date(startDateCurrent);
-    endDatePrevious.setDate(endDatePrevious.getDate() - 1);
+    endDatePrevious.setDate(endDatePrevious.getDate() - 1); // Der Tag vor dem aktuellen Zeitraum
     const startDatePrevious = new Date(endDatePrevious);
-    startDatePrevious.setDate(startDatePrevious.getDate() - 29);
+    startDatePrevious.setDate(startDatePrevious.getDate() - 29); // Weitere 30 Tage zurück
 
     const [
       gscCurrent,
@@ -57,11 +61,10 @@ export async function GET() {
       gaCurrent,
       gaPrevious
     ] = await Promise.all([
-      getSearchConsoleData(userData.gsc_site_url, formatDate(startDateCurrent), formatDate(endDateCurrent)),
-      getSearchConsoleData(userData.gsc_site_url, formatDate(startDatePrevious), formatDate(endDatePrevious)),
-      // KORREKTUR: Der Funktionsaufruf heißt 'getAnalyticsData'
-      getAnalyticsData(userData.ga4_property_id, formatDate(startDateCurrent), formatDate(endDateCurrent)),
-      getAnalyticsData(userData.ga4_property_id, formatDate(startDatePrevious), formatDate(endDatePrevious))
+      getSearchConsoleData(userData.gsc_site_url, formatDate(startDateCurrent), formatDate(endDateCurrent), userTokens),
+      getSearchConsoleData(userData.gsc_site_url, formatDate(startDatePrevious), formatDate(endDatePrevious), userTokens),
+      getAnalyticsData(userData.ga4_property_id, formatDate(startDateCurrent), formatDate(endDateCurrent), userTokens),
+      getAnalyticsData(userData.ga4_property_id, formatDate(startDatePrevious), formatDate(endDatePrevious), userTokens)
     ]);
 
     const data = {
@@ -91,6 +94,8 @@ export async function GET() {
 
   } catch (error) {
     console.error('Fehler in der /api/data Route:', error);
-    return NextResponse.json({ message: 'Interner Serverfehler beim Abrufen der Dashboard-Daten.' }, { status: 500 });
+    // Wir geben die spezifische Fehlermeldung der API weiter, falls vorhanden
+    const errorMessage = error instanceof Error ? error.message : 'Interner Serverfehler.';
+    return NextResponse.json({ message: `Fehler beim Abrufen der Dashboard-Daten: ${errorMessage}` }, { status: 500 });
   }
 }
