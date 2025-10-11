@@ -1,25 +1,33 @@
-import { DefaultSession, DefaultUser } from "next-auth";
-import { JWT, DefaultJWT } from "next-auth/jwt";
-import { User as CustomUser } from "./types";
+// src/next-auth.d.ts
 
-declare module "next-auth" {
+import 'next-auth';
+import { DefaultSession } from 'next-auth';
+
+declare module 'next-auth' {
+  /**
+   * Extends the built-in session type to include our custom properties.
+   */
   interface Session {
+    // These are the properties we are adding
+    accessToken?: string;
+    refreshToken?: string;
+
+    // This extends the existing user object
     user: {
-      id: string; // Stellt sicher, dass 'id' im Session-User-Objekt bekannt ist
-      role: CustomUser['role'];
-    } & DefaultSession["user"];
-  }
-
-  interface User extends DefaultUser {
-    role: CustomUser['role'];
+      id: string;
+      role: 'USER' | 'ADMIN' | 'SUPERADMIN';
+    } & DefaultSession['user'];
   }
 }
 
-declare module "next-auth/jwt" {
-  interface JWT extends DefaultJWT {
-    id: string; // Stellt sicher, dass 'id' im JWT-Token bekannt ist
-    role: CustomUser['role'];
+declare module 'next-auth/jwt' {
+  /**
+   * Extends the built-in JWT type.
+   */
+  interface JWT {
+    id: string;
+    accessToken?: string;
+    refreshToken?: string;
+    role: 'USER' | 'ADMIN' | 'SUPERADMIN';
   }
 }
-
-
