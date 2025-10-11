@@ -3,12 +3,12 @@
 
 import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
-import { Button } from '@/components/ui/button'; // Annahme: Sie haben eine Button-Komponente
+// Der fehlerhafte Import der Button-Komponente wurde entfernt.
 
 const Header = () => {
   const { data: session, status } = useSession();
 
-  // Zeigt einen Lade-Platzhalter an, während die Session geladen wird
+  // Lade-Platzhalter (unverändert)
   if (status === 'loading') {
     return (
       <header className="bg-white shadow-md">
@@ -29,7 +29,7 @@ const Header = () => {
     <header className="bg-white shadow-md sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/* Linker Bereich: Dashboard & Admin-Link */}
+          {/* Linker Bereich (unverändert) */}
           <div className="flex items-center gap-6">
             <Link href="/" className="text-xl font-bold text-blue-600 hover:text-blue-800">
               SEO-Dashboard
@@ -41,20 +41,23 @@ const Header = () => {
             )}
           </div>
 
-          {/* Rechter Bereich: Benutzerinfo & Abmelden-Button */}
+          {/* Rechter Bereich (angepasst) */}
           <div className="flex items-center gap-4">
             {user?.email && (
               <p className="text-sm text-gray-600 hidden sm:block">
                 Hallo, <span className="font-medium">{user.email}</span>
               </p>
             )}
-            <Button
+            {/* HIER IST DIE KORREKTUR:
+              Die <Button>-Komponente wurde durch einen normalen <button>-Tag ersetzt
+              und direkt mit Tailwind CSS Klassen gestylt.
+            */}
+            <button
               onClick={() => signOut({ callbackUrl: '/login' })}
-              variant="outline"
-              size="sm"
+              className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-transparent border border-gray-300 rounded-md hover:bg-gray-50"
             >
               Abmelden
-            </Button>
+            </button>
           </div>
         </div>
       </div>
