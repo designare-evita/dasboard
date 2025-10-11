@@ -5,11 +5,15 @@ import { GoogleAuth } from 'google-auth-library';
 
 function createAuth(): GoogleAuth {
   const serviceAccountEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  const serviceAccountKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+  // Liest die neue Base64-kodierte Variable
+  const serviceAccountKeyBase64 = process.env.GOOGLE_PRIVATE_KEY_BASE64;
 
-  if (!serviceAccountEmail || !serviceAccountKey) {
-    throw new Error('Google Service Account credentials are not set in environment variables.');
+  if (!serviceAccountEmail || !serviceAccountKeyBase64) {
+    throw new Error('Google Service Account credentials (Email or Base64 Key) are not set in environment variables.');
   }
+
+  // Dekodiert den Schlüssel zurück in das mehrzeilige Format
+  const serviceAccountKey = Buffer.from(serviceAccountKeyBase64, 'base64').toString('utf-8');
 
   return new google.auth.GoogleAuth({
     credentials: {
@@ -23,6 +27,7 @@ function createAuth(): GoogleAuth {
   });
 }
 
+// Der Rest der Datei bleibt exakt gleich...
 interface DateRangeData {
   clicks?: number;
   impressions?: number;
@@ -49,7 +54,7 @@ export async function getSearchConsoleData(
       clicks: rows?.[0]?.clicks ?? 0,
       impressions: rows?.[0]?.impressions ?? 0,
     };
-  } catch (error: unknown) { // CORRECTED: 'any' replaced with 'unknown'
+  } catch (error: unknown) {
     console.error('Detaillierter Fehler von der Search Console API:', JSON.stringify(error, null, 2));
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
     throw new Error(`Search Console API-Abfrage fehlgeschlagen: ${errorMessage}`);
@@ -78,7 +83,7 @@ export async function getAnalyticsData(
       sessions: parseInt(rows?.[0]?.metricValues?.[0]?.value ?? '0', 10),
       totalUsers: parseInt(rows?.[0]?.metricValues?.[1]?.value ?? '0', 10),
     };
-  } catch (error: unknown) { // CORRECTED: 'any' replaced with 'unknown'
+  } catch (error: unknown) {
     console.error('Detaillierter Fehler von der Analytics API:', JSON.stringify(error, null, 2));
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
     throw new Error(`Analytics API-Abfrage fehlgeschlagen: ${errorMessage}`);
