@@ -1,10 +1,10 @@
 // src/lib/google-api.ts
 
 import { google } from 'googleapis';
-import { Auth } from 'googleapis-common';
+// Der fehlerhafte Import von 'googleapis-common' wurde entfernt.
 
-// Diese Funktion gibt jetzt direkt das Auth-Objekt zurück, nicht den Client.
-function createAuth(): Auth.GoogleAuth {
+// Die Funktion gibt jetzt den korrekten Typ 'google.auth.GoogleAuth' zurück.
+function createAuth(): google.auth.GoogleAuth {
   const serviceAccountEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
   const serviceAccountKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
 
@@ -12,6 +12,7 @@ function createAuth(): Auth.GoogleAuth {
     throw new Error('Google Service Account credentials are not set in environment variables.');
   }
 
+  // Dieser Teil bleibt unverändert.
   return new google.auth.GoogleAuth({
     credentials: {
       client_email: serviceAccountEmail,
@@ -40,7 +41,6 @@ export async function getSearchConsoleData(
   startDate: string,
   endDate: string
 ): Promise<Pick<DateRangeData, 'clicks' | 'impressions'>> {
-  // HIER IST DIE KORREKTUR: Wir übergeben das Auth-Objekt direkt.
   const auth = createAuth();
   const searchconsole = google.searchconsole({ version: 'v1', auth });
 
@@ -69,7 +69,6 @@ export async function getAnalyticsData(
   startDate: string,
   endDate: string
 ): Promise<Pick<DateRangeData, 'sessions' | 'totalUsers'>> {
-  // HIER IST DIE KORREKTUR: Wir übergeben das Auth-Objekt direkt.
   const auth = createAuth();
   const analytics = google.analyticsdata({ version: 'v1beta', auth });
 
