@@ -15,7 +15,7 @@ declare module 'next-auth' {
     // This extends the existing user object
     user: {
       id: string;
-      role: 'USER' | 'ADMIN' | 'SUPERADMIN';
+      role: 'BENUTZER' | 'ADMIN' | 'SUPERADMIN';
     } & DefaultSession['user'];
   }
 }
@@ -28,6 +28,6 @@ declare module 'next-auth/jwt' {
     id: string;
     accessToken?: string;
     refreshToken?: string;
-    role: 'USER' | 'ADMIN' | 'SUPERADMIN';
+    role: 'BENUTZER' | 'ADMIN' | 'SUPERADMIN';
   }
 }
