@@ -1,10 +1,10 @@
 // src/lib/google-api.ts
 
 import { google } from 'googleapis';
-// Der fehlerhafte Import von 'googleapis-common' wurde entfernt.
+import { GoogleAuth } from 'google-auth-library'; // Expliziter Import für den Typ
 
-// Die Funktion gibt jetzt den korrekten Typ 'google.auth.GoogleAuth' zurück.
-function createAuth(): google.auth.GoogleAuth {
+// Die Funktion gibt jetzt den korrekten Typ 'GoogleAuth' zurück.
+function createAuth(): GoogleAuth {
   const serviceAccountEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
   const serviceAccountKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
 
@@ -12,7 +12,6 @@ function createAuth(): google.auth.GoogleAuth {
     throw new Error('Google Service Account credentials are not set in environment variables.');
   }
 
-  // Dieser Teil bleibt unverändert.
   return new google.auth.GoogleAuth({
     credentials: {
       client_email: serviceAccountEmail,
