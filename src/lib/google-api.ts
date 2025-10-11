@@ -1,22 +1,29 @@
 // src/lib/google-api.ts
 
 import { google } from 'googleapis';
-import { OAuth2Client } from 'google-auth-library';
 
-// Erstellt einen OAuth2-Client mit den Anmeldeinformationen des Benutzers
-function createAuthenticatedClient(accessToken: string, refreshToken: string): OAuth2Client {
-  const oauth2Client = new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-    process.env.GOOGLE_REDIRECT_URI
-  );
+// Erstellt einen authentifizierten Client mit dem Service Account
+function getAuthenticatedClient() {
+  // Diese Umgebungsvariablen musst du in Vercel setzen.
+  const serviceAccountEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  const serviceAccountKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
 
-  oauth2Client.setCredentials({
-    access_token: accessToken,
-    refresh_token: refreshToken,
+  if (!serviceAccountEmail || !serviceAccountKey) {
+    throw new Error('Google Service Account credentials are not set in environment variables.');
+  }
+
+  const auth = new google.auth.GoogleAuth({
+    credentials: {
+      client_email: serviceAccountEmail,
+      private_key: serviceAccountKey,
+    },
+    scopes: [
+      'https://www.googleapis.com/auth/webmasters.readonly',
+      'https://www.googleapis.com/auth/analytics.readonly',
+    ],
   });
 
-  return oauth2Client;
+  return auth.getClient();
 }
 
 // Definiert eine Struktur für die zurückgegebenen Daten
@@ -29,16 +36,15 @@ interface DateRangeData {
 
 /**
  * Holt Klicks und Impressionen von der Google Search Console.
- * Benötigt jetzt die Tokens des Benutzers.
+ * Benötigt keine Benutzer-Tokens mehr.
  */
 export async function getSearchConsoleData(
   siteUrl: string,
   startDate: string,
-  endDate: string,
-  tokens: { accessToken: string; refreshToken: string }
+  endDate: string
 ): Promise<Pick<DateRangeData, 'clicks' | 'impressions'>> {
-  const oauth2Client = createAuthenticatedClient(tokens.accessToken, tokens.refreshToken);
-  const searchconsole = google.searchconsole({ version: 'v1', auth: oauth2Client });
+  const authClient = await getAuthenticatedClient();
+  const searchconsole = google.searchconsole({ version: 'v1', auth: authClient });
 
   try {
     const response = await searchconsole.searchanalytics.query({
@@ -59,16 +65,15 @@ export async function getSearchConsoleData(
 
 /**
  * Holt Sitzungen und Nutzer von der Google Analytics 4 API.
- * Benötigt jetzt die Tokens des Benutzers.
+ * Benötigt keine Benutzer-Tokens mehr.
  */
 export async function getAnalyticsData(
   propertyId: string,
   startDate: string,
-  endDate: string,
-  tokens: { accessToken: string; refreshToken: string }
+  endDate: string
 ): Promise<Pick<DateRangeData, 'sessions' | 'totalUsers'>> {
-  const oauth2Client = createAuthenticatedClient(tokens.accessToken, tokens.refreshToken);
-  const analytics = google.analyticsdata({ version: 'v1beta', auth: oauth2Client });
+  const authClient = await getAuthenticatedClient();
+  const analytics = google.analyticsdata({ version: 'v1beta', auth: authClient });
 
   try {
     const response = await analytics.properties.runReport({
