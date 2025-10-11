@@ -67,17 +67,19 @@ async function getDashboardDataForUser(user: Partial<User>) {
   };
 }
 
-// Der GET-Handler für die API-Route
+// Der GET-Handler für die API-Route (Next.js 15 kompatibel)
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  props: { params: Promise<{ id: string }> }
 ) {
+  // In Next.js 15 muss params awaited werden
+  const params = await props.params;
+  const { id: projectId } = params;
+
   const session = await getServerSession(authOptions);
   if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
     return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
   }
-
-  const { id: projectId } = params;
 
   try {
     const { rows } = await sql<User>`
