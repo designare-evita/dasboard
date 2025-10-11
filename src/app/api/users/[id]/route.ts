@@ -28,7 +28,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 // Aktualisiert die Daten eines Benutzers
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
     const session = await getServerSession(authOptions);
-    // @ts-expect-error 'role' ist eine benutzerdefinierte Eigenschaft des Session-Benutzers
     if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
         return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
     }
