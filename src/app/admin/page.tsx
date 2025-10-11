@@ -81,7 +81,7 @@ export default function AdminPage() {
               <li key={user.id} className="p-2 border rounded flex justify-between items-center">
                 <span>{user.email} - {user.role}</span>
                 <button
-                  onClick={() => handleDeleteUser(user.id)}
+                  onClick={() => handleDeleteUser(Number(user.id))}
                   className="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600"
                 >
                   Löschen
