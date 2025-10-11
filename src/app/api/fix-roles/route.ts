@@ -6,21 +6,18 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
 export async function GET() {
-  // Stellt sicher, dass nur ein Super Admin diese Aktion ausführen kann
   const session = await getServerSession(authOptions);
   if (session?.user?.role !== 'SUPERADMIN') {
     return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
   }
 
   try {
-    // Führt die Aktualisierung in der Datenbank durch
     const result = await sql`
       UPDATE users 
       SET role = 'BENUTZER' 
       WHERE role = 'USER';
     `;
     
-    // rowCount gibt an, wie viele Zeilen geändert wurden
     const updatedCount = result.rowCount;
 
     return NextResponse.json({ message: `Reparatur erfolgreich! ${updatedCount} Benutzerrolle(n) wurden von 'USER' zu 'BENUTZER' korrigiert.` }, { status: 200 });
