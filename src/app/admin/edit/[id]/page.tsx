@@ -1,31 +1,48 @@
+// src/app/admin/edit/[id]/page.tsx
+
 import Header from '@/components/layout/Header';
 import EditUserForm from './EditUserForm';
 import type { User } from '@/types';
-import { headers } from 'next/headers';
+import { sql } from '@vercel/postgres';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { redirect } from 'next/navigation';
 
-// ✅ KORRIGIERT: params muss ein Promise sein in Next.js 15
 export type PageProps = { params: Promise<{ id: string }> };
-
-async function getBaseUrl() {
-  const h = await headers();
-  const proto = h.get('x-forwarded-proto') ?? 'http';
-  const host = h.get('x-forwarded-host') ?? h.get('host') ?? 'localhost:3000';
-  return `${proto}://${host}`;
-}
 
 async function getUser(id: string): Promise<Partial<User> | null> {
   try {
-    const baseUrl = await getBaseUrl();
-    const res = await fetch(`${baseUrl}/api/users/${id}`, { method: 'GET', cache: 'no-store' });
-    if (!res.ok) return null;
-    return await res.json();
-  } catch {
+    // Authentifizierung prüfen
+    const session = await getServerSession(authOptions);
+    if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
+      return null;
+    }
+
+    // Direkt aus der Datenbank lesen statt fetch
+    const { rows } = await sql<User>`
+      SELECT id, email, role, domain, gsc_site_url, ga4_property_id 
+      FROM users 
+      WHERE id = ${id}
+    `;
+    
+    if (rows.length === 0) {
+      return null;
+    }
+    
+    return rows[0];
+  } catch (error) {
+    console.error('Fehler beim Laden des Benutzers:', error);
     return null;
   }
 }
 
 export default async function EditUserPage({ params }: PageProps) {
-  // ✅ KORRIGIERT: params muss mit await aufgelöst werden
+  // Session prüfen
+  const session = await getServerSession(authOptions);
+  if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
+    redirect('/');
+  }
+
   const { id } = await params;
   const user = await getUser(id);
 
