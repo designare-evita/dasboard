@@ -3,7 +3,8 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { getSearchConsoleData, getAnalyticsData } from '@/lib/google-api';
+// HIER IST DIE KORREKTUR: getGa4Data -> getAnalyticsData
+import { getSearchConsoleData, getAnalyticsData } from '@/lib/google-api'; 
 import { sql } from '@vercel/postgres';
 import { User } from '@/types';
 
@@ -15,11 +16,9 @@ function formatDate(date: Date): string {
 // Hilfsfunktion zur Berechnung der prozentualen Veränderung
 function calculateChange(current: number, previous: number): number {
   if (previous === 0) {
-    // Wenn der vorherige Wert 0 ist, ist jede Zunahme unendlich. 100% ist ein sinnvoller Wert.
     return current > 0 ? 100 : 0;
   }
   const change = ((current - previous) / previous) * 100;
-  // Auf eine Dezimalstelle runden
   return Math.round(change * 10) / 10;
 }
 
@@ -30,7 +29,6 @@ export async function GET() {
   }
 
   try {
-    // Benutzerdaten aus der Datenbank abrufen
     const { rows } = await sql<User>`
       SELECT gsc_site_url, ga4_property_id 
       FROM users 
@@ -42,17 +40,16 @@ export async function GET() {
       return NextResponse.json({ message: 'Google-Properties nicht für diesen Benutzer konfiguriert.' }, { status: 404 });
     }
 
-    // Zeiträume definieren (letzte 30 Tage vs. die 30 Tage davor)
     const today = new Date();
     const endDateCurrent = new Date(today);
-    endDateCurrent.setDate(endDateCurrent.getDate() - 1); // Gestern
+    endDateCurrent.setDate(endDateCurrent.getDate() - 1);
     const startDateCurrent = new Date(endDateCurrent);
-    startDateCurrent.setDate(startDateCurrent.getDate() - 29); // 30 Tage zurück
+    startDateCurrent.setDate(startDateCurrent.getDate() - 29);
 
     const endDatePrevious = new Date(startDateCurrent);
-    endDatePrevious.setDate(endDatePrevious.getDate() - 1); // Der Tag vor dem aktuellen Zeitraum
+    endDatePrevious.setDate(endDatePrevious.getDate() - 1);
     const startDatePrevious = new Date(endDatePrevious);
-    startDatePrevious.setDate(startDatePrevious.getDate() - 29); // Weitere 30 Tage zurück
+    startDatePrevious.setDate(startDatePrevious.getDate() - 29);
 
     const [
       gscCurrent,
@@ -62,11 +59,11 @@ export async function GET() {
     ] = await Promise.all([
       getSearchConsoleData(userData.gsc_site_url, formatDate(startDateCurrent), formatDate(endDateCurrent)),
       getSearchConsoleData(userData.gsc_site_url, formatDate(startDatePrevious), formatDate(endDatePrevious)),
+      // HIER IST DIE KORREKTUR: getGa4Data -> getAnalyticsData
       getAnalyticsData(userData.ga4_property_id, formatDate(startDateCurrent), formatDate(endDateCurrent)),
       getAnalyticsData(userData.ga4_property_id, formatDate(startDatePrevious), formatDate(endDatePrevious))
     ]);
 
-    // Aufbereiten der finalen Datenstruktur mit Vergleichswerten
     const data = {
       searchConsole: {
         clicks: {
