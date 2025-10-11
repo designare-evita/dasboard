@@ -9,14 +9,14 @@ import { User } from '@/types';
 // Holt die Daten für einen einzelnen Benutzer
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
   if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
     return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
   }
 
-  const { id } = await params;
+  const { id } = await context.params;
 
   try {
     const { rows } = await sql<User>`
@@ -37,14 +37,14 @@ export async function GET(
 // Aktualisiert die Daten eines Benutzers
 export async function PUT(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
   if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
     return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
   }
 
-  const { id } = await params;
+  const { id } = await context.params;
   const body = await request.json();
   const { email, domain, gsc_site_url, ga4_property_id } = body;
 
@@ -64,14 +64,14 @@ export async function PUT(
 // Löscht einen Benutzer
 export async function DELETE(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
   if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
     return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
   }
 
-  const { id } = await params;
+  const { id } = await context.params;
 
   try {
     const userToDelete = await sql`SELECT email FROM users WHERE id = ${id}`;
