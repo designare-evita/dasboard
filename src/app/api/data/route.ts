@@ -79,7 +79,7 @@ export async function GET() {
     }
     
     // Fall 3: Kunde (USER)
-    if (role === 'USER') {
+    if (role === 'BENUTZER') {
         const { rows } = await sql<User>`
             SELECT gsc_site_url, ga4_property_id FROM users WHERE id = ${id}
         `;
