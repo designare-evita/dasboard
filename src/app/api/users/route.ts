@@ -8,7 +8,6 @@ import { User } from '@/types';
 // GET-Funktion bleibt unverändert...
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
-  // @ts-expect-error 'role' ist eine benutzerdefinierte Eigenschaft des Session-Benutzers
   if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
     return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
   }
@@ -26,7 +25,6 @@ export async function GET(request: Request) {
 // POST-Funktion angepasst
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
-  // @ts-expect-error 'role' ist eine benutzerdefinierte Eigenschaft des Session-Benutzers
   if (!session?.user || session.user.role !== 'SUPERADMIN') {
       return NextResponse.json({ message: 'Nur Super-Admins können neue Benutzer erstellen.' }, { status: 403 });
   }
