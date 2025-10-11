@@ -6,7 +6,7 @@ import bcrypt from 'bcryptjs';
 import { User } from '@/types';
 
 // GET-Funktion bleibt unverändert...
-export async function GET(request: Request) {
+export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
     return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
