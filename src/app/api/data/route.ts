@@ -1,54 +1,99 @@
+// src/app/api/data/route.ts
+
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
-import { getSearchConsoleData, getGa4Data } from '@/lib/google-api';
+import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { getUserByEmail } from '@/lib/database'; // Wir benötigen diese Funktion
+import { getSearchConsoleData, getAnalyticsData } from '@/lib/google-api';
+import { sql } from '@vercel/postgres';
+import { User } from '@/types';
+
+// Hilfsfunktion zur Datumsformatierung (YYYY-MM-DD)
+function formatDate(date: Date): string {
+  return date.toISOString().split('T')[0];
+}
+
+// Hilfsfunktion zur Berechnung der prozentualen Veränderung
+function calculateChange(current: number, previous: number): number {
+  if (previous === 0) {
+    // Wenn der vorherige Wert 0 ist, ist jede Zunahme unendlich. 100% ist ein sinnvoller Wert.
+    return current > 0 ? 100 : 0;
+  }
+  const change = ((current - previous) / previous) * 100;
+  // Auf eine Dezimalstelle runden
+  return Math.round(change * 10) / 10;
+}
 
 export async function GET() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) {
+    return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
+  }
+
   try {
-    const session = await getServerSession(authOptions);
+    // Benutzerdaten aus der Datenbank abrufen
+    const { rows } = await sql<User>`
+      SELECT gsc_site_url, ga4_property_id 
+      FROM users 
+      WHERE email = ${session.user.email}
+    `;
+    const userData = rows[0];
 
-    if (!session || !session.user || !session.user.email) {
-      return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
+    if (!userData?.gsc_site_url || !userData?.ga4_property_id) {
+      return NextResponse.json({ message: 'Google-Properties nicht für diesen Benutzer konfiguriert.' }, { status: 404 });
     }
 
-    // 1. Benutzerdaten aus der Datenbank abrufen, basierend auf der E-Mail des eingeloggten Benutzers
-    const user = await getUserByEmail(session.user.email);
+    // Zeiträume definieren (letzte 30 Tage vs. die 30 Tage davor)
+    const today = new Date();
+    const endDateCurrent = new Date(today);
+    endDateCurrent.setDate(endDateCurrent.getDate() - 1); // Gestern
+    const startDateCurrent = new Date(endDateCurrent);
+    startDateCurrent.setDate(startDateCurrent.getDate() - 29); // 30 Tage zurück
 
-    if (!user) {
-      return NextResponse.json({ message: 'Benutzer nicht in der Datenbank gefunden' }, { status: 404 });
-    }
-    
-    let siteUrl: string;
-    let propertyId: string;
+    const endDatePrevious = new Date(startDateCurrent);
+    endDatePrevious.setDate(endDatePrevious.getDate() - 1); // Der Tag vor dem aktuellen Zeitraum
+    const startDatePrevious = new Date(endDatePrevious);
+    startDatePrevious.setDate(startDatePrevious.getDate() - 29); // Weitere 30 Tage zurück
 
-    // 2. Prüfen, welche Rolle der Benutzer hat
-    if (user.role === 'BENUTZER') {
-      // Wenn es ein KUNDE ist, verwenden wir seine persönlichen IDs aus der Datenbank
-      if (!user.gsc_site_url || !user.ga4_property_id) {
-        throw new Error('Konfiguration für diesen Kunden ist unvollständig.');
-      }
-      siteUrl = user.gsc_site_url;
-      propertyId = `properties/${user.ga4_property_id}`;
-    } else {
-      // Wenn es ein ADMIN oder SUPERADMIN ist, zeigen wir weiterhin die Test-Daten an
-      siteUrl = 'https://max-online.at/'; 
-      propertyId = 'properties/314388177';
-    }
-
-    // 3. Google APIs mit den dynamischen Daten aufrufen
-    const [gscData, ga4Data] = await Promise.all([
-      getSearchConsoleData(siteUrl),
-      getGa4Data(propertyId)
+    const [
+      gscCurrent,
+      gscPrevious,
+      gaCurrent,
+      gaPrevious
+    ] = await Promise.all([
+      getSearchConsoleData(userData.gsc_site_url, formatDate(startDateCurrent), formatDate(endDateCurrent)),
+      getSearchConsoleData(userData.gsc_site_url, formatDate(startDatePrevious), formatDate(endDatePrevious)),
+      getAnalyticsData(userData.ga4_property_id, formatDate(startDateCurrent), formatDate(endDateCurrent)),
+      getAnalyticsData(userData.ga4_property_id, formatDate(startDatePrevious), formatDate(endDatePrevious))
     ]);
 
-    return NextResponse.json({ gscData, ga4Data });
+    // Aufbereiten der finalen Datenstruktur mit Vergleichswerten
+    const data = {
+      searchConsole: {
+        clicks: {
+          value: gscCurrent.clicks ?? 0,
+          change: calculateChange(gscCurrent.clicks ?? 0, gscPrevious.clicks ?? 0),
+        },
+        impressions: {
+          value: gscCurrent.impressions ?? 0,
+          change: calculateChange(gscCurrent.impressions ?? 0, gscPrevious.impressions ?? 0),
+        },
+      },
+      analytics: {
+        sessions: {
+          value: gaCurrent.sessions ?? 0,
+          change: calculateChange(gaCurrent.sessions ?? 0, gaPrevious.sessions ?? 0),
+        },
+        totalUsers: {
+          value: gaCurrent.totalUsers ?? 0,
+          change: calculateChange(gaCurrent.totalUsers ?? 0, gaPrevious.totalUsers ?? 0),
+        },
+      },
+    };
+
+    return NextResponse.json(data);
 
   } catch (error) {
-    console.error('[API /data] Fehler:', error);
-    return NextResponse.json(
-      { message: 'Fehler beim Abrufen der Dashboard-Daten', error: (error as Error).message },
-      { status: 500 }
-    );
+    console.error('Fehler in der /api/data Route:', error);
+    return NextResponse.json({ message: 'Interner Serverfehler beim Abrufen der Dashboard-Daten.' }, { status: 500 });
   }
 }
