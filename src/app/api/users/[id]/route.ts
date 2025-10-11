@@ -6,19 +6,14 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { User } from '@/types';
 
-// KORREKTE DEFINITION FÜR PARAMS: { params: { id: string } }
-interface Params {
-  params: { id: string };
-}
-
 // Holt die Daten für einen einzelnen Benutzer
-export async function GET(request: Request, { params }: Params) {
+export async function GET(request: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
     return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
   }
 
-  const { id } = params; // ID wird DIREKT aus params geholt
+  const { id } = params;
 
   try {
     const { rows } = await sql<User>`
@@ -37,13 +32,13 @@ export async function GET(request: Request, { params }: Params) {
 }
 
 // Aktualisiert die Daten eines Benutzers
-export async function PUT(request: Request, { params }: Params) {
+export async function PUT(request: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
     return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
   }
 
-  const { id } = params; // ID wird DIREKT aus params geholt
+  const { id } = params;
   const body = await request.json();
   const { email, domain, gsc_site_url, ga4_property_id } = body;
 
@@ -61,16 +56,15 @@ export async function PUT(request: Request, { params }: Params) {
 }
 
 // Löscht einen Benutzer
-export async function DELETE(request: Request, { params }: Params) {
+export async function DELETE(request: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
     return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
   }
 
-  const { id } = params; // ID wird DIREKT aus params geholt
+  const { id } = params;
 
   try {
-    // Sicherheitsprüfung: Verhindert, dass sich ein Admin selbst löscht
     const userToDelete = await sql`SELECT email FROM users WHERE id = ${id}`;
     if (userToDelete.rows[0]?.email === session.user.email) {
       return NextResponse.json({ message: 'Sie können sich nicht selbst löschen.' }, { status: 403 });
