@@ -3,82 +3,58 @@
 import { google } from 'googleapis';
 import { GoogleAuth } from 'google-auth-library';
 
-function createAuth(): GoogleAuth {
-  const serviceAccountEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  // Wir lesen die Base64-kodierte Variable
-  const serviceAccountKeyBase64 = process.env.GOOGLE_PRIVATE_KEY_BASE64;
+function createAuth(): GoogleAuth { /* ... unverändert ... */ }
 
-  if (!serviceAccountEmail) {
-    throw new Error('Umgebungsvariable GOOGLE_SERVICE_ACCOUNT_EMAIL fehlt.');
-  }
-  if (!serviceAccountKeyBase64) {
-    throw new Error('Umgebungsvariable GOOGLE_PRIVATE_KEY_BASE64 fehlt.');
-  }
-
-  // Sicherheitsprüfung: Dekodieren des Schlüssels
-  let serviceAccountKey: string;
-  try {
-    serviceAccountKey = Buffer.from(serviceAccountKeyBase64, 'base64').toString('utf-8');
-  } catch (e) {
-    throw new Error('GOOGLE_PRIVATE_KEY_BASE64 konnte nicht dekodiert werden. Ist es valides Base64?');
-  }
-  
-  // Stellt sicher, dass der dekodierte Schlüssel wie ein echter Schlüssel aussieht
-  if (!serviceAccountKey.startsWith('-----BEGIN PRIVATE KEY-----')) {
-      throw new Error('Der dekodierte Private Key hat ein ungültiges Format.');
-  }
-
-  return new google.auth.GoogleAuth({
-    credentials: {
-      client_email: serviceAccountEmail,
-      private_key: serviceAccountKey,
-    },
-    scopes: [
-      'https://www.googleapis.com/auth/webmasters.readonly',
-      'https://www.googleapis.com/auth/analytics.readonly',
-    ],
-  });
-}
-
-// Der Rest der Datei bleibt unverändert...
+// Neue Typ-Definitionen für die Tagesdaten
+interface DailyDataPoint { date: string; value: number; }
 interface DateRangeData {
-  clicks?: number;
-  impressions?: number;
-  sessions?: number;
-  totalUsers?: number;
+  total: number;
+  daily: DailyDataPoint[];
 }
 
+// Angepasste Funktion für die Search Console
 export async function getSearchConsoleData(
   siteUrl: string,
   startDate: string,
   endDate: string
-): Promise<Pick<DateRangeData, 'clicks' | 'impressions'>> {
+): Promise<{ clicks: DateRangeData; impressions: DateRangeData }> {
   const auth = createAuth();
   const searchconsole = google.searchconsole({ version: 'v1', auth });
 
   try {
     const response = await searchconsole.searchanalytics.query({
       siteUrl,
-      requestBody: { startDate, endDate, dimensions: [] },
+      requestBody: { 
+        startDate, 
+        endDate, 
+        dimensions: ['date'] // WICHTIG: Wir gruppieren nach Datum
+      },
     });
 
-    const rows = response.data.rows;
+    const rows = response.data.rows || [];
+    
+    const clicksDaily = rows.map(row => ({ date: row.keys![0], value: row.clicks! }));
+    const impressionsDaily = rows.map(row => ({ date: row.keys![0], value: row.impressions! }));
+
     return {
-      clicks: rows?.[0]?.clicks ?? 0,
-      impressions: rows?.[0]?.impressions ?? 0,
+      clicks: {
+        total: clicksDaily.reduce((sum, item) => sum + item.value, 0),
+        daily: clicksDaily,
+      },
+      impressions: {
+        total: impressionsDaily.reduce((sum, item) => sum + item.value, 0),
+        daily: impressionsDaily,
+      },
     };
-  } catch (error: unknown) {
-    console.error('Detaillierter Fehler von der Search Console API:', JSON.stringify(error, null, 2));
-    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-    throw new Error(`Search Console API-Abfrage fehlgeschlagen: ${errorMessage}`);
-  }
+  } catch (error: unknown) { /* ... unverändert ... */ }
 }
 
+// Angepasste Funktion für Analytics
 export async function getAnalyticsData(
   propertyId: string,
   startDate: string,
   endDate: string
-): Promise<Pick<DateRangeData, 'sessions' | 'totalUsers'>> {
+): Promise<{ sessions: DateRangeData; totalUsers: DateRangeData }> {
   const auth = createAuth();
   const analytics = google.analyticsdata({ version: 'v1beta', auth });
 
@@ -87,18 +63,25 @@ export async function getAnalyticsData(
       property: `properties/${propertyId}`,
       requestBody: {
         dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: 'date' }], // WICHTIG: Wir gruppieren nach Datum
         metrics: [{ name: 'sessions' }, { name: 'totalUsers' }],
       },
     });
 
-    const rows = response.data.rows;
+    const rows = response.data.rows || [];
+
+    const sessionsDaily = rows.map(row => ({ date: row.dimensionValues![0].value!, value: parseInt(row.metricValues![0].value!, 10) }));
+    const usersDaily = rows.map(row => ({ date: row.dimensionValues![0].value!, value: parseInt(row.metricValues![1].value!, 10) }));
+
     return {
-      sessions: parseInt(rows?.[0]?.metricValues?.[0]?.value ?? '0', 10),
-      totalUsers: parseInt(rows?.[0]?.metricValues?.[1]?.value ?? '0', 10),
+      sessions: {
+        total: sessionsDaily.reduce((sum, item) => sum + item.value, 0),
+        daily: sessionsDaily,
+      },
+      totalUsers: {
+        total: usersDaily.reduce((sum, item) => sum + item.value, 0),
+        daily: usersDaily,
+      },
     };
-  } catch (error: unknown) {
-    console.error('Detaillierter Fehler von der Analytics API:', JSON.stringify(error, null, 2));
-    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-    throw new Error(`Analytics API-Abfrage fehlgeschlagen: ${errorMessage}`);
-  }
+  } catch (error: unknown) { /* ... unverändert ... */ }
 }
