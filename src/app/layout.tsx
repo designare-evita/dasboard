@@ -1,15 +1,19 @@
 // src/app/layout.tsx
 
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+// HIER IST DIE ÄNDERUNG: Wir importieren Poppins anstelle von Inter
+import { Poppins } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 
-// Importieren Sie Ihre neuen globalen Komponenten
 import Header from "@/components/layout/Header";
-import Footer from "@/components/layout/Footer";
+import Footer from "@/components/layout/Footer"; // Annahme: Footer existiert bereits
 
-const inter = Inter({ subsets: ["latin"] });
+// Konfiguriert den Poppins-Font mit den gewünschten Schriftschnitten
+const poppins = Poppins({ 
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"] // Regular, Medium, Semi-Bold, Bold
+});
 
 export const metadata: Metadata = {
   title: "SEO Dashboard",
@@ -23,11 +27,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="de">
-      <body className={`${inter.className} bg-gray-50`}>
+      {/* HIER IST DIE ÄNDERUNG: Wir wenden die poppins-Klasse an */}
+      <body className={`${poppins.className} bg-gray-50`}>
         <Providers>
           <div className="flex flex-col min-h-screen">
             <Header />
-            <main className="flex-grow">
+            <main className="flex-grow p-8">
               {children}
             </main>
             <Footer />
