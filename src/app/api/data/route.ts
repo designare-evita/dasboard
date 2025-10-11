@@ -7,7 +7,6 @@ import { getSearchConsoleData, getAnalyticsData } from '@/lib/google-api';
 import { sql } from '@vercel/postgres';
 import { User } from '@/types';
 
-// ... (Hilfsfunktionen formatDate und calculateChange bleiben gleich)
 function formatDate(date: Date): string {
     return date.toISOString().split('T')[0];
 }
@@ -17,12 +16,11 @@ function calculateChange(current: number, previous: number): number {
     return Math.round(change * 10) / 10;
 }
 
-
 export async function GET() {
   const session = await getServerSession(authOptions);
-  // Wir prüfen jetzt auf die Tokens in der Session
-  if (!session?.accessToken || !session?.refreshToken) {
-    return NextResponse.json({ message: 'Nicht autorisiert oder Tokens fehlen.' }, { status: 401 });
+  // Wir prüfen nur noch, ob der Benutzer eingeloggt ist. Keine Token-Prüfung mehr.
+  if (!session?.user?.email) {
+    return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
   }
 
   try {
@@ -36,24 +34,17 @@ export async function GET() {
     if (!userData?.gsc_site_url || !userData?.ga4_property_id) {
       return NextResponse.json({ message: 'Google-Properties nicht konfiguriert.' }, { status: 404 });
     }
-    
-    // Erstelle ein Token-Objekt für die API-Aufrufe
-    const userTokens = {
-        accessToken: session.accessToken,
-        refreshToken: session.refreshToken
-    };
 
-    // Zeiträume definieren (letzte 30 Tage vs. die 30 Tage davor)
     const today = new Date();
     const endDateCurrent = new Date(today);
-    endDateCurrent.setDate(endDateCurrent.getDate() - 1); // Gestern
+    endDateCurrent.setDate(endDateCurrent.getDate() - 1);
     const startDateCurrent = new Date(endDateCurrent);
-    startDateCurrent.setDate(startDateCurrent.getDate() - 29); // 30 Tage zurück
+    startDateCurrent.setDate(startDateCurrent.getDate() - 29);
 
     const endDatePrevious = new Date(startDateCurrent);
-    endDatePrevious.setDate(endDatePrevious.getDate() - 1); // Der Tag vor dem aktuellen Zeitraum
+    endDatePrevious.setDate(endDatePrevious.getDate() - 1);
     const startDatePrevious = new Date(endDatePrevious);
-    startDatePrevious.setDate(startDatePrevious.getDate() - 29); // Weitere 30 Tage zurück
+    startDatePrevious.setDate(startDatePrevious.getDate() - 29);
 
     const [
       gscCurrent,
@@ -61,32 +52,21 @@ export async function GET() {
       gaCurrent,
       gaPrevious
     ] = await Promise.all([
-      getSearchConsoleData(userData.gsc_site_url, formatDate(startDateCurrent), formatDate(endDateCurrent), userTokens),
-      getSearchConsoleData(userData.gsc_site_url, formatDate(startDatePrevious), formatDate(endDatePrevious), userTokens),
-      getAnalyticsData(userData.ga4_property_id, formatDate(startDateCurrent), formatDate(endDateCurrent), userTokens),
-      getAnalyticsData(userData.ga4_property_id, formatDate(startDatePrevious), formatDate(endDatePrevious), userTokens)
+      // Die Aufrufe benötigen keine Tokens mehr
+      getSearchConsoleData(userData.gsc_site_url, formatDate(startDateCurrent), formatDate(endDateCurrent)),
+      getSearchConsoleData(userData.gsc_site_url, formatDate(startDatePrevious), formatDate(endDatePrevious)),
+      getAnalyticsData(userData.ga4_property_id, formatDate(startDateCurrent), formatDate(endDateCurrent)),
+      getAnalyticsData(userData.ga4_property_id, formatDate(startDatePrevious), formatDate(endDatePrevious))
     ]);
 
     const data = {
       searchConsole: {
-        clicks: {
-          value: gscCurrent.clicks ?? 0,
-          change: calculateChange(gscCurrent.clicks ?? 0, gscPrevious.clicks ?? 0),
-        },
-        impressions: {
-          value: gscCurrent.impressions ?? 0,
-          change: calculateChange(gscCurrent.impressions ?? 0, gscPrevious.impressions ?? 0),
-        },
+        clicks: { value: gscCurrent.clicks ?? 0, change: calculateChange(gscCurrent.clicks ?? 0, gscPrevious.clicks ?? 0) },
+        impressions: { value: gscCurrent.impressions ?? 0, change: calculateChange(gscCurrent.impressions ?? 0, gscPrevious.impressions ?? 0) },
       },
       analytics: {
-        sessions: {
-          value: gaCurrent.sessions ?? 0,
-          change: calculateChange(gaCurrent.sessions ?? 0, gaPrevious.sessions ?? 0),
-        },
-        totalUsers: {
-          value: gaCurrent.totalUsers ?? 0,
-          change: calculateChange(gaCurrent.totalUsers ?? 0, gaPrevious.totalUsers ?? 0),
-        },
+        sessions: { value: gaCurrent.sessions ?? 0, change: calculateChange(gaCurrent.sessions ?? 0, gaPrevious.sessions ?? 0) },
+        totalUsers: { value: gaCurrent.totalUsers ?? 0, change: calculateChange(gaCurrent.totalUsers ?? 0, gaPrevious.totalUsers ?? 0) },
       },
     };
 
@@ -94,7 +74,6 @@ export async function GET() {
 
   } catch (error) {
     console.error('Fehler in der /api/data Route:', error);
-    // Wir geben die spezifische Fehlermeldung der API weiter, falls vorhanden
     const errorMessage = error instanceof Error ? error.message : 'Interner Serverfehler.';
     return NextResponse.json({ message: `Fehler beim Abrufen der Dashboard-Daten: ${errorMessage}` }, { status: 500 });
   }
