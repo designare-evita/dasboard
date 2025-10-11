@@ -1,71 +1,44 @@
+// src/app/(auth)/login/page.tsx
 'use client';
 
-import { useState } from 'react';
 import { signIn } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 
 export default function LoginPage() {
-  const router = useRouter();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const searchParams = useSearchParams();
+  // Falls es einen Fehler beim Login gab (z.B. Zugriff verweigert), wird er hier aus der URL gelesen
+  const error = searchParams.get('error');
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-
-    try {
-      const result = await signIn('credentials', {
-        redirect: false,
-        email,
-        password,
-      });
-
-      if (result?.error) {
-        setError('Login fehlgeschlagen. Überprüfen Sie Ihre E-Mail und Ihr Passwort.');
-        setLoading(false);
-      } else {
-        router.push('/');
-      }
-    } catch (err) {
-      setError('Ein unerwarteter Fehler ist aufgetreten.');
-      setLoading(false);
-    }
+  const handleGoogleSignIn = () => {
+    // Diese Funktion startet den Google-Anmeldeprozess.
+    // Nach Erfolg wird der Benutzer zur Hauptseite ('/') weitergeleitet.
+    signIn('google', { callbackUrl: '/' });
   };
 
   return (
-    <div className="mx-auto mt-24 max-w-md p-8 bg-white shadow-lg rounded-lg">
-      <h1 className="text-2xl font-bold mb-6 text-center">Login</h1>
-      <form onSubmit={handleSubmit}>
-        <div className="mb-4">
-          <label htmlFor="email" className="block mb-2 text-sm font-medium text-gray-700">E-Mail</label>
-          <input
-            id="email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+    <div className="flex items-center justify-center min-h-screen bg-gray-100">
+      <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-lg shadow-xl">
+        <div className="text-center">
+          <h1 className="text-3xl font-bold text-gray-900">SEO-Dashboard</h1>
+          <p className="mt-2 text-gray-600">Bitte melden Sie sich an, um fortzufahren.</p>
         </div>
-        <div className="mb-6">
-          <label htmlFor="password" className="block mb-2 text-sm font-medium text-gray-700">Passwort</label>
-          <input
-            id="password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-        {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
-        <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400">
-          {loading ? 'Anmelden...' : 'Anmelden'}
+        
+        {/* Zeigt eine Fehlermeldung an, wenn der Login fehlschlägt */}
+        {error && (
+          <div className="p-4 text-center text-red-800 bg-red-100 border border-red-300 rounded-md">
+            <p className="font-semibold">Anmeldung fehlgeschlagen</p>
+            <p className="text-sm">Bitte versuchen Sie es erneut. ({error})</p>
+          </div>
+        )}
+
+        <button
+          onClick={handleGoogleSignIn}
+          className="w-full px-4 py-3 font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-300 flex items-center justify-center gap-3 transition-all duration-300"
+        >
+          {/*  */}
+          <span>Mit Google anmelden</span>
         </button>
-      </form>
+      </div>
     </div>
   );
 }
