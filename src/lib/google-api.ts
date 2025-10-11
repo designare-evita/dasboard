@@ -1,85 +1,110 @@
+// src/lib/google-api.ts
+
 import { google } from 'googleapis';
-import { GoogleAuth } from 'google-auth-library';
+import { OAuth2Client } from 'google-auth-library';
 
-// --- Authentifizierung ---
-// Liest die Anmeldedaten aus der Environment Variable, die Sie in Vercel gespeichert haben.
-const auth = new GoogleAuth({
-  credentials: JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS || '{}'),
-  scopes: [
-    'https://www.googleapis.com/auth/webmasters.readonly',
-    'https://www.googleapis.com/auth/analytics.readonly',
-  ],
-});
+// Erstelle einen wiederverwendbaren OAuth2-Client
+function createOAuth2Client(): OAuth2Client {
+  return new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+    process.env.GOOGLE_REDIRECT_URI
+  );
+}
 
-const searchconsole = google.searchconsole({
-  version: 'v1',
-  auth: auth,
-});
+// Stellt sicher, dass das Token aktuell ist
+async function getAuthenticatedClient(): Promise<OAuth2Client> {
+  const oauth2Client = createOAuth2Client();
+  // Annahme: Du speicherst das Refresh-Token sicher
+  // In einer echten App würde dies aus der Datenbank für den jeweiligen Benutzer kommen.
+  oauth2Client.setCredentials({
+    refresh_token: process.env.GOOGLE_REFRESH_TOKEN, 
+  });
+  
+  // Token aktualisieren, falls nötig
+  await oauth2Client.refreshAccessToken();
+  
+  return oauth2Client;
+}
 
-const analyticsdata = google.analyticsdata({
-  version: 'v1beta',
-  auth: auth,
-});
-
-// --- Funktionen zum Datenabruf ---
+// Definiert eine Struktur für die zurückgegebenen Daten
+interface DateRangeData {
+  clicks?: number;
+  impressions?: number;
+  sessions?: number;
+  totalUsers?: number;
+}
 
 /**
- * Ruft die Top-Suchanfragen der letzten 12 Monate aus der Google Search Console ab.
- * @param siteUrl Die URL der Search Console Property (z.B. 'sc-domain:ihredomain.at')
+ * Holt Klicks und Impressionen von der Google Search Console für einen bestimmten Zeitraum.
  */
-export async function getSearchConsoleData(siteUrl: string) {
-  try {
-    const today = new Date();
-    const startDate = new Date();
-    startDate.setFullYear(today.getFullYear() - 1); // 12 Monate zurück
+export async function getSearchConsoleData(
+  siteUrl: string,
+  startDate: string,
+  endDate: string
+): Promise<Pick<DateRangeData, 'clicks' | 'impressions'>> {
+  const oauth2Client = await getAuthenticatedClient();
+  const searchconsole = google.searchconsole({ version: 'v1', auth: oauth2Client });
 
+  try {
     const response = await searchconsole.searchanalytics.query({
-      siteUrl: siteUrl,
+      siteUrl,
       requestBody: {
-        startDate: startDate.toISOString().split('T')[0],
-        endDate: today.toISOString().split('T')[0],
-        dimensions: ['query'],
-        rowLimit: 20, // Begrenzt auf die Top 20 Suchanfragen
+        startDate,
+        endDate,
+        dimensions: [], // Keine Dimensionen, wir wollen nur die Gesamtwerte
       },
     });
 
-    return response.data.rows;
+    const rows = response.data.rows;
+    if (!rows || rows.length === 0) {
+      return { clicks: 0, impressions: 0 };
+    }
+    
+    // In der GSC-API sind die Werte in der ersten (und einzigen) Zeile
+    return {
+      clicks: rows[0].clicks ?? 0,
+      impressions: rows[0].impressions ?? 0,
+    };
   } catch (error) {
-    console.error('Fehler beim Abrufen der Search Console Daten:', error);
-    throw new Error('Could not fetch Search Console data.');
+    console.error('Fehler bei der Abfrage der Search Console API:', error);
+    // Gib einen Fallback-Wert zurück, damit die App nicht abstürzt
+    return { clicks: 0, impressions: 0 };
   }
 }
 
 /**
- * Ruft die Anzahl der Nutzer der letzten 12 Monate aus Google Analytics 4 ab.
- * @param propertyId Die ID der GA4 Property (z.B. 'properties/123456789')
+ * Holt Sitzungen und Nutzer von der Google Analytics 4 API für einen bestimmten Zeitraum.
  */
-export async function getGa4Data(propertyId: string) {
-  try {
-    const today = new Date();
-    const startDate = new Date();
-    startDate.setFullYear(today.getFullYear() - 1); // 12 Monate zurück
+export async function getAnalyticsData(
+  propertyId: string,
+  startDate: string,
+  endDate: string
+): Promise<Pick<DateRangeData, 'sessions' | 'totalUsers'>> {
+  const oauth2Client = await getAuthenticatedClient();
+  const analytics = google.analyticsdata({ version: 'v1beta', auth: oauth2Client });
 
-    const response = await analyticsdata.properties.runReport({
-      property: propertyId,
+  try {
+    const response = await analytics.properties.runReport({
+      property: `properties/${propertyId}`,
       requestBody: {
-        dateRanges: [
-          {
-            startDate: startDate.toISOString().split('T')[0],
-            endDate: today.toISOString().split('T')[0],
-          },
-        ],
-        metrics: [
-          {
-            name: 'totalUsers',
-          },
-        ],
+        dateRanges: [{ startDate, endDate }],
+        metrics: [{ name: 'sessions' }, { name: 'totalUsers' }],
       },
     });
 
-    return response.data;
+    const rows = response.data.rows;
+    if (!rows || rows.length === 0) {
+      return { sessions: 0, totalUsers: 0 };
+    }
+
+    // Die Werte stehen in der ersten Zeile, aufgeteilt auf die Metriken
+    return {
+      sessions: parseInt(rows[0].metricValues?.[0]?.value ?? '0', 10),
+      totalUsers: parseInt(rows[0].metricValues?.[1]?.value ?? '0', 10),
+    };
   } catch (error) {
-    console.error('Fehler beim Abrufen der GA4 Daten:', error);
-    throw new Error('Could not fetch GA4 data.');
+    console.error('Fehler bei der Abfrage der Analytics API:', error);
+    return { sessions: 0, totalUsers: 0 };
   }
 }
