@@ -7,7 +7,7 @@ import { getSearchConsoleData, getAnalyticsData } from '@/lib/google-api';
 import { sql } from '@vercel/postgres';
 import { User } from '@/types';
 
-// Hilfsfunktionen (kopiert aus der data-Route)
+// Hilfsfunktionen (unverändert)
 function formatDate(date: Date): string { return date.toISOString().split('T')[0]; }
 function calculateChange(current: number, previous: number): number {
     if (previous === 0) return current > 0 ? 100 : 0;
@@ -20,7 +20,7 @@ async function getDashboardDataForUser(user: Partial<User>) {
     if (!user.gsc_site_url || !user.ga4_property_id) {
         throw new Error('Für diesen Benutzer sind keine Google-Properties konfiguriert.');
     }
-    // ... (Diese Logik ist identisch zur data-Route, hier aus Platzgründen gekürzt)
+    
     const today = new Date();
     const endDateCurrent = new Date(today);
     endDateCurrent.setDate(endDateCurrent.getDate() - 1);
@@ -45,15 +45,15 @@ async function getDashboardDataForUser(user: Partial<User>) {
     };
 }
 
-
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+// HIER IST DIE KORREKTUR: Die Signatur der GET-Funktion wurde angepasst
+export async function GET(request: Request, context: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   // Stellt sicher, dass nur Admins oder Super Admins diese Route aufrufen können
   if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
     return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
   }
 
-  const { id: projectId } = params;
+  const { id: projectId } = context.params; // ID wird aus 'context.params' geholt
 
   try {
     // Holt die Daten des spezifischen Kundenprojekts aus der Datenbank
