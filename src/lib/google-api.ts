@@ -1,10 +1,10 @@
 // src/lib/google-api.ts
 
 import { google } from 'googleapis';
+import { Auth } from 'googleapis-common';
 
-// Erstellt einen authentifizierten Client mit dem Service Account
-function getAuthenticatedClient() {
-  // Diese Umgebungsvariablen musst du in Vercel setzen.
+// Diese Funktion gibt jetzt direkt das Auth-Objekt zurück, nicht den Client.
+function createAuth(): Auth.GoogleAuth {
   const serviceAccountEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
   const serviceAccountKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
 
@@ -12,7 +12,7 @@ function getAuthenticatedClient() {
     throw new Error('Google Service Account credentials are not set in environment variables.');
   }
 
-  const auth = new google.auth.GoogleAuth({
+  return new google.auth.GoogleAuth({
     credentials: {
       client_email: serviceAccountEmail,
       private_key: serviceAccountKey,
@@ -22,8 +22,6 @@ function getAuthenticatedClient() {
       'https://www.googleapis.com/auth/analytics.readonly',
     ],
   });
-
-  return auth.getClient();
 }
 
 // Definiert eine Struktur für die zurückgegebenen Daten
@@ -36,15 +34,15 @@ interface DateRangeData {
 
 /**
  * Holt Klicks und Impressionen von der Google Search Console.
- * Benötigt keine Benutzer-Tokens mehr.
  */
 export async function getSearchConsoleData(
   siteUrl: string,
   startDate: string,
   endDate: string
 ): Promise<Pick<DateRangeData, 'clicks' | 'impressions'>> {
-  const authClient = await getAuthenticatedClient();
-  const searchconsole = google.searchconsole({ version: 'v1', auth: authClient });
+  // HIER IST DIE KORREKTUR: Wir übergeben das Auth-Objekt direkt.
+  const auth = createAuth();
+  const searchconsole = google.searchconsole({ version: 'v1', auth });
 
   try {
     const response = await searchconsole.searchanalytics.query({
@@ -65,15 +63,15 @@ export async function getSearchConsoleData(
 
 /**
  * Holt Sitzungen und Nutzer von der Google Analytics 4 API.
- * Benötigt keine Benutzer-Tokens mehr.
  */
 export async function getAnalyticsData(
   propertyId: string,
   startDate: string,
   endDate: string
 ): Promise<Pick<DateRangeData, 'sessions' | 'totalUsers'>> {
-  const authClient = await getAuthenticatedClient();
-  const analytics = google.analyticsdata({ version: 'v1beta', auth: authClient });
+  // HIER IST DIE KORREKTUR: Wir übergeben das Auth-Objekt direkt.
+  const auth = createAuth();
+  const analytics = google.analyticsdata({ version: 'v1beta', auth });
 
   try {
     const response = await analytics.properties.runReport({
