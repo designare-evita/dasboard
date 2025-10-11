@@ -15,7 +15,6 @@ function calculateChange(current: number, previous: number): number {
     return Math.round(change * 10) / 10;
 }
 
-// Funktion, um die KPI-Daten für EINEN Benutzer abzurufen
 async function getDashboardDataForUser(user: Partial<User>) {
     if (!user.gsc_site_url || !user.ga4_property_id) {
         throw new Error('Für diesen Benutzer sind keine Google-Properties konfiguriert.');
@@ -45,18 +44,16 @@ async function getDashboardDataForUser(user: Partial<User>) {
     };
 }
 
-// HIER IST DIE KORREKTUR: Die Signatur der GET-Funktion wurde angepasst
-export async function GET(request: Request, context: { params: { id: string } }) {
+// HIER IST DIE FINALE KORREKTUR: Wir verwenden die einfachste und direkteste Signatur.
+export async function GET(request: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
-  // Stellt sicher, dass nur Admins oder Super Admins diese Route aufrufen können
   if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
     return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
   }
 
-  const { id: projectId } = context.params; // ID wird aus 'context.params' geholt
+  const { id: projectId } = params; // Die ID wird direkt aus params geholt.
 
   try {
-    // Holt die Daten des spezifischen Kundenprojekts aus der Datenbank
     const { rows } = await sql<User>`
         SELECT gsc_site_url, ga4_property_id FROM users WHERE id = ${projectId} AND role = 'BENUTZER'
     `;
@@ -66,7 +63,6 @@ export async function GET(request: Request, context: { params: { id: string } })
         return NextResponse.json({ message: 'Projekt nicht gefunden oder kein Kundenprojekt.' }, { status: 404 });
     }
 
-    // Ruft die KPI-Daten für diesen spezifischen Benutzer ab
     const dashboardData = await getDashboardDataForUser(user);
     
     return NextResponse.json(dashboardData);
