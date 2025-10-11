@@ -4,7 +4,6 @@
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import Header from '@/components/layout/Header';
 import { User } from '@/types';
 import Link from 'next/link';
 
@@ -92,8 +91,7 @@ export default function AdminPage() {
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
-      <Header />
-      
+
       {message && <p className="my-4 text-center p-3 bg-yellow-100 border border-yellow-300 rounded-md">{message}</p>}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-6">
