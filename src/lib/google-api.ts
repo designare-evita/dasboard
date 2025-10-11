@@ -1,9 +1,8 @@
 // src/lib/google-api.ts
 
 import { google } from 'googleapis';
-import { GoogleAuth } from 'google-auth-library'; // Expliziter Import für den Typ
+import { GoogleAuth } from 'google-auth-library';
 
-// Die Funktion gibt jetzt den korrekten Typ 'GoogleAuth' zurück.
 function createAuth(): GoogleAuth {
   const serviceAccountEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
   const serviceAccountKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
@@ -24,7 +23,6 @@ function createAuth(): GoogleAuth {
   });
 }
 
-// Definiert eine Struktur für die zurückgegebenen Daten
 interface DateRangeData {
   clicks?: number;
   impressions?: number;
@@ -32,14 +30,11 @@ interface DateRangeData {
   totalUsers?: number;
 }
 
-/**
- * Holt Klicks und Impressionen von der Google Search Console.
- */
 export async function getSearchConsoleData(
   siteUrl: string,
   startDate: string,
   endDate: string
-): Promise<Pick<DateRangeData, 'clicks' | 'impressions'>> {
+): Promise<Pick<DateRange-Data, 'clicks' | 'impressions'>> {
   const auth = createAuth();
   const searchconsole = google.searchconsole({ version: 'v1', auth });
 
@@ -54,20 +49,19 @@ export async function getSearchConsoleData(
       clicks: rows?.[0]?.clicks ?? 0,
       impressions: rows?.[0]?.impressions ?? 0,
     };
-  } catch (error) {
-    console.error('Fehler bei der Abfrage der Search Console API:', error);
-    throw new Error('Search Console API-Abfrage fehlgeschlagen.');
+  } catch (error: any) {
+    // HIER IST DIE ÄNDERUNG: Wir loggen den detaillierten Fehler von Google
+    console.error('Detaillierter Fehler von der Search Console API:', JSON.stringify(error, null, 2));
+    // Wir werfen den Fehler weiter, damit die aufrufende Funktion ihn fangen kann
+    throw new Error(`Search Console API-Abfrage fehlgeschlagen: ${error.message}`);
   }
 }
 
-/**
- * Holt Sitzungen und Nutzer von der Google Analytics 4 API.
- */
 export async function getAnalyticsData(
   propertyId: string,
   startDate: string,
   endDate: string
-): Promise<Pick<DateRangeData, 'sessions' | 'totalUsers'>> {
+): Promise<Pick<DateRange-Data, 'sessions' | 'totalUsers'>> {
   const auth = createAuth();
   const analytics = google.analyticsdata({ version: 'v1beta', auth });
 
@@ -85,8 +79,9 @@ export async function getAnalyticsData(
       sessions: parseInt(rows?.[0]?.metricValues?.[0]?.value ?? '0', 10),
       totalUsers: parseInt(rows?.[0]?.metricValues?.[1]?.value ?? '0', 10),
     };
-  } catch (error) {
-    console.error('Fehler bei der Abfrage der Analytics API:', error);
-    throw new Error('Analytics API-Abfrage fehlgeschlagen.');
+  } catch (error: any) {
+    // HIER IST DIE ÄNDERUNG: Wir loggen den detaillierten Fehler von Google
+    console.error('Detaillierter Fehler von der Analytics API:', JSON.stringify(error, null, 2));
+    throw new Error(`Analytics API-Abfrage fehlgeschlagen: ${error.message}`);
   }
 }
