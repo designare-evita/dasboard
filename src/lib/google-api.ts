@@ -5,15 +5,28 @@ import { GoogleAuth } from 'google-auth-library';
 
 function createAuth(): GoogleAuth {
   const serviceAccountEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  // Liest die neue Base64-kodierte Variable
+  // Wir lesen die Base64-kodierte Variable
   const serviceAccountKeyBase64 = process.env.GOOGLE_PRIVATE_KEY_BASE64;
 
-  if (!serviceAccountEmail || !serviceAccountKeyBase64) {
-    throw new Error('Google Service Account credentials (Email or Base64 Key) are not set in environment variables.');
+  if (!serviceAccountEmail) {
+    throw new Error('Umgebungsvariable GOOGLE_SERVICE_ACCOUNT_EMAIL fehlt.');
+  }
+  if (!serviceAccountKeyBase64) {
+    throw new Error('Umgebungsvariable GOOGLE_PRIVATE_KEY_BASE64 fehlt.');
   }
 
-  // Dekodiert den Schlüssel zurück in das mehrzeilige Format
-  const serviceAccountKey = Buffer.from(serviceAccountKeyBase64, 'base64').toString('utf-8');
+  // Sicherheitsprüfung: Dekodieren des Schlüssels
+  let serviceAccountKey: string;
+  try {
+    serviceAccountKey = Buffer.from(serviceAccountKeyBase64, 'base64').toString('utf-8');
+  } catch (e) {
+    throw new Error('GOOGLE_PRIVATE_KEY_BASE64 konnte nicht dekodiert werden. Ist es valides Base64?');
+  }
+  
+  // Stellt sicher, dass der dekodierte Schlüssel wie ein echter Schlüssel aussieht
+  if (!serviceAccountKey.startsWith('-----BEGIN PRIVATE KEY-----')) {
+      throw new Error('Der dekodierte Private Key hat ein ungültiges Format.');
+  }
 
   return new google.auth.GoogleAuth({
     credentials: {
@@ -27,7 +40,7 @@ function createAuth(): GoogleAuth {
   });
 }
 
-// Der Rest der Datei bleibt exakt gleich...
+// Der Rest der Datei bleibt unverändert...
 interface DateRangeData {
   clicks?: number;
   impressions?: number;
