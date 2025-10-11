@@ -18,7 +18,7 @@ function calculateChange(current: number, previous: number): number {
 
 export async function GET() {
   const session = await getServerSession(authOptions);
-  // Wir prüfen nur noch, ob der Benutzer eingeloggt ist. Keine Token-Prüfung mehr.
+  // Wir prüfen nur, ob der Benutzer eingeloggt ist.
   if (!session?.user?.email) {
     return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
   }
@@ -52,7 +52,7 @@ export async function GET() {
       gaCurrent,
       gaPrevious
     ] = await Promise.all([
-      // Die Aufrufe benötigen keine Tokens mehr
+      // HIER IST DIE KORREKTUR: Das überflüssige 'userTokens'-Argument wurde entfernt.
       getSearchConsoleData(userData.gsc_site_url, formatDate(startDateCurrent), formatDate(endDateCurrent)),
       getSearchConsoleData(userData.gsc_site_url, formatDate(startDatePrevious), formatDate(endDatePrevious)),
       getAnalyticsData(userData.ga4_property_id, formatDate(startDateCurrent), formatDate(endDateCurrent)),
