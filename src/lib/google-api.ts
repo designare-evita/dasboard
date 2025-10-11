@@ -34,7 +34,8 @@ export async function getSearchConsoleData(
   siteUrl: string,
   startDate: string,
   endDate: string
-): Promise<Pick<DateRange-Data, 'clicks' | 'impressions'>> {
+  // HIER IST DIE KORREKTUR: Der Bindestrich wurde entfernt
+): Promise<Pick<DateRangeData, 'clicks' | 'impressions'>> {
   const auth = createAuth();
   const searchconsole = google.searchconsole({ version: 'v1', auth });
 
@@ -50,9 +51,7 @@ export async function getSearchConsoleData(
       impressions: rows?.[0]?.impressions ?? 0,
     };
   } catch (error: any) {
-    // HIER IST DIE ÄNDERUNG: Wir loggen den detaillierten Fehler von Google
     console.error('Detaillierter Fehler von der Search Console API:', JSON.stringify(error, null, 2));
-    // Wir werfen den Fehler weiter, damit die aufrufende Funktion ihn fangen kann
     throw new Error(`Search Console API-Abfrage fehlgeschlagen: ${error.message}`);
   }
 }
@@ -61,7 +60,8 @@ export async function getAnalyticsData(
   propertyId: string,
   startDate: string,
   endDate: string
-): Promise<Pick<DateRange-Data, 'sessions' | 'totalUsers'>> {
+  // HIER IST DIE KORREKTUR: Der Bindestrich wurde entfernt
+): Promise<Pick<DateRangeData, 'sessions' | 'totalUsers'>> {
   const auth = createAuth();
   const analytics = google.analyticsdata({ version: 'v1beta', auth });
 
@@ -80,7 +80,6 @@ export async function getAnalyticsData(
       totalUsers: parseInt(rows?.[0]?.metricValues?.[1]?.value ?? '0', 10),
     };
   } catch (error: any) {
-    // HIER IST DIE ÄNDERUNG: Wir loggen den detaillierten Fehler von Google
     console.error('Detaillierter Fehler von der Analytics API:', JSON.stringify(error, null, 2));
     throw new Error(`Analytics API-Abfrage fehlgeschlagen: ${error.message}`);
   }
