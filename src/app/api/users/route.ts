@@ -36,7 +36,7 @@ export async function POST(request: Request) {
     }
     
     const hashedPassword = await bcrypt.hash(password, 10);
-    const creatorId = session.user.id; // Die ID des angemeldeten Admins/Super Admins
+    const creatorId = session.user.id;
 
     await sql`
       INSERT INTO users (email, password, domain, gsc_site_url, ga4_property_id, role, created_by) 
@@ -44,8 +44,10 @@ export async function POST(request: Request) {
     `;
     
     return NextResponse.json({ message: 'Benutzer erfolgreich erstellt' }, { status: 201 });
-  } catch (error: any) {
-    if (error.code === '23505') { // Eindeutigkeitsverletzung (E-Mail existiert bereits)
+
+  } catch (error: unknown) { // HIER IST DIE KORREKTUR: 'any' wurde durch 'unknown' ersetzt
+    // Wir müssen den Typ von 'error' prüfen, bevor wir auf Eigenschaften zugreifen
+    if (typeof error === 'object' && error !== null && 'code' in error && error.code === '23505') {
       return NextResponse.json({ message: 'Ein Benutzer mit dieser E-Mail-Adresse existiert bereits.' }, { status: 409 });
     }
     console.error("Fehler beim Erstellen des Benutzers:", error);
