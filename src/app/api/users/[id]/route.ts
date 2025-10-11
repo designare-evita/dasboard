@@ -6,18 +6,14 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { User } from '@/types';
 
-type Params = {
-  id: string;
-};
-
 // Holt die Daten für einen einzelnen Benutzer
-export async function GET(request: Request, context: { params: Params }) {
+export async function GET(request: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
     return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
   }
 
-  const { id } = context.params;
+  const { id } = params;
 
   try {
     const { rows } = await sql<User>`
@@ -36,13 +32,13 @@ export async function GET(request: Request, context: { params: Params }) {
 }
 
 // Aktualisiert die Daten eines Benutzers
-export async function PUT(request: Request, context: { params: Params }) {
+export async function PUT(request: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
     return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
   }
 
-  const { id } = context.params;
+  const { id } = params;
   const body = await request.json();
   const { email, domain, gsc_site_url, ga4_property_id } = body;
 
@@ -60,13 +56,13 @@ export async function PUT(request: Request, context: { params: Params }) {
 }
 
 // Löscht einen Benutzer
-export async function DELETE(request: Request, context: { params: Params }) {
+export async function DELETE(request: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
     return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
   }
 
-  const { id } = context.params;
+  const { id } = params;
 
   try {
     const userToDelete = await sql`SELECT email FROM users WHERE id = ${id}`;
