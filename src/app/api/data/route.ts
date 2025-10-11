@@ -15,10 +15,8 @@ function calculateChange(current: number, previous: number): number {
     return Math.round(change * 10) / 10;
 }
 
-// Neue, saubere Funktion, um die KPI-Daten für EINEN Benutzer abzurufen
 async function getDashboardDataForUser(user: Partial<User>) {
     if (!user.gsc_site_url || !user.ga4_property_id) {
-        // Dies ist kein Fehler, sondern bedeutet nur, dass für diesen User nichts konfiguriert ist.
         return null;
     }
 
@@ -52,34 +50,44 @@ async function getDashboardDataForUser(user: Partial<User>) {
     };
 }
 
-
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) {
     return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
   }
 
+  // --- DIAGNOSE-MODUS ---
+  const debugInfo = {
+    detectedRole: session.user.role,
+    detectedId: session.user.id,
+    query: ""
+  };
+
   try {
     const { role, id } = session.user;
 
     // Fall 1: Super Admin
     if (role === 'SUPERADMIN') {
+      debugInfo.query = "SELECT id, email, domain FROM users WHERE role = 'BENUTZER'";
       const { rows: projects } = await sql<User>`
-        SELECT id, email, domain FROM users WHERE role = 'USER'
+        SELECT id, email, domain FROM users WHERE role = 'BENUTZER'
       `;
-      return NextResponse.json(projects);
+      // Wir fügen die Debug-Infos zur normalen Antwort hinzu
+      return NextResponse.json({ debugInfo, projects });
     }
 
     // Fall 2: Admin
     if (role === 'ADMIN') {
+        debugInfo.query = `SELECT id, email, domain FROM users WHERE role = 'BENUTZER' AND created_by = ${id}`;
         const { rows: projects } = await sql<User>`
-            SELECT id, email, domain FROM users WHERE role = 'USER' AND created_by = ${id}
+            SELECT id, email, domain FROM users WHERE role = 'BENUTZER' AND created_by = ${id}
         `;
-        return NextResponse.json(projects);
+        return NextResponse.json({ debugInfo, projects });
     }
     
-    // Fall 3: Kunde (USER)
+    // Fall 3: Kunde (BENUTZER)
     if (role === 'BENUTZER') {
+        debugInfo.query = `SELECT gsc_site_url, ga4_property_id FROM users WHERE id = ${id}`;
         const { rows } = await sql<User>`
             SELECT gsc_site_url, ga4_property_id FROM users WHERE id = ${id}
         `;
@@ -94,7 +102,7 @@ export async function GET() {
         return NextResponse.json(dashboardData);
     }
 
-    // Fallback, falls die Rolle unbekannt ist
+    // Fallback
     return NextResponse.json({ message: 'Unbekannte Benutzerrolle.' }, { status: 403 });
 
   } catch (error) {
