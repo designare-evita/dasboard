@@ -68,7 +68,7 @@ export default function AdminPage() {
   
   // Handler für das Löschen eines Benutzers
   const handleDelete = async (userId: string) => {
-    if (window.confirm('Sind Sie sicher, dass Sie diesen Benutzer endgültig löschen möchten?')) {
+    if (window.confirm('Sind Sie sicher, dass Sie diesen Nutzer endgültig löschen möchten?')) {
       const response = await fetch(`/api/users/${userId}`, {
         method: 'DELETE',
       });
@@ -97,7 +97,7 @@ export default function AdminPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-6">
         {/* === FORMULAR ZUM ANLEGEN VON BENUTZERN === */}
         <div className="bg-white p-6 rounded-lg shadow-md h-fit">
-          <h2 className="text-xl font-bold mb-4">Neuen Benutzer anlegen</h2>
+          <h2 className="text-xl font-bold mb-4">Neuen Nutzer anlegen</h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700">Rolle</label>
@@ -146,7 +146,7 @@ export default function AdminPage() {
 
         {/* === BENUTZERLISTE === */}
         <div className="bg-white p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-bold mb-4">Vorhandene Benutzer</h2>
+          <h2 className="text-xl font-bold mb-4">Vorhandene Nutzer</h2>
           {isLoadingUsers ? (
             <p>Lade Benutzer...</p>
           ) : (
