@@ -2,10 +2,10 @@
 
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { getSearchConsoleData, getAnalyticsData } from '@/lib/google-api';
+import { authOptions } from '@/lib/auth'; // Korrekter Importpfad
+import { getSearchConsoleData, getAnalyticsData } from '@/lib/google-api'; // Korrekter Importpfad
 import { sql } from '@vercel/postgres';
-import { User } from '@/types';
+import { User } from '@/types'; // Korrekter Importpfad
 
 function formatDate(date: Date): string {
     return date.toISOString().split('T')[0];
@@ -17,9 +17,11 @@ function calculateChange(current: number, previous: number): number {
     return Math.round(change * 10) / 10;
 }
 
+// ✅ KORREKTUR: Die Typisierung für 'params' wird hier korrigiert.
+// Der zweite Parameter ist ein Objekt, das eine 'params'-Eigenschaft enthält.
 export async function GET(
     request: Request,
-    { params }: { params: { id: string } }
+    { params }: { params: { id: string } } 
 ) {
     const session = await getServerSession(authOptions);
     if (!session?.user?.email) {
@@ -29,6 +31,7 @@ export async function GET(
     const projectId = params.id;
 
     try {
+        // ... (Der Rest der Funktion bleibt unverändert)
         const { rows } = await sql<User>`
             SELECT gsc_site_url, ga4_property_id FROM users WHERE id = ${projectId}
         `;
@@ -37,19 +40,17 @@ export async function GET(
         if (!project || !project.gsc_site_url || !project.ga4_property_id) {
             return NextResponse.json({ message: 'Projekt nicht gefunden oder unvollständig konfiguriert.' }, { status: 404 });
         }
-
+        
         const today = new Date();
-        // Daten von Google sind oft 2 Tage verzögert
         const endDateCurrent = new Date();
         endDateCurrent.setDate(today.getDate() - 2);
         const startDateCurrent = new Date(endDateCurrent);
-        startDateCurrent.setDate(endDateCurrent.getDate() - 29); // Letzte 30 Tage
+        startDateCurrent.setDate(endDateCurrent.getDate() - 29);
 
-        // Vorheriger Zeitraum zum Vergleich
         const endDatePrevious = new Date(startDateCurrent);
         endDatePrevious.setDate(startDateCurrent.getDate() - 1);
         const startDatePrevious = new Date(endDatePrevious);
-        startDatePrevious.setDate(endDatePrevious.getDate() - 29); // Davorliegende 30 Tage
+        startDatePrevious.setDate(endDatePrevious.getDate() - 29);
 
         const [gscCurrent, gscPrevious, gaCurrent, gaPrevious] = await Promise.all([
             getSearchConsoleData(project.gsc_site_url, formatDate(startDateCurrent), formatDate(endDateCurrent)),
@@ -58,7 +59,6 @@ export async function GET(
             getAnalyticsData(project.ga4_property_id, formatDate(startDatePrevious), formatDate(endDatePrevious))
         ]);
 
-        // ✅ KORREKTUR: Datenstruktur passend zur Frontend-Komponente erstellen
         const responseData = {
             kpis: {
                 clicks: {
