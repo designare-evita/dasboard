@@ -3,10 +3,24 @@
 import { google } from 'googleapis';
 import { GoogleAuth } from 'google-auth-library';
 
-function createAuth(): GoogleAuth { /* ... unverändert ... */ }
+function createAuth(): GoogleAuth {
+  const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS || '{}');
+  
+  return new GoogleAuth({
+    credentials,
+    scopes: [
+      'https://www.googleapis.com/auth/webmasters.readonly',
+      'https://www.googleapis.com/auth/analytics.readonly',
+    ],
+  });
+}
 
 // Neue Typ-Definitionen für die Tagesdaten
-interface DailyDataPoint { date: string; value: number; }
+interface DailyDataPoint { 
+  date: string; 
+  value: number; 
+}
+
 interface DateRangeData {
   total: number;
   daily: DailyDataPoint[];
@@ -33,8 +47,15 @@ export async function getSearchConsoleData(
 
     const rows = response.data.rows || [];
     
-    const clicksDaily = rows.map(row => ({ date: row.keys![0], value: row.clicks! }));
-    const impressionsDaily = rows.map(row => ({ date: row.keys![0], value: row.impressions! }));
+    const clicksDaily = rows.map(row => ({ 
+      date: row.keys![0], 
+      value: row.clicks || 0 
+    }));
+    
+    const impressionsDaily = rows.map(row => ({ 
+      date: row.keys![0], 
+      value: row.impressions || 0 
+    }));
 
     return {
       clicks: {
@@ -46,7 +67,10 @@ export async function getSearchConsoleData(
         daily: impressionsDaily,
       },
     };
-  } catch (error: unknown) { /* ... unverändert ... */ }
+  } catch (error: unknown) {
+    console.error('Fehler beim Abrufen der Search Console Daten:', error);
+    throw new Error('Fehler beim Abrufen der Search Console Daten');
+  }
 }
 
 // Angepasste Funktion für Analytics
@@ -70,8 +94,15 @@ export async function getAnalyticsData(
 
     const rows = response.data.rows || [];
 
-    const sessionsDaily = rows.map(row => ({ date: row.dimensionValues![0].value!, value: parseInt(row.metricValues![0].value!, 10) }));
-    const usersDaily = rows.map(row => ({ date: row.dimensionValues![0].value!, value: parseInt(row.metricValues![1].value!, 10) }));
+    const sessionsDaily = rows.map(row => ({ 
+      date: row.dimensionValues![0].value!, 
+      value: parseInt(row.metricValues![0].value || '0', 10) 
+    }));
+    
+    const usersDaily = rows.map(row => ({ 
+      date: row.dimensionValues![0].value!, 
+      value: parseInt(row.metricValues![1].value || '0', 10) 
+    }));
 
     return {
       sessions: {
@@ -83,5 +114,8 @@ export async function getAnalyticsData(
         daily: usersDaily,
       },
     };
-  } catch (error: unknown) { /* ... unverändert ... */ }
+  } catch (error: unknown) {
+    console.error('Fehler beim Abrufen der Analytics Daten:', error);
+    throw new Error('Fehler beim Abrufen der Analytics Daten');
+  }
 }
