@@ -1,10 +1,18 @@
 import { sql } from '@vercel/postgres';
-import { User } from '@/types'; 
+import { User } from '@/types';
+
+// ✅ KORREKTUR: Wir erstellen und exportieren ein 'db'-Objekt.
+// Deine API-Routen versuchen, dieses Objekt zu importieren.
+export const db = {
+  // Wir machen die 'sql'-Funktion als 'db.query' verfügbar, um konsistent zu bleiben.
+  query: sql,
+};
 
 // Funktion zum Erstellen der Tabellen
 export async function createTables() {
   try {
-    await sql`
+    // Wir verwenden jetzt db.query für alle Datenbankoperationen
+    await db.query`
       CREATE TABLE IF NOT EXISTS users (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         email VARCHAR(255) NOT NULL UNIQUE,
@@ -19,7 +27,7 @@ export async function createTables() {
     `;
     console.log('Tabelle "users" erfolgreich geprüft/erstellt.');
 
-    await sql`
+    await db.query`
       CREATE TABLE IF NOT EXISTS landingpages (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         domain VARCHAR(255) NOT NULL,
@@ -30,7 +38,7 @@ export async function createTables() {
       );
     `;
     console.log('Tabelle "landingpages" erfolgreich geprüft/erstellt.');
-  } catch (error: unknown) { // 'any' durch 'unknown' ersetzen
+  } catch (error: unknown) {
     console.error('Fehler beim Erstellen der Tabellen:', error);
     throw new Error('Tabellen konnten nicht erstellt werden.');
   }
@@ -39,9 +47,9 @@ export async function createTables() {
 // Funktion, um einen Benutzer anhand seiner E-Mail zu finden
 export async function getUserByEmail(email: string) {
   try {
-    const user = await sql`SELECT * FROM users WHERE email=${email}`;
-    return user.rows[0] as User;
-  } catch (error: unknown) { // 'any' durch 'unknown' ersetzen
+    const { rows } = await db.query`SELECT * FROM users WHERE email=${email}`;
+    return rows[0] as User;
+  } catch (error: unknown) {
     console.error('Fehler beim Abrufen des Benutzers:', error);
     throw new Error('Benutzer konnte nicht gefunden werden.');
   }
