@@ -1,18 +1,15 @@
-// src/app/layout.tsx
-
 import type { Metadata } from "next";
-// HIER IST DIE ÄNDERUNG: Wir importieren Poppins anstelle von Inter
+// ✅ KORREKTUR: Wir importieren Poppins, wie von dir gewünscht.
 import { Poppins } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
+// ✅ KORREKTUR: Wir importieren die neue MainLayout-Komponente.
+import MainLayout from '@/components/MainLayout';
 
-import Header from "@/components/layout/Header";
-import Footer from "@/components/layout/Footer"; // Annahme: Footer existiert bereits
-
-// Konfiguriert den Poppins-Font mit den gewünschten Schriftschnitten
+// Konfiguriert den Poppins-Font
 const poppins = Poppins({ 
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"] // Regular, Medium, Semi-Bold, Bold
+  weight: ["400", "500", "600", "700"]
 });
 
 export const metadata: Metadata = {
@@ -27,16 +24,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="de">
-      {/* HIER IST DIE ÄNDERUNG: Wir wenden die poppins-Klasse an */}
+      {/* Wir wenden die Poppins-Font-Klasse an */}
       <body className={`${poppins.className} bg-gray-50`}>
         <Providers>
-          <div className="flex flex-col min-h-screen">
-            <Header />
-            <main className="flex-grow p-8">
-              {children}
-            </main>
-            <Footer />
-          </div>
+          {/* MainLayout kümmert sich jetzt um die Anzeige von Header/Footer
+            und erhält die Kinder (die eigentlichen Seiteninhalte).
+          */}
+          <MainLayout>
+            {children}
+          </MainLayout>
         </Providers>
       </body>
     </html>
