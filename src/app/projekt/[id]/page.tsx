@@ -52,7 +52,7 @@ export default function ProjektDetailPage() {
   if (error) {
     return (
       <div className="p-6">
-        <p className="text-red-500">Fehler beim Laden der Daten: {error.message}</p>
+        <p className="text-red-500">Fehler beim Laden der Daten: {error}</p>
       </div>
     );
   }
