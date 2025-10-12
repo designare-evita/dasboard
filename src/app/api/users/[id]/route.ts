@@ -7,20 +7,21 @@ import bcrypt from 'bcryptjs';
 // Handler zum Abrufen eines einzelnen Benutzers
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const { rows } = await sql`
       SELECT id, email, role, domain, gsc_site_url, ga4_property_id 
       FROM users 
-      WHERE id = ${params.id}
+      WHERE id = ${id}
     `;
     if (rows.length === 0) {
       return NextResponse.json({ message: 'Benutzer nicht gefunden' }, { status: 404 });
     }
     return NextResponse.json(rows[0]);
   } catch (error) {
-    console.error(`Fehler beim Abrufen des Benutzers ${params.id}:`, error);
+    console.error('Fehler beim Abrufen des Benutzers:', error);
     return NextResponse.json({ message: 'Interner Serverfehler' }, { status: 500 });
   }
 }
@@ -28,30 +29,43 @@ export async function GET(
 // Handler zum Aktualisieren eines Benutzers
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const body = await request.json();
     const { email, role, domain, gsc_site_url, ga4_property_id, password } = body;
 
-    let hashedPassword;
+    let updateQuery;
     if (password) {
-      hashedPassword = await bcrypt.hash(password, 10);
+      const hashedPassword = await bcrypt.hash(password, 10);
+      updateQuery = sql`
+        UPDATE users
+        SET 
+          email = ${email},
+          role = ${role},
+          domain = ${domain},
+          gsc_site_url = ${gsc_site_url},
+          ga4_property_id = ${ga4_property_id},
+          password = ${hashedPassword}
+        WHERE id = ${id}
+        RETURNING id, email, role, domain, gsc_site_url, ga4_property_id;
+      `;
+    } else {
+      updateQuery = sql`
+        UPDATE users
+        SET 
+          email = ${email},
+          role = ${role},
+          domain = ${domain},
+          gsc_site_url = ${gsc_site_url},
+          ga4_property_id = ${ga4_property_id}
+        WHERE id = ${id}
+        RETURNING id, email, role, domain, gsc_site_url, ga4_property_id;
+      `;
     }
-    
-    // KORREKTUR: Prisma-Befehl durch SQL ersetzt
-    const { rows } = await sql`
-      UPDATE users
-      SET 
-        email = ${email},
-        role = ${role},
-        domain = ${domain},
-        gsc_site_url = ${gsc_site_url},
-        ga4_property_id = ${ga4_property_id}
-        ${password ? sql`, password = ${hashedPassword}` : sql``}
-      WHERE id = ${params.id}
-      RETURNING id, email, role, domain;
-    `;
+
+    const { rows } = await updateQuery;
 
     if (rows.length === 0) {
       return NextResponse.json({ message: "Benutzer nicht gefunden" }, { status: 404 });
@@ -59,7 +73,7 @@ export async function PUT(
 
     return NextResponse.json(rows[0]);
   } catch (error) {
-    console.error(`Fehler beim Aktualisieren des Benutzers ${params.id}:`, error);
+    console.error('Fehler beim Aktualisieren des Benutzers:', error);
     return NextResponse.json({ message: 'Interner Serverfehler' }, { status: 500 });
   }
 }
@@ -67,12 +81,12 @@ export async function PUT(
 // Handler zum Löschen eines Benutzers
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // KORREKTUR: Prisma-Befehl durch SQL ersetzt
+    const { id } = await params;
     const result = await sql`
-      DELETE FROM users WHERE id = ${params.id};
+      DELETE FROM users WHERE id = ${id};
     `;
 
     if (result.rowCount === 0) {
@@ -81,7 +95,7 @@ export async function DELETE(
 
     return NextResponse.json({ message: 'Benutzer erfolgreich gelöscht' });
   } catch (error) {
-    console.error(`Fehler beim Löschen des Benutzers ${params.id}:`, error);
+    console.error('Fehler beim Löschen des Benutzers:', error);
     return NextResponse.json({ message: 'Interner Serverfehler' }, { status: 500 });
   }
 }
