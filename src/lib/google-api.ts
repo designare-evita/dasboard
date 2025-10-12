@@ -15,7 +15,6 @@ function createAuth(): GoogleAuth {
   });
 }
 
-// Neue Typ-Definitionen für die Tagesdaten
 interface DailyDataPoint { 
   date: string; 
   value: number; 
@@ -26,7 +25,6 @@ interface DateRangeData {
   daily: DailyDataPoint[];
 }
 
-// Angepasste Funktion für die Search Console
 export async function getSearchConsoleData(
   siteUrl: string,
   startDate: string,
@@ -41,21 +39,22 @@ export async function getSearchConsoleData(
       requestBody: { 
         startDate, 
         endDate, 
-        dimensions: ['date'] // WICHTIG: Wir gruppieren nach Datum
+        dimensions: ['date']
       },
     });
 
     const rows = response.data.rows || [];
     
+    // Sicherer Zugriff auf Datenpunkte
     const clicksDaily = rows.map(row => ({ 
-      date: row.keys![0], 
+      date: row.keys?.[0] ?? '', 
       value: row.clicks || 0 
-    }));
+    })).filter(d => d.date);
     
     const impressionsDaily = rows.map(row => ({ 
-      date: row.keys![0], 
+      date: row.keys?.[0] ?? '', 
       value: row.impressions || 0 
-    }));
+    })).filter(d => d.date);
 
     return {
       clicks: {
@@ -68,12 +67,13 @@ export async function getSearchConsoleData(
       },
     };
   } catch (error: unknown) {
-    console.error('Fehler beim Abrufen der Search Console Daten:', error);
-    throw new Error('Fehler beim Abrufen der Search Console Daten');
+    // ✅ KORREKTUR: Wir loggen den gesamten Fehler und geben eine spezifischere Nachricht zurück.
+    console.error('Detaillierter Fehler beim Abrufen der Search Console Daten:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unbekannter API-Fehler';
+    throw new Error(`Fehler bei Google Search Console API: ${errorMessage}`);
   }
 }
 
-// Angepasste Funktion für Analytics
 export async function getAnalyticsData(
   propertyId: string,
   startDate: string,
@@ -87,22 +87,23 @@ export async function getAnalyticsData(
       property: `properties/${propertyId}`,
       requestBody: {
         dateRanges: [{ startDate, endDate }],
-        dimensions: [{ name: 'date' }], // WICHTIG: Wir gruppieren nach Datum
+        dimensions: [{ name: 'date' }],
         metrics: [{ name: 'sessions' }, { name: 'totalUsers' }],
       },
     });
 
     const rows = response.data.rows || [];
 
+    // Sicherer Zugriff auf Datenpunkte
     const sessionsDaily = rows.map(row => ({ 
-      date: row.dimensionValues![0].value!, 
-      value: parseInt(row.metricValues![0].value || '0', 10) 
-    }));
+      date: row.dimensionValues?.[0]?.value?.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3') ?? '',
+      value: parseInt(row.metricValues?.[0]?.value || '0', 10) 
+    })).filter(d => d.date);
     
     const usersDaily = rows.map(row => ({ 
-      date: row.dimensionValues![0].value!, 
-      value: parseInt(row.metricValues![1].value || '0', 10) 
-    }));
+      date: row.dimensionValues?.[0]?.value?.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3') ?? '',
+      value: parseInt(row.metricValues?.[1]?.value || '0', 10) 
+    })).filter(d => d.date);
 
     return {
       sessions: {
@@ -115,7 +116,9 @@ export async function getAnalyticsData(
       },
     };
   } catch (error: unknown) {
-    console.error('Fehler beim Abrufen der Analytics Daten:', error);
-    throw new Error('Fehler beim Abrufen der Analytics Daten');
+    // ✅ KORREKTUR: Wir loggen den gesamten Fehler und geben eine spezifischere Nachricht zurück.
+    console.error('Detaillierter Fehler beim Abrufen der Analytics Daten:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unbekannter API-Fehler';
+    throw new Error(`Fehler bei Google Analytics API: ${errorMessage}`);
   }
 }
