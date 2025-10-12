@@ -72,6 +72,11 @@ export async function PUT(
     const body = await request.json();
     const { email, domain, gsc_site_url, ga4_property_id, password } = body;
 
+    // Validierung
+    if (!email || !domain) {
+      return NextResponse.json({ message: 'E-Mail und Domain sind erforderlich' }, { status: 400 });
+    }
+
     // Prüfen ob Projekt dem Admin gehört (oder Superadmin ist)
     if (session.user.role === 'ADMIN') {
       const { rows: existingProject } = await sql`
@@ -84,7 +89,7 @@ export async function PUT(
       }
     }
 
-    // Update Query vorbereiten
+    // Update Query vorbereiten - role wird NICHT geändert (bleibt BENUTZER)
     let updateQuery;
     if (password) {
       const hashedPassword = await bcrypt.hash(password, 10);
