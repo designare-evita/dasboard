@@ -1,14 +1,15 @@
 // src/lib/google-api.ts
 
 import { google } from 'googleapis';
-import { GoogleAuth } from 'google-auth-library';
+import { JWT } from 'google-auth-library';
 
-function createAuth(): GoogleAuth {
+function createAuth(): JWT {
   // Option 1: Komplettes JSON in GOOGLE_CREDENTIALS (falls vorhanden)
   if (process.env.GOOGLE_CREDENTIALS) {
     const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
-    return new GoogleAuth({
-      credentials,
+    return new JWT({
+      email: credentials.client_email,
+      key: credentials.private_key,
       scopes: [
         'https://www.googleapis.com/auth/webmasters.readonly',
         'https://www.googleapis.com/auth/analytics.readonly',
@@ -27,14 +28,9 @@ function createAuth(): GoogleAuth {
   // Base64 zu normalem String dekodieren
   const privateKey = Buffer.from(privateKeyBase64, 'base64').toString('utf-8');
   
-  const credentials = {
-    type: 'service_account',
-    client_email: clientEmail,
-    private_key: privateKey,
-  };
-  
-  return new GoogleAuth({
-    credentials,
+  return new JWT({
+    email: clientEmail,
+    key: privateKey,
     scopes: [
       'https://www.googleapis.com/auth/webmasters.readonly',
       'https://www.googleapis.com/auth/analytics.readonly',
