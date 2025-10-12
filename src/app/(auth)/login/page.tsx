@@ -2,11 +2,14 @@
 'use client';
 
 import { signIn } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation'; // useSearchParams importieren
 import { useState } from 'react';
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams(); // searchParams für Callback-URL auslesen
+  const callbackUrl = searchParams.get('callbackUrl') || '/'; // Standard-Weiterleitung zur Hauptseite
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -16,18 +19,18 @@ export default function LoginPage() {
     setError('');
 
     const result = await signIn('credentials', {
-      redirect: false, // Wichtig: Wir leiten manuell weiter, um Fehler zu behandeln
+      // ✅ KORREKTUR: Wir lassen NextAuth die Weiterleitung übernehmen
+      redirect: true,
+      callbackUrl, // Wir geben die URL an, zu der nach dem Login weitergeleitet werden soll
       email,
       password,
     });
 
+    // Dieser Teil wird nur ausgeführt, wenn `redirect: false` wäre oder ein Fehler auftritt, der die Weiterleitung verhindert.
     if (result?.error) {
-      // Fehlermeldung vom Server anzeigen
       setError('E-Mail oder Passwort ungültig.');
-    } else {
-      // Bei Erfolg zur Hauptseite weiterleiten
-      router.push('/');
     }
+    // Der `else`-Block mit `router.push` ist nicht mehr nötig.
   };
 
   return (
