@@ -1,4 +1,3 @@
-// src/app/page.tsx
 'use client';
 
 import { useSession } from 'next-auth/react';
@@ -6,12 +5,11 @@ import useApiData from '@/hooks/use-api-data';
 import KpiCard from '@/components/kpi-card';
 import Link from 'next/link';
 
-// --- Typen aus Ihrer bestehenden Struktur ---
+// --- Typen ---
 interface KpiValue {
   value: number;
   change: number;
 }
-
 interface KpiDashboard {
   searchConsole: {
     clicks: KpiValue;
@@ -22,7 +20,6 @@ interface KpiDashboard {
     totalUsers: KpiValue;
   };
 }
-
 interface Project {
   id: string;
   email: string;
@@ -30,18 +27,23 @@ interface Project {
   gsc_site_url?: string;
   ga4_property_id?: string;
 }
-
 interface AdminResponse {
   role: 'SUPERADMIN' | 'ADMIN';
   projects: Project[];
 }
-
 interface CustomerResponse {
   role: 'BENUTZER';
-  kpis: KpiDashboard;
+  kpis?: KpiDashboard; // <-- optional, um API-Fälle ohne KPIs abzudecken
 }
-
 type ApiResponse = AdminResponse | CustomerResponse;
+
+// --- Type Guards ---
+function isAdmin(data: ApiResponse | undefined): data is AdminResponse {
+  return !!data && 'role' in data && (data.role === 'SUPERADMIN' || data.role === 'ADMIN');
+}
+function isCustomerWithKpis(data: ApiResponse | undefined): data is Required<CustomerResponse> {
+  return !!data && 'role' in data && data.role === 'BENUTZER' && !!(data as CustomerResponse).kpis;
+}
 
 export default function DashboardPage() {
   const { status } = useSession();
@@ -68,19 +70,17 @@ export default function DashboardPage() {
     );
   }
 
-  // Admin / Superadmin: Projektliste
-  if (data && 'role' in data && (data.role === 'SUPERADMIN' || data.role === 'ADMIN')) {
-    const adminData = data as AdminResponse;
-
+  // --- Admin-/Superadmin-Ansicht ---
+  if (isAdmin(data)) {
     return (
       <div className="p-8 bg-gray-50 min-h-screen">
         <main className="mt-6">
           <div className="bg-white p-6 rounded-lg shadow-md">
             <h2 className="text-2xl font-bold mb-4">
-              {adminData.role === 'SUPERADMIN' ? 'Alle Kundenprojekte' : 'Meine Kundenprojekte'}
+              {data.role === 'SUPERADMIN' ? 'Alle Kundenprojekte' : 'Meine Kundenprojekte'}
             </h2>
 
-            {adminData.projects.length === 0 ? (
+            {data.projects.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
                 <p className="text-lg">Es wurden noch keine Kundenprojekte angelegt.</p>
                 <Link
@@ -92,7 +92,7 @@ export default function DashboardPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {adminData.projects.map((project: Project) => (
+                {data.projects.map((project: Project) => (
                   <div
                     key={project.id}
                     className="p-4 border rounded-md hover:shadow-md transition-shadow"
@@ -130,9 +130,9 @@ export default function DashboardPage() {
     );
   }
 
-  // Kunde: KPI-Dashboard
-  if (data && 'role' in data && data.role === 'BENUTZER') {
-    const customerData = data as CustomerResponse;
+  // --- Kunden-Ansicht mit vorhandenen KPIs ---
+  if (isCustomerWithKpis(data)) {
+    const k = data.kpis; // garantiert vorhanden durch Type Guard
 
     return (
       <div className="p-8 bg-gray-50 min-h-screen">
@@ -141,27 +141,27 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <KpiCard
               title="Klicks"
-              isLoading={isLoading}
-              value={customerData.kpis.searchConsole.clicks.value}
-              change={customerData.kpis.searchConsole.clicks.change}
+              isLoading={false}
+              value={k.searchConsole.clicks.value}
+              change={k.searchConsole.clicks.change}
             />
             <KpiCard
               title="Impressionen"
-              isLoading={isLoading}
-              value={customerData.kpis.searchConsole.impressions.value}
-              change={customerData.kpis.searchConsole.impressions.change}
+              isLoading={false}
+              value={k.searchConsole.impressions.value}
+              change={k.searchConsole.impressions.change}
             />
             <KpiCard
               title="Sitzungen"
-              isLoading={isLoading}
-              value={customerData.kpis.analytics.sessions.value}
-              change={customerData.kpis.analytics.sessions.change}
+              isLoading={false}
+              value={k.analytics.sessions.value}
+              change={k.analytics.sessions.change}
             />
             <KpiCard
               title="Nutzer"
-              isLoading={isLoading}
-              value={customerData.kpis.analytics.totalUsers.value}
-              change={customerData.kpis.analytics.totalUsers.change}
+              isLoading={false}
+              value={k.analytics.totalUsers.value}
+              change={k.analytics.totalUsers.change}
             />
           </div>
         </main>
@@ -169,7 +169,30 @@ export default function DashboardPage() {
     );
   }
 
-  // Fallback
+  // --- Kunde ohne KPIs (leerer Zustand / Erst-Setup) ---
+  if (data && 'role' in data && data.role === 'BENUTZER') {
+    return (
+      <div className="p-8 bg-gray-50 min-h-screen">
+        <main className="mt-6">
+          <h2 className="text-2xl font-bold mb-4">Ihr Dashboard</h2>
+          <div className="bg-white p-6 rounded-lg border">
+            <p className="text-gray-700">
+              Für Ihr Projekt liegen aktuell noch keine KPI-Daten vor. Bitte prüfen Sie die
+              Anbindung an Google Search Console und Google Analytics 4 oder versuchen Sie es später erneut.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-6">
+              <KpiCard title="Klicks" isLoading={false} value={0} change={0} />
+              <KpiCard title="Impressionen" isLoading={false} value={0} change={0} />
+              <KpiCard title="Sitzungen" isLoading={false} value={0} change={0} />
+              <KpiCard title="Nutzer" isLoading={false} value={0} change={0} />
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // --- Fallback ---
   return (
     <div className="p-8 text-center">
       <p>Keine Daten verfügbar.</p>
