@@ -34,16 +34,60 @@ interface AdminResponse {
 }
 interface CustomerResponse {
   role: 'BENUTZER';
-  kpis?: KpiDashboard; // optional, falls API (noch) nichts liefert
+  kpis?: Partial<KpiDashboard>; // API darf unvollständig sein
 }
 type ApiResponse = AdminResponse | CustomerResponse;
 
-// --- Type Guards (akzeptieren jetzt auch null | undefined) ---
+// --- Default-KPIs + Normalisierung ---
+const DEFAULT_KPIS: KpiDashboard = {
+  searchConsole: {
+    clicks: { value: 0, change: 0 },
+    impressions: { value: 0, change: 0 },
+  },
+  analytics: {
+    sessions: { value: 0, change: 0 },
+    totalUsers: { value: 0, change: 0 },
+  },
+};
+
+// Mischt eingehende (teilweise/fehlende) KPIs sicher mit Defaults
+function normalizeKpis(input?: Partial<KpiDashboard>): KpiDashboard {
+  return {
+    searchConsole: {
+      clicks: {
+        value: input?.searchConsole?.clicks?.value ?? DEFAULT_KPIS.searchConsole.clicks.value,
+        change: input?.searchConsole?.clicks?.change ?? DEFAULT_KPIS.searchConsole.clicks.change,
+      },
+      impressions: {
+        value:
+          input?.searchConsole?.impressions?.value ??
+          DEFAULT_KPIS.searchConsole.impressions.value,
+        change:
+          input?.searchConsole?.impressions?.change ??
+          DEFAULT_KPIS.searchConsole.impressions.change,
+      },
+    },
+    analytics: {
+      sessions: {
+        value: input?.analytics?.sessions?.value ?? DEFAULT_KPIS.analytics.sessions.value,
+        change: input?.analytics?.sessions?.change ?? DEFAULT_KPIS.analytics.sessions.change,
+      },
+      totalUsers: {
+        value:
+          input?.analytics?.totalUsers?.value ?? DEFAULT_KPIS.analytics.totalUsers.value,
+        change:
+          input?.analytics?.totalUsers?.change ?? DEFAULT_KPIS.analytics.totalUsers.change,
+      },
+    },
+  };
+}
+
+// --- Type Guards (akzeptieren null/undefined vom Hook) ---
 function isAdmin(data: ApiResponse | null | undefined): data is AdminResponse {
   return !!data && 'role' in data && (data.role === 'SUPERADMIN' || data.role === 'ADMIN');
 }
-function isCustomerWithKpis(data: ApiResponse | null | undefined): data is Required<CustomerResponse> {
-  return !!data && 'role' in data && data.role === 'BENUTZER' && !!(data as CustomerResponse).kpis;
+function isCustomer(data: ApiResponse | null | undefined): data is CustomerResponse {
+  return !!data && 'role' in data && data.role === 'BENUTZER';
 }
 
 export default function DashboardPage() {
@@ -131,9 +175,9 @@ export default function DashboardPage() {
     );
   }
 
-  // --- Kunden-Ansicht mit vorhandenen KPIs ---
-  if (isCustomerWithKpis(data)) {
-    const k = data.kpis; // garantiert vorhanden durch Type Guard
+  // --- Kunden-Ansicht (immer mit sicheren Defaults) ---
+  if (isCustomer(data)) {
+    const k: KpiDashboard = normalizeKpis(data.kpis);
 
     return (
       <div className="p-8 bg-gray-50 min-h-screen">
@@ -165,29 +209,14 @@ export default function DashboardPage() {
               change={k.analytics.totalUsers.change}
             />
           </div>
-        </main>
-      </div>
-    );
-  }
 
-  // --- Kunde ohne KPIs (leerer Zustand / Erst-Setup) ---
-  if (data && 'role' in data && data.role === 'BENUTZER') {
-    return (
-      <div className="p-8 bg-gray-50 min-h-screen">
-        <main className="mt-6">
-          <h2 className="text-2xl font-bold mb-4">Ihr Dashboard</h2>
-          <div className="bg-white p-6 rounded-lg border">
-            <p className="text-gray-700">
-              Für Ihr Projekt liegen aktuell noch keine KPI-Daten vor. Bitte prüfen Sie die
-              Anbindung an Google Search Console und Google Analytics 4 oder versuchen Sie es später erneut.
+          {/* Hinweis, falls die gelieferten KPIs leer waren */}
+          {data.kpis == null && (
+            <p className="mt-6 text-sm text-gray-500">
+              Hinweis: Es wurden noch keine KPI-Daten von der API geliefert. Es werden vorübergehend
+              Platzhalter-Werte (0) angezeigt.
             </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-6">
-              <KpiCard title="Klicks" isLoading={false} value={0} change={0} />
-              <KpiCard title="Impressionen" isLoading={false} value={0} change={0} />
-              <KpiCard title="Sitzungen" isLoading={false} value={0} change={0} />
-              <KpiCard title="Nutzer" isLoading={false} value={0} change={0} />
-            </div>
-          </div>
+          )}
         </main>
       </div>
     );
