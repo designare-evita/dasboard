@@ -22,6 +22,19 @@ export async function createTables() {
     console.log('Tabelle "users" erfolgreich geprüft/erstellt.');
 
     await sql`
+      CREATE TABLE IF NOT EXISTS projects (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        status VARCHAR(50) NOT NULL DEFAULT 'Offen',
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+    console.log('Tabelle "projects" erfolgreich geprüft/erstellt.');
+
+    await sql`
       CREATE TABLE IF NOT EXISTS landingpages (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         domain VARCHAR(255) NOT NULL,
