@@ -2,87 +2,86 @@
 
 import { NextResponse } from 'next/server';
 import { sql } from '@vercel/postgres';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { User } from '@/types';
+import bcrypt from 'bcryptjs';
 
-// Holt die Daten für einen einzelnen Benutzer
+// Handler zum Abrufen eines einzelnen Benutzers
 export async function GET(
   request: Request,
-  context: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
-    return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
-  }
-
-  const { id } = await context.params;
-
   try {
-    const { rows } = await sql<User>`
+    const { rows } = await sql`
       SELECT id, email, role, domain, gsc_site_url, ga4_property_id 
       FROM users 
-      WHERE id = ${id}`;
-      
+      WHERE id = ${params.id}
+    `;
     if (rows.length === 0) {
       return NextResponse.json({ message: 'Benutzer nicht gefunden' }, { status: 404 });
     }
     return NextResponse.json(rows[0]);
   } catch (error) {
-    console.error('Fehler beim Abrufen des Benutzers:', error);
+    console.error(`Fehler beim Abrufen des Benutzers ${params.id}:`, error);
     return NextResponse.json({ message: 'Interner Serverfehler' }, { status: 500 });
   }
 }
 
-// Aktualisiert die Daten eines Benutzers
+// Handler zum Aktualisieren eines Benutzers
 export async function PUT(
   request: Request,
-  context: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
-    return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
-  }
-
-  const { id } = await context.params;
-  const body = await request.json();
-  const { email, domain, gsc_site_url, ga4_property_id } = body;
-
   try {
-    await sql`
-      UPDATE users 
-      SET email = ${email}, domain = ${domain}, gsc_site_url = ${gsc_site_url}, ga4_property_id = ${ga4_property_id}
-      WHERE id = ${id}
+    const body = await request.json();
+    const { email, role, domain, gsc_site_url, ga4_property_id, password } = body;
+
+    let hashedPassword;
+    if (password) {
+      hashedPassword = await bcrypt.hash(password, 10);
+    }
+    
+    // KORREKTUR: Prisma-Befehl durch SQL ersetzt
+    const { rows } = await sql`
+      UPDATE users
+      SET 
+        email = ${email},
+        role = ${role},
+        domain = ${domain},
+        gsc_site_url = ${gsc_site_url},
+        ga4_property_id = ${ga4_property_id}
+        ${password ? sql`, password = ${hashedPassword}` : sql``}
+      WHERE id = ${params.id}
+      RETURNING id, email, role, domain;
     `;
-    return NextResponse.json({ message: 'Benutzer erfolgreich aktualisiert' });
+
+    if (rows.length === 0) {
+      return NextResponse.json({ message: "Benutzer nicht gefunden" }, { status: 404 });
+    }
+
+    return NextResponse.json(rows[0]);
   } catch (error) {
-    console.error('Fehler beim Aktualisieren des Benutzers:', error);
+    console.error(`Fehler beim Aktualisieren des Benutzers ${params.id}:`, error);
     return NextResponse.json({ message: 'Interner Serverfehler' }, { status: 500 });
   }
 }
 
-// Löscht einen Benutzer
+// Handler zum Löschen eines Benutzers
 export async function DELETE(
   request: Request,
-  context: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
-    return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
-  }
-
-  const { id } = await context.params;
-
   try {
-    const userToDelete = await sql`SELECT email FROM users WHERE id = ${id}`;
-    if (userToDelete.rows[0]?.email === session.user.email) {
-      return NextResponse.json({ message: 'Sie können sich nicht selbst löschen.' }, { status: 403 });
+    // KORREKTUR: Prisma-Befehl durch SQL ersetzt
+    const result = await sql`
+      DELETE FROM users WHERE id = ${params.id};
+    `;
+
+    if (result.rowCount === 0) {
+        return NextResponse.json({ message: "Benutzer nicht gefunden" }, { status: 404 });
     }
 
-    await sql`DELETE FROM users WHERE id = ${id}`;
     return NextResponse.json({ message: 'Benutzer erfolgreich gelöscht' });
   } catch (error) {
-    console.error('Fehler beim Löschen des Benutzers:', error);
+    console.error(`Fehler beim Löschen des Benutzers ${params.id}:`, error);
     return NextResponse.json({ message: 'Interner Serverfehler' }, { status: 500 });
   }
 }
