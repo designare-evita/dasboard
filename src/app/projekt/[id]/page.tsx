@@ -2,42 +2,39 @@
 'use client';
 
 import { useState } from 'react';
+import { useParams } from 'next/navigation';
 import useApiData from '@/hooks/use-api-data';
 import KpiCard from '@/components/kpi-card';
-import { useParams } from 'next/navigation';
 import KpiTrendChart from '@/components/charts/KpiTrendChart';
 
-// --- Typen für die API-Antwort ---
-interface KpiData {
+// --- Typen für die API-Antwort (flache KPI-Struktur auf Projektebene) ---
+interface KpiDatum {
   value: number;
   change: number;
 }
-
-interface ChartDataPoint {
+interface ChartPoint {
   date: string;
   value: number;
 }
-
-interface ProjectData {
+interface ProjectApiData {
   kpis?: {
-    clicks?: KpiData;
-    impressions?: KpiData;
-    sessions?: KpiData;
-    totalUsers?: KpiData;
+    clicks?: KpiDatum;
+    impressions?: KpiDatum;
+    sessions?: KpiDatum;
+    totalUsers?: KpiDatum;
   };
   charts?: {
-    clicks?: ChartDataPoint[];
-    impressions?: ChartDataPoint[];
-    sessions?: ChartDataPoint[];
-    totalUsers?: ChartDataPoint[];
+    clicks?: ChartPoint[];
+    impressions?: ChartPoint[];
+    sessions?: ChartPoint[];
+    totalUsers?: ChartPoint[];
   };
 }
-
 type ActiveKpi = 'clicks' | 'impressions' | 'sessions' | 'totalUsers';
 
-// --- Safe Defaults & Normalizer (flat KPI-Form wie in Ihrer Datei) ---
-const ZERO_KPI: KpiData = { value: 0, change: 0 };
-function normalizeFlatKpis(input?: ProjectData['kpis']) {
+// --- sichere Defaults + Normalisierung (liefert immer vollständige KPI-Werte) ---
+const ZERO_KPI: KpiDatum = { value: 0, change: 0 };
+function normalizeFlatKpis(input?: ProjectApiData['kpis']) {
   return {
     clicks: input?.clicks ?? ZERO_KPI,
     impressions: input?.impressions ?? ZERO_KPI,
@@ -49,30 +46,25 @@ function normalizeFlatKpis(input?: ProjectData['kpis']) {
 export default function ProjektDetailPage() {
   const params = useParams();
   const projectId = params.id as string;
+
   const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
 
-  const { data, isLoading, error } = useApiData<ProjectData>(`/api/projects/${projectId}`);
+  const { data, isLoading, error } = useApiData<ProjectApiData>(`/api/projects/${projectId}`);
 
-  const kpiConfig: Record<ActiveKpi, { title: string; color: string }> = {
-    clicks: { title: 'Klicks',       color: '#3b82f6' },
-    impressions: { title: 'Impressionen', color: '#8b5cf6' },
-    sessions: { title: 'Sitzungen',   color: '#10b981' },
-    totalUsers: { title: 'Nutzer',    color: '#f59e0b' },
-  };
+  // Lade- und Fehlerzustände
+  if (isLoading) {
+    return (
+      <div className="p-6">
+        <p>Lade Projektdaten…</p>
+      </div>
+    );
+  }
 
   if (error) {
     const msg = typeof error === 'string' ? error : 'Unbekannter Fehler beim Laden.';
     return (
       <div className="p-6">
         <p className="text-red-500">Fehler beim Laden der Daten: {msg}</p>
-      </div>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <div className="p-6">
-        <p>Lade Projektdaten…</p>
       </div>
     );
   }
@@ -85,11 +77,37 @@ export default function ProjektDetailPage() {
     );
   }
 
-  // --- Ab hier nur noch mit normalisierten, immer vorhandenen KPIs arbeiten ---
+  // Immer sichere KPI-Werte verwenden
   const k = normalizeFlatKpis(data.kpis);
 
-  const chartSeries =
+  // Aktuelle Chartserie (leer, wenn nicht vorhanden)
+  const chartSeries: ChartPoint[] =
     (data.charts && data.charts[activeKpi]) ? data.charts[activeKpi]! : [];
+
+  // Hinweis nur zeigen, wenn wirklich keine sinnvollen Daten vorhanden sind
+  const hasAnyKpiValue =
+    (k.clicks.value > 0) ||
+    (k.impressions.value > 0) ||
+    (k.sessions.value > 0) ||
+    (k.totalUsers.value > 0);
+
+  const hasAnyChartData =
+    !!data.charts &&
+    Boolean(
+      (data.charts.clicks && data.charts.clicks.length) ||
+      (data.charts.impressions && data.charts.impressions.length) ||
+      (data.charts.sessions && data.charts.sessions.length) ||
+      (data.charts.totalUsers && data.charts.totalUsers.length)
+    );
+
+  const showNoDataHint = !hasAnyKpiValue && !hasAnyChartData;
+
+  const tabMeta: Record<ActiveKpi, { title: string; color: string }> = {
+    clicks: { title: 'Klicks', color: '#3b82f6' },
+    impressions: { title: 'Impressionen', color: '#8b5cf6' },
+    sessions: { title: 'Sitzungen', color: '#10b981' },
+    totalUsers: { title: 'Nutzer', color: '#f59e0b' },
+  };
 
   return (
     <>
@@ -97,36 +115,16 @@ export default function ProjektDetailPage() {
 
       {/* KPI-Karten */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <KpiCard
-          title="Klicks"
-          isLoading={false}
-          value={k.clicks.value}
-          change={k.clicks.change}
-        />
-        <KpiCard
-          title="Impressionen"
-          isLoading={false}
-          value={k.impressions.value}
-          change={k.impressions.change}
-        />
-        <KpiCard
-          title="Sitzungen"
-          isLoading={false}
-          value={k.sessions.value}
-          change={k.sessions.change}
-        />
-        <KpiCard
-          title="Nutzer"
-          isLoading={false}
-          value={k.totalUsers.value}
-          change={k.totalUsers.change}
-        />
+        <KpiCard title="Klicks" isLoading={false} value={k.clicks.value} change={k.clicks.change} />
+        <KpiCard title="Impressionen" isLoading={false} value={k.impressions.value} change={k.impressions.change} />
+        <KpiCard title="Sitzungen" isLoading={false} value={k.sessions.value} change={k.sessions.change} />
+        <KpiCard title="Nutzer" isLoading={false} value={k.totalUsers.value} change={k.totalUsers.change} />
       </div>
 
-      {/* Chart-Bereich mit Tabs */}
+      {/* Charts mit Tabs */}
       <div className="mt-8 bg-white p-6 rounded-lg shadow-md">
         <div className="flex border-b border-gray-200">
-          {(Object.keys(kpiConfig) as ActiveKpi[]).map((key) => (
+          {(Object.keys(tabMeta) as ActiveKpi[]).map((key) => (
             <button
               key={key}
               onClick={() => setActiveKpi(key)}
@@ -136,18 +134,19 @@ export default function ProjektDetailPage() {
                   : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              {kpiConfig[key].title}
+              {tabMeta[key].title}
             </button>
           ))}
         </div>
+
         <div className="mt-4">
-          <KpiTrendChart data={chartSeries} color={kpiConfig[activeKpi].color} />
+          <KpiTrendChart data={chartSeries} color={tabMeta[activeKpi].color} />
         </div>
 
-        {/* Hinweis wenn KPIs von der API fehlten */}
-        {!data.kpis && (
+        {showNoDataHint && (
           <p className="mt-6 text-sm text-gray-500">
-            Hinweis: Für dieses Projekt wurden noch keine KPI-Daten geliefert. Es werden vorübergehend Platzhalter-Werte (0) angezeigt.
+            Hinweis: Für dieses Projekt wurden noch keine KPI-/Zeitreihen-Daten geliefert. Es werden
+            vorübergehend Platzhalter-Werte (0) angezeigt.
           </p>
         )}
       </div>
