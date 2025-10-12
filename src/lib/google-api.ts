@@ -4,7 +4,34 @@ import { google } from 'googleapis';
 import { GoogleAuth } from 'google-auth-library';
 
 function createAuth(): GoogleAuth {
-  const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS || '{}');
+  // Option 1: Komplettes JSON in GOOGLE_CREDENTIALS (falls vorhanden)
+  if (process.env.GOOGLE_CREDENTIALS) {
+    const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
+    return new GoogleAuth({
+      credentials,
+      scopes: [
+        'https://www.googleapis.com/auth/webmasters.readonly',
+        'https://www.googleapis.com/auth/analytics.readonly',
+      ],
+    });
+  }
+  
+  // Option 2: Separate Environment Variables (deine aktuelle Konfiguration)
+  const privateKeyBase64 = process.env.GOOGLE_PRIVATE_KEY_BASE64;
+  const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  
+  if (!privateKeyBase64 || !clientEmail) {
+    throw new Error('Google API Credentials fehlen. Setze entweder GOOGLE_CREDENTIALS oder GOOGLE_PRIVATE_KEY_BASE64 + GOOGLE_SERVICE_ACCOUNT_EMAIL');
+  }
+  
+  // Base64 zu normalem String dekodieren
+  const privateKey = Buffer.from(privateKeyBase64, 'base64').toString('utf-8');
+  
+  const credentials = {
+    type: 'service_account',
+    client_email: clientEmail,
+    private_key: privateKey,
+  };
   
   return new GoogleAuth({
     credentials,
@@ -67,7 +94,6 @@ export async function getSearchConsoleData(
       },
     };
   } catch (error: unknown) {
-    // ✅ KORREKTUR: Wir loggen den gesamten Fehler und geben eine spezifischere Nachricht zurück.
     console.error('Detaillierter Fehler beim Abrufen der Search Console Daten:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unbekannter API-Fehler';
     throw new Error(`Fehler bei Google Search Console API: ${errorMessage}`);
@@ -116,7 +142,6 @@ export async function getAnalyticsData(
       },
     };
   } catch (error: unknown) {
-    // ✅ KORREKTUR: Wir loggen den gesamten Fehler und geben eine spezifischere Nachricht zurück.
     console.error('Detaillierter Fehler beim Abrufen der Analytics Daten:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unbekannter API-Fehler';
     throw new Error(`Fehler bei Google Analytics API: ${errorMessage}`);
