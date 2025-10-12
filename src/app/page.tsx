@@ -1,12 +1,12 @@
 // src/app/page.tsx
 'use client';
 
-import { useSession } from "next-auth/react";
-import useApiData from "@/hooks/use-api-data";
-import KpiCard from "@/components/kpi-card";
-import Link from "next/link";
+import { useSession } from 'next-auth/react';
+import useApiData from '@/hooks/use-api-data';
+import KpiCard from '@/components/kpi-card';
+import Link from 'next/link';
 
-// ==== Typ-Definitionen ====
+// --- Typen aus Ihrer bestehenden Struktur ---
 interface KpiValue {
   value: number;
   change: number;
@@ -38,37 +38,15 @@ interface AdminResponse {
 
 interface CustomerResponse {
   role: 'BENUTZER';
-  kpis?: KpiDashboard; // kann fehlen → defensiv behandeln
+  kpis: KpiDashboard;
 }
 
 type ApiResponse = AdminResponse | CustomerResponse;
 
-// ==== Helper ====
-const EMPTY_KPIS: KpiDashboard = {
-  searchConsole: {
-    clicks: { value: 0, change: 0 },
-    impressions: { value: 0, change: 0 },
-  },
-  analytics: {
-    sessions: { value: 0, change: 0 },
-    totalUsers: { value: 0, change: 0 },
-  },
-};
-
-function isAdminLike(d: ApiResponse | undefined | null): d is AdminResponse {
-  return !!d && (d as any).role && ((d as any).role === 'SUPERADMIN' || (d as any).role === 'ADMIN');
-}
-
-function isCustomerLike(d: ApiResponse | undefined | null): d is CustomerResponse {
-  return !!d && (d as any).role === 'BENUTZER';
-}
-
-// ==== Component ====
 export default function DashboardPage() {
   const { status } = useSession();
   const { data, isLoading, error } = useApiData<ApiResponse>('/api/data');
 
-  // Loading
   if (status === 'loading' || isLoading) {
     return (
       <div className="p-8 text-center">
@@ -78,21 +56,21 @@ export default function DashboardPage() {
     );
   }
 
-  // Error
   if (error) {
+    const msg = typeof error === 'string' ? error : 'Unbekannter Fehler beim Laden.';
     return (
       <div className="p-8">
         <div className="p-6 text-center bg-red-100 rounded-lg text-red-700 border border-red-300">
           <h3 className="font-bold text-lg mb-2">Fehler beim Laden</h3>
-          <p>{String(error)}</p>
+          <p>{msg}</p>
         </div>
       </div>
     );
   }
 
-  // ==== Admin / Superadmin: Projektliste ====
-  if (isAdminLike(data)) {
-    const adminData = data;
+  // Admin / Superadmin: Projektliste
+  if (data && 'role' in data && (data.role === 'SUPERADMIN' || data.role === 'ADMIN')) {
+    const adminData = data as AdminResponse;
 
     return (
       <div className="p-8 bg-gray-50 min-h-screen">
@@ -114,7 +92,7 @@ export default function DashboardPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {adminData.projects.map((project) => (
+                {adminData.projects.map((project: Project) => (
                   <div
                     key={project.id}
                     className="p-4 border rounded-md hover:shadow-md transition-shadow"
@@ -152,51 +130,38 @@ export default function DashboardPage() {
     );
   }
 
-  // ==== Kunde (BENUTZER): KPI-Dashboard ====
-  if (isCustomerLike(data)) {
-    // KPIs können fehlen → Fallback nutzen
-    const kpis: KpiDashboard = data.kpis ?? EMPTY_KPIS;
-    const showMissingNotice = !data.kpis;
+  // Kunde: KPI-Dashboard
+  if (data && 'role' in data && data.role === 'BENUTZER') {
+    const customerData = data as CustomerResponse;
 
     return (
       <div className="p-8 bg-gray-50 min-h-screen">
         <main className="mt-6">
           <h2 className="text-2xl font-bold mb-6">Ihr Dashboard</h2>
-
-          {showMissingNotice && (
-            <div className="mb-6 p-4 rounded-lg border border-yellow-200 bg-yellow-50 text-yellow-800">
-              <p className="font-medium">Hinweis</p>
-              <p className="text-sm">
-                Für dieses Konto liegen derzeit keine KPI-Daten vor. Es werden vorübergehend
-                Platzhalter angezeigt.
-              </p>
-            </div>
-          )}
-
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <KpiCard
               title="Klicks"
               isLoading={isLoading}
-              value={kpis.searchConsole.clicks.value}
-              change={kpis.searchConsole.clicks.change}
+              value={customerData.kpis.searchConsole.clicks.value}
+              change={customerData.kpis.searchConsole.clicks.change}
             />
             <KpiCard
               title="Impressionen"
               isLoading={isLoading}
-              value={kpis.searchConsole.impressions.value}
-              change={kpis.searchConsole.impressions.change}
+              value={customerData.kpis.searchConsole.impressions.value}
+              change={customerData.kpis.searchConsole.impressions.change}
             />
             <KpiCard
               title="Sitzungen"
               isLoading={isLoading}
-              value={kpis.analytics.sessions.value}
-              change={kpis.analytics.sessions.change}
+              value={customerData.kpis.analytics.sessions.value}
+              change={customerData.kpis.analytics.sessions.change}
             />
             <KpiCard
               title="Nutzer"
               isLoading={isLoading}
-              value={kpis.analytics.totalUsers.value}
-              change={kpis.analytics.totalUsers.change}
+              value={customerData.kpis.analytics.totalUsers.value}
+              change={customerData.kpis.analytics.totalUsers.change}
             />
           </div>
         </main>
@@ -204,7 +169,7 @@ export default function DashboardPage() {
     );
   }
 
-  // ==== Fallback ====
+  // Fallback
   return (
     <div className="p-8 text-center">
       <p>Keine Daten verfügbar.</p>
