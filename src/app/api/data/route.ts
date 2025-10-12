@@ -114,7 +114,7 @@ export async function GET() {
       if (!dashboardData) {
         return NextResponse.json({ message: 'Für diesen Benutzer sind keine Google-Properties konfiguriert.' }, { status: 404 });
       }
-      return NextResponse.json(dashboardData);
+      return NextResponse.json({ kpis: dashboardData });
     }
 
     // Fallback
