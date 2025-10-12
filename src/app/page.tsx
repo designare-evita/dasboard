@@ -1,3 +1,4 @@
+// src/app/page.tsx
 'use client';
 
 import { useSession } from 'next-auth/react';
@@ -33,15 +34,15 @@ interface AdminResponse {
 }
 interface CustomerResponse {
   role: 'BENUTZER';
-  kpis?: KpiDashboard; // <-- optional, um API-Fälle ohne KPIs abzudecken
+  kpis?: KpiDashboard; // optional, falls API (noch) nichts liefert
 }
 type ApiResponse = AdminResponse | CustomerResponse;
 
-// --- Type Guards ---
-function isAdmin(data: ApiResponse | undefined): data is AdminResponse {
+// --- Type Guards (akzeptieren jetzt auch null | undefined) ---
+function isAdmin(data: ApiResponse | null | undefined): data is AdminResponse {
   return !!data && 'role' in data && (data.role === 'SUPERADMIN' || data.role === 'ADMIN');
 }
-function isCustomerWithKpis(data: ApiResponse | undefined): data is Required<CustomerResponse> {
+function isCustomerWithKpis(data: ApiResponse | null | undefined): data is Required<CustomerResponse> {
   return !!data && 'role' in data && data.role === 'BENUTZER' && !!(data as CustomerResponse).kpis;
 }
 
