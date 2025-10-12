@@ -36,6 +36,22 @@ export async function PUT(
     const body = await request.json();
     const { email, role, domain, gsc_site_url, ga4_property_id, password } = body;
 
+    // Validierung: Pflichtfelder prüfen
+    if (!email) {
+      return NextResponse.json({ message: 'E-Mail ist erforderlich' }, { status: 400 });
+    }
+
+    // Wenn role nicht angegeben ist, aktuellen Wert beibehalten
+    let finalRole = role;
+    if (!finalRole) {
+      const { rows: currentUser } = await sql`
+        SELECT role FROM users WHERE id = ${id}
+      `;
+      if (currentUser.length > 0) {
+        finalRole = currentUser[0].role;
+      }
+    }
+
     let updateQuery;
     if (password) {
       const hashedPassword = await bcrypt.hash(password, 10);
@@ -43,7 +59,7 @@ export async function PUT(
         UPDATE users
         SET 
           email = ${email},
-          role = ${role},
+          role = ${finalRole},
           domain = ${domain},
           gsc_site_url = ${gsc_site_url},
           ga4_property_id = ${ga4_property_id},
@@ -56,7 +72,7 @@ export async function PUT(
         UPDATE users
         SET 
           email = ${email},
-          role = ${role},
+          role = ${finalRole},
           domain = ${domain},
           gsc_site_url = ${gsc_site_url},
           ga4_property_id = ${ga4_property_id}
