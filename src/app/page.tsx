@@ -7,38 +7,20 @@ import KpiCard from '@/components/kpi-card';
 import Link from 'next/link';
 
 // --- Typen ---
-interface KpiValue {
-  value: number;
-  change: number;
-}
+interface KpiValue { value: number; change: number; }
 interface KpiDashboard {
-  searchConsole: {
-    clicks: KpiValue;
-    impressions: KpiValue;
-  };
-  analytics: {
-    sessions: KpiValue;
-    totalUsers: KpiValue;
-  };
+  searchConsole: { clicks: KpiValue; impressions: KpiValue; };
+  analytics: { sessions: KpiValue; totalUsers: KpiValue; };
 }
 interface Project {
-  id: string;
-  email: string;
-  domain: string;
-  gsc_site_url?: string;
-  ga4_property_id?: string;
+  id: string; email: string; domain: string;
+  gsc_site_url?: string; ga4_property_id?: string;
 }
-interface AdminResponse {
-  role: 'SUPERADMIN' | 'ADMIN';
-  projects: Project[];
-}
-interface CustomerResponse {
-  role: 'BENUTZER';
-  kpis?: Partial<KpiDashboard>; // API darf unvollständig sein
-}
+interface AdminResponse { role: 'SUPERADMIN' | 'ADMIN'; projects: Project[]; }
+interface CustomerResponse { role: 'BENUTZER'; kpis?: Partial<KpiDashboard>; }
 type ApiResponse = AdminResponse | CustomerResponse;
 
-// --- Default-KPIs + Normalisierung ---
+// --- Defaults + Safe-Normalizer ---
 const DEFAULT_KPIS: KpiDashboard = {
   searchConsole: {
     clicks: { value: 0, change: 0 },
@@ -49,40 +31,32 @@ const DEFAULT_KPIS: KpiDashboard = {
     totalUsers: { value: 0, change: 0 },
   },
 };
-
-// Mischt eingehende (teilweise/fehlende) KPIs sicher mit Defaults
 function normalizeKpis(input?: Partial<KpiDashboard>): KpiDashboard {
   return {
     searchConsole: {
       clicks: {
-        value: input?.searchConsole?.clicks?.value ?? DEFAULT_KPIS.searchConsole.clicks.value,
-        change: input?.searchConsole?.clicks?.change ?? DEFAULT_KPIS.searchConsole.clicks.change,
+        value: input?.searchConsole?.clicks?.value ?? 0,
+        change: input?.searchConsole?.clicks?.change ?? 0,
       },
       impressions: {
-        value:
-          input?.searchConsole?.impressions?.value ??
-          DEFAULT_KPIS.searchConsole.impressions.value,
-        change:
-          input?.searchConsole?.impressions?.change ??
-          DEFAULT_KPIS.searchConsole.impressions.change,
+        value: input?.searchConsole?.impressions?.value ?? 0,
+        change: input?.searchConsole?.impressions?.change ?? 0,
       },
     },
     analytics: {
       sessions: {
-        value: input?.analytics?.sessions?.value ?? DEFAULT_KPIS.analytics.sessions.value,
-        change: input?.analytics?.sessions?.change ?? DEFAULT_KPIS.analytics.sessions.change,
+        value: input?.analytics?.sessions?.value ?? 0,
+        change: input?.analytics?.sessions?.change ?? 0,
       },
       totalUsers: {
-        value:
-          input?.analytics?.totalUsers?.value ?? DEFAULT_KPIS.analytics.totalUsers.value,
-        change:
-          input?.analytics?.totalUsers?.change ?? DEFAULT_KPIS.analytics.totalUsers.change,
+        value: input?.analytics?.totalUsers?.value ?? 0,
+        change: input?.analytics?.totalUsers?.change ?? 0,
       },
     },
   };
 }
 
-// --- Type Guards (akzeptieren null/undefined vom Hook) ---
+// --- Guards (null/undefined-safe) ---
 function isAdmin(data: ApiResponse | null | undefined): data is AdminResponse {
   return !!data && 'role' in data && (data.role === 'SUPERADMIN' || data.role === 'ADMIN');
 }
@@ -94,6 +68,7 @@ export default function DashboardPage() {
   const { status } = useSession();
   const { data, isLoading, error } = useApiData<ApiResponse>('/api/data');
 
+  // Laden
   if (status === 'loading' || isLoading) {
     return (
       <div className="p-8 text-center">
@@ -103,6 +78,7 @@ export default function DashboardPage() {
     );
   }
 
+  // Fehler
   if (error) {
     const msg = typeof error === 'string' ? error : 'Unbekannter Fehler beim Laden.';
     return (
@@ -115,7 +91,7 @@ export default function DashboardPage() {
     );
   }
 
-  // --- Admin-/Superadmin-Ansicht ---
+  // --- Admin-/Superadmin ---
   if (isAdmin(data)) {
     return (
       <div className="p-8 bg-gray-50 min-h-screen">
@@ -137,11 +113,8 @@ export default function DashboardPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {data.projects.map((project: Project) => (
-                  <div
-                    key={project.id}
-                    className="p-4 border rounded-md hover:shadow-md transition-shadow"
-                  >
+                {data.projects.map((project) => (
+                  <div key={project.id} className="p-4 border rounded-md hover:shadow-md transition-shadow">
                     <div className="flex justify-between items-center">
                       <div className="flex-1">
                         <p className="font-semibold text-lg text-gray-900">{project.domain}</p>
@@ -151,16 +124,10 @@ export default function DashboardPage() {
                         )}
                       </div>
                       <div className="flex gap-2">
-                        <Link
-                          href={`/projekt/${project.id}`}
-                          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-                        >
+                        <Link href={`/projekt/${project.id}`} className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
                           Dashboard ansehen
                         </Link>
-                        <Link
-                          href={`/admin/edit/${project.id}`}
-                          className="bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300"
-                        >
+                        <Link href={`/admin/edit/${project.id}`} className="bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300">
                           Bearbeiten
                         </Link>
                       </div>
@@ -175,46 +142,24 @@ export default function DashboardPage() {
     );
   }
 
-  // --- Kunden-Ansicht (immer mit sicheren Defaults) ---
+  // --- Benutzer (KPIs immer normalisiert) ---
   if (isCustomer(data)) {
-    const k: KpiDashboard = normalizeKpis(data.kpis);
+    const k = normalizeKpis(data.kpis); // <- hier erst Zugriff
 
     return (
       <div className="p-8 bg-gray-50 min-h-screen">
         <main className="mt-6">
           <h2 className="text-2xl font-bold mb-6">Ihr Dashboard</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <KpiCard
-              title="Klicks"
-              isLoading={false}
-              value={k.searchConsole.clicks.value}
-              change={k.searchConsole.clicks.change}
-            />
-            <KpiCard
-              title="Impressionen"
-              isLoading={false}
-              value={k.searchConsole.impressions.value}
-              change={k.searchConsole.impressions.change}
-            />
-            <KpiCard
-              title="Sitzungen"
-              isLoading={false}
-              value={k.analytics.sessions.value}
-              change={k.analytics.sessions.change}
-            />
-            <KpiCard
-              title="Nutzer"
-              isLoading={false}
-              value={k.analytics.totalUsers.value}
-              change={k.analytics.totalUsers.change}
-            />
+            <KpiCard title="Klicks"      isLoading={false} value={k.searchConsole.clicks.value}        change={k.searchConsole.clicks.change} />
+            <KpiCard title="Impressionen" isLoading={false} value={k.searchConsole.impressions.value}   change={k.searchConsole.impressions.change} />
+            <KpiCard title="Sitzungen"    isLoading={false} value={k.analytics.sessions.value}          change={k.analytics.sessions.change} />
+            <KpiCard title="Nutzer"       isLoading={false} value={k.analytics.totalUsers.value}        change={k.analytics.totalUsers.change} />
           </div>
 
-          {/* Hinweis, falls die gelieferten KPIs leer waren */}
           {data.kpis == null && (
             <p className="mt-6 text-sm text-gray-500">
-              Hinweis: Es wurden noch keine KPI-Daten von der API geliefert. Es werden vorübergehend
-              Platzhalter-Werte (0) angezeigt.
+              Hinweis: Von der API wurden noch keine KPI-Daten geliefert. Es werden vorübergehend Platzhalter-Werte (0) angezeigt.
             </p>
           )}
         </main>
