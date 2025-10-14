@@ -150,7 +150,7 @@ export default function ProjektDetailPage() {
             vorübergehend Platzhalter-Werte (0) angezeigt.
           </p>
         )}
-      </div>
+      </div>  </div>
     </>
   );
 }
