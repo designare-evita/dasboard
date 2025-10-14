@@ -1,6 +1,6 @@
 // src/app/api/users/[id]/landingpages/route.ts
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { sql } from '@vercel/postgres';
@@ -10,9 +10,6 @@ export const runtime = 'nodejs';
 
 // ——— Typen ———
 
-/**
- * Definiert die erwartete Struktur einer Zeile in der hochgeladenen Excel-Datei.
- */
 type RedaktionsplanRow = {
   'Landingpage-URL'?: unknown;
   'URL'?: unknown;
@@ -23,70 +20,50 @@ type RedaktionsplanRow = {
   'Aktuelle Pos.'?: unknown;
 };
 
-// ——— Hilfsfunktionen zum sicheren Parsen ———
+// ——— Hilfsfunktionen ———
 
-/**
- * Konvertiert einen unbekannten Wert sicher in einen String.
- */
 const toStr = (v: unknown): string =>
   typeof v === 'string' ? v.trim() : (v ?? '').toString().trim();
 
-/**
- * Konvertiert einen unbekannten Wert sicher in eine Zahl (oder null).
- */
 const toNum = (v: unknown): number | null => {
-  if (typeof v === 'number' && Number.isFinite(v)) return v;
-  if (typeof v === 'string') {
-    const cleaned = v.replace(/\./g, '').replace(',', '.').trim();
-    const n = Number(cleaned);
-    return Number.isFinite(n) ? n : null;
-  }
-  return null;
+  if (typeof v === 'number') return v;
+  const parsed = parseFloat(String(v).replace(',', '.'));
+  return isNaN(parsed) ? null : parsed;
 };
 
-// ——— Handler ———
+// ——— POST Handler ———
 
-/**
- * Verarbeitet POST-Anfragen zum Hochladen und Importieren von Landingpages aus einer Excel-Datei.
- * @param request Die eingehende Anfrage (Request-Objekt).
- * @param params Das Objekt, das aus dem zweiten Argument der Funktion destrukturiert wird und die URL-Parameter enthält.
- */
-export async function POST(
-  request: Request,
-  { params }: { params: { id: string } } // <<< DIE FINALE KORREKTUR IST HIER
-) {
+export async function POST(request: NextRequest) {
   try {
-    // 1. Authentifizierung prüfen
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: 'Nicht autorisiert.' }, { status: 401 });
+    if (!session?.user?.email) {
+      return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
     }
 
-    // 2. User-ID aus den URL-Parametern extrahieren
-    const userId = params.id; // Funktioniert jetzt direkt
+    // User-ID aus der URL extrahieren (z. B. /api/users/123/landingpages)
+    const url = new URL(request.url);
+    const idMatch = url.pathname.match(/\/users\/([^/]+)\/landingpages/);
+    const userId = idMatch ? idMatch[1] : null;
+
     if (!userId) {
-      return NextResponse.json({ message: 'User-ID fehlt.' }, { status: 400 });
+      return NextResponse.json({ message: 'Ungültige Benutzer-ID' }, { status: 400 });
     }
 
-    // 3. Datei aus dem Formular auslesen
-    const form = await request.formData();
-    const file = form.get('file');
-    if (!(file instanceof File)) {
-      return NextResponse.json({ message: 'Datei nicht gefunden.' }, { status: 400 });
+    const formData = await request.formData();
+    const file = formData.get('file') as File;
+
+    if (!file) {
+      return NextResponse.json({ message: 'Keine Datei hochgeladen.' }, { status: 400 });
     }
 
-    // 4. Datei verarbeiten
     const buffer = Buffer.from(await file.arrayBuffer());
-    const workbook: xlsx.WorkBook = xlsx.read(buffer, { type: 'buffer' });
-    const firstSheetName: string = workbook.SheetNames[0];
-    const worksheet: xlsx.WorkSheet = workbook.Sheets[firstSheetName];
-    const rows: RedaktionsplanRow[] = xlsx.utils.sheet_to_json<RedaktionsplanRow>(worksheet, {
-      defval: '',
-    });
+    const workbook = xlsx.read(buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    const rows = xlsx.utils.sheet_to_json<RedaktionsplanRow>(sheet);
 
     let importedCount = 0;
 
-    // 5. Jede Zeile in die Datenbank einfügen
     for (const row of rows) {
       const url = toStr(row['Landingpage-URL'] ?? row['URL']);
       const hauptKeyword = toStr(row['Haupt-Keyword']);
@@ -94,9 +71,7 @@ export async function POST(
       const suchvolumen = toNum(row['Suchvolumen']);
       const aktuellePosition = toNum(row['Aktuelle Position'] ?? row['Aktuelle Pos.']);
 
-      if (!url) {
-        continue;
-      }
+      if (!url) continue;
 
       await sql`
         INSERT INTO landingpages (user_id, url, haupt_keyword, weitere_keywords, suchvolumen, aktuelle_position)
@@ -108,7 +83,6 @@ export async function POST(
 
     return NextResponse.json({ message: `${importedCount} Zeilen erfolgreich importiert.` });
   } catch (error) {
-    // eslint-disable-next-line no-console
     console.error('Upload Fehler:', error);
     return NextResponse.json({ message: 'Fehler beim Verarbeiten der Datei.' }, { status: 500 });
   }
