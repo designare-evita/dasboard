@@ -7,27 +7,56 @@ import { sql } from '@vercel/postgres';
 import * as xlsx from 'xlsx';
 
 export const runtime = 'nodejs';
-// ——— Typen ———
-type Params = { params: { id: string } };
 
+// ——— Typen ———
+
+/**
+ * Definiert die Struktur für die Parameter, die aus der dynamischen URL extrahiert werden.
+ * In diesem Fall erwarten wir eine 'id' vom Typ string.
+ * Beispiel-URL: /api/users/123/landingpages -> params.id ist "123"
+ */
+type RouteParams = {
+  params: {
+    id: string;
+  };
+};
+
+/**
+ * Definiert die erwartete Struktur einer Zeile in der hochgeladenen Excel-Datei.
+ * Die Felder sind als 'unknown' typisiert, da wir nicht garantieren können,
+ * was der Benutzer hochlädt. Wir validieren und konvertieren die Typen später.
+ */
 type RedaktionsplanRow = {
   'Landingpage-URL'?: unknown;
   'URL'?: unknown;
   'Haupt-Keyword'?: unknown;
   'Weitere Keywords'?: unknown;
   'Suchvolumen'?: unknown;
-  'Aktuelle Position'?: unknown; 
-  'Aktuelle Pos.'?: unknown;    
+  'Aktuelle Position'?: unknown;
+  'Aktuelle Pos.'?: unknown;
 };
 
+// ——— Hilfsfunktionen zum sicheren Parsen ———
 
-// Hilfsfunktionen zum sicheren Parsen
+/**
+ * Konvertiert einen unbekannten Wert sicher in einen String.
+ * Entfernt führende/nachfolgende Leerzeichen.
+ * @param v Der zu konvertierende Wert.
+ * @returns Ein getrimmter String.
+ */
 const toStr = (v: unknown): string =>
   typeof v === 'string' ? v.trim() : (v ?? '').toString().trim();
 
+/**
+ * Konvertiert einen unbekannten Wert sicher in eine Zahl (oder null).
+ * Akzeptiert deutsche Zahlenformate (z.B. "1.234,56").
+ * @param v Der zu konvertierende Wert.
+ * @returns Eine Zahl oder null, wenn die Konvertierung fehlschlägt.
+ */
 const toNum = (v: unknown): number | null => {
   if (typeof v === 'number' && Number.isFinite(v)) return v;
   if (typeof v === 'string') {
+    // Ersetzt Tausendertrennzeichen (.) und wandelt Komma in Punkt um
     const cleaned = v.replace(/\./g, '').replace(',', '.').trim();
     const n = Number(cleaned);
     return Number.isFinite(n) ? n : null;
@@ -36,51 +65,63 @@ const toNum = (v: unknown): number | null => {
 };
 
 // ——— Handler ———
-export async function POST(req: Request) {
+
+/**
+ * Verarbeitet POST-Anfragen zum Hochladen und Importieren von Landingpages aus einer Excel-Datei.
+ * @param req Die eingehende Anfrage (Request-Objekt).
+ * @param params Die aus der URL extrahierten dynamischen Parameter.
+ */
+export async function POST(req: Request, { params }: RouteParams) {
   try {
+    // 1. Authentifizierung prüfen
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json({ message: 'Nicht autorisiert.' }, { status: 401 });
     }
 
-    // id sicher aus der URL extrahieren (ohne 2. Funktionsargument)
-    const { pathname } = new URL(req.url);
-    const match = pathname.match(/\/api\/users\/([^/]+)\/landingpages/i);
-    const userId = match?.[1] ?? '';
+    // 2. User-ID aus den URL-Parametern extrahieren
+    // Dies ist die korrekte Methode im App Router.
+    const userId = params.id;
     if (!userId) {
       return NextResponse.json({ message: 'User-ID fehlt.' }, { status: 400 });
     }
 
+    // 3. Datei aus dem Formular auslesen
     const form = await req.formData();
     const file = form.get('file');
     if (!(file instanceof File)) {
       return NextResponse.json({ message: 'Datei nicht gefunden.' }, { status: 400 });
     }
 
+    // 4. Datei in einen Buffer umwandeln und mit xlsx einlesen
     const buffer = Buffer.from(await file.arrayBuffer());
-
-    // XLSX strikt typisieren
     const workbook: xlsx.WorkBook = xlsx.read(buffer, { type: 'buffer' });
     const firstSheetName: string = workbook.SheetNames[0];
     const worksheet: xlsx.WorkSheet = workbook.Sheets[firstSheetName];
 
-    // Rows typisiert auslesen
+    // Typisierte Zeilen aus dem Arbeitsblatt extrahieren
     const rows: RedaktionsplanRow[] = xlsx.utils.sheet_to_json<RedaktionsplanRow>(worksheet, {
-      defval: '',
+      defval: '', // Leere Zellen als leere Strings behandeln
     });
 
     let importedCount = 0;
 
+    // 5. Jede Zeile verarbeiten und in die Datenbank einfügen
     for (const row of rows) {
+      // Daten sicher extrahieren und konvertieren
       const url = toStr(row['Landingpage-URL'] ?? row['URL']);
-const hauptKeyword = toStr(row['Haupt-Keyword']);
-const weitereKeywords = toStr(row['Weitere Keywords']);
-const suchvolumen = toNum(row['Suchvolumen']);
-const aktuellePosition = toNum(
-  (row['Aktuelle Position'] ?? row['Aktuelle Pos.']) as unknown
-);
+      const hauptKeyword = toStr(row['Haupt-Keyword']);
+      const weitereKeywords = toStr(row['Weitere Keywords']);
+      const suchvolumen = toNum(row['Suchvolumen']);
+      const aktuellePosition = toNum(row['Aktuelle Position'] ?? row['Aktuelle Pos.']);
 
+      // Überspringe leere Zeilen, bei denen die URL fehlt
+      if (!url) {
+        continue;
+      }
 
+      // SQL-Befehl zum Einfügen der Daten
+      // ON CONFLICT sorgt dafür, dass keine Duplikate (gleiche URL für gleichen User) entstehen.
       await sql`
         INSERT INTO landingpages (user_id, url, haupt_keyword, weitere_keywords, suchvolumen, aktuelle_position)
         VALUES (${userId}, ${url}, ${hauptKeyword}, ${weitereKeywords}, ${suchvolumen}, ${aktuellePosition})
