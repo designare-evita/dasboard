@@ -1,6 +1,5 @@
 // src/app/admin/edit/[id]/page.tsx
 
-import Header from '@/components/layout/Header';
 import EditUserForm from './EditUserForm';
 import type { User } from '@/types';
 import { sql } from '@vercel/postgres';
