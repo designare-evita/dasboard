@@ -8,10 +8,10 @@ import { sql } from '@vercel/postgres';
 // PUT: Status einer Landingpage aktualisieren (z.B. auf 'approved')
 export async function PUT(
   request: Request,
-  context: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
-  const landingpageId = context.params.id;
+  const { id: landingpageId } = await params;
 
   if (!session?.user) {
     return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
