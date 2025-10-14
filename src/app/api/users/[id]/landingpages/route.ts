@@ -8,18 +8,6 @@ import * as xlsx from 'xlsx';
 
 export const runtime = 'nodejs';
 
-// ——— Typen ———
-
-type RedaktionsplanRow = {
-  'Landingpage-URL'?: unknown;
-  'URL'?: unknown;
-  'Haupt-Keyword'?: unknown;
-  'Weitere Keywords'?: unknown;
-  'Suchvolumen'?: unknown;
-  'Aktuelle Position'?: unknown;
-  'Aktuelle Pos.'?: unknown;
-};
-
 // ——— Hilfsfunktionen ———
 
 const toStr = (v: unknown): string =>
@@ -31,7 +19,9 @@ const toNum = (v: unknown): number | null => {
   return isNaN(parsed) ? null : parsed;
 };
 
-// ——— POST Handler ———
+// Macht Spaltennamen robuster
+const normalizeKey = (key: string) =>
+  key.toLowerCase().replace(/[\s\-.]/g, '');
 
 export async function POST(request: NextRequest) {
   try {
@@ -40,7 +30,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
     }
 
-    // User-ID aus der URL extrahieren (z. B. /api/users/123/landingpages)
+    // User-ID aus der URL extrahieren
     const url = new URL(request.url);
     const idMatch = url.pathname.match(/\/users\/([^/]+)\/landingpages/);
     const userId = idMatch ? idMatch[1] : null;
@@ -60,16 +50,50 @@ export async function POST(request: NextRequest) {
     const workbook = xlsx.read(buffer, { type: 'buffer' });
     const sheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
-    const rows = xlsx.utils.sheet_to_json<RedaktionsplanRow>(sheet);
+    const rows = xlsx.utils.sheet_to_json<Record<string, unknown>>(sheet);
 
     let importedCount = 0;
 
-    for (const row of rows) {
-      const url = toStr(row['Landingpage-URL'] ?? row['URL']);
-      const hauptKeyword = toStr(row['Haupt-Keyword']);
-      const weitereKeywords = toStr(row['Weitere Keywords']);
-      const suchvolumen = toNum(row['Suchvolumen']);
-      const aktuellePosition = toNum(row['Aktuelle Position'] ?? row['Aktuelle Pos.']);
+    for (const rawRow of rows) {
+      // Normalisierte Schlüssel erzeugen
+      const normalizedRow: Record<string, unknown> = {};
+      for (const key in rawRow) {
+        normalizedRow[normalizeKey(key)] = rawRow[key];
+      }
+
+      // Dynamische Zuordnung
+      const url =
+        toStr(
+          normalizedRow['landingpageurl'] ??
+            normalizedRow['url'] ??
+            normalizedRow['seite'] ??
+            ''
+        ) || null;
+
+      const hauptKeyword =
+        toStr(
+          normalizedRow['hauptkeyword'] ??
+            normalizedRow['hauptwort'] ??
+            normalizedRow['keyword'] ??
+            ''
+        ) || null;
+
+      const weitereKeywords = toStr(
+        normalizedRow['weiterekeywords'] ??
+          normalizedRow['keywords'] ??
+          normalizedRow['zusatzkeywords'] ??
+          ''
+      );
+
+      const suchvolumen = toNum(
+        normalizedRow['suchvolumen'] ?? normalizedRow['searchvolume']
+      );
+
+      const aktuellePosition = toNum(
+        normalizedRow['aktuelleposition'] ??
+          normalizedRow['position'] ??
+          normalizedRow['aktuellepos']
+      );
 
       if (!url) continue;
 
@@ -81,9 +105,15 @@ export async function POST(request: NextRequest) {
       importedCount++;
     }
 
-    return NextResponse.json({ message: `${importedCount} Zeilen erfolgreich importiert.` });
+    return NextResponse.json({
+      message: `${importedCount} Zeilen erfolgreich importiert.`,
+    });
   } catch (error) {
     console.error('Upload Fehler:', error);
-    return NextResponse.json({ message: 'Fehler beim Verarbeiten der Datei.' }, { status: 500 });
+    return NextResponse.json(
+      { message: 'Fehler beim Verarbeiten der Datei.' },
+      { status: 500 }
+    );
   }
 }
+
