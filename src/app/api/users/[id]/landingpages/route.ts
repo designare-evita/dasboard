@@ -19,10 +19,10 @@ type RedaktionsplanRow = {
 // GET: Landingpages für einen Benutzer abrufen
 export async function GET(
   request: Request,
-  context: { params: { id: string } } // <-- KORRIGIERTE SIGNATUR
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
-  const userId = context.params.id; // <-- ID aus dem context holen
+  const { id: userId } = await params;
 
   if (!session?.user) {
     return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
@@ -49,10 +49,10 @@ export async function GET(
 // POST: Landingpages aus einer XLSX-Datei hochladen
 export async function POST(
   request: Request,
-  context: { params: { id: string } } // <-- KORRIGIERTE SIGNATUR
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
-  const userId = context.params.id; // <-- ID aus dem context holen
+  const { id: userId } = await params;
 
   if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
     return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
