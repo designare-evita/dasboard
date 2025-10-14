@@ -6,6 +6,7 @@ import { authOptions } from '@/lib/auth';
 import { sql } from '@vercel/postgres';
 import * as xlsx from 'xlsx';
 
+export const runtime = 'nodejs';
 // ——— Typen ———
 type Params = { params: { id: string } };
 
@@ -33,7 +34,7 @@ const toNum = (v: unknown): number | null => {
 };
 
 // ——— Handler ———
-export async function POST(req: Request, { params }: Params) {
+export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
