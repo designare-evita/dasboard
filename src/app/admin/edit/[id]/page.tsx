@@ -6,6 +6,7 @@ import { sql } from '@vercel/postgres';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { redirect } from 'next/navigation';
+import LandingpageManager from './LandingpageManager';
 
 export type PageProps = { params: Promise<{ id: string }> };
 
@@ -63,6 +64,8 @@ export default async function EditUserPage({ params }: PageProps) {
               </h2>
               <EditUserForm id={id} user={user} />
             </div>
+         <LandingpageManager userId={id} /> 
+            </>
           )}
         </main>
       </div>
