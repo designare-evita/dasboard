@@ -9,7 +9,8 @@ export default function Header() {
   const { data: session, status } = useSession();
   const pathname = usePathname();
 
-  const isAdmin = session?.user?.role === 'admin' || session?.user?.role === 'superadmin';
+  // KORREKTUR HIER: Auf die korrekten, großgeschriebenen Rollen-Bezeichnungen prüfen.
+  const isAdmin = session?.user?.role === 'ADMIN' || session?.user?.role === 'SUPERADMIN';
 
   // Header nicht auf der Login-Seite anzeigen
   if (pathname === '/login') {
@@ -26,7 +27,6 @@ export default function Header() {
           {status === 'authenticated' && (
             <>
               {isAdmin && (
-                // KORREKTUR HIER: Klassen für den Rahmen hinzugefügt
                 <Link
                   href="/admin"
                   className="px-3 py-1 border border-gray-300 rounded-md text-sm text-gray-600 hover:bg-gray-100"
