@@ -6,7 +6,7 @@ import { authOptions } from '@/lib/auth';
 import { sql } from '@vercel/postgres';
 import * as xlsx from 'xlsx';
 
-// Define how a row from the Excel file looks
+// Definieren, wie eine Zeile aus der Excel-Datei aussieht
 type RedaktionsplanRow = {
   'Landingpage-URL'?: string;
   'URL'?: string;
@@ -16,13 +16,13 @@ type RedaktionsplanRow = {
   'Aktuelle Pos.'?: number | string;
 };
 
-// GET: Landingpages for a user
+// GET: Landingpages für einen Benutzer abrufen
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } } // This signature is also valid and often preferred
+  context: { params: { id: string } } // <-- KORRIGIERTE SIGNATUR
 ) {
   const session = await getServerSession(authOptions);
-  const userId = params.id; // Get id from params
+  const userId = context.params.id; // <-- ID aus dem context holen
 
   if (!session?.user) {
     return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
@@ -46,13 +46,13 @@ export async function GET(
   }
 }
 
-// POST: Upload landing pages from an XLSX file
+// POST: Landingpages aus einer XLSX-Datei hochladen
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } } // This signature is also valid and often preferred
+  context: { params: { id: string } } // <-- KORRIGIERTE SIGNATUR
 ) {
   const session = await getServerSession(authOptions);
-  const userId = params.id; // Get id from params
+  const userId = context.params.id; // <-- ID aus dem context holen
 
   if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
     return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
