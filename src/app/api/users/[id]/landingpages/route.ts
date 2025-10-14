@@ -11,13 +11,15 @@ export const runtime = 'nodejs';
 type Params = { params: { id: string } };
 
 type RedaktionsplanRow = {
-  'Landingpage-URL'?: string;
-  'URL'?: string;
-  'Haupt-Keyword'?: string;
-  'Weitere Keywords'?: string;
-  'Suchvolumen'?: number | string;
-  'Aktuelle Pos.'?: number | string;
+  'Landingpage-URL'?: unknown;
+  'URL'?: unknown;
+  'Haupt-Keyword'?: unknown;
+  'Weitere Keywords'?: unknown;
+  'Suchvolumen'?: unknown;
+  'Aktuelle Position'?: unknown; 
+  'Aktuelle Pos.'?: unknown;    
 };
+
 
 // Hilfsfunktionen zum sicheren Parsen
 const toStr = (v: unknown): string =>
@@ -71,12 +73,13 @@ export async function POST(req: Request) {
 
     for (const row of rows) {
       const url = toStr(row['Landingpage-URL'] ?? row['URL']);
-      if (!url) continue;
+const hauptKeyword = toStr(row['Haupt-Keyword']);
+const weitereKeywords = toStr(row['Weitere Keywords']);
+const suchvolumen = toNum(row['Suchvolumen']);
+const aktuellePosition = toNum(
+  (row['Aktuelle Position'] ?? row['Aktuelle Pos.']) as unknown
+);
 
-      const hauptKeyword = toStr(row['Haupt-Keyword']);
-      const weitereKeywords = toStr(row['Weitere Keywords']);
-      const suchvolumen = toNum(row['Suchvolumen']);
-      const aktuellePosition = toNum(row['Aktuelle Position']);
 
       await sql`
         INSERT INTO landingpages (user_id, url, haupt_keyword, weitere_keywords, suchvolumen, aktuelle_position)
