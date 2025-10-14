@@ -6,7 +6,17 @@ import { authOptions } from '@/lib/auth';
 import { sql } from '@vercel/postgres';
 import * as xlsx from 'xlsx';
 
-// GET: Landingpages für einen Benutzer abrufen (brauchen wir später)
+// Definieren, wie eine Zeile aus der Excel-Datei aussieht
+type RedaktionsplanRow = {
+  'Landingpage-URL'?: string;
+  'URL'?: string;
+  'Haupt-Keyword'?: string;
+  'Weitere Keywords'?: string;
+  'Suchvolumen'?: number | string;
+  'Aktuelle Pos.'?: number | string;
+};
+
+// GET: Landingpages für einen Benutzer abrufen
 export async function GET(request: Request, { params }: { params: { id: string } }) {
     const session = await getServerSession(authOptions);
     const userId = params.id;
@@ -25,6 +35,8 @@ export async function GET(request: Request, { params }: { params: { id: string }
         `;
         return NextResponse.json(rows);
     } catch (error) {
+        // FIX: Die 'error' Variable wird jetzt verwendet, um die Warnung zu beheben
+        console.error('Fehler beim Abrufen der Landingpages:', error);
         return NextResponse.json({ message: 'Interner Serverfehler' }, { status: 500 });
     }
 }
@@ -50,16 +62,16 @@ export async function POST(request: Request, { params }: { params: { id: string 
         const workbook = xlsx.read(buffer, { type: 'buffer' });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        const data = xlsx.utils.sheet_to_json(worksheet) as Record<string, any>[];
+        // FIX: Wir verwenden unseren neuen Typ, um den 'any' Fehler zu beheben
+        const data = xlsx.utils.sheet_to_json(worksheet) as RedaktionsplanRow[];
 
-        // URLs und Metadaten in die Datenbank einfügen
         await sql.begin(async (sql) => {
             for (const row of data) {
                 const url = row['Landingpage-URL'] || row['URL'];
                 const hauptKeyword = row['Haupt-Keyword'];
                 const weitereKeywords = row['Weitere Keywords'];
-                const suchvolumen = parseInt(row['Suchvolumen'], 10) || null;
-                const aktuellePosition = parseInt(row['Aktuelle Pos.'], 10) || null;
+                const suchvolumen = row['Suchvolumen'] ? parseInt(String(row['Suchvolumen']), 10) : null;
+                const aktuellePosition = row['Aktuelle Pos.'] ? parseInt(String(row['Aktuelle Pos.']), 10) : null;
 
                 if (url && typeof url === 'string' && url.startsWith('http')) {
                     await sql`
