@@ -34,21 +34,25 @@ const toNum = (v: unknown): number | null => {
 };
 
 // ——— Handler ———
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(
+  req: Request,
+  { params }: { params: Record<string, string | string[]> }
+) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json({ message: 'Nicht autorisiert.' }, { status: 401 });
     }
 
-    const userId = params.id;
+    // params.id sicher extrahieren (string | string[])
+    const idRaw = params?.id;
+    const userId = Array.isArray(idRaw) ? idRaw[0] : idRaw;
     if (!userId) {
       return NextResponse.json({ message: 'User-ID fehlt.' }, { status: 400 });
     }
 
     const form = await req.formData();
     const file = form.get('file');
-
     if (!(file instanceof File)) {
       return NextResponse.json({ message: 'Datei nicht gefunden.' }, { status: 400 });
     }
@@ -67,18 +71,14 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     let importedCount = 0;
 
-    // Transaktional arbeiten (optional, je nach Projekt-Setup)
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i];
-
+    for (const row of rows) {
       const url = toStr(row['Landingpage-URL'] ?? row['URL']);
+      if (!url) continue;
+
       const hauptKeyword = toStr(row['Haupt-Keyword']);
       const weitereKeywords = toStr(row['Weitere Keywords']);
       const suchvolumen = toNum(row['Suchvolumen']);
-      const aktuellePosition = toNum(row['Aktuelle Pos.']);
-
-      // minimale Validierung
-      if (!url) continue;
+      const aktuellePosition = toNum(row['Aktuelle Position']);
 
       await sql`
         INSERT INTO landingpages (user_id, url, haupt_keyword, weitere_keywords, suchvolumen, aktuelle_position)
@@ -90,7 +90,6 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     return NextResponse.json({ message: `${importedCount} Zeilen erfolgreich importiert.` });
   } catch (error) {
-    // Fehler bewusst als unknown typisieren und sicher loggen
     // eslint-disable-next-line no-console
     console.error('Upload Fehler:', error);
     return NextResponse.json({ message: 'Fehler beim Verarbeiten der Datei.' }, { status: 500 });
