@@ -1,3 +1,5 @@
+// src/app/admin/edit/[id]/EditUserForm.tsx
+
 'use client';
 
 import { useState } from 'react';
@@ -22,6 +24,11 @@ export default function EditUserForm({ id, user }: Props) {
     const formData = new FormData(e.currentTarget);
     const data = Object.fromEntries(formData);
 
+    // Entferne das Passwortfeld, wenn es leer ist, damit es nicht in der Datenbank überschrieben wird
+    if (!data.password) {
+      delete data.password;
+    }
+
     try {
       const response = await fetch(`/api/users/${id}`, {
         method: 'PUT',
@@ -43,65 +50,113 @@ export default function EditUserForm({ id, user }: Props) {
     }
   };
 
+  // Prüfen, ob der Benutzer ein Admin oder Superadmin ist
+  const isAdmin = user.role === 'ADMIN' || user.role === 'SUPERADMIN';
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <div>
-        <label htmlFor="email" className="block text-sm font-semibold text-gray-700">
-          Kunden E-Mail
-        </label>
-        <input
-          id="email"
-          name="email"
-          type="email"
-          defaultValue={user.email}
-          required
-          className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-        />
-      </div>
+      {isAdmin ? (
+        // Formular für Admins
+        <>
+          <div>
+            <label htmlFor="email" className="block text-sm font-semibold text-gray-700">
+              E-Mail
+            </label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              defaultValue={user.email}
+              required
+              className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+            />
+          </div>
+          <div>
+            <label htmlFor="password" className="block text-sm font-semibold text-gray-700">
+              Neues Passwort (optional)
+            </label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              placeholder="Leer lassen, um das Passwort nicht zu ändern"
+              className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+            />
+          </div>
+        </>
+      ) : (
+        // Formular für normale Benutzer
+        <>
+          <div>
+            <label htmlFor="email" className="block text-sm font-semibold text-gray-700">
+              Kunden E-Mail
+            </label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              defaultValue={user.email}
+              required
+              className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+            />
+          </div>
 
-      <div>
-        <label htmlFor="domain" className="block text-sm font-semibold text-gray-700">
-          Domain
-        </label>
-        <input
-          id="domain"
-          name="domain"
-          type="text"
-          defaultValue={user.domain}
-          required
-          className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-        />
-      </div>
+          <div>
+            <label htmlFor="password" className="block text-sm font-semibold text-gray-700">
+              Neues Passwort (optional)
+            </label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              placeholder="Leer lassen, um das Passwort nicht zu ändern"
+              className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+            />
+          </div>
 
-      <div>
-        <label htmlFor="gsc_site_url" className="block text-sm font-semibold text-gray-700">
-          GSC Site URL
-        </label>
-        <input
-          id="gsc_site_url"
-          name="gsc_site_url"
-          type="text"
-          defaultValue={user.gsc_site_url}
-          required
-          className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-        />
-      </div>
+          <div>
+            <label htmlFor="domain" className="block text-sm font-semibold text-gray-700">
+              Domain
+            </label>
+            <input
+              id="domain"
+              name="domain"
+              type="text"
+              defaultValue={user.domain}
+              required
+              className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+            />
+          </div>
 
-      <div>
-        <label htmlFor="ga4_property_id" className="block text-sm font-semibold text-gray-700">
-          GA4 Property ID
-        </label>
-        <input
-          id="ga4_property_id"
-          name="ga4_property_id"
-          type="text"
-          defaultValue={user.ga4_property_id}
-          required
-          className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-        />
-      </div>
+          <div>
+            <label htmlFor="gsc_site_url" className="block text-sm font-semibold text-gray-700">
+              GSC Site URL
+            </label>
+            <input
+              id="gsc_site_url"
+              name="gsc_site_url"
+              type="text"
+              defaultValue={user.gsc_site_url}
+              required
+              className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+            />
+          </div>
 
-      <p className="text-sm text-gray-500 pt-2">Das Passwort kann aus Sicherheitsgründen hier nicht geändert werden.</p>
+          <div>
+            <label htmlFor="ga4_property_id" className="block text-sm font-semibold text-gray-700">
+              GA4 Property ID
+            </label>
+            <input
+              id="ga4_property_id"
+              name="ga4_property_id"
+              type="text"
+              defaultValue={user.ga4_property_id}
+              required
+              className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+            />
+          </div>
+        </>
+      )}
 
       <div className="flex justify-end">
         <button
