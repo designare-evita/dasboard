@@ -34,19 +34,17 @@ const toNum = (v: unknown): number | null => {
 };
 
 // ——— Handler ———
-export async function POST(
-  req: Request,
-  { params }: { params: Record<string, string | string[]> }
-) {
+export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json({ message: 'Nicht autorisiert.' }, { status: 401 });
     }
 
-    // params.id sicher extrahieren (string | string[])
-    const idRaw = params?.id;
-    const userId = Array.isArray(idRaw) ? idRaw[0] : idRaw;
+    // id sicher aus der URL extrahieren (ohne 2. Funktionsargument)
+    const { pathname } = new URL(req.url);
+    const match = pathname.match(/\/api\/users\/([^/]+)\/landingpages/i);
+    const userId = match?.[1] ?? '';
     if (!userId) {
       return NextResponse.json({ message: 'User-ID fehlt.' }, { status: 400 });
     }
