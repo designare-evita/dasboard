@@ -110,6 +110,7 @@ export default function ProjektDetailPage() {
   };
 
   return (
+    <>
       <div className="p-4 sm:p-6 md:p-8">
       <h2 className="text-3xl font-bold mb-6">Projekt-Dashboard</h2>
 
