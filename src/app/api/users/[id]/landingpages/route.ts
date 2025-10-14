@@ -6,7 +6,7 @@ import { authOptions } from '@/lib/auth';
 import { sql } from '@vercel/postgres';
 import * as xlsx from 'xlsx';
 
-// Definieren, wie eine Zeile aus der Excel-Datei aussieht
+// Typ-Definitionen bleiben gleich
 type RedaktionsplanRow = {
   'Landingpage-URL'?: string;
   'URL'?: string;
@@ -16,13 +16,13 @@ type RedaktionsplanRow = {
   'Aktuelle Pos.'?: number | string;
 };
 
-// GET: Landingpages für einen Benutzer abrufen
+// GET-Funktion bleibt unverändert
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  context: { params: { id: string } }
 ) {
   const session = await getServerSession(authOptions);
-  const { id: userId } = await params;
+  const userId = context.params.id;
 
   if (!session?.user) {
     return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
@@ -46,13 +46,13 @@ export async function GET(
   }
 }
 
-// POST: Landingpages aus einer XLSX-Datei hochladen
+// POST-Funktion wird jetzt intelligenter
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  context: { params: { id: string } }
 ) {
   const session = await getServerSession(authOptions);
-  const { id: userId } = await params;
+  const userId = context.params.id;
 
   if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
     return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
@@ -70,31 +70,63 @@ export async function POST(
     const workbook = xlsx.read(buffer, { type: 'buffer' });
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
-    const data = xlsx.utils.sheet_to_json(worksheet) as RedaktionsplanRow[];
+
+    // *** HIER IST DIE NEUE LOGIK ***
+    // Wir konvertieren das Sheet in ein Array von Arrays, um die Header-Zeile manuell zu finden
+    const dataAsArray: any[][] = xlsx.utils.sheet_to_json(worksheet, { header: 1 });
+
+    // Finde die Zeilennummer, in der die Header beginnen (wir suchen nach 'Landingpage-URL')
+    let headerRowIndex = -1;
+    for (let i = 0; i < dataAsArray.length; i++) {
+        if (dataAsArray[i].includes('Landingpage-URL')) {
+            headerRowIndex = i;
+            break;
+        }
+    }
+
+    if (headerRowIndex === -1) {
+        return NextResponse.json({ message: 'Konnte die Header-Zeile (Spalte "Landingpage-URL") in der Datei nicht finden.' }, { status: 400 });
+    }
+
+    // Extrahiere die Header und die Datenzeilen
+    const headers = dataAsArray[headerRowIndex];
+    const dataRows = dataAsArray.slice(headerRowIndex + 1);
+
+    // Konvertiere die Datenzeilen in Objekte
+    const data = dataRows.map(row => {
+        const obj: Record<string, any> = {};
+        headers.forEach((header, index) => {
+            obj[header] = row[index];
+        });
+        return obj as RedaktionsplanRow;
+    });
 
     let importedCount = 0;
+    await sql.begin(async (sql) => {
+      for (const row of data) {
+        const url = row['Landingpage-URL'] || row['URL'];
+        
+        if (url && typeof url === 'string' && url.startsWith('http')) {
+          const hauptKeyword = row['Haupt-Keyword'];
+          const weitereKeywords = row['Weitere Keywords'];
+          const suchvolumen = row['Suchvolumen'] ? parseInt(String(row['Suchvolumen']), 10) : null;
+          const aktuellePosition = row['Aktuelle Pos.'] ? parseInt(String(row['Aktuelle Pos.']), 10) : null;
 
-    for (const row of data) {
-      const url = row['Landingpage-URL'] || row['URL'];
-      const hauptKeyword = row['Haupt-Keyword'];
-      const weitereKeywords = row['Weitere Keywords'];
-      const suchvolumen = row['Suchvolumen'] ? parseInt(String(row['Suchvolumen']), 10) : null;
-      const aktuellePosition = row['Aktuelle Pos.'] ? parseInt(String(row['Aktuelle Pos.']), 10) : null;
-
-      if (url && typeof url === 'string' && url.startsWith('http')) {
-        await sql`
-          INSERT INTO landingpages
-          (user_id, url, haupt_keyword, weitere_keywords, suchvolumen, aktuelle_position)
-          VALUES
-          (${userId}, ${url}, ${hauptKeyword}, ${weitereKeywords}, ${suchvolumen}, ${aktuellePosition})
-        `;
-        importedCount++;
+          await sql`
+            INSERT INTO landingpages
+            (user_id, url, haupt_keyword, weitere_keywords, suchvolumen, aktuelle_position)
+            VALUES
+            (${userId}, ${url}, ${hauptKeyword}, ${weitereKeywords}, ${suchvolumen}, ${aktuellePosition})
+            ON CONFLICT (url, user_id) DO NOTHING; -- Verhindert Duplikate
+          `;
+          importedCount++;
+        }
       }
-    }
+    });
 
     return NextResponse.json({ message: `${importedCount} Zeilen erfolgreich importiert.` });
   } catch (error) {
     console.error("Upload Fehler:", error);
-    return NextResponse.json({ message: 'Fehler beim Verarbeiten der Datei' }, { status: 500 });
+    return NextResponse.json({ message: 'Fehler beim Verarbeiten der Datei.' }, { status: 500 });
   }
 }
