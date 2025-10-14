@@ -49,7 +49,6 @@ export default async function EditUserPage({ params }: PageProps) {
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-2xl mx-auto">
-        <Header />
         <main className="mt-6">
           {!user ? (
             <div className="p-8 text-center bg-white rounded-lg shadow-md">
