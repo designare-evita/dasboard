@@ -72,26 +72,27 @@ export async function POST(
     const worksheet = workbook.Sheets[sheetName];
     const data = xlsx.utils.sheet_to_json(worksheet) as RedaktionsplanRow[];
 
-    await sql.begin(async (sql) => {
-      for (const row of data) {
-        const url = row['Landingpage-URL'] || row['URL'];
-        const hauptKeyword = row['Haupt-Keyword'];
-        const weitereKeywords = row['Weitere Keywords'];
-        const suchvolumen = row['Suchvolumen'] ? parseInt(String(row['Suchvolumen']), 10) : null;
-        const aktuellePosition = row['Aktuelle Pos.'] ? parseInt(String(row['Aktuelle Pos.']), 10) : null;
+    let importedCount = 0;
 
-        if (url && typeof url === 'string' && url.startsWith('http')) {
-          await sql`
-            INSERT INTO landingpages
-            (user_id, url, haupt_keyword, weitere_keywords, suchvolumen, aktuelle_position)
-            VALUES
-            (${userId}, ${url}, ${hauptKeyword}, ${weitereKeywords}, ${suchvolumen}, ${aktuellePosition})
-          `;
-        }
+    for (const row of data) {
+      const url = row['Landingpage-URL'] || row['URL'];
+      const hauptKeyword = row['Haupt-Keyword'];
+      const weitereKeywords = row['Weitere Keywords'];
+      const suchvolumen = row['Suchvolumen'] ? parseInt(String(row['Suchvolumen']), 10) : null;
+      const aktuellePosition = row['Aktuelle Pos.'] ? parseInt(String(row['Aktuelle Pos.']), 10) : null;
+
+      if (url && typeof url === 'string' && url.startsWith('http')) {
+        await sql`
+          INSERT INTO landingpages
+          (user_id, url, haupt_keyword, weitere_keywords, suchvolumen, aktuelle_position)
+          VALUES
+          (${userId}, ${url}, ${hauptKeyword}, ${weitereKeywords}, ${suchvolumen}, ${aktuellePosition})
+        `;
+        importedCount++;
       }
-    });
+    }
 
-    return NextResponse.json({ message: `${data.length} Zeilen erfolgreich importiert.` });
+    return NextResponse.json({ message: `${importedCount} Zeilen erfolgreich importiert.` });
   } catch (error) {
     console.error("Upload Fehler:", error);
     return NextResponse.json({ message: 'Fehler beim Verarbeiten der Datei' }, { status: 500 });
