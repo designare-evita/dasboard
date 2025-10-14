@@ -11,17 +11,6 @@ export const runtime = 'nodejs';
 // ——— Typen ———
 
 /**
- * Definiert die Struktur für die Parameter, die aus der dynamischen URL extrahiert werden.
- * In diesem Fall erwarten wir eine 'id' vom Typ string.
- * Beispiel-URL: /api/users/123/landingpages -> params.id ist "123"
- */
-type RouteParams = {
-  params: {
-    id: string;
-  };
-};
-
-/**
  * Definiert die erwartete Struktur einer Zeile in der hochgeladenen Excel-Datei.
  * Die Felder sind als 'unknown' typisiert, da wir nicht garantieren können,
  * was der Benutzer hochlädt. Wir validieren und konvertieren die Typen später.
@@ -69,9 +58,12 @@ const toNum = (v: unknown): number | null => {
 /**
  * Verarbeitet POST-Anfragen zum Hochladen und Importieren von Landingpages aus einer Excel-Datei.
  * @param req Die eingehende Anfrage (Request-Objekt).
- * @param params Die aus der URL extrahierten dynamischen Parameter.
+ * @param context Das Kontextobjekt, das von Next.js bereitgestellt wird und die URL-Parameter enthält.
  */
-export async function POST(req: Request, { params }: RouteParams) {
+export async function POST(
+  req: Request,
+  context: { params: { id: string } } // <<< KORREKTUR HIER
+) {
   try {
     // 1. Authentifizierung prüfen
     const session = await getServerSession(authOptions);
@@ -79,9 +71,8 @@ export async function POST(req: Request, { params }: RouteParams) {
       return NextResponse.json({ message: 'Nicht autorisiert.' }, { status: 401 });
     }
 
-    // 2. User-ID aus den URL-Parametern extrahieren
-    // Dies ist die korrekte Methode im App Router.
-    const userId = params.id;
+    // 2. User-ID aus dem Kontextobjekt extrahieren
+    const userId = context.params.id; // <<< KORREKTUR HIER
     if (!userId) {
       return NextResponse.json({ message: 'User-ID fehlt.' }, { status: 400 });
     }
