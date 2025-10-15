@@ -9,10 +9,7 @@ import EditUserForm from './EditUserForm';
 import LandingpageManager from './LandingpageManager';
 import ProjectAssignmentManager from './ProjectAssignmentManager';
 
-// Korrekter Typ für die Seiten-Parameter
-type PageProps = {
-  params: { id: string };
-};
+// HINWEIS: Der separate 'PageProps' Typ wurde entfernt, um Konflikte zu vermeiden.
 
 interface Project {
   id: string;
@@ -62,7 +59,8 @@ async function getAllProjects(): Promise<Project[]> {
   }
 }
 
-export default async function EditUserPage({ params }: PageProps) {
+// KORREKTUR: Der Typ für die Props wird direkt hier definiert.
+export default async function EditUserPage({ params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   
   if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
