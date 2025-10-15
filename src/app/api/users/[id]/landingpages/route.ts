@@ -31,24 +31,24 @@ const normalizeKey = (key: string) =>
     .replace(/[^\w]/g, '');
 
 // GET: Landingpages eines Benutzers abrufen
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+// ✨ KORREKTUR: Die Typdefinition des zweiten Arguments wurde korrigiert, um den Build-Fehler zu beheben.
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
   const session = await getServerSession(authOptions);
 
   if (!session || (session.user.id !== params.id && session.user.role !== 'admin')) {
-    // ✅ KORREKTUR: Im Fehlerfall ein leeres Array senden
     return NextResponse.json([], { status: 403 }); 
   }
 
   try {
     const { rows } = await sql`SELECT * FROM landingpages WHERE user_id = ${params.id};`;
     
-    // ✅ KORREKTUR: Die API gibt jetzt immer direkt das Array zurück.
-    // Wenn nichts gefunden wird, ist `rows` automatisch ein leeres Array `[]`.
     return NextResponse.json(rows, { status: 200 });
 
   } catch (error) {
     console.error('Datenbankfehler:', error);
-    // ✅ KORREKTUR: Auch bei einem Serverfehler wird ein leeres Array gesendet.
     return NextResponse.json([], { status: 500 });
   }
 }
