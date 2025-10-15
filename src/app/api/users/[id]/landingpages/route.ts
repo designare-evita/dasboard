@@ -15,31 +15,17 @@ const toStr = (v: unknown): string =>
 
 const toNum = (v: unknown): number | null => {
   if (typeof v === 'number') return v;
-  const parsed = parseFloat(String(v).replace(',', '.'));
+  const str = String(v).replace(',', '.').trim();
+  const parsed = parseFloat(str);
   return isNaN(parsed) ? null : parsed;
 };
 
-// Macht Spaltennamen robuster
 const normalizeKey = (key: string) =>
   key
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^\w]/g, '');
-
-// Prüft, ob die erste Zeile ein Header ist oder bereits Daten enthält
-function hasHeaderRow(rows: Record<string, unknown>[]): boolean {
-  if (rows.length === 0) return false;
-  
-  const firstRow = rows[0];
-  const keys = Object.keys(firstRow);
-  
-  // Wenn die Keys typische Header-Namen enthalten, ist es ein Header
-  const headerPatterns = ['url', 'keyword', 'seite', 'haupt', 'position', 'volumen', 'page', 'link'];
-  return keys.some(key => 
-    headerPatterns.some(pattern => normalizeKey(key).includes(pattern))
-  );
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -68,104 +54,122 @@ export async function POST(request: NextRequest) {
     const sheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
     
-    // WICHTIG: Wir lesen die Datei als Array von Arrays, nicht als JSON-Objekt
-    const rawData = xlsx.utils.sheet_to_json<unknown[]>(sheet, { header: 1 });
+    // Lese als Array von Arrays
+    const rawData = xlsx.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: '' });
     
-    console.log(`📊 Rohdaten - ${rawData.length} Zeilen gefunden`);
-    console.log('Erste 3 Zeilen:', rawData.slice(0, 3));
+    console.log(`📊 Excel-Import gestartet - ${rawData.length} Zeilen gefunden`);
 
     if (rawData.length === 0) {
       return NextResponse.json({ message: 'Die Excel-Datei ist leer.' }, { status: 400 });
     }
 
-    let dataRows: unknown[][];
-    let headerRow: unknown[] | null = null;
+    // Finde die Header-Zeile (suche nach "Landingpage-URL" oder ähnlichen Begriffen)
+    let headerRowIndex = -1;
+    let headerRow: unknown[] = [];
 
-    // Prüfen, ob die erste Zeile ein Header ist
-    const firstRow = rawData[0];
-    const hasHeader = firstRow.some((cell: unknown) => {
-      const str = String(cell).toLowerCase();
-      return str.includes('url') || str.includes('keyword') || str.includes('seite') || 
-             str.includes('haupt') || str.includes('position') || str.includes('volumen');
-    });
-
-    if (hasHeader) {
-      console.log('✅ Header-Zeile erkannt');
-      headerRow = firstRow;
-      dataRows = rawData.slice(1);
-    } else {
-      console.log('⚠️ Keine Header-Zeile - verwende Standardzuordnung');
-      dataRows = rawData;
+    for (let i = 0; i < Math.min(10, rawData.length); i++) {
+      const row = rawData[i];
+      const rowStr = row.map(cell => String(cell).toLowerCase()).join(' ');
+      
+      if (rowStr.includes('landingpage') && rowStr.includes('url')) {
+        headerRowIndex = i;
+        headerRow = row;
+        console.log(`✅ Header gefunden in Zeile ${i + 1}`);
+        console.log('Header:', headerRow);
+        break;
+      }
     }
 
+    if (headerRowIndex === -1) {
+      return NextResponse.json({ 
+        message: 'Keine Header-Zeile mit "Landingpage-URL" gefunden. Bitte stelle sicher, dass die Excel-Datei korrekt formatiert ist.' 
+      }, { status: 400 });
+    }
+
+    // Erstelle Mapping: normalisierter Header -> Spaltenindex
+    const columnMap: Record<string, number> = {};
+    headerRow.forEach((header, idx) => {
+      const normalized = normalizeKey(String(header));
+      columnMap[normalized] = idx;
+    });
+
+    console.log('Spalten-Mapping:', columnMap);
+
+    // Finde die relevanten Spalten
+    const urlColumn = 
+      columnMap['landingpageurl'] ?? 
+      columnMap['url'] ?? 
+      columnMap['link'] ?? 
+      -1;
+
+    const hauptKeywordColumn = 
+      columnMap['hauptkeyword'] ?? 
+      columnMap['keyword'] ?? 
+      columnMap['mainkeyword'] ?? 
+      -1;
+
+    const weitereKeywordsColumn = 
+      columnMap['weiterekeywords'] ?? 
+      columnMap['keywords'] ?? 
+      columnMap['additionalkeywords'] ?? 
+      -1;
+
+    const suchvolumenColumn = 
+      columnMap['suchvolumen'] ?? 
+      columnMap['searchvolume'] ?? 
+      columnMap['volume'] ?? 
+      -1;
+
+    const positionColumn = 
+      columnMap['aktuellepos'] ?? 
+      columnMap['aktuelleposition'] ?? 
+      columnMap['position'] ?? 
+      columnMap['pos'] ?? 
+      -1;
+
+    console.log('Gefundene Spalten:', {
+      url: urlColumn,
+      hauptKeyword: hauptKeywordColumn,
+      weitereKeywords: weitereKeywordsColumn,
+      suchvolumen: suchvolumenColumn,
+      position: positionColumn
+    });
+
+    if (urlColumn === -1) {
+      return NextResponse.json({ 
+        message: 'Spalte "Landingpage-URL" wurde nicht gefunden. Verfügbare Spalten: ' + headerRow.join(', ')
+      }, { status: 400 });
+    }
+
+    // Verarbeite Datenzeilen (alles nach dem Header)
+    const dataRows = rawData.slice(headerRowIndex + 1);
     let importedCount = 0;
     let skippedCount = 0;
     const errors: string[] = [];
 
     for (let i = 0; i < dataRows.length; i++) {
       const row = dataRows[i];
+      const rowNumber = headerRowIndex + i + 2; // +2 wegen 0-Index und Header
       
       // Überspringe leere Zeilen
-      if (!row || row.length === 0 || row.every(cell => !cell)) {
+      if (!row || row.length === 0 || row.every(cell => !cell || String(cell).trim() === '')) {
         skippedCount++;
         continue;
       }
 
-      let url: string | null = null;
-      let hauptKeyword: string | null = null;
-      let weitereKeywords = '';
-      let suchvolumen: number | null = null;
-      let aktuellePosition: number | null = null;
+      const url = toStr(row[urlColumn]) || null;
+      const hauptKeyword = hauptKeywordColumn !== -1 ? toStr(row[hauptKeywordColumn]) : null;
+      const weitereKeywords = weitereKeywordsColumn !== -1 ? toStr(row[weitereKeywordsColumn]) : '';
+      const suchvolumen = suchvolumenColumn !== -1 ? toNum(row[suchvolumenColumn]) : null;
+      const aktuellePosition = positionColumn !== -1 ? toNum(row[positionColumn]) : null;
 
-      if (headerRow) {
-        // MIT HEADER: Zuordnung über Spaltennamen
-        const rowObj: Record<string, unknown> = {};
-        headerRow.forEach((header, idx) => {
-          const normalizedHeader = normalizeKey(String(header));
-          rowObj[normalizedHeader] = row[idx];
-        });
+      console.log(`Zeile ${rowNumber}:`, { url, hauptKeyword, suchvolumen, aktuellePosition });
 
-        url = toStr(
-          rowObj['landingpageurl'] ?? rowObj['url'] ?? rowObj['seite'] ?? 
-          rowObj['page'] ?? rowObj['link'] ?? ''
-        ) || null;
-
-        hauptKeyword = toStr(
-          rowObj['hauptkeyword'] ?? rowObj['hauptwort'] ?? rowObj['keyword'] ??
-          rowObj['mainkeyword'] ?? ''
-        ) || null;
-
-        weitereKeywords = toStr(
-          rowObj['weiterekeywords'] ?? rowObj['keywords'] ?? 
-          rowObj['zusatzkeywords'] ?? rowObj['additionalkeywords'] ?? ''
-        );
-
-        suchvolumen = toNum(
-          rowObj['suchvolumen'] ?? rowObj['searchvolume'] ?? 
-          rowObj['volume'] ?? rowObj['vol']
-        );
-
-        aktuellePosition = toNum(
-          rowObj['aktuelleposition'] ?? rowObj['aktuellepos'] ?? 
-          rowObj['position'] ?? rowObj['pos'] ?? rowObj['currentposition']
-        );
-      } else {
-        // OHNE HEADER: Zuordnung nach Position
-        // Annahme: [URL, Haupt-Keyword, Weitere Keywords, Suchvolumen, Position]
-        url = toStr(row[0]) || null;
-        hauptKeyword = toStr(row[1]) || null;
-        weitereKeywords = toStr(row[2]);
-        suchvolumen = toNum(row[3]);
-        aktuellePosition = toNum(row[4]);
-      }
-
-      console.log(`Zeile ${i + 1}:`, { url, hauptKeyword, weitereKeywords, suchvolumen, aktuellePosition });
-
-      // Validierung: Mindestens URL muss vorhanden sein
-      if (!url || url.length < 5) {
-        console.warn(`⚠️ Zeile ${i + 1} übersprungen: Keine gültige URL`);
+      // Validierung: URL muss vorhanden und gültig sein
+      if (!url || url.length < 5 || (!url.startsWith('http://') && !url.startsWith('https://'))) {
+        console.warn(`⚠️ Zeile ${rowNumber} übersprungen: Ungültige URL "${url}"`);
         skippedCount++;
-        errors.push(`Zeile ${i + 1}: Ungültige oder fehlende URL`);
+        errors.push(`Zeile ${rowNumber}: Ungültige URL`);
         continue;
       }
 
@@ -177,27 +181,28 @@ export async function POST(request: NextRequest) {
             haupt_keyword = EXCLUDED.haupt_keyword,
             weitere_keywords = EXCLUDED.weitere_keywords,
             suchvolumen = EXCLUDED.suchvolumen,
-            aktuelle_position = EXCLUDED.aktuelle_position;
+            aktuelle_position = EXCLUDED.aktuelle_position,
+            status = 'pending';
         `;
         importedCount++;
-        console.log(`✅ Zeile ${i + 1} erfolgreich importiert: ${url}`);
+        console.log(`✅ Zeile ${rowNumber} erfolgreich: ${url}`);
       } catch (dbError) {
-        console.error(`❌ DB-Fehler bei Zeile ${i + 1}:`, dbError);
-        errors.push(`Zeile ${i + 1}: Datenbankfehler`);
+        console.error(`❌ DB-Fehler bei Zeile ${rowNumber}:`, dbError);
+        errors.push(`Zeile ${rowNumber}: Datenbankfehler`);
         skippedCount++;
       }
     }
 
     const message = importedCount > 0 
-      ? `✅ ${importedCount} Landingpage(s) erfolgreich importiert${skippedCount > 0 ? `, ${skippedCount} übersprungen` : ''}.`
-      : `⚠️ Keine Daten importiert. ${skippedCount} Zeile(n) übersprungen.`;
+      ? `✅ ${importedCount} Landingpage(s) erfolgreich importiert${skippedCount > 0 ? ` (${skippedCount} übersprungen)` : ''}.`
+      : `⚠️ Keine Daten importiert. ${skippedCount} Zeile(n) übersprungen. Prüfe, ob die URLs mit "http://" oder "https://" beginnen.`;
     
     return NextResponse.json({
       message,
       imported: importedCount,
       skipped: skippedCount,
       total: dataRows.length,
-      errors: errors.length > 0 ? errors.slice(0, 5) : undefined // Max 5 Fehler anzeigen
+      errors: errors.length > 0 ? errors.slice(0, 10) : undefined
     });
   } catch (error) {
     console.error('❌ Upload Fehler:', error);
