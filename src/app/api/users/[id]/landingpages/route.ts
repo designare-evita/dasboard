@@ -31,56 +31,25 @@ const normalizeKey = (key: string) =>
     .replace(/[^\w]/g, '');
 
 // GET: Landingpages eines Benutzers abrufen
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+  const session = await getServerSession(authOptions);
+
+  if (!session || (session.user.id !== params.id && session.user.role !== 'admin')) {
+    // ✅ KORREKTUR: Im Fehlerfall ein leeres Array senden
+    return NextResponse.json([], { status: 403 }); 
+  }
+
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.email) {
-      return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
-    }
-
-    const { id: userId } = await params;
-
-    // Prüfe Berechtigung: Nur der Benutzer selbst oder ein Admin darf die Daten sehen
-    const isAdmin = session.user.role === 'ADMIN' || session.user.role === 'SUPERADMIN';
-    const isOwnData = session.user.id === userId;
-
-    if (!isAdmin && !isOwnData) {
-      return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
-    }
-
-    // Hole alle Landingpages des Benutzers
-    const { rows } = await sql`
-      SELECT 
-        id,
-        url,
-        haupt_keyword,
-        weitere_keywords,
-        suchvolumen,
-        aktuelle_position,
-        status,
-        created_at
-      FROM landingpages
-      WHERE user_id = ${userId}
-      ORDER BY created_at DESC;
-    `;
-
-    return NextResponse.json({
-      landingpages: rows,
-      count: rows.length
-    });
+    const { rows } = await sql`SELECT * FROM landingpages WHERE user_id = ${params.id};`;
+    
+    // ✅ KORREKTUR: Die API gibt jetzt immer direkt das Array zurück.
+    // Wenn nichts gefunden wird, ist `rows` automatisch ein leeres Array `[]`.
+    return NextResponse.json(rows, { status: 200 });
 
   } catch (error) {
-    console.error('Fehler beim Abrufen der Landingpages:', error);
-    return NextResponse.json(
-      { 
-        message: 'Fehler beim Laden der Landingpages',
-        error: error instanceof Error ? error.message : 'Unbekannter Fehler'
-      },
-      { status: 500 }
-    );
+    console.error('Datenbankfehler:', error);
+    // ✅ KORREKTUR: Auch bei einem Serverfehler wird ein leeres Array gesendet.
+    return NextResponse.json([], { status: 500 });
   }
 }
 
