@@ -3,19 +3,29 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@vercel/postgres';
 import bcrypt from 'bcryptjs';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+
+// ✨ KORREKTUR für Next.js 15+: params ist ein Promise
+type RouteHandlerParams = {
+  params: Promise<{ id: string }>;
+};
 
 // Handler zum Abrufen eines einzelnen Benutzers
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: Request, { params }: RouteHandlerParams) {
   try {
-    const { id } = await params;
+    const session = await getServerSession(authOptions);
+    if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
+      return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
+    }
+
+    const { id } = await params; // ✨ Wichtig: params mit await auflösen
     const { rows } = await sql`
       SELECT id, email, role, domain, gsc_site_url, ga4_property_id 
       FROM users 
       WHERE id = ${id}
     `;
+
     if (rows.length === 0) {
       return NextResponse.json({ message: 'Benutzer nicht gefunden' }, { status: 404 });
     }
@@ -27,55 +37,40 @@ export async function GET(
 }
 
 // Handler zum Aktualisieren eines Benutzers
-export async function PUT(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PUT(request: Request, { params }: RouteHandlerParams) {
   try {
-    const { id } = await params;
+    const session = await getServerSession(authOptions);
+    if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
+      return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
+    }
+
+    const { id } = await params; // ✨ Wichtig: params mit await auflösen
     const body = await request.json();
     const { email, role, domain, gsc_site_url, ga4_property_id, password } = body;
 
-    // Validierung: Pflichtfelder prüfen
     if (!email) {
       return NextResponse.json({ message: 'E-Mail ist erforderlich' }, { status: 400 });
     }
-
-    // Wenn role nicht angegeben ist, aktuellen Wert beibehalten
-    let finalRole = role;
-    if (!finalRole) {
-      const { rows: currentUser } = await sql`
-        SELECT role FROM users WHERE id = ${id}
-      `;
-      if (currentUser.length > 0) {
-        finalRole = currentUser[0].role;
-      }
+    
+    const { rows: existingUsers } = await sql`SELECT role FROM users WHERE id = ${id}`;
+    if (existingUsers.length === 0) {
+      return NextResponse.json({ message: "Benutzer nicht gefunden" }, { status: 404 });
     }
+    const finalRole = role || existingUsers[0].role;
 
     let updateQuery;
     if (password) {
       const hashedPassword = await bcrypt.hash(password, 10);
       updateQuery = sql`
         UPDATE users
-        SET 
-          email = ${email},
-          role = ${finalRole},
-          domain = ${domain},
-          gsc_site_url = ${gsc_site_url},
-          ga4_property_id = ${ga4_property_id},
-          password = ${hashedPassword}
+        SET email = ${email}, role = ${finalRole}, domain = ${domain}, gsc_site_url = ${gsc_site_url}, ga4_property_id = ${ga4_property_id}, password = ${hashedPassword}
         WHERE id = ${id}
         RETURNING id, email, role, domain, gsc_site_url, ga4_property_id;
       `;
     } else {
       updateQuery = sql`
         UPDATE users
-        SET 
-          email = ${email},
-          role = ${finalRole},
-          domain = ${domain},
-          gsc_site_url = ${gsc_site_url},
-          ga4_property_id = ${ga4_property_id}
+        SET email = ${email}, role = ${finalRole}, domain = ${domain}, gsc_site_url = ${gsc_site_url}, ga4_property_id = ${ga4_property_id}
         WHERE id = ${id}
         RETURNING id, email, role, domain, gsc_site_url, ga4_property_id;
       `;
@@ -84,7 +79,7 @@ export async function PUT(
     const { rows } = await updateQuery;
 
     if (rows.length === 0) {
-      return NextResponse.json({ message: "Benutzer nicht gefunden" }, { status: 404 });
+      return NextResponse.json({ message: "Update fehlgeschlagen. Benutzer nicht gefunden." }, { status: 404 });
     }
 
     return NextResponse.json(rows[0]);
@@ -95,12 +90,14 @@ export async function PUT(
 }
 
 // Handler zum Löschen eines Benutzers
-export async function DELETE(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function DELETE(request: Request, { params }: RouteHandlerParams) {
   try {
-    const { id } = await params;
+    const session = await getServerSession(authOptions);
+    if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
+      return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
+    }
+
+    const { id } = await params; // ✨ Wichtig: params mit await auflösen
     const result = await sql`
       DELETE FROM users WHERE id = ${id};
     `;
