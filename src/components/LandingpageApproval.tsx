@@ -43,12 +43,12 @@ export default function LandingpageApproval() {
 
   // --- Event Handler ---
   const handleApprove = async (id: number) => {
-    // Optimistisches Update: UI sofort aktualisieren
-    // ✨ KORREKTUR: Die unnötige 'newStatus'-Variable wurde entfernt.
-    // 'approved' wird direkt verwendet, was den Linter-Fehler behebt.
+    // ✨ KORREKTUR: Wir verwenden 'approved' direkt. 
+    // Das löst sowohl den TypeScript-Typfehler als auch den ESLint-Fehler.
     const optimisticData = landingpages?.map(lp => 
       lp.id === id ? { ...lp, status: 'approved' } : lp
     );
+
     if (optimisticData) {
       mutate(optimisticData, false);
     }
@@ -64,10 +64,12 @@ export default function LandingpageApproval() {
         throw new Error('Fehler bei der Aktualisierung.');
       }
       
+      // Daten nach erfolgreichem API-Aufruf neu validieren
       mutate();
 
     } catch (err) {
       console.error("Fehler bei der Freigabe:", err);
+      // Im Fehlerfall zum ursprünglichen Zustand zurückkehren
       mutate(landingpages, false); 
     }
   };
@@ -93,7 +95,7 @@ export default function LandingpageApproval() {
   }
 
   if (!Array.isArray(landingpages) || landingpages.length === 0) {
-    return null;
+    return null; // Nichts anzeigen, wenn keine Landingpages da sind
   }
   
   const pendingPages = landingpages.filter(lp => lp.status === 'pending');
