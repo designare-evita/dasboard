@@ -14,6 +14,13 @@ interface Project {
   name: string;
 }
 
+// KORREKTUR: Ein Typ, der die aus der Datenbank gelesenen Zeilen beschreibt
+interface ProjectRow {
+  id: string;
+  email: string;
+  domain: string | null;
+}
+
 interface UserWithAssignments extends User {
   assigned_projects: { project_id: string }[];
 }
@@ -41,22 +48,28 @@ async function getUserData(id: string): Promise<UserWithAssignments | null> {
   }
 }
 
-// Lädt alle "Projekte" (also alle Benutzer mit der Rolle 'BENUTZER')
+// KORREKTUR: Die Funktion wurde typensicher gemacht
 async function getAllProjects(): Promise<Project[]> {
   try {
-    const { rows } = await sql`
+    // Wir sagen sql, dass die Zeilen vom Typ 'ProjectRow' sein werden
+    const { rows } = await sql<ProjectRow>`
       SELECT id, email, domain 
       FROM users 
       WHERE role = 'BENUTZER' 
       ORDER BY email ASC;`;
-    return rows.map(p => ({ ...p, name: p.domain || p.email }));
+      
+    // Wir erstellen explizit ein { id, name } Objekt, das zum Typ 'Project' passt
+    return rows.map(p => ({
+      id: p.id,
+      name: p.domain || p.email
+    }));
   } catch (error) {
     console.error('Fehler beim Laden aller Projekte:', error);
     return [];
   }
 }
 
-// KORREKTUR für Next.js 15: params ist jetzt ein Promise
+// Korrektur für Next.js 15: params ist jetzt ein Promise
 export default async function EditUserPage({ params }: { params: Promise<{ id: string }> }) {
   // Die Parameter müssen mit await aufgelöst werden
   const { id } = await params;
