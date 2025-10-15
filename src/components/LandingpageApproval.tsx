@@ -43,9 +43,10 @@ export default function LandingpageApproval() {
 
   // --- Event Handler ---
   const handleApprove = async (id: number) => {
-    // ✨ KORREKTUR: Wir verwenden 'approved' direkt. 
-    // Das löst sowohl den TypeScript-Typfehler als auch den ESLint-Fehler.
-    const optimisticData = landingpages?.map(lp => 
+    // ✨ FINALE KORREKTUR: Wir geben dem Callback der .map()-Funktion explizit
+    // den Rückgabetyp `: Landingpage` vor. Das zwingt TypeScript, die Typen korrekt
+    // zu behandeln und löst den hartnäckigen "string is not assignable"-Fehler.
+    const optimisticData = landingpages?.map((lp): Landingpage => 
       lp.id === id ? { ...lp, status: 'approved' } : lp
     );
 
@@ -64,12 +65,10 @@ export default function LandingpageApproval() {
         throw new Error('Fehler bei der Aktualisierung.');
       }
       
-      // Daten nach erfolgreichem API-Aufruf neu validieren
       mutate();
 
     } catch (err) {
       console.error("Fehler bei der Freigabe:", err);
-      // Im Fehlerfall zum ursprünglichen Zustand zurückkehren
       mutate(landingpages, false); 
     }
   };
@@ -95,7 +94,7 @@ export default function LandingpageApproval() {
   }
 
   if (!Array.isArray(landingpages) || landingpages.length === 0) {
-    return null; // Nichts anzeigen, wenn keine Landingpages da sind
+    return null;
   }
   
   const pendingPages = landingpages.filter(lp => lp.status === 'pending');
