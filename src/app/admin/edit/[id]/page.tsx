@@ -9,6 +9,10 @@ import EditUserForm from './EditUserForm';
 import LandingpageManager from './LandingpageManager';
 import ProjectAssignmentManager from './ProjectAssignmentManager';
 
+type PageProps = {
+  params: { id: string };
+};
+
 interface Project {
   id: string;
   name: string;
@@ -30,7 +34,9 @@ async function getUserData(id: string): Promise<UserWithAssignments | null> {
     
     const user = users[0];
 
-    const { rows: assigned_projects } = await sql`
+    // ✨ KORREKTUR: Wir teilen dem sql-Template explizit mit, welchen Typ die Zeilen haben werden.
+    // Das löst den Typ-Fehler beim Build-Prozess.
+    const { rows: assigned_projects } = await sql<{ project_id: string }>`
       SELECT project_id FROM project_assignments WHERE user_id = ${id};
     `;
     
@@ -56,23 +62,15 @@ async function getAllProjects(): Promise<Project[]> {
   }
 }
 
-export default async function EditUserPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function EditUserPage({ params }: PageProps) {
   const session = await getServerSession(authOptions);
   
   if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
     redirect('/');
   }
 
-  // ✅ params muss awaited werden
-  const { id } = await params;
-
-  // Lade alle Daten parallel
   const [user, allProjects] = await Promise.all([
-    getUserData(id),
+    getUserData(params.id),
     getAllProjects()
   ]);
 
@@ -94,11 +92,11 @@ export default async function EditUserPage({
           <h2 className="text-2xl font-bold mb-6">
             Benutzer <span className="text-indigo-600">{user.email}</span> bearbeiten
           </h2>
-          <EditUserForm id={id} user={user} />
+          <EditUserForm id={params.id} user={user} />
         </div>
         
         {user.role === 'BENUTZER' && (
-          <LandingpageManager userId={id} />
+          <LandingpageManager userId={params.id} />
         )}
 
         {currentUserIsSuperAdmin && userBeingEditedIsAdmin && (
