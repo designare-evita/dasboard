@@ -10,10 +10,13 @@ export const runtime = 'nodejs';
 
 // ——— Hilfsfunktionen ———
 
-const toStr = (v: unknown): string =>
-  typeof v === 'string' ? v.trim() : (v ?? '').toString().trim();
+const toStr = (v: unknown): string => {
+  if (v === null || v === undefined) return '';
+  return String(v).trim();
+};
 
 const toNum = (v: unknown): number | null => {
+  if (v === null || v === undefined || v === '') return null;
   if (typeof v === 'number') return v;
   const str = String(v).replace(',', '.').trim();
   const parsed = parseFloat(str);
@@ -54,155 +57,182 @@ export async function POST(request: NextRequest) {
     const sheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
     
-    // Lese als Array von Arrays
-    const rawData = xlsx.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: '' });
+    // Lese als Array von Arrays - WICHTIG: raw values ohne Typkonvertierung
+    const rawData = xlsx.utils.sheet_to_json<unknown[]>(sheet, { 
+      header: 1, 
+      defval: '',
+      raw: false // Konvertiert alles zu Strings
+    });
     
-    console.log(`📊 Excel-Import gestartet - ${rawData.length} Zeilen gefunden`);
+    console.log(`📊 Excel-Import: ${rawData.length} Zeilen gelesen`);
+    console.log('Erste 5 Zeilen:', JSON.stringify(rawData.slice(0, 5), null, 2));
 
-    if (rawData.length === 0) {
-      return NextResponse.json({ message: 'Die Excel-Datei ist leer.' }, { status: 400 });
+    if (rawData.length < 2) {
+      return NextResponse.json({ message: 'Die Excel-Datei enthält nicht genug Daten.' }, { status: 400 });
     }
 
-    // Finde die Header-Zeile (suche nach "Landingpage-URL" oder ähnlichen Begriffen)
+    // Suche nach Header-Zeile in den ersten 10 Zeilen
     let headerRowIndex = -1;
     let headerRow: unknown[] = [];
 
     for (let i = 0; i < Math.min(10, rawData.length); i++) {
       const row = rawData[i];
-      const rowStr = row.map(cell => String(cell).toLowerCase()).join(' ');
       
-      if (rowStr.includes('landingpage') && rowStr.includes('url')) {
+      // Prüfe ob diese Zeile Header enthält
+      const hasUrlColumn = row.some(cell => {
+        const str = normalizeKey(String(cell));
+        return str.includes('landingpage') && str.includes('url') || 
+               str === 'url' || 
+               str === 'landingpageurl';
+      });
+
+      if (hasUrlColumn) {
         headerRowIndex = i;
         headerRow = row;
-        console.log(`✅ Header gefunden in Zeile ${i + 1}`);
-        console.log('Header:', headerRow);
+        console.log(`✅ Header gefunden in Zeile ${i + 1}:`, headerRow);
         break;
       }
     }
 
     if (headerRowIndex === -1) {
+      console.error('❌ Kein Header gefunden!');
       return NextResponse.json({ 
-        message: 'Keine Header-Zeile mit "Landingpage-URL" gefunden. Bitte stelle sicher, dass die Excel-Datei korrekt formatiert ist.' 
+        message: 'Keine Header-Zeile gefunden. Erste Zeile der Datei: ' + JSON.stringify(rawData[0])
       }, { status: 400 });
     }
 
-    // Erstelle Mapping: normalisierter Header -> Spaltenindex
-    const columnMap: Record<string, number> = {};
+    // Erstelle Spalten-Mapping
+    const columnIndices = {
+      url: -1,
+      hauptKeyword: -1,
+      weitereKeywords: -1,
+      suchvolumen: -1,
+      position: -1
+    };
+
     headerRow.forEach((header, idx) => {
       const normalized = normalizeKey(String(header));
-      columnMap[normalized] = idx;
+      
+      // URL-Spalte
+      if (normalized.includes('landingpage') && normalized.includes('url') || normalized === 'url') {
+        columnIndices.url = idx;
+        console.log(`  → URL-Spalte: Index ${idx} ("${header}")`);
+      }
+      
+      // Haupt-Keyword
+      if (normalized.includes('haupt') && normalized.includes('keyword') || normalized === 'hauptkeyword') {
+        columnIndices.hauptKeyword = idx;
+        console.log(`  → Haupt-Keyword: Index ${idx} ("${header}")`);
+      }
+      
+      // Weitere Keywords
+      if (normalized.includes('weitere') && normalized.includes('keyword') || normalized === 'weiterekeywords') {
+        columnIndices.weitereKeywords = idx;
+        console.log(`  → Weitere Keywords: Index ${idx} ("${header}")`);
+      }
+      
+      // Suchvolumen
+      if (normalized.includes('suchvolumen') || normalized.includes('searchvolume') || normalized === 'volume') {
+        columnIndices.suchvolumen = idx;
+        console.log(`  → Suchvolumen: Index ${idx} ("${header}")`);
+      }
+      
+      // Position
+      if (normalized.includes('aktuelle') && normalized.includes('pos') || normalized === 'position' || normalized === 'aktuellepos') {
+        columnIndices.position = idx;
+        console.log(`  → Position: Index ${idx} ("${header}")`);
+      }
     });
 
-    console.log('Spalten-Mapping:', columnMap);
+    console.log('Finale Spalten-Indizes:', columnIndices);
 
-    // Finde die relevanten Spalten
-    const urlColumn = 
-      columnMap['landingpageurl'] ?? 
-      columnMap['url'] ?? 
-      columnMap['link'] ?? 
-      -1;
-
-    const hauptKeywordColumn = 
-      columnMap['hauptkeyword'] ?? 
-      columnMap['keyword'] ?? 
-      columnMap['mainkeyword'] ?? 
-      -1;
-
-    const weitereKeywordsColumn = 
-      columnMap['weiterekeywords'] ?? 
-      columnMap['keywords'] ?? 
-      columnMap['additionalkeywords'] ?? 
-      -1;
-
-    const suchvolumenColumn = 
-      columnMap['suchvolumen'] ?? 
-      columnMap['searchvolume'] ?? 
-      columnMap['volume'] ?? 
-      -1;
-
-    const positionColumn = 
-      columnMap['aktuellepos'] ?? 
-      columnMap['aktuelleposition'] ?? 
-      columnMap['position'] ?? 
-      columnMap['pos'] ?? 
-      -1;
-
-    console.log('Gefundene Spalten:', {
-      url: urlColumn,
-      hauptKeyword: hauptKeywordColumn,
-      weitereKeywords: weitereKeywordsColumn,
-      suchvolumen: suchvolumenColumn,
-      position: positionColumn
-    });
-
-    if (urlColumn === -1) {
+    if (columnIndices.url === -1) {
       return NextResponse.json({ 
-        message: 'Spalte "Landingpage-URL" wurde nicht gefunden. Verfügbare Spalten: ' + headerRow.join(', ')
+        message: `URL-Spalte nicht gefunden! Verfügbare Spalten: ${headerRow.join(', ')}`
       }, { status: 400 });
     }
 
-    // Verarbeite Datenzeilen (alles nach dem Header)
+    // Verarbeite Datenzeilen
     const dataRows = rawData.slice(headerRowIndex + 1);
     let importedCount = 0;
     let skippedCount = 0;
     const errors: string[] = [];
+    const debugInfo: string[] = [];
 
     for (let i = 0; i < dataRows.length; i++) {
       const row = dataRows[i];
-      const rowNumber = headerRowIndex + i + 2; // +2 wegen 0-Index und Header
+      const excelRowNum = headerRowIndex + i + 2;
       
-      // Überspringe leere Zeilen
-      if (!row || row.length === 0 || row.every(cell => !cell || String(cell).trim() === '')) {
+      // Überspringe komplett leere Zeilen
+      const hasContent = row.some(cell => cell && String(cell).trim() !== '');
+      if (!hasContent) {
         skippedCount++;
         continue;
       }
 
-      const url = toStr(row[urlColumn]) || null;
-      const hauptKeyword = hauptKeywordColumn !== -1 ? toStr(row[hauptKeywordColumn]) : null;
-      const weitereKeywords = weitereKeywordsColumn !== -1 ? toStr(row[weitereKeywordsColumn]) : '';
-      const suchvolumen = suchvolumenColumn !== -1 ? toNum(row[suchvolumenColumn]) : null;
-      const aktuellePosition = positionColumn !== -1 ? toNum(row[positionColumn]) : null;
+      const urlValue = toStr(row[columnIndices.url]);
+      const hauptKeyword = columnIndices.hauptKeyword !== -1 ? toStr(row[columnIndices.hauptKeyword]) : null;
+      const weitereKeywords = columnIndices.weitereKeywords !== -1 ? toStr(row[columnIndices.weitereKeywords]) : '';
+      const suchvolumen = columnIndices.suchvolumen !== -1 ? toNum(row[columnIndices.suchvolumen]) : null;
+      const aktuellePosition = columnIndices.position !== -1 ? toNum(row[columnIndices.position]) : null;
 
-      console.log(`Zeile ${rowNumber}:`, { url, hauptKeyword, suchvolumen, aktuellePosition });
+      const logEntry = `Zeile ${excelRowNum}: url="${urlValue}" keyword="${hauptKeyword}" vol=${suchvolumen} pos=${aktuellePosition}`;
+      console.log(logEntry);
+      debugInfo.push(logEntry);
 
-      // Validierung: URL muss vorhanden und gültig sein
-      if (!url || url.length < 5 || (!url.startsWith('http://') && !url.startsWith('https://'))) {
-        console.warn(`⚠️ Zeile ${rowNumber} übersprungen: Ungültige URL "${url}"`);
+      // Validierung
+      if (!urlValue) {
         skippedCount++;
-        errors.push(`Zeile ${rowNumber}: Ungültige URL`);
+        errors.push(`Zeile ${excelRowNum}: Leere URL`);
         continue;
       }
 
+      if (urlValue.length < 5) {
+        skippedCount++;
+        errors.push(`Zeile ${excelRowNum}: URL zu kurz`);
+        continue;
+      }
+
+      if (!urlValue.startsWith('http://') && !urlValue.startsWith('https://')) {
+        skippedCount++;
+        errors.push(`Zeile ${excelRowNum}: URL startet nicht mit http(s)://`);
+        continue;
+      }
+
+      // Datenbank-Insert
       try {
         await sql`
           INSERT INTO landingpages (user_id, url, haupt_keyword, weitere_keywords, suchvolumen, aktuelle_position)
-          VALUES (${userId}, ${url}, ${hauptKeyword}, ${weitereKeywords}, ${suchvolumen}, ${aktuellePosition})
+          VALUES (${userId}, ${urlValue}, ${hauptKeyword}, ${weitereKeywords}, ${suchvolumen}, ${aktuellePosition})
           ON CONFLICT (url, user_id) DO UPDATE SET
             haupt_keyword = EXCLUDED.haupt_keyword,
             weitere_keywords = EXCLUDED.weitere_keywords,
             suchvolumen = EXCLUDED.suchvolumen,
-            aktuelle_position = EXCLUDED.aktuelle_position,
-            status = 'pending';
+            aktuelle_position = EXCLUDED.aktuelle_position;
         `;
         importedCount++;
-        console.log(`✅ Zeile ${rowNumber} erfolgreich: ${url}`);
+        console.log(`✅ Erfolgreich importiert: ${urlValue}`);
       } catch (dbError) {
-        console.error(`❌ DB-Fehler bei Zeile ${rowNumber}:`, dbError);
-        errors.push(`Zeile ${rowNumber}: Datenbankfehler`);
+        console.error(`❌ DB-Fehler bei Zeile ${excelRowNum}:`, dbError);
+        errors.push(`Zeile ${excelRowNum}: DB-Fehler - ${dbError instanceof Error ? dbError.message : 'Unbekannt'}`);
         skippedCount++;
       }
     }
 
+    console.log(`\n📊 Import abgeschlossen: ${importedCount} erfolgreich, ${skippedCount} übersprungen`);
+
     const message = importedCount > 0 
       ? `✅ ${importedCount} Landingpage(s) erfolgreich importiert${skippedCount > 0 ? ` (${skippedCount} übersprungen)` : ''}.`
-      : `⚠️ Keine Daten importiert. ${skippedCount} Zeile(n) übersprungen. Prüfe, ob die URLs mit "http://" oder "https://" beginnen.`;
+      : `⚠️ Keine Daten importiert. ${skippedCount} Zeile(n) übersprungen.`;
     
     return NextResponse.json({
       message,
       imported: importedCount,
       skipped: skippedCount,
       total: dataRows.length,
-      errors: errors.length > 0 ? errors.slice(0, 10) : undefined
+      errors: errors.length > 0 ? errors.slice(0, 10) : undefined,
+      debug: debugInfo.slice(0, 5), // Erste 5 Zeilen als Debug-Info
+      columnMapping: columnIndices
     });
   } catch (error) {
     console.error('❌ Upload Fehler:', error);
