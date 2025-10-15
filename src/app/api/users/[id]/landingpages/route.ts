@@ -30,6 +30,61 @@ const normalizeKey = (key: string) =>
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^\w]/g, '');
 
+// GET: Landingpages eines Benutzers abrufen
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) {
+      return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
+    }
+
+    const { id: userId } = await params;
+
+    // Prüfe Berechtigung: Nur der Benutzer selbst oder ein Admin darf die Daten sehen
+    const isAdmin = session.user.role === 'ADMIN' || session.user.role === 'SUPERADMIN';
+    const isOwnData = session.user.id === userId;
+
+    if (!isAdmin && !isOwnData) {
+      return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
+    }
+
+    // Hole alle Landingpages des Benutzers
+    const { rows } = await sql`
+      SELECT 
+        id,
+        url,
+        haupt_keyword,
+        weitere_keywords,
+        suchvolumen,
+        aktuelle_position,
+        status,
+        created_at
+      FROM landingpages
+      WHERE user_id = ${userId}
+      ORDER BY created_at DESC;
+    `;
+
+    return NextResponse.json({
+      landingpages: rows,
+      count: rows.length
+    });
+
+  } catch (error) {
+    console.error('Fehler beim Abrufen der Landingpages:', error);
+    return NextResponse.json(
+      { 
+        message: 'Fehler beim Laden der Landingpages',
+        error: error instanceof Error ? error.message : 'Unbekannter Fehler'
+      },
+      { status: 500 }
+    );
+  }
+}
+
+// POST: Excel-Datei hochladen und Landingpages importieren
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -57,31 +112,27 @@ export async function POST(request: NextRequest) {
     const sheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
     
-    // Lese als Array von Arrays - WICHTIG: raw values ohne Typkonvertierung
     const rawData = xlsx.utils.sheet_to_json<unknown[]>(sheet, { 
       header: 1, 
       defval: '',
-      raw: false // Konvertiert alles zu Strings
+      raw: false
     });
     
     console.log(`📊 Excel-Import: ${rawData.length} Zeilen gelesen`);
-    console.log('Erste 5 Zeilen:', JSON.stringify(rawData.slice(0, 5), null, 2));
 
     if (rawData.length < 2) {
       return NextResponse.json({ message: 'Die Excel-Datei enthält nicht genug Daten.' }, { status: 400 });
     }
 
-    // Suche nach Header-Zeile in den ersten 10 Zeilen
+    // Suche nach Header-Zeile
     let headerRowIndex = -1;
     let headerRow: unknown[] = [];
 
     for (let i = 0; i < Math.min(10, rawData.length); i++) {
       const row = rawData[i];
-      
-      // Prüfe ob diese Zeile Header enthält
       const hasUrlColumn = row.some(cell => {
         const str = normalizeKey(String(cell));
-        return str.includes('landingpage') && str.includes('url') || 
+        return (str.includes('landingpage') && str.includes('url')) || 
                str === 'url' || 
                str === 'landingpageurl';
       });
@@ -89,15 +140,14 @@ export async function POST(request: NextRequest) {
       if (hasUrlColumn) {
         headerRowIndex = i;
         headerRow = row;
-        console.log(`✅ Header gefunden in Zeile ${i + 1}:`, headerRow);
+        console.log(`✅ Header gefunden in Zeile ${i + 1}`);
         break;
       }
     }
 
     if (headerRowIndex === -1) {
-      console.error('❌ Kein Header gefunden!');
       return NextResponse.json({ 
-        message: 'Keine Header-Zeile gefunden. Erste Zeile der Datei: ' + JSON.stringify(rawData[0])
+        message: 'Keine Header-Zeile gefunden.'
       }, { status: 400 });
     }
 
@@ -113,42 +163,30 @@ export async function POST(request: NextRequest) {
     headerRow.forEach((header, idx) => {
       const normalized = normalizeKey(String(header));
       
-      // URL-Spalte
-      if (normalized.includes('landingpage') && normalized.includes('url') || normalized === 'url') {
+      if ((normalized.includes('landingpage') && normalized.includes('url')) || normalized === 'url') {
         columnIndices.url = idx;
-        console.log(`  → URL-Spalte: Index ${idx} ("${header}")`);
       }
       
-      // Haupt-Keyword
-      if (normalized.includes('haupt') && normalized.includes('keyword') || normalized === 'hauptkeyword') {
+      if ((normalized.includes('haupt') && normalized.includes('keyword')) || normalized === 'hauptkeyword') {
         columnIndices.hauptKeyword = idx;
-        console.log(`  → Haupt-Keyword: Index ${idx} ("${header}")`);
       }
       
-      // Weitere Keywords
-      if (normalized.includes('weitere') && normalized.includes('keyword') || normalized === 'weiterekeywords') {
+      if ((normalized.includes('weitere') && normalized.includes('keyword')) || normalized === 'weiterekeywords') {
         columnIndices.weitereKeywords = idx;
-        console.log(`  → Weitere Keywords: Index ${idx} ("${header}")`);
       }
       
-      // Suchvolumen
       if (normalized.includes('suchvolumen') || normalized.includes('searchvolume') || normalized === 'volume') {
         columnIndices.suchvolumen = idx;
-        console.log(`  → Suchvolumen: Index ${idx} ("${header}")`);
       }
       
-      // Position
-      if (normalized.includes('aktuelle') && normalized.includes('pos') || normalized === 'position' || normalized === 'aktuellepos') {
+      if ((normalized.includes('aktuelle') && normalized.includes('pos')) || normalized === 'position' || normalized === 'aktuellepos') {
         columnIndices.position = idx;
-        console.log(`  → Position: Index ${idx} ("${header}")`);
       }
     });
 
-    console.log('Finale Spalten-Indizes:', columnIndices);
-
     if (columnIndices.url === -1) {
       return NextResponse.json({ 
-        message: `URL-Spalte nicht gefunden! Verfügbare Spalten: ${headerRow.join(', ')}`
+        message: `URL-Spalte nicht gefunden!`
       }, { status: 400 });
     }
 
@@ -157,13 +195,11 @@ export async function POST(request: NextRequest) {
     let importedCount = 0;
     let skippedCount = 0;
     const errors: string[] = [];
-    const debugInfo: string[] = [];
 
     for (let i = 0; i < dataRows.length; i++) {
       const row = dataRows[i];
       const excelRowNum = headerRowIndex + i + 2;
       
-      // Überspringe komplett leere Zeilen
       const hasContent = row.some(cell => cell && String(cell).trim() !== '');
       if (!hasContent) {
         skippedCount++;
@@ -176,26 +212,16 @@ export async function POST(request: NextRequest) {
       const suchvolumen = columnIndices.suchvolumen !== -1 ? toNum(row[columnIndices.suchvolumen]) : null;
       const aktuellePosition = columnIndices.position !== -1 ? toNum(row[columnIndices.position]) : null;
 
-      const logEntry = `Zeile ${excelRowNum}: url="${urlValue}" keyword="${hauptKeyword}" vol=${suchvolumen} pos=${aktuellePosition}`;
-      console.log(logEntry);
-      debugInfo.push(logEntry);
-
       // Validierung
-      if (!urlValue) {
+      if (!urlValue || urlValue.length < 5) {
         skippedCount++;
-        errors.push(`Zeile ${excelRowNum}: Leere URL`);
-        continue;
-      }
-
-      if (urlValue.length < 5) {
-        skippedCount++;
-        errors.push(`Zeile ${excelRowNum}: URL zu kurz`);
+        errors.push(`Zeile ${excelRowNum}: Ungültige URL`);
         continue;
       }
 
       if (!urlValue.startsWith('http://') && !urlValue.startsWith('https://')) {
         skippedCount++;
-        errors.push(`Zeile ${excelRowNum}: URL startet nicht mit http(s)://`);
+        errors.push(`Zeile ${excelRowNum}: URL muss mit http(s):// beginnen`);
         continue;
       }
 
@@ -211,15 +237,12 @@ export async function POST(request: NextRequest) {
             aktuelle_position = EXCLUDED.aktuelle_position;
         `;
         importedCount++;
-        console.log(`✅ Erfolgreich importiert: ${urlValue}`);
       } catch (dbError) {
         console.error(`❌ DB-Fehler bei Zeile ${excelRowNum}:`, dbError);
-        errors.push(`Zeile ${excelRowNum}: DB-Fehler - ${dbError instanceof Error ? dbError.message : 'Unbekannt'}`);
+        errors.push(`Zeile ${excelRowNum}: Datenbankfehler`);
         skippedCount++;
       }
     }
-
-    console.log(`\n📊 Import abgeschlossen: ${importedCount} erfolgreich, ${skippedCount} übersprungen`);
 
     const message = importedCount > 0 
       ? `✅ ${importedCount} Landingpage(s) erfolgreich importiert${skippedCount > 0 ? ` (${skippedCount} übersprungen)` : ''}.`
@@ -230,9 +253,7 @@ export async function POST(request: NextRequest) {
       imported: importedCount,
       skipped: skippedCount,
       total: dataRows.length,
-      errors: errors.length > 0 ? errors.slice(0, 10) : undefined,
-      debug: debugInfo.slice(0, 5), // Erste 5 Zeilen als Debug-Info
-      columnMapping: columnIndices
+      errors: errors.length > 0 ? errors.slice(0, 10) : undefined
     });
   } catch (error) {
     console.error('❌ Upload Fehler:', error);
