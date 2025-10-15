@@ -31,19 +31,20 @@ const normalizeKey = (key: string) =>
     .replace(/[^\w]/g, '');
 
 // GET: Landingpages eines Benutzers abrufen
-// ✨ KORREKTUR: Die Typdefinition des zweiten Arguments wurde korrigiert, um den Build-Fehler zu beheben.
+// ✅ FIX: params ist jetzt ein Promise und muss awaited werden
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const session = await getServerSession(authOptions);
 
-  if (!session || (session.user.id !== params.id && session.user.role !== 'admin')) {
+  if (!session || (session.user.id !== id && session.user.role !== 'admin')) {
     return NextResponse.json([], { status: 403 }); 
   }
 
   try {
-    const { rows } = await sql`SELECT * FROM landingpages WHERE user_id = ${params.id};`;
+    const { rows } = await sql`SELECT * FROM landingpages WHERE user_id = ${id};`;
     
     return NextResponse.json(rows, { status: 200 });
 
@@ -54,16 +55,18 @@ export async function GET(
 }
 
 // POST: Excel-Datei hochladen und Landingpages importieren
-export async function POST(request: NextRequest) {
+// ✅ FIX: params ist jetzt ein Promise und muss awaited werden
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
+    const { id: userId } = await params;
     const session = await getServerSession(authOptions);
+    
     if (!session?.user?.email) {
       return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
     }
-
-    const url = new URL(request.url);
-    const idMatch = url.pathname.match(/\/users\/([^/]+)\/landingpages/);
-    const userId = idMatch ? idMatch[1] : null;
 
     if (!userId) {
       return NextResponse.json({ message: 'Ungültige Benutzer-ID' }, { status: 400 });
