@@ -9,38 +9,30 @@ import EditUserForm from './EditUserForm';
 import LandingpageManager from './LandingpageManager';
 import ProjectAssignmentManager from './ProjectAssignmentManager';
 
+// ✨ KORREKTUR für Next.js 15+: params ist ein Promise
+type PageProps = {
+  params: Promise<{ id: string }>;
+};
+
 interface Project {
   id: string;
   name: string;
-}
-
-// KORREKTUR: Ein Typ, der die aus der Datenbank gelesenen Zeilen beschreibt
-interface ProjectRow {
-  id: string;
-  email: string;
-  domain: string | null;
 }
 
 interface UserWithAssignments extends User {
   assigned_projects: { project_id: string }[];
 }
 
-// Lädt den zu bearbeitenden Benutzer UND seine Zuweisungen
 async function getUserData(id: string): Promise<UserWithAssignments | null> {
+  // ... (Diese Funktion bleibt unverändert)
   try {
     const { rows: users } = await sql<User>`
       SELECT id, email, role, domain, gsc_site_url, ga4_property_id 
-      FROM users 
-      WHERE id = ${id}`;
-    
+      FROM users WHERE id = ${id}`;
     if (users.length === 0) return null;
-    
     const user = users[0];
-
     const { rows: assigned_projects } = await sql<{ project_id: string }>`
-      SELECT project_id FROM project_assignments WHERE user_id = ${id};
-    `;
-    
+      SELECT project_id FROM project_assignments WHERE user_id = ${id};`;
     return { ...user, assigned_projects };
   } catch (error) {
     console.error('Fehler beim Laden der Benutzerdaten:', error);
@@ -48,39 +40,27 @@ async function getUserData(id: string): Promise<UserWithAssignments | null> {
   }
 }
 
-// KORREKTUR: Die Funktion wurde typensicher gemacht
 async function getAllProjects(): Promise<Project[]> {
+   // ... (Diese Funktion bleibt unverändert)
   try {
-    // Wir sagen sql, dass die Zeilen vom Typ 'ProjectRow' sein werden
-    const { rows } = await sql<ProjectRow>`
-      SELECT id, email, domain 
-      FROM users 
-      WHERE role = 'BENUTZER' 
-      ORDER BY email ASC;`;
-      
-    // Wir erstellen explizit ein { id, name } Objekt, das zum Typ 'Project' passt
-    return rows.map(p => ({
-      id: p.id,
-      name: p.domain || p.email
-    }));
+    const { rows } = await sql`
+      SELECT id, email, domain FROM users WHERE role = 'BENUTZER' ORDER BY email ASC;`;
+    return rows.map(p => ({ ...p, name: p.domain || p.email }));
   } catch (error) {
     console.error('Fehler beim Laden aller Projekte:', error);
     return [];
   }
 }
 
-// Korrektur für Next.js 15: params ist jetzt ein Promise
-export default async function EditUserPage({ params }: { params: Promise<{ id: string }> }) {
-  // Die Parameter müssen mit await aufgelöst werden
-  const { id } = await params;
-  
+export default async function EditUserPage({ params }: PageProps) {
   const session = await getServerSession(authOptions);
   
   if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
     redirect('/');
   }
 
-  // Die aufgelöste 'id' wird hier verwendet
+  const { id } = await params; // ✨ Wichtig: params mit await auflösen
+
   const [user, allProjects] = await Promise.all([
     getUserData(id),
     getAllProjects()
@@ -104,7 +84,6 @@ export default async function EditUserPage({ params }: { params: Promise<{ id: s
           <h2 className="text-2xl font-bold mb-6">
             Benutzer <span className="text-indigo-600">{user.email}</span> bearbeiten
           </h2>
-          {/* Die aufgelöste 'id' wird an die Komponenten weitergegeben */}
           <EditUserForm id={id} user={user} />
         </div>
         
