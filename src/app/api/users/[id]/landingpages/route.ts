@@ -39,7 +39,7 @@ export async function GET(
   const { id } = await params;
   const session = await getServerSession(authOptions);
 
-  if (!session || (session.user.id !== id && session.user.role !== 'admin')) {
+  if (!session || (session.user.id !== id && session.user.role !== 'ADMIN')) {
     return NextResponse.json([], { status: 403 }); 
   }
 
