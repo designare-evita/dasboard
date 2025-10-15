@@ -9,11 +9,17 @@ import EditUserForm from './EditUserForm';
 import LandingpageManager from './LandingpageManager';
 import ProjectAssignmentManager from './ProjectAssignmentManager';
 
+// ✨ KORREKTUR: Die Typ-Definition für die Seiten-Props wurde korrigiert.
+// `params` ist ein Objekt, kein Promise.
 type PageProps = {
   params: { id: string };
 };
 
-// Passt den Typ an, um zugewiesene Projekte aufzunehmen
+interface Project {
+  id: string;
+  name: string;
+}
+
 interface UserWithAssignments extends User {
   assigned_projects: { project_id: string }[];
 }
@@ -42,15 +48,13 @@ async function getUserData(id: string): Promise<UserWithAssignments | null> {
 }
 
 // Lädt alle "Projekte" (also alle Benutzer mit der Rolle 'BENUTZER')
-async function getAllProjects() {
+async function getAllProjects(): Promise<Project[]> {
   try {
-    // Diese Abfrage spiegelt deine Logik aus der /api/projects Route wider
     const { rows } = await sql`
       SELECT id, email, domain 
       FROM users 
       WHERE role = 'BENUTZER' 
       ORDER BY email ASC;`;
-    // Wir benennen das Feld 'domain' in 'name' um, damit es zur Komponente passt
     return rows.map(p => ({ ...p, name: p.domain || p.email }));
   } catch (error) {
     console.error('Fehler beim Laden aller Projekte:', error);
@@ -65,7 +69,7 @@ export default async function EditUserPage({ params }: PageProps) {
     redirect('/');
   }
 
-  // Lade alle Daten parallel für bessere Performance
+  // Lade alle Daten parallel. `params.id` wird direkt verwendet, ohne `await`.
   const [user, allProjects] = await Promise.all([
     getUserData(params.id),
     getAllProjects()
@@ -96,7 +100,6 @@ export default async function EditUserPage({ params }: PageProps) {
           <LandingpageManager userId={params.id} />
         )}
 
-        {/* Die entscheidende Logik: Wird nur angezeigt, wenn ein SUPERADMIN einen ADMIN bearbeitet */}
         {currentUserIsSuperAdmin && userBeingEditedIsAdmin && (
           <ProjectAssignmentManager user={user} allProjects={allProjects} />
         )}
