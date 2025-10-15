@@ -9,12 +9,6 @@ import EditUserForm from './EditUserForm';
 import LandingpageManager from './LandingpageManager';
 import ProjectAssignmentManager from './ProjectAssignmentManager';
 
-// ✨ KORREKTUR: Die Typ-Definition für die Seiten-Props wurde korrigiert.
-// `params` ist ein Objekt, kein Promise.
-type PageProps = {
-  params: { id: string };
-};
-
 interface Project {
   id: string;
   name: string;
@@ -62,16 +56,23 @@ async function getAllProjects(): Promise<Project[]> {
   }
 }
 
-export default async function EditUserPage({ params }: PageProps) {
+export default async function EditUserPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const session = await getServerSession(authOptions);
   
   if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
     redirect('/');
   }
 
-  // Lade alle Daten parallel. `params.id` wird direkt verwendet, ohne `await`.
+  // ✅ params muss awaited werden
+  const { id } = await params;
+
+  // Lade alle Daten parallel
   const [user, allProjects] = await Promise.all([
-    getUserData(params.id),
+    getUserData(id),
     getAllProjects()
   ]);
 
@@ -93,11 +94,11 @@ export default async function EditUserPage({ params }: PageProps) {
           <h2 className="text-2xl font-bold mb-6">
             Benutzer <span className="text-indigo-600">{user.email}</span> bearbeiten
           </h2>
-          <EditUserForm id={params.id} user={user} />
+          <EditUserForm id={id} user={user} />
         </div>
         
         {user.role === 'BENUTZER' && (
-          <LandingpageManager userId={params.id} />
+          <LandingpageManager userId={id} />
         )}
 
         {currentUserIsSuperAdmin && userBeingEditedIsAdmin && (
