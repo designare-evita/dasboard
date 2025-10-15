@@ -8,7 +8,7 @@ const Footer = () => {
   return (
     <footer className="w-full bg-white shadow-inner mt-12 py-6">
       <div className="max-w-7xl mx-auto px-4 text-center text-gray-500">
-        <p>&copy; {currentYear} Ihr Firmenname. Alle Rechte vorbehalten.</p>
+        <p>&copy; {currentYear} Michael Kanda & Evita. Alle Rechte vorbehalten.</p>
       </div>
     </footer>
   );
