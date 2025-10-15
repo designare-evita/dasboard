@@ -31,12 +31,10 @@ const fetcher = async (url: string): Promise<Landingpage[]> => {
     throw error;
   }
 
-  // Wir stellen sicher, dass die API tatsächlich ein Array zurückgibt
   const data = await res.json();
   if (Array.isArray(data)) {
     return data;
   }
-  // Wenn die API-Antwort kein Array ist, werfen wir einen Fehler
   throw new Error("Die von der API erhaltenen Daten waren kein Array.");
 };
 
@@ -48,7 +46,6 @@ export default function LandingpageApproval() {
   const userId = session?.user?.id;
   const apiUrl = userId ? `/api/users/${userId}/landingpages` : null;
 
-  // SWR Hook zum Abrufen und Cachen der Landingpage-Daten
   const { data: landingpages, error, isLoading, mutate } = useSWR<Landingpage[]>(apiUrl, fetcher);
 
   // --- Event Handler ---
@@ -59,11 +56,15 @@ export default function LandingpageApproval() {
    * @param id Die ID der Landingpage.
    */
   const handleApprove = async (id: number) => {
+    // ✨ KORREKTUR: Wir definieren den neuen Status mit seinem spezifischen Typ.
+    const newStatus: 'approved' = 'approved';
+
     // Optimistisches Update: UI sofort aktualisieren
     const optimisticData = landingpages?.map(lp => 
-      lp.id === id ? { ...lp, status: 'approved' } : lp
+      lp.id === id ? { ...lp, status: newStatus } : lp
     );
     if (optimisticData) {
+      // Jetzt hat `optimisticData` den korrekten Typ `Landingpage[]`
       mutate(optimisticData, false); // false = nicht neu fetchen
     }
 
@@ -71,26 +72,23 @@ export default function LandingpageApproval() {
       const response = await fetch(`/api/landingpages/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'approved' }),
+        body: JSON.stringify({ status: newStatus }), // Hier die Variable wiederverwenden
       });
 
       if (!response.ok) {
         throw new Error('Fehler bei der Aktualisierung.');
       }
       
-      // Nach erfolgreichem Update die Daten vom Server neu validieren (optional, aber sicher)
       mutate();
 
     } catch (err) {
       console.error("Fehler bei der Freigabe:", err);
-      // Im Fehlerfall zum ursprünglichen Zustand zurückkehren
       mutate(landingpages, false); 
     }
   };
 
   // --- Render-Logik ---
 
-  // 1. Ladezustand
   if (isLoading) {
     return (
       <div className="mt-8 bg-white p-6 rounded-lg shadow-md">
@@ -100,7 +98,6 @@ export default function LandingpageApproval() {
     );
   }
 
-  // 2. Fehlerzustand
   if (error) {
     return (
       <div className="mt-8 bg-white p-6 rounded-lg shadow-md">
@@ -110,13 +107,10 @@ export default function LandingpageApproval() {
     );
   }
 
-  // 3. Erfolgreich geladen, aber keine Daten
-  // WICHTIG: Die Überprüfung, ob 'landingpages' ein Array ist
   if (!Array.isArray(landingpages) || landingpages.length === 0) {
-    return null; // Nichts anzeigen, wenn keine Landingpages da sind
+    return null;
   }
   
-  // 4. Daten erfolgreich geladen und vorhanden
   const pendingPages = landingpages.filter(lp => lp.status === 'pending');
   const approvedPages = landingpages.filter(lp => lp.status === 'approved');
 
@@ -124,7 +118,6 @@ export default function LandingpageApproval() {
     <div className="mt-8 bg-white p-6 rounded-lg shadow-md">
       <h3 className="text-xl font-bold mb-4">Redaktionsplan</h3>
       
-      {/* Bereich für ausstehende Freigaben */}
       {pendingPages.length > 0 && (
         <div className="mb-8">
           <h4 className="text-md font-semibold text-gray-700 mb-3 border-b pb-2">Zur Freigabe</h4>
@@ -148,7 +141,6 @@ export default function LandingpageApproval() {
         </div>
       )}
 
-      {/* Bereich für bereits freigegebene Seiten */}
       {approvedPages.length > 0 && (
          <div>
           <h4 className="text-md font-semibold text-gray-700 mb-3 border-b pb-2">Freigegeben</h4>
@@ -166,7 +158,6 @@ export default function LandingpageApproval() {
         </div>
       )}
 
-      {/* Fallback, falls es zwar Daten gibt, aber keine sind 'pending' oder 'approved' */}
       {pendingPages.length === 0 && approvedPages.length === 0 && (
         <p className="text-gray-500">Aktuell gibt es keine ausstehenden oder freigegebenen Landingpages.</p>
       )}
