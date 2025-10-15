@@ -9,8 +9,6 @@ import EditUserForm from './EditUserForm';
 import LandingpageManager from './LandingpageManager';
 import ProjectAssignmentManager from './ProjectAssignmentManager';
 
-// HINWEIS: Der separate 'PageProps' Typ wurde entfernt, um Konflikte zu vermeiden.
-
 interface Project {
   id: string;
   name: string;
@@ -32,7 +30,6 @@ async function getUserData(id: string): Promise<UserWithAssignments | null> {
     
     const user = users[0];
 
-    // Korrekte Typ-Zuweisung für die Datenbankabfrage
     const { rows: assigned_projects } = await sql<{ project_id: string }>`
       SELECT project_id FROM project_assignments WHERE user_id = ${id};
     `;
@@ -59,16 +56,20 @@ async function getAllProjects(): Promise<Project[]> {
   }
 }
 
-// KORREKTUR: Der Typ für die Props wird direkt hier definiert.
-export default async function EditUserPage({ params }: { params: { id: string } }) {
+// KORREKTUR für Next.js 15: params ist jetzt ein Promise
+export default async function EditUserPage({ params }: { params: Promise<{ id: string }> }) {
+  // Die Parameter müssen mit await aufgelöst werden
+  const { id } = await params;
+  
   const session = await getServerSession(authOptions);
   
   if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
     redirect('/');
   }
 
+  // Die aufgelöste 'id' wird hier verwendet
   const [user, allProjects] = await Promise.all([
-    getUserData(params.id),
+    getUserData(id),
     getAllProjects()
   ]);
 
@@ -90,11 +91,12 @@ export default async function EditUserPage({ params }: { params: { id: string } 
           <h2 className="text-2xl font-bold mb-6">
             Benutzer <span className="text-indigo-600">{user.email}</span> bearbeiten
           </h2>
-          <EditUserForm id={params.id} user={user} />
+          {/* Die aufgelöste 'id' wird an die Komponenten weitergegeben */}
+          <EditUserForm id={id} user={user} />
         </div>
         
         {user.role === 'BENUTZER' && (
-          <LandingpageManager userId={params.id} />
+          <LandingpageManager userId={id} />
         )}
 
         {currentUserIsSuperAdmin && userBeingEditedIsAdmin && (
