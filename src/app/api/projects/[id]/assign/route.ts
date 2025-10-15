@@ -6,7 +6,11 @@ import { authOptions } from '@/lib/auth';
 import { sql } from '@vercel/postgres';
 
 // Weist einen Benutzer (Admin) einem Projekt zu
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id: projectId } = await params;
   const session = await getServerSession(authOptions);
   
   // Sicherheitscheck: Nur Superadmins dürfen das
@@ -15,7 +19,6 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   }
 
   try {
-    const projectId = params.id;
     const { userId } = await request.json();
 
     if (!userId) {
@@ -36,7 +39,11 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 }
 
 // Entfernt die Zuweisung eines Benutzers (Admin) von einem Projekt
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id: projectId } = await params;
   const session = await getServerSession(authOptions);
 
   // Sicherheitscheck: Nur Superadmins dürfen das
@@ -45,7 +52,6 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
   }
   
   try {
-    const projectId = params.id;
     const { userId } = await request.json();
     
     if (!userId) {
