@@ -15,13 +15,6 @@ interface Landingpage {
 }
 
 // --- Datenabruf-Funktion (Fetcher) ---
-
-/**
- * Eine robuste Fetcher-Funktion für SWR.
- * Wirft einen Fehler, wenn die Netzwerkantwort nicht erfolgreich ist.
- * @param url Die URL, die abgerufen werden soll.
- * @returns Die JSON-Antwort.
- */
 const fetcher = async (url: string): Promise<Landingpage[]> => {
   const res = await fetch(url);
 
@@ -49,30 +42,22 @@ export default function LandingpageApproval() {
   const { data: landingpages, error, isLoading, mutate } = useSWR<Landingpage[]>(apiUrl, fetcher);
 
   // --- Event Handler ---
-
-  /**
-   * Behandelt den Klick auf den "Freigeben"-Button.
-   * Aktualisiert den Status einer Landingpage auf 'approved'.
-   * @param id Die ID der Landingpage.
-   */
   const handleApprove = async (id: number) => {
-    // ✨ KORREKTUR: Wir definieren den neuen Status mit seinem spezifischen Typ.
-    const newStatus: 'approved' = 'approved';
-
     // Optimistisches Update: UI sofort aktualisieren
+    // ✨ KORREKTUR: Die unnötige 'newStatus'-Variable wurde entfernt.
+    // 'approved' wird direkt verwendet, was den Linter-Fehler behebt.
     const optimisticData = landingpages?.map(lp => 
-      lp.id === id ? { ...lp, status: newStatus } : lp
+      lp.id === id ? { ...lp, status: 'approved' } : lp
     );
     if (optimisticData) {
-      // Jetzt hat `optimisticData` den korrekten Typ `Landingpage[]`
-      mutate(optimisticData, false); // false = nicht neu fetchen
+      mutate(optimisticData, false);
     }
 
     try {
       const response = await fetch(`/api/landingpages/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus }), // Hier die Variable wiederverwenden
+        body: JSON.stringify({ status: 'approved' }),
       });
 
       if (!response.ok) {
