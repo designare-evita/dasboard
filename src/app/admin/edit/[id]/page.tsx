@@ -9,7 +9,7 @@ import EditUserForm from './EditUserForm';
 import LandingpageManager from './LandingpageManager';
 import ProjectAssignmentManager from './ProjectAssignmentManager';
 
-// ✨ KORREKTUR für Next.js 15+: params ist ein Promise
+// Typ-Definition für Next.js 15+
 type PageProps = {
   params: Promise<{ id: string }>;
 };
@@ -24,7 +24,6 @@ interface UserWithAssignments extends User {
 }
 
 async function getUserData(id: string): Promise<UserWithAssignments | null> {
-  // ... (Diese Funktion bleibt unverändert)
   try {
     const { rows: users } = await sql<User>`
       SELECT id, email, role, domain, gsc_site_url, ga4_property_id 
@@ -40,11 +39,16 @@ async function getUserData(id: string): Promise<UserWithAssignments | null> {
   }
 }
 
+// Lädt alle "Projekte" (also alle Benutzer mit der Rolle 'BENUTZER')
 async function getAllProjects(): Promise<Project[]> {
-   // ... (Diese Funktion bleibt unverändert)
   try {
-    const { rows } = await sql`
-      SELECT id, email, domain FROM users WHERE role = 'BENUTZER' ORDER BY email ASC;`;
+    // ✨ KORREKTUR: Wir definieren den erwarteten Typ für die Datenbankzeilen.
+    // Das löst den "Property 'id' is missing"-Fehler.
+    const { rows } = await sql<{ id: string; email: string; domain: string | null }>`
+      SELECT id, email, domain 
+      FROM users 
+      WHERE role = 'BENUTZER' 
+      ORDER BY email ASC;`;
     return rows.map(p => ({ ...p, name: p.domain || p.email }));
   } catch (error) {
     console.error('Fehler beim Laden aller Projekte:', error);
@@ -59,7 +63,7 @@ export default async function EditUserPage({ params }: PageProps) {
     redirect('/');
   }
 
-  const { id } = await params; // ✨ Wichtig: params mit await auflösen
+  const { id } = await params; // params mit await auflösen
 
   const [user, allProjects] = await Promise.all([
     getUserData(id),
