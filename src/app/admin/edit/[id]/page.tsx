@@ -9,6 +9,7 @@ import EditUserForm from './EditUserForm';
 import LandingpageManager from './LandingpageManager';
 import ProjectAssignmentManager from './ProjectAssignmentManager';
 
+// Korrekter Typ für die Seiten-Parameter
 type PageProps = {
   params: { id: string };
 };
@@ -34,8 +35,7 @@ async function getUserData(id: string): Promise<UserWithAssignments | null> {
     
     const user = users[0];
 
-    // ✨ KORREKTUR: Wir teilen dem sql-Template explizit mit, welchen Typ die Zeilen haben werden.
-    // Das löst den Typ-Fehler beim Build-Prozess.
+    // Korrekte Typ-Zuweisung für die Datenbankabfrage
     const { rows: assigned_projects } = await sql<{ project_id: string }>`
       SELECT project_id FROM project_assignments WHERE user_id = ${id};
     `;
