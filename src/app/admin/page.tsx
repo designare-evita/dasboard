@@ -26,8 +26,10 @@ export default function AdminPage() {
         return;
       }
       const data: User[] = await response.json();
+      console.log('[AdminPage] Geladene Benutzer:', data);
       setUsers(data);
-    } catch {
+    } catch (error) {
+      console.error('[AdminPage] Fehler beim Laden:', error);
       setMessage('Fehler beim Verbinden mit der API.');
     } finally {
       setIsLoadingUsers(false);
@@ -67,6 +69,7 @@ export default function AdminPage() {
 
   // Benutzer löschen
   const handleDelete = async (userId: string): Promise<void> => {
+    console.log('[AdminPage] Lösche Benutzer mit ID:', userId);
     const confirmed = window.confirm('Sind Sie sicher, dass Sie diesen Nutzer endgültig löschen möchten?');
     if (!confirmed) return;
 
@@ -177,30 +180,42 @@ export default function AdminPage() {
           <h2 className="text-xl font-bold mb-4">Vorhandene Nutzer</h2>
           {isLoadingUsers ? (
             <p>Lade Benutzer...</p>
+          ) : users.length === 0 ? (
+            <p className="text-gray-500">Keine Benutzer gefunden.</p>
           ) : (
             <ul className="space-y-3">
-              {users.map((user: User) => (
-                <li key={user.id} className="p-3 border rounded-md flex justify-between items-center">
-                  <div>
-                    <p className="font-semibold">{user.email}</p>
-                    <p className="text-sm text-gray-500">{user.role}</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Link
-                      href={`/admin/edit/${user.id}`}
-                      className="bg-gray-200 text-gray-700 px-3 py-1 rounded hover:bg-gray-300 text-sm"
-                    >
-                      Bearbeiten
-                    </Link>
-                    <button
-                      onClick={() => void handleDelete(user.id)}
-                      className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 text-sm"
-                    >
-                      Löschen
-                    </button>
-                  </div>
-                </li>
-              ))}
+              {users.map((user: User) => {
+                // ✅ WICHTIG: Logge die ID für Debugging
+                console.log('[AdminPage] User:', user.email, 'ID:', user.id, 'ID-Typ:', typeof user.id);
+                
+                return (
+                  <li key={user.id} className="p-3 border rounded-md flex justify-between items-center">
+                    <div className="flex-1">
+                      <p className="font-semibold">{user.email}</p>
+                      <p className="text-sm text-gray-500">{user.role}</p>
+                      {/* ✅ DEBUG: Zeige die ID an */}
+                      <p className="text-xs text-gray-400 font-mono mt-1">ID: {user.id}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Link
+                        href={`/admin/edit/${user.id}`}
+                        onClick={() => {
+                          console.log('[AdminPage] Navigiere zu Edit-Seite für:', user.email, 'mit ID:', user.id);
+                        }}
+                        className="bg-gray-200 text-gray-700 px-3 py-1 rounded hover:bg-gray-300 text-sm"
+                      >
+                        Bearbeiten
+                      </Link>
+                      <button
+                        onClick={() => void handleDelete(user.id)}
+                        className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 text-sm"
+                      >
+                        Löschen
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
