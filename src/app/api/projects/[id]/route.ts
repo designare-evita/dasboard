@@ -8,7 +8,7 @@ import { getSearchConsoleData, getAnalyticsData } from '@/lib/google-api';
 import { User } from '@/types';
 import bcrypt from 'bcryptjs';
 
-// --- HILFSFUNKTIONEN (aus /api/data/route.ts übernommen) ---
+// --- HILFSFUNKTIONEN ---
 
 function formatDate(date: Date): string {
   return date.toISOString().split('T')[0];
@@ -20,15 +20,12 @@ function calculateChange(current: number, previous: number): number {
   return Math.round(change * 10) / 10;
 }
 
-// Diese Funktion holt alle Google-Daten (KPIs und Charts) für einen bestimmten Benutzer
 async function getProjectDashboardData(user: Partial<User>) {
   if (!user.gsc_site_url || !user.ga4_property_id) {
-    console.warn(`[API /projects/${user.id}] Benutzer ${user.email} hat keine GSC/GA4-Daten konfiguriert.`);
-    // Leere Datenstruktur zurückgeben, damit das Frontend Platzhalter anzeigen kann
+    console.warn(`[getProjectDashboardData] Benutzer ${user.email} hat keine GSC/GA4-Daten konfiguriert.`);
     return { kpis: {}, charts: {} };
   }
 
-  // Datumsbereiche definieren
   const endDateCurrent = new Date();
   endDateCurrent.setDate(endDateCurrent.getDate() - 1);
   const startDateCurrent = new Date(endDateCurrent);
@@ -47,7 +44,6 @@ async function getProjectDashboardData(user: Partial<User>) {
       getAnalyticsData(user.ga4_property_id, formatDate(startDatePrevious), formatDate(endDatePrevious)),
     ]);
 
-    // Daten für das Frontend aufbereiten (KPIs und Chart-Daten)
     return {
       kpis: {
         clicks: {
@@ -75,12 +71,10 @@ async function getProjectDashboardData(user: Partial<User>) {
       },
     };
   } catch (error) {
-    console.error(`[API /projects/${user.id}] Fehler beim Abrufen der Google-Daten für ${user.email}:`, error);
-    // Bei Fehler leere Daten zurückgeben, um einen Crash zu vermeiden
+    console.error(`[getProjectDashboardData] Fehler für ${user.email}:`, error);
     return { kpis: {}, charts: {}, error: (error as Error).message };
   }
 }
-
 
 // --- API ROUTE HANDLER ---
 
@@ -92,59 +86,106 @@ export async function GET(
     const { id: projectId } = await params;
     const session = await getServerSession(authOptions);
 
+    console.log('[GET /api/projects/[id]] Start');
+    console.log('[GET] Project ID:', projectId);
+    console.log('[GET] User:', session?.user?.email, 'Role:', session?.user?.role);
+
     if (!session?.user?.id) {
       return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
     }
 
     const { role: sessionRole, id: sessionUserId } = session.user;
-
     let targetUser: User | undefined;
 
-    // Admin/Superadmin: Holen den ZIEL-Benutzer
-    if (sessionRole === 'SUPERADMIN' || sessionRole === 'ADMIN') {
-      let query;
-      if (sessionRole === 'SUPERADMIN') {
-        query = sql<User>`
-          SELECT * FROM users WHERE id = ${projectId} AND role = 'BENUTZER'
-        `;
-      } else { // ADMIN
-        query = sql<User>`
-          SELECT * FROM users WHERE id = ${projectId} AND role = 'BENUTZER' AND "createdByAdminId" = ${sessionUserId}
-        `;
-      }
-      const { rows } = await query;
+    // SUPERADMIN: Kann alle Benutzer-Projekte sehen
+    if (sessionRole === 'SUPERADMIN') {
+      console.log('[GET] SUPERADMIN - Lade Projekt:', projectId);
+      
+      const { rows } = await sql<User>`
+        SELECT * FROM users WHERE id::text = ${projectId} AND role = 'BENUTZER'
+      `;
       targetUser = rows[0];
-
-    // Benutzer: Darf nur seine eigenen Daten sehen
-    } else if (sessionRole === 'BENUTZER') {
+      
+      if (!targetUser) {
+        console.error('[GET] Projekt nicht gefunden für SUPERADMIN');
+      }
+    } 
+    // ADMIN: Kann nur zugewiesene Projekte sehen
+    else if (sessionRole === 'ADMIN') {
+      console.log('[GET] ADMIN - Prüfe Zugriff auf Projekt:', projectId);
+      
+      // ✅ KORREKTUR: Prüfe, ob das Projekt dem Admin zugewiesen ist
+      const { rows } = await sql<User>`
+        SELECT u.* 
+        FROM users u
+        INNER JOIN project_assignments pa ON u.id = pa.project_id
+        WHERE u.id::text = ${projectId} 
+        AND u.role = 'BENUTZER'
+        AND pa.user_id::text = ${sessionUserId}
+      `;
+      
+      targetUser = rows[0];
+      
+      if (!targetUser) {
+        console.error('[GET] Projekt nicht gefunden oder nicht zugewiesen an Admin:', sessionUserId);
+        
+        // Debug: Zeige alle zugewiesenen Projekte für diesen Admin
+        const { rows: debugAssignments } = await sql`
+          SELECT 
+            u.id::text,
+            u.email,
+            u.domain
+          FROM users u
+          INNER JOIN project_assignments pa ON u.id = pa.project_id
+          WHERE pa.user_id::text = ${sessionUserId}
+          AND u.role = 'BENUTZER'
+        `;
+        
+        console.log('[GET] Debug - Zugewiesene Projekte für Admin:', debugAssignments);
+      }
+    } 
+    // BENUTZER: Kann nur sein eigenes Projekt sehen
+    else if (sessionRole === 'BENUTZER') {
+      console.log('[GET] BENUTZER - Lade eigenes Projekt');
+      
       if (projectId !== sessionUserId) {
+        console.error('[GET] BENUTZER versucht fremdes Projekt zu laden');
         return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
       }
+      
       const { rows } = await sql<User>`
-        SELECT * FROM users WHERE id = ${projectId}
+        SELECT * FROM users WHERE id::text = ${projectId}
       `;
       targetUser = rows[0];
     }
 
     if (!targetUser) {
-      return NextResponse.json({ message: 'Projekt nicht gefunden oder keine Berechtigung' }, { status: 404 });
+      console.error('[GET] Kein Zugriff auf Projekt oder Projekt nicht gefunden');
+      return NextResponse.json({ 
+        message: 'Projekt nicht gefunden oder keine Berechtigung',
+        details: 'Sie haben keine Berechtigung, dieses Projekt anzusehen, oder das Projekt existiert nicht.'
+      }, { status: 404 });
     }
 
-    // *** NEU: Google Dashboard-Daten für den Zielbenutzer abrufen ***
+    console.log('[GET] Projekt gefunden:', targetUser.email, '- Lade Dashboard-Daten');
+
+    // Dashboard-Daten für den Zielbenutzer abrufen
     const dashboardData = await getProjectDashboardData(targetUser);
 
-    // Die kompletten Dashboard-Daten (KPIs + Charts) zurückgeben
+    console.log('[GET] Dashboard-Daten erfolgreich geladen');
+
     return NextResponse.json(dashboardData);
 
   } catch (error) {
-    console.error(`[API /projects/${(await params).id}] Fehler:`, error);
-    return NextResponse.json({ message: 'Interner Serverfehler' }, { status: 500 });
+    console.error(`[GET /api/projects/[id]] Fehler:`, error);
+    return NextResponse.json({ 
+      message: 'Interner Serverfehler',
+      error: error instanceof Error ? error.message : 'Unbekannter Fehler'
+    }, { status: 500 });
   }
 }
 
-// PUT und DELETE bleiben unverändert...
-// (Code für PUT und DELETE hier einfügen, wie in deiner Originaldatei)
-// Handler zum Aktualisieren eines "Projekts" (= Benutzer)
+// PUT - Projekt aktualisieren
 export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -157,7 +198,6 @@ export async function PUT(
       return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
     }
 
-    // Nur Admins und Superadmins dürfen bearbeiten
     if (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN') {
       return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
     }
@@ -165,24 +205,27 @@ export async function PUT(
     const body = await request.json();
     const { email, domain, gsc_site_url, ga4_property_id, password } = body;
 
-    // Validierung
     if (!email || !domain) {
       return NextResponse.json({ message: 'E-Mail und Domain sind erforderlich' }, { status: 400 });
     }
 
-    // Prüfen ob Projekt dem Admin gehört (oder Superadmin ist)
+    // Admin: Prüfe Zugriff auf Projekt
     if (session.user.role === 'ADMIN') {
-      const { rows: existingProject } = await sql`
-        SELECT * FROM users 
-        WHERE id = ${id} AND role = 'BENUTZER' AND "createdByAdminId" = ${session.user.id}
+      const { rows: accessCheck } = await sql`
+        SELECT u.id 
+        FROM users u
+        INNER JOIN project_assignments pa ON u.id = pa.project_id
+        WHERE u.id::text = ${id} 
+        AND u.role = 'BENUTZER'
+        AND pa.user_id::text = ${session.user.id}
       `;
 
-      if (existingProject.length === 0) {
+      if (accessCheck.length === 0) {
         return NextResponse.json({ message: 'Projekt nicht gefunden oder keine Berechtigung' }, { status: 404 });
       }
     }
 
-    // Update Query vorbereiten - role wird NICHT geändert (bleibt BENUTZER)
+    // Update Query
     let updateQuery;
     if (password) {
       const hashedPassword = await bcrypt.hash(password, 10);
@@ -194,7 +237,7 @@ export async function PUT(
           gsc_site_url = ${gsc_site_url},
           ga4_property_id = ${ga4_property_id},
           password = ${hashedPassword}
-        WHERE id = ${id} AND role = 'BENUTZER'
+        WHERE id::text = ${id} AND role = 'BENUTZER'
         RETURNING id, email, role, domain, gsc_site_url, ga4_property_id;
       `;
     } else {
@@ -205,7 +248,7 @@ export async function PUT(
           domain = ${domain},
           gsc_site_url = ${gsc_site_url},
           ga4_property_id = ${ga4_property_id}
-        WHERE id = ${id} AND role = 'BENUTZER'
+        WHERE id::text = ${id} AND role = 'BENUTZER'
         RETURNING id, email, role, domain, gsc_site_url, ga4_property_id;
       `;
     }
@@ -223,7 +266,7 @@ export async function PUT(
   }
 }
 
-// Handler zum Löschen eines "Projekts" (= Benutzer)
+// DELETE - Projekt löschen
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -236,22 +279,28 @@ export async function DELETE(
       return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
     }
 
-    // Nur Admins und Superadmins dürfen löschen
     if (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN') {
       return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
     }
 
-    // Prüfen ob Projekt dem Admin gehört (oder Superadmin ist)
+    // Admin: Prüfe Zugriff
     let deleteQuery;
     if (session.user.role === 'SUPERADMIN') {
       deleteQuery = sql`
         DELETE FROM users 
-        WHERE id = ${id} AND role = 'BENUTZER';
+        WHERE id::text = ${id} AND role = 'BENUTZER';
       `;
     } else {
+      // Admin kann nur zugewiesene Projekte löschen
       deleteQuery = sql`
         DELETE FROM users 
-        WHERE id = ${id} AND role = 'BENUTZER' AND "createdByAdminId" = ${session.user.id};
+        WHERE id::text = ${id} 
+        AND role = 'BENUTZER'
+        AND EXISTS (
+          SELECT 1 FROM project_assignments 
+          WHERE project_id::text = ${id} 
+          AND user_id::text = ${session.user.id}
+        );
       `;
     }
 
