@@ -13,8 +13,11 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
-  title: "SEO Dashboard",
+  title: "Data Peak",
   description: "Ihr persönliches SEO Dashboard",
+  icons: {
+    icon: '/favicon.webp',
+  },
 };
 
 export default function RootLayout({
