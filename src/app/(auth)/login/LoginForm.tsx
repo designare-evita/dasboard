@@ -36,7 +36,7 @@ export default function LoginForm() {
       <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-lg shadow-xl">
         <div className="text-center">
           <Image
-            src="/logo-data-peak.webp"
+            src="/app/logo-data-peak.webp"
             alt="DataPeak Logo"
             width={300}
             height={75}
