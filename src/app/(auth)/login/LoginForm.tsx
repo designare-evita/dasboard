@@ -35,14 +35,7 @@ export default function LoginForm() {
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
       <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-lg shadow-xl">
         <div className="text-center">
-          <Image
-            src="/app/logo-data-peak.webp"
-            alt="DataPeak Logo"
-            width={300}
-            height={75}
-            className="mx-auto"
-            priority
-          />
+          
           <p className="mt-2 text-gray-600">Bitte melden Sie sich an.</p>
         </div>
         
