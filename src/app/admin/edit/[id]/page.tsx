@@ -9,7 +9,6 @@ import EditUserForm from './EditUserForm';
 import LandingpageManager from './LandingpageManager';
 import ProjectAssignmentManager from './ProjectAssignmentManager';
 
-// Typ-Definition für Next.js 15+
 type PageProps = {
   params: Promise<{ id: string }>;
 };
@@ -25,69 +24,76 @@ interface UserWithAssignments extends User {
 
 async function getUserData(id: string): Promise<UserWithAssignments | null> {
   try {
-    console.log('[getUserData] Starte Abfrage für ID:', id);
-    console.log('[getUserData] ID-Typ:', typeof id);
-    console.log('[getUserData] ID-Länge:', id.length);
+    console.log('[getUserData] 🔍 Suche Benutzer mit ID:', id);
     
-    // ✅ Prüfe zuerst, ob überhaupt Benutzer existieren
-    const { rows: allUsers } = await sql`SELECT id, email FROM users LIMIT 10;`;
-    console.log('[getUserData] Verfügbare Benutzer in DB:', allUsers);
-    
-    // ✅ Jetzt die spezifische Abfrage
+    // ✅ VEREINFACHTE ABFRAGE: Nur die Spalten, die definitiv existieren
     const { rows: users } = await sql`
       SELECT 
-        id::text,
+        id::text as id,
         email, 
         role, 
-        domain, 
-        gsc_site_url, 
-        ga4_property_id,
-        "createdByAdminId"::text,
-        created_at
+        COALESCE(domain, '') as domain,
+        COALESCE(gsc_site_url, '') as gsc_site_url,
+        COALESCE(ga4_property_id, '') as ga4_property_id
       FROM users 
       WHERE id::text = ${id}`;
     
-    console.log('[getUserData] Query-Ergebnis:', users);
+    console.log('[getUserData] 📊 Query-Ergebnis:', users.length, 'Zeile(n)');
     
     if (users.length === 0) {
-      console.error('[getUserData] KEIN Benutzer gefunden für ID:', id);
+      // Versuche herauszufinden, warum
+      const { rows: allIds } = await sql`SELECT id::text as id, email FROM users;`;
+      console.error('[getUserData] ❌ Benutzer nicht gefunden!');
+      console.error('[getUserData] Verfügbare IDs:', allIds.map(u => u.id));
       return null;
     }
     
     const user = users[0] as User;
-    console.log('[getUserData] ✅ Benutzer gefunden:', user.email, 'Rolle:', user.role);
+    console.log('[getUserData] ✅ Benutzer gefunden:', user.email);
     
-    // Hole die Projektzuweisungen
-    const { rows: assigned_projects } = await sql<{ project_id: string }>`
-      SELECT project_id::text as project_id 
-      FROM project_assignments 
-      WHERE user_id::text = ${id};`;
-    
-    console.log('[getUserData] Projektzuweisungen:', assigned_projects.length);
+    // Projektzuweisungen laden (nur wenn die Tabelle existiert)
+    let assigned_projects: { project_id: string }[] = [];
+    try {
+      const { rows } = await sql<{ project_id: string }>`
+        SELECT project_id::text as project_id 
+        FROM project_assignments 
+        WHERE user_id::text = ${id};`;
+      assigned_projects = rows;
+      console.log('[getUserData] 📋 Projektzuweisungen:', assigned_projects.length);
+    } catch (paError) {
+      console.warn('[getUserData] ⚠️ Projektzuweisungen konnten nicht geladen werden:', paError);
+      // Nicht kritisch, fahre fort
+    }
     
     return { ...user, assigned_projects };
   } catch (error) {
-    console.error('[getUserData] ❌ FEHLER beim Laden:', error);
+    console.error('[getUserData] ❌ FEHLER:', error);
     if (error instanceof Error) {
-      console.error('[getUserData] Fehlermeldung:', error.message);
+      console.error('[getUserData] Message:', error.message);
       console.error('[getUserData] Stack:', error.stack);
     }
-    return null;
+    throw error; // Werfe den Fehler weiter, damit wir ihn sehen
   }
 }
 
 async function getAllProjects(): Promise<Project[]> {
   try {
     const { rows } = await sql<{ id: string; email: string; domain: string | null }>`
-      SELECT id::text as id, email, domain 
+      SELECT 
+        id::text as id, 
+        email, 
+        COALESCE(domain, email) as domain 
       FROM users 
       WHERE role = 'BENUTZER' 
       ORDER BY email ASC;`;
     
-    console.log('[getAllProjects] Projekte gefunden:', rows.length);
-    return rows.map(p => ({ ...p, name: p.domain || p.email }));
+    console.log('[getAllProjects] 📋 Projekte gefunden:', rows.length);
+    return rows.map(p => ({ 
+      id: p.id, 
+      name: p.domain || p.email 
+    }));
   } catch (error) {
-    console.error('[getAllProjects] Fehler:', error);
+    console.error('[getAllProjects] ❌ Fehler:', error);
     return [];
   }
 }
@@ -96,87 +102,108 @@ export default async function EditUserPage({ params }: PageProps) {
   const session = await getServerSession(authOptions);
   
   console.log('========================================');
-  console.log('[EditUserPage] 🔐 Session User:', session?.user?.email);
-  console.log('[EditUserPage] 🔐 Session Role:', session?.user?.role);
+  console.log('[EditUserPage] Session:', session?.user?.email, 'Rolle:', session?.user?.role);
   
   if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
-    console.warn('[EditUserPage] ❌ Nicht autorisiert - Redirect');
+    console.warn('[EditUserPage] ❌ Nicht autorisiert');
     redirect('/');
   }
 
   const resolvedParams = await params;
   const { id } = resolvedParams;
   
-  console.log('[EditUserPage] 📋 Params Object:', resolvedParams);
-  console.log('[EditUserPage] 🆔 Benutzer-ID aus URL:', id);
-  console.log('[EditUserPage] 🆔 ID-Typ:', typeof id);
+  console.log('[EditUserPage] 🆔 Benutzer-ID:', id);
   console.log('[EditUserPage] 🆔 ID-Länge:', id?.length);
-  console.log('========================================');
 
-  // ✅ Validierung der ID
-  if (!id || typeof id !== 'string' || id.length < 10) {
-    console.error('[EditUserPage] ❌ Ungültige ID:', id);
+  if (!id || typeof id !== 'string' || id.length !== 36) {
+    console.error('[EditUserPage] ❌ Ungültige ID-Format');
     return (
       <div className="min-h-screen bg-gray-50 p-8">
         <div className="p-8 text-center bg-white rounded-lg shadow-md max-w-2xl mx-auto mt-10">
-          <h2 className="text-xl font-bold text-red-600 mb-4">Ungültige Benutzer-ID</h2>
-          <p className="text-gray-600">Die übergebene ID ist ungültig: <code className="bg-red-100 px-2 py-1 rounded">{id || 'undefined'}</code></p>
-          <a 
-            href="/admin" 
-            className="mt-6 inline-block bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700"
-          >
-            Zurück zur Admin-Übersicht
+          <h2 className="text-xl font-bold text-red-600 mb-4">❌ Ungültige ID</h2>
+          <p className="text-gray-600">Die ID hat nicht das erwartete UUID-Format.</p>
+          <code className="block bg-gray-100 p-2 mt-2 rounded">{id}</code>
+          <a href="/admin" className="mt-4 inline-block bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700">
+            Zurück zur Übersicht
           </a>
         </div>
       </div>
     );
   }
 
-  const [user, allProjects] = await Promise.all([
-    getUserData(id),
-    getAllProjects()
-  ]);
+  let user: UserWithAssignments | null = null;
+  let allProjects: Project[] = [];
+  let loadError: string | null = null;
 
-  if (!user) {
-    console.error('[EditUserPage] ❌ Benutzer konnte nicht geladen werden');
+  try {
+    [user, allProjects] = await Promise.all([
+      getUserData(id),
+      getAllProjects()
+    ]);
+  } catch (error) {
+    console.error('[EditUserPage] ❌ Fehler beim Laden:', error);
+    loadError = error instanceof Error ? error.message : 'Unbekannter Fehler';
+  }
+
+  if (!user || loadError) {
+    console.error('[EditUserPage] ❌ Benutzer nicht gefunden oder Ladefehler');
+    
     return (
       <div className="min-h-screen bg-gray-50 p-8">
-        <div className="p-8 text-center bg-white rounded-lg shadow-md max-w-2xl mx-auto mt-10">
+        <div className="p-8 bg-white rounded-lg shadow-md max-w-2xl mx-auto mt-10">
           <h2 className="text-xl font-bold text-red-600 mb-4">Benutzer nicht gefunden</h2>
-          <p className="text-gray-600 mb-2">Der Benutzer mit der ID konnte nicht geladen werden.</p>
-          <code className="bg-gray-100 px-3 py-2 rounded block mb-4 text-sm break-all">{id}</code>
           
-          <div className="bg-yellow-50 border border-yellow-200 rounded p-4 mb-4 text-left">
-            <p className="font-semibold text-yellow-800 mb-2">🔍 Debugging-Informationen:</p>
-            <ul className="text-sm text-yellow-700 space-y-1">
-              <li>• Überprüfe die Browser-Konsole für detaillierte Logs</li>
-              <li>• Überprüfe die Vercel-Logs für Server-Fehler</li>
-              <li>• ID-Format: UUID mit 36 Zeichen erwartet</li>
-              <li>• Aktuelle ID-Länge: {id.length} Zeichen</li>
-            </ul>
-          </div>
+          <div className="space-y-4">
+            <div className="bg-gray-100 p-4 rounded">
+              <p className="font-semibold mb-2">Gesuchte ID:</p>
+              <code className="text-xs break-all block">{id}</code>
+            </div>
 
-          <div className="space-x-4">
-            <a 
-              href="/admin" 
-              className="inline-block bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700"
-            >
-              Zurück zur Admin-Übersicht
-            </a>
-            <a 
-              href="/api/debug-users" 
-              target="_blank"
-              className="inline-block bg-gray-600 text-white px-6 py-2 rounded-md hover:bg-gray-700"
-            >
-              Benutzer-IDs prüfen
-            </a>
+            {loadError && (
+              <div className="bg-red-50 border border-red-200 p-4 rounded">
+                <p className="font-semibold text-red-800 mb-2">Fehlerdetails:</p>
+                <p className="text-sm text-red-700">{loadError}</p>
+              </div>
+            )}
+
+            <div className="bg-yellow-50 border border-yellow-200 p-4 rounded">
+              <p className="font-semibold text-yellow-800 mb-2">🔧 Mögliche Lösungen:</p>
+              <ol className="list-decimal list-inside space-y-2 text-sm text-yellow-700">
+                <li>Rufe <code className="bg-yellow-100 px-1">/api/fix-users-table</code> auf, um die Tabelle zu reparieren</li>
+                <li>Prüfe die Vercel Function Logs für detaillierte Fehlermeldungen</li>
+                <li>Stelle sicher, dass die Postgres-Datenbank erreichbar ist</li>
+              </ol>
+            </div>
+
+            <div className="flex gap-4 justify-center mt-6">
+              <a 
+                href="/admin" 
+                className="bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700"
+              >
+                Zurück zur Übersicht
+              </a>
+              <a 
+                href="/api/fix-users-table" 
+                target="_blank"
+                className="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700"
+              >
+                Tabelle reparieren
+              </a>
+              <a 
+                href="/api/debug-users" 
+                target="_blank"
+                className="bg-gray-600 text-white px-6 py-2 rounded-md hover:bg-gray-700"
+              >
+                Alle Benutzer anzeigen
+              </a>
+            </div>
           </div>
         </div>
       </div>
     );
   }
   
-  console.log('[EditUserPage] ✅ Benutzer erfolgreich geladen:', user.email);
+  console.log('[EditUserPage] ✅ Erfolgreich geladen:', user.email);
   console.log('========================================');
   
   const currentUserIsSuperAdmin = session.user.role === 'SUPERADMIN';
@@ -190,9 +217,11 @@ export default async function EditUserPage({ params }: PageProps) {
             <h2 className="text-2xl font-bold">
               Benutzer <span className="text-indigo-600">{user.email}</span> bearbeiten
             </h2>
-            <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
-              {user.role}
-            </span>
+            <div className="flex gap-2 items-center">
+              <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+                {user.role}
+              </span>
+            </div>
           </div>
           <EditUserForm id={id} user={user} />
         </div>
