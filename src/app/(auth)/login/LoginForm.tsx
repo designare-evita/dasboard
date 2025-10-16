@@ -1,6 +1,7 @@
 // src/app/(auth)/login/LoginForm.tsx
 'use client';
 
+import Image from 'next/image';
 import { signIn } from 'next-auth/react';
 import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
