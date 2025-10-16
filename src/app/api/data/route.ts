@@ -7,7 +7,7 @@ import { getSearchConsoleData, getAnalyticsData } from '@/lib/google-api';
 import { sql } from '@vercel/postgres';
 import { User } from '@/types';
 
-// Hilfsfunktionen (unverändert)
+// Hilfsfunktionen
 function formatDate(date: Date): string { 
   return date.toISOString().split('T')[0]; 
 }
@@ -18,8 +18,6 @@ function calculateChange(current: number, previous: number): number {
   return Math.round(change * 10) / 10;
 }
 
-// *** HIER IST DIE ANPASSUNG ***
-// Die Funktion gibt jetzt KPIs UND Charts zurück
 async function getDashboardDataForUser(user: Partial<User>) {
   if (!user.gsc_site_url || !user.ga4_property_id) {
     return null;
@@ -86,20 +84,74 @@ export async function GET() {
 
     const { role, id } = session.user;
 
-    // Admins sehen die Projektliste
-    if (role === 'SUPERADMIN' || role === 'ADMIN') {
-      const query = role === 'SUPERADMIN'
-        ? sql<User>`SELECT id, email, domain, gsc_site_url, ga4_property_id FROM users WHERE role = 'BENUTZER'`
-        : sql<User>`SELECT id, email, domain, gsc_site_url, ga4_property_id FROM users WHERE role = 'BENUTZER' AND "createdByAdminId" = ${id}`;
+    console.log('[/api/data] GET Request');
+    console.log('[/api/data] User:', session.user.email, 'Role:', role, 'ID:', id);
+
+    // SUPERADMIN: Sieht alle Benutzer-Projekte
+    if (role === 'SUPERADMIN') {
+      console.log('[/api/data] Loading projects for SUPERADMIN');
       
-      const { rows: projects } = await query;
+      const { rows: projects } = await sql<User>`
+        SELECT id, email, domain, gsc_site_url, ga4_property_id 
+        FROM users 
+        WHERE role = 'BENUTZER'
+        ORDER BY email ASC;
+      `;
+      
+      console.log('[/api/data] Found', projects.length, 'projects for SUPERADMIN');
+      
       return NextResponse.json({ role, projects });
     }
     
-    // Benutzer (BENUTZER) sieht sein Dashboard
+    // ADMIN: Sieht nur zugewiesene Projekte
+    if (role === 'ADMIN') {
+      console.log('[/api/data] Loading projects for ADMIN:', id);
+      
+      // ✅ KORREKTUR: Lade Projekte über die project_assignments Tabelle
+      const { rows: projects } = await sql<User>`
+        SELECT 
+          u.id, 
+          u.email, 
+          u.domain, 
+          u.gsc_site_url, 
+          u.ga4_property_id 
+        FROM users u
+        INNER JOIN project_assignments pa ON u.id = pa.project_id
+        WHERE pa.user_id::text = ${id}
+        AND u.role = 'BENUTZER'
+        ORDER BY u.email ASC;
+      `;
+      
+      console.log('[/api/data] Found', projects.length, 'assigned projects for ADMIN');
+      
+      if (projects.length === 0) {
+        console.warn('[/api/data] ⚠️ ADMIN hat keine zugewiesenen Projekte');
+        
+        // Debug: Zeige alle Zuweisungen für diesen Admin
+        const { rows: assignments } = await sql`
+          SELECT 
+            pa.project_id::text,
+            u.email as project_email,
+            u.role as project_role
+          FROM project_assignments pa
+          LEFT JOIN users u ON pa.project_id = u.id
+          WHERE pa.user_id::text = ${id};
+        `;
+        
+        console.log('[/api/data] Debug - Alle Zuweisungen für Admin:', assignments);
+      }
+      
+      return NextResponse.json({ role, projects });
+    }
+    
+    // BENUTZER: Sieht sein eigenes Dashboard
     if (role === 'BENUTZER') {
+      console.log('[/api/data] Loading dashboard for BENUTZER');
+      
       const { rows } = await sql<User>`
-        SELECT gsc_site_url, ga4_property_id, email FROM users WHERE id = ${id}
+        SELECT gsc_site_url, ga4_property_id, email 
+        FROM users 
+        WHERE id::text = ${id}
       `;
       
       const user = rows[0];
@@ -112,8 +164,6 @@ export async function GET() {
         return NextResponse.json({ message: 'Für diesen Benutzer sind keine Google-Properties konfiguriert.' }, { status: 404 });
       }
       
-      // *** HIER IST DIE ANPASSUNG ***
-      // Die komplette Datenstruktur (kpis + charts) wird zurückgegeben
       const response = {
         role: 'BENUTZER',
         ...dashboardData 
@@ -124,6 +174,7 @@ export async function GET() {
     return NextResponse.json({ message: 'Unbekannte Benutzerrolle.' }, { status: 403 });
 
   } catch (error) {
+    console.error('[/api/data] Fehler:', error);
     const errorMessage = error instanceof Error ? error.message : 'Interner Serverfehler.';
     return NextResponse.json({ 
       message: `Fehler beim Abrufen der Dashboard-Daten: ${errorMessage}`,
