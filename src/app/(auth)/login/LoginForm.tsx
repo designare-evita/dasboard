@@ -34,7 +34,14 @@ export default function LoginForm() {
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
       <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-lg shadow-xl">
         <div className="text-center">
-          <h1 className="text-3xl font-bold text-gray-900">SEO-Dashboard</h1>
+          <Image
+            src="/logo-data-peak.webp"
+            alt="DataPeak Logo"
+            width={300}
+            height={75}
+            className="mx-auto"
+            priority // Priorisiere das Laden des Logos auf der Login-Seite
+          />
           <p className="mt-2 text-gray-600">Bitte melden Sie sich an.</p>
         </div>
         
