@@ -6,6 +6,35 @@ import bcrypt from 'bcryptjs';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
+// ✅ Typdefinitionen für bessere Type-Safety
+interface PasswordCheck {
+  gueltig: boolean;
+  eingegebenesPasswortLaenge: number;
+  mitTrimGueltig?: boolean;
+}
+
+interface BenutzerDetails {
+  id: string;
+  email: string;
+  rolle: string;
+  hashLaenge: number;
+  hashPrefix: string;
+}
+
+interface Diagnostics {
+  eingabeEmail: string;
+  normalisierteEmail: string;
+  benutzerGefunden: boolean;
+  timestamp: string;
+  fehler?: string;
+  aehnlicheEmails?: string[];
+  benutzerDetails?: BenutzerDetails;
+  passwortCheck?: PasswordCheck;
+  hinweis?: string;
+  ergebnis?: string;
+  empfehlung?: string;
+}
+
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -36,7 +65,7 @@ export async function POST(request: Request) {
       WHERE email = ${normalizedEmail}
     `;
 
-    const diagnostics: Record<string, unknown> = {
+    const diagnostics: Diagnostics = {
       eingabeEmail: email,
       normalisierteEmail: normalizedEmail,
       benutzerGefunden: rows.length > 0,
@@ -83,6 +112,7 @@ export async function POST(request: Request) {
     const isPasswordValid = await bcrypt.compare(password, user.password);
     console.log('[DEBUG-LOGIN] Passwort gültig:', isPasswordValid);
 
+    // ✅ Initialisiere passwortCheck mit vollständigem Objekt
     diagnostics.passwortCheck = {
       gueltig: isPasswordValid,
       eingegebenesPasswortLaenge: password.length
@@ -93,6 +123,7 @@ export async function POST(request: Request) {
       const trimmedPassword = password.trim();
       const isTrimmedValid = await bcrypt.compare(trimmedPassword, user.password);
       
+      // ✅ Jetzt ist passwortCheck definiert und kann erweitert werden
       diagnostics.passwortCheck.mitTrimGueltig = isTrimmedValid;
       
       if (isTrimmedValid) {
