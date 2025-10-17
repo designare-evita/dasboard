@@ -192,6 +192,13 @@ export default function AdminPage() {
                   <li key={user.id} className="p-3 border rounded-md flex justify-between items-center">
                     <div className="flex-1">
                       <p className="font-semibold">{user.email}</p>
+                      
+                      {/* --- KORREKTUR: Domain anzeigen --- */}
+                      {user.domain && (
+                        <p className="text-sm text-blue-600 font-medium">{user.domain}</p>
+                      )}
+                      {/* --- ENDE KORREKTUR --- */}
+
                       <p className="text-sm text-gray-500">{user.role}</p>
                       {/* ✅ DEBUG: Zeige die ID an */}
                       <p className="text-xs text-gray-400 font-mono mt-1">ID: {user.id}</p>
