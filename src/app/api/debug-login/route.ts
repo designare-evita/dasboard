@@ -35,6 +35,81 @@ interface Diagnostics {
   empfehlung?: string;
 }
 
+// GET-Handler für Browser-Zugriff (zeigt Formular)
+export async function GET() {
+  const html = `
+    <!DOCTYPE html>
+    <html lang="de">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Login-Diagnose</title>
+      <style>
+        body { font-family: system-ui; max-width: 600px; margin: 50px auto; padding: 20px; }
+        input, button { width: 100%; padding: 12px; margin: 8px 0; font-size: 16px; }
+        button { background: #4f46e5; color: white; border: none; cursor: pointer; border-radius: 6px; }
+        button:hover { background: #4338ca; }
+        #result { margin-top: 20px; padding: 15px; border-radius: 6px; }
+        .success { background: #d1fae5; border: 1px solid #10b981; }
+        .error { background: #fee2e2; border: 1px solid #ef4444; }
+        pre { background: #f3f4f6; padding: 10px; border-radius: 4px; overflow-x: auto; }
+      </style>
+    </head>
+    <body>
+      <h1>🔍 Login-Diagnose</h1>
+      <p>Teste, ob E-Mail und Passwort korrekt sind.</p>
+      
+      <form id="diagForm">
+        <input type="email" id="email" placeholder="E-Mail-Adresse" required />
+        <input type="password" id="password" placeholder="Passwort" required />
+        <button type="submit">Diagnose starten</button>
+      </form>
+      
+      <div id="result"></div>
+      
+      <script>
+        document.getElementById('diagForm').addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const resultDiv = document.getElementById('result');
+          resultDiv.innerHTML = '<p>Diagnose läuft...</p>';
+          
+          try {
+            const response = await fetch('/api/debug-login', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                email: document.getElementById('email').value,
+                password: document.getElementById('password').value
+              })
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+              resultDiv.className = 'success';
+              resultDiv.innerHTML = '<h3>✅ Diagnose erfolgreich</h3><pre>' + 
+                JSON.stringify(data, null, 2) + '</pre>';
+            } else {
+              resultDiv.className = 'error';
+              resultDiv.innerHTML = '<h3>❌ Problem gefunden</h3><pre>' + 
+                JSON.stringify(data, null, 2) + '</pre>';
+            }
+          } catch (err) {
+            resultDiv.className = 'error';
+            resultDiv.innerHTML = '<h3>❌ Fehler</h3><p>' + err.message + '</p>';
+          }
+        });
+      </script>
+    </body>
+    </html>
+  `;
+  
+  return new Response(html, {
+    headers: { 'Content-Type': 'text/html' }
+  });
+}
+
+// POST-Handler für API-Aufrufe
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
