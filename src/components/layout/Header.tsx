@@ -53,7 +53,7 @@ height={45}
               {/* NEU: "Projekten"-Button hinzugefügt */}
               <Link href="/" passHref>
                 <Button variant="outline" size="sm">
-                  Projekten
+                  Projekte
                 </Button>
               </Link>
 
