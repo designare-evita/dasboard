@@ -6,7 +6,6 @@ import { signIn } from 'next-auth/react';
 import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 
-// Dies ist der gesamte Code, der vorher in `page.tsx` war.
 export default function LoginForm() {
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get('callbackUrl') || '/';
@@ -36,6 +35,17 @@ export default function LoginForm() {
       <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-lg shadow-xl">
         <div className="text-center">
           
+          {/* --- NEU: Logo hinzugefügt --- */}
+          <Image
+            src="/logo-data-peak.webp" // Pfad aus dem 'public'-Ordner
+            alt="Data Peak Logo"
+            width={180} // Standardbreite, wie im Header
+            height={45}  // Standardhöhe, wie im Header
+            priority     // Wichtig für schnelle Ladezeiten (LCP)
+            className="mx-auto mb-4" // Zentriert das Bild und fügt Abstand hinzu
+          />
+          {/* --- ENDE --- */}
+          
           <p className="mt-2 text-gray-600">Bitte melden Sie sich an.</p>
         </div>
         
@@ -45,7 +55,7 @@ export default function LoginForm() {
               htmlFor="email" 
               className="block text-sm font-medium text-gray-700"
             >
-              E-Mail-Adresse
+              E-Mail
             </label>
             <input
               id="email"
