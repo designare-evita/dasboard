@@ -1,5 +1,5 @@
 // src/app/api/landingpages/[id]/route.ts
-import { NextResponse, NextRequest } from 'next/server'; // KORRIGIERT: NextRequest importiert
+import { NextResponse, NextRequest } from 'next/server';
 import { sql } from '@vercel/postgres';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -11,18 +11,17 @@ async function isAdminSession() {
 }
 
 /**
- * NEU: Holt die Daten einer einzelnen Landingpage.
- * KORRIGIERT: 'req' ist jetzt 'NextRequest' statt 'Request'.
+ * KORREKTUR: Der zweite Parameter ist 'context', nicht '{ params }'
  */
 export async function GET(
-  req: NextRequest, // KORRIGIERT
-  { params }: { params: { id: string } }
+  req: NextRequest,
+  context: { params: { id: string } } // <-- KORRIGIERT
 ) {
   if (!(await isAdminSession())) {
     return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
   }
 
-  const { id } = params; // params-Zugriff bleibt gleich (ist kein Promise)
+  const { id } = context.params; // <-- KORRIGIERT
 
   try {
     const { rows } = await sql`
@@ -44,19 +43,18 @@ export async function GET(
 
 
 /**
- * NEU: Aktualisiert eine vorhandene Landingpage.
- * KORRIGIERT: 'req' ist jetzt 'NextRequest' statt 'Request'.
+ * KORREKTUR: Der zweite Parameter ist 'context', nicht '{ params }'
  */
 export async function PUT(
-  req: NextRequest, // KORRIGIERT
-  { params }: { params: { id: string } }
+  req: NextRequest,
+  context: { params: { id: string } } // <-- KORRIGIERT
 ) {
   if (!(await isAdminSession())) {
     return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
   }
 
-  const { id } = params;
-  const body = await req.json(); // Das 'req.json()' ist der Promise-Teil
+  const { id } = context.params; // <-- KORRIGIERT
+  const body = await req.json();
   const { title, url, status } = body;
 
   if (!title || !url || !status) {
@@ -87,18 +85,17 @@ export async function PUT(
 
 
 /**
- * BEIBEHALTEN: Löscht eine Landingpage
- * KORRIGIERT: 'req' ist jetzt 'NextRequest' statt 'Request'.
+ * KORREKTUR: Der zweite Parameter ist 'context', nicht '{ params }'
  */
 export async function DELETE(
-  req: NextRequest, // KORRIGIERT
-  { params }: { params: { id: string } }
+  req: NextRequest,
+  context: { params: { id: string } } // <-- KORRIGIERT
 ) {
   if (!(await isAdminSession())) {
     return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
   }
 
-  const { id } = params;
+  const { id } = context.params; // <-- KORRIGIERT
 
   try {
     await sql`
