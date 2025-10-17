@@ -38,7 +38,7 @@ export default function Header() {
 
 {/* "Hallo"-Nachricht */}
 {status === 'authenticated' && (
-  <span className="text-gray-700 underline underline-offset-4">
+  <span className="text-gray-600 underline underline-offset-6">
     Hallo, {session.user?.name ?? session.user?.email}
   </span>
 )}
@@ -48,26 +48,16 @@ export default function Header() {
         <div className="flex items-center space-x-4">
           {status === 'authenticated' && (
             <>
-              {/* GEÄNDERT: "Projekten"-Button. 
-                variant="outline" und size="sm" entfernt, 
-                damit er den neuen default-Stil aus button.tsx verwendet.
-              */}
               <Link href="/" passHref>
                 <Button>Projekte</Button>
               </Link>
 
-              {/* GEÄNDERT: Admin-Bereich Link.
-                Verwendet jetzt die <Button> Komponente für Konsistenz.
-              */}
               {isAdmin && (
                 <Link href="/admin" passHref>
                   <Button>Admin-Bereich</Button>
                 </Link>
               )}
 
-              {/* GEÄNDERT: Abmelde-Button.
-                Verwendet jetzt die <Button> Komponente für Konsistenz.
-              */}
               <Button onClick={() => signOut({ callbackUrl: '/login' })}>
                 Abmelden
               </Button>
