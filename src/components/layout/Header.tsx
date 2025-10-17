@@ -30,8 +30,8 @@ export default function Header() {
             <Image
               src="/logo-data-peak.webp"
               alt="Data Peak Logo"
-              width={400}
-              height={102}
+              width={180}
+              height={45}
               priority
             />
           </Link>
