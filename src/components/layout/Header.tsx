@@ -2,10 +2,10 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image'; // NEU: Importiert für das Logo
+import Image from 'next/image';
 import { useSession, signOut } from 'next-auth/react';
 import { usePathname } from 'next/navigation';
-import { Button } from '@/components/ui/button'; // NEU: Importiert für den Button
+import { Button } from '@/components/ui/button'; // Wird jetzt für alle 3 Buttons genutzt
 
 export default function Header() {
   const { data: session, status } = useSession();
@@ -25,20 +25,18 @@ export default function Header() {
         {/* Linke Seite: Logo und Begrüßung */}
         <div className="flex items-center space-x-4">
           
-          {/* GEÄNDERT: "Dashboard"-Text durch Logo ersetzt */}
+          {/* Logo */}
           <Link href="/">
             <Image
               src="/logo-data-peak.webp"
               alt="Data Peak Logo"
-          width={180}
-height={45}
+              width={180}
+              height={45}
               priority
-              // Optional: Größe mit Tailwind steuern
-              // className="h-10 w-auto" 
             />
           </Link>
 
-          {/* BEIBEHALTEN: "Hallo"-Nachricht */}
+          {/* "Hallo"-Nachricht */}
           {status === 'authenticated' && (
             <span className="text-gray-700">
               Hallo, {session.user?.name ?? session.user?.email}
@@ -50,30 +48,29 @@ height={45}
         <div className="flex items-center space-x-4">
           {status === 'authenticated' && (
             <>
-              {/* NEU: "Projekten"-Button hinzugefügt */}
+              {/* GEÄNDERT: "Projekten"-Button. 
+                variant="outline" und size="sm" entfernt, 
+                damit er den neuen default-Stil aus button.tsx verwendet.
+              */}
               <Link href="/" passHref>
-                <Button variant="outline" size="sm">
-                  Projekte
-                </Button>
+                <Button>Projekte</Button>
               </Link>
 
-              {/* BEIBEHALTEN: Admin-Bereich Link */}
+              {/* GEÄNDERT: Admin-Bereich Link.
+                Verwendet jetzt die <Button> Komponente für Konsistenz.
+              */}
               {isAdmin && (
-                <Link
-                  href="/admin"
-                  className="px-3 py-1 border border-gray-300 rounded-md text-sm text-gray-600 hover:bg-gray-100"
-                >
-                  Admin-Bereich
+                <Link href="/admin" passHref>
+                  <Button>Admin-Bereich</Button>
                 </Link>
               )}
 
-              {/* BEIBEHALTEN: Abmelde-Button */}
-              <button
-                onClick={() => signOut({ callbackUrl: '/login' })}
-                className="px-3 py-1 border border-gray-300 rounded-md text-sm text-gray-600 hover:bg-gray-100"
-              >
+              {/* GEÄNDERT: Abmelde-Button.
+                Verwendet jetzt die <Button> Komponente für Konsistenz.
+              */}
+              <Button onClick={() => signOut({ callbackUrl: '/login' })}>
                 Abmelden
-              </button>
+              </Button>
             </>
           )}
         </div>
