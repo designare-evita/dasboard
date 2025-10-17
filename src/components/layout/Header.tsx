@@ -36,12 +36,12 @@ export default function Header() {
             />
           </Link>
 
-          {/* "Hallo"-Nachricht */}
-          {status === 'authenticated' && (
-            <span className="text-gray-700">
-              Hallo, {session.user?.name ?? session.user?.email}
-            </span>
-          )}
+{/* "Hallo"-Nachricht */}
+{status === 'authenticated' && (
+  <span className="text-gray-700 underline underline-offset-4">
+    Hallo, {session.user?.name ?? session.user?.email}
+  </span>
+)}
         </div>
 
         {/* Rechte Seite: Links und Buttons */}
