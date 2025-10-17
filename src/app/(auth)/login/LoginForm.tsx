@@ -35,16 +35,23 @@ export default function LoginForm() {
       <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-lg shadow-xl">
         <div className="text-center">
           
-          {/* Logo mit unoptimized für WebP-Kompatibilität */}
+          {/* Logo mit Error-Handling */}
           <Image
             src="/logo-data-peak.webp"
             alt="Data Peak Logo"
             width={180}
             height={45}
             priority
-            unoptimized // ✅ Umgeht Next.js Bild-Optimierung für WebP
+            unoptimized
             className="mx-auto mb-4"
+            onError={(e) => {
+              console.error('Logo konnte nicht geladen werden');
+              // Fallback: Zeige Text statt Bild
+              e.currentTarget.style.display = 'none';
+            }}
           />
+          {/* Fallback-Text falls Bild nicht lädt */}
+          <h1 className="text-2xl font-bold text-gray-900">Data Peak</h1>
           
           <p className="mt-2 text-gray-600">Bitte melden Sie sich an.</p>
         </div>
