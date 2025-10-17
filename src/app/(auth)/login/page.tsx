@@ -1,5 +1,5 @@
 // src/app/(auth)/login/page.tsx
-
+import Image from 'next/image';
 import { Suspense } from 'react';
 import LoginForm from './LoginForm';
 
