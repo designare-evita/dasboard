@@ -38,8 +38,8 @@ export default function LoginForm() {
           <Image
             src="/logo-data-peak.webp"
             alt="Data Peak Logo"
-            width={180}
-            height={45}
+            width={400}
+            height={102}
             priority
             className="mx-auto mb-4"
             onError={(e) => {
