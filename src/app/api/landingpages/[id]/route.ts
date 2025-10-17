@@ -11,17 +11,17 @@ async function isAdminSession() {
 }
 
 /**
- * KORREKTUR: Der zweite Parameter ist 'context', nicht '{ params }'
+ * KORREKTUR: params ist ein Promise in Next.js 15+
  */
 export async function GET(
   req: NextRequest,
-  context: { params: { id: string } } // <-- KORRIGIERT
+  context: { params: Promise<{ id: string }> }
 ) {
   if (!(await isAdminSession())) {
     return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
   }
 
-  const { id } = context.params; // <-- KORRIGIERT
+  const { id } = await context.params;
 
   try {
     const { rows } = await sql`
@@ -43,17 +43,17 @@ export async function GET(
 
 
 /**
- * KORREKTUR: Der zweite Parameter ist 'context', nicht '{ params }'
+ * KORREKTUR: params ist ein Promise in Next.js 15+
  */
 export async function PUT(
   req: NextRequest,
-  context: { params: { id: string } } // <-- KORRIGIERT
+  context: { params: Promise<{ id: string }> }
 ) {
   if (!(await isAdminSession())) {
     return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
   }
 
-  const { id } = context.params; // <-- KORRIGIERT
+  const { id } = await context.params;
   const body = await req.json();
   const { title, url, status } = body;
 
@@ -85,17 +85,17 @@ export async function PUT(
 
 
 /**
- * KORREKTUR: Der zweite Parameter ist 'context', nicht '{ params }'
+ * KORREKTUR: params ist ein Promise in Next.js 15+
  */
 export async function DELETE(
   req: NextRequest,
-  context: { params: { id: string } } // <-- KORRIGIERT
+  context: { params: Promise<{ id: string }> }
 ) {
   if (!(await isAdminSession())) {
     return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
   }
 
-  const { id } = context.params; // <-- KORRIGIERT
+  const { id } = await context.params;
 
   try {
     await sql`
