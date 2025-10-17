@@ -6,7 +6,6 @@ import bcrypt from 'bcryptjs';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
-// ✨ KORREKTUR für Next.js 15+: params ist ein Promise
 type RouteHandlerParams = {
   params: Promise<{ id: string }>;
 };
@@ -19,7 +18,7 @@ export async function GET(request: Request, { params }: RouteHandlerParams) {
       return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
     }
 
-    const { id } = await params; // ✨ Wichtig: params mit await auflösen
+    const { id } = await params;
     const { rows } = await sql`
       SELECT id, email, role, domain, gsc_site_url, ga4_property_id 
       FROM users 
@@ -44,12 +43,27 @@ export async function PUT(request: Request, { params }: RouteHandlerParams) {
       return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
     }
 
-    const { id } = await params; // ✨ Wichtig: params mit await auflösen
+    const { id } = await params;
     const body = await request.json();
     const { email, role, domain, gsc_site_url, ga4_property_id, password } = body;
 
     if (!email) {
       return NextResponse.json({ message: 'E-Mail ist erforderlich' }, { status: 400 });
+    }
+    
+    // ✅ WICHTIG: E-Mail in Kleinbuchstaben konvertieren (Konsistenz mit Login)
+    const normalizedEmail = email.toLowerCase().trim();
+    
+    // Prüfe, ob die neue E-Mail bereits von einem anderen Benutzer verwendet wird
+    const { rows: emailCheck } = await sql`
+      SELECT id FROM users 
+      WHERE email = ${normalizedEmail} AND id::text != ${id}
+    `;
+    
+    if (emailCheck.length > 0) {
+      return NextResponse.json({ 
+        message: 'Diese E-Mail-Adresse wird bereits von einem anderen Benutzer verwendet' 
+      }, { status: 409 });
     }
     
     const { rows: existingUsers } = await sql`SELECT role FROM users WHERE id = ${id}`;
@@ -58,19 +72,42 @@ export async function PUT(request: Request, { params }: RouteHandlerParams) {
     }
     const finalRole = role || existingUsers[0].role;
 
+    console.log(`[PUT /api/users/${id}] Update-Anfrage:`);
+    console.log('  - Neue E-Mail:', normalizedEmail);
+    console.log('  - Passwort wird geändert:', !!password);
+    console.log('  - Rolle:', finalRole);
+
     let updateQuery;
-    if (password) {
+    if (password && password.trim().length > 0) {
+      // ✅ Passwort wird geändert - neues Hash erstellen
       const hashedPassword = await bcrypt.hash(password, 10);
+      
+      console.log('  - Neues Passwort-Hash erstellt');
+      
       updateQuery = sql`
         UPDATE users
-        SET email = ${email}, role = ${finalRole}, domain = ${domain}, gsc_site_url = ${gsc_site_url}, ga4_property_id = ${ga4_property_id}, password = ${hashedPassword}
+        SET 
+          email = ${normalizedEmail}, 
+          role = ${finalRole}, 
+          domain = ${domain}, 
+          gsc_site_url = ${gsc_site_url}, 
+          ga4_property_id = ${ga4_property_id}, 
+          password = ${hashedPassword}
         WHERE id = ${id}
         RETURNING id, email, role, domain, gsc_site_url, ga4_property_id;
       `;
     } else {
+      // ✅ Passwort bleibt unverändert
+      console.log('  - Passwort bleibt unverändert');
+      
       updateQuery = sql`
         UPDATE users
-        SET email = ${email}, role = ${finalRole}, domain = ${domain}, gsc_site_url = ${gsc_site_url}, ga4_property_id = ${ga4_property_id}
+        SET 
+          email = ${normalizedEmail}, 
+          role = ${finalRole}, 
+          domain = ${domain}, 
+          gsc_site_url = ${gsc_site_url}, 
+          ga4_property_id = ${ga4_property_id}
         WHERE id = ${id}
         RETURNING id, email, role, domain, gsc_site_url, ga4_property_id;
       `;
@@ -82,10 +119,19 @@ export async function PUT(request: Request, { params }: RouteHandlerParams) {
       return NextResponse.json({ message: "Update fehlgeschlagen. Benutzer nicht gefunden." }, { status: 404 });
     }
 
-    return NextResponse.json(rows[0]);
+    console.log('✅ Benutzer erfolgreich aktualisiert');
+    console.log('  - Neue E-Mail in DB:', rows[0].email);
+
+    return NextResponse.json({
+      ...rows[0],
+      message: 'Benutzer erfolgreich aktualisiert'
+    });
   } catch (error) {
-    console.error('Fehler beim Aktualisieren des Benutzers:', error);
-    return NextResponse.json({ message: 'Interner Serverfehler' }, { status: 500 });
+    console.error('❌ Fehler beim Aktualisieren des Benutzers:', error);
+    return NextResponse.json({ 
+      message: 'Interner Serverfehler',
+      error: error instanceof Error ? error.message : 'Unbekannter Fehler'
+    }, { status: 500 });
   }
 }
 
@@ -97,7 +143,7 @@ export async function DELETE(request: Request, { params }: RouteHandlerParams) {
       return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
     }
 
-    const { id } = await params; // ✨ Wichtig: params mit await auflösen
+    const { id } = await params;
     const result = await sql`
       DELETE FROM users WHERE id = ${id};
     `;
