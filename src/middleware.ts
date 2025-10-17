@@ -11,6 +11,6 @@ export const config = {
      * - Statische Dateien (z.B. favicon.ico)
      * - Unsere Login-Seite
      */
-    '/((?!api|_next/static|_next/image|favicon.ico|login).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico|logo-data-peak.webp|login).*)',
   ] 
 }
