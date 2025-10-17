@@ -44,13 +44,8 @@ export default function LoginForm() {
             className="mx-auto mb-4"
             onError={(e) => {
               console.error('Logo konnte nicht geladen werden');
-              // Fallback: Zeige Text statt Bild
-              e.currentTarget.style.display = 'none';
-            }}
+              }}
           />
-          {/* Fallback-Text falls Bild nicht lädt */}
-          <h1 className="text-2xl font-bold text-gray-900">Data Peak</h1>
-          
           <p className="mt-2 text-gray-600">Bitte melden Sie sich an.</p>
         </div>
         
