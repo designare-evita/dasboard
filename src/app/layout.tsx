@@ -14,9 +14,9 @@ const poppins = Poppins({
 
 export const metadata: Metadata = {
   title: "Data Peak",
-  description: "Ihr persönliches SEO Dashboard",
+  description: "SEO Dashboard - Design & Entwicklung von Michael Kanda & Evita",
   icons: {
-    icon: '/favicon.webp',
+    icon: '/favicon.ico',
   },
 };
 
