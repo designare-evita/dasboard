@@ -1,16 +1,25 @@
 // src/app/(auth)/login/page.tsx
 
-// ✅ KORREKTUR: Wir importieren Suspense
 import { Suspense } from 'react';
-import LoginForm from './LoginForm'; // Wir erstellen eine neue Komponente für das Formular
+import LoginForm from './LoginForm';
 
-// Die Hauptseitenkomponente ist jetzt sehr einfach.
-// Sie rendert die Suspense-Grenze und darin unsere neue Formular-Komponente.
+// Verbesserte Loading-Komponente mit gleichem Layout wie LoginForm
+function LoginLoading() {
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-gray-100">
+      <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-lg shadow-xl">
+        <div className="text-center">
+          <div className="mx-auto mb-4 h-[45px] w-[180px] bg-gray-200 animate-pulse rounded" />
+          <p className="mt-2 text-gray-600">Wird geladen...</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function LoginPage() {
   return (
-    // Suspense sorgt dafür, dass der Inhalt client-seitig gerendert wird,
-    // ohne den serverseitigen Build-Prozess zu blockieren.
-    <Suspense fallback={<div>Wird geladen...</div>}>
+    <Suspense fallback={<LoginLoading />}>
       <LoginForm />
     </Suspense>
   );
