@@ -30,8 +30,8 @@ export default function Header() {
             <Image
               src="/logo-data-peak.webp"
               alt="Data Peak Logo"
-              width={DEINE_LOGO_BREITE}  // z.B. 180 (Bitte ersetzen)
-              height={DEINE_LOGO_HOEHE} // z.B. 45 (Bitte ersetzen)
+          width={180}
+height={45}
               priority
               // Optional: Größe mit Tailwind steuern
               // className="h-10 w-auto" 
