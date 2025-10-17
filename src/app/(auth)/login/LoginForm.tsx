@@ -38,15 +38,14 @@ export default function LoginForm() {
           <Image
             src="/logo-data-peak.webp"
             alt="Data Peak Logo"
-            width={350}
-            height={90}
+            width={300}
+            height={77}
             priority
             className="mx-auto mb-4"
             onError={(e) => {
               console.error('Logo konnte nicht geladen werden');
               }}
           />
-          <p className="mt-2 text-gray-600">Bitte melden Sie sich an.</p>
         </div>
         
         <form onSubmit={handleSubmit} className="space-y-6">
