@@ -35,16 +35,16 @@ export default function LoginForm() {
       <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-lg shadow-xl">
         <div className="text-center">
           
-          {/* --- NEU: Logo hinzugefügt --- */}
+          {/* Logo mit unoptimized für WebP-Kompatibilität */}
           <Image
-            src="/logo-data-peak.webp" // Pfad aus dem 'public'-Ordner
+            src="/logo-data-peak.webp"
             alt="Data Peak Logo"
-            width={180} // Standardbreite, wie im Header
-            height={45}  // Standardhöhe, wie im Header
-            priority     // Wichtig für schnelle Ladezeiten (LCP)
-            className="mx-auto mb-4" // Zentriert das Bild und fügt Abstand hinzu
+            width={180}
+            height={45}
+            priority
+            unoptimized // ✅ Umgeht Next.js Bild-Optimierung für WebP
+            className="mx-auto mb-4"
           />
-          {/* --- ENDE --- */}
           
           <p className="mt-2 text-gray-600">Bitte melden Sie sich an.</p>
         </div>
