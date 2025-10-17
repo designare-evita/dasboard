@@ -34,7 +34,7 @@ export default function LoginForm() {
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
       <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-lg shadow-xl">
         <div className="text-center">
-          
+          <img src="/logo-data-peak.webp" alt="Test" style={{width: '180px'}} />
           {/* Logo mit Error-Handling */}
           <Image
             src="/logo-data-peak.webp"
