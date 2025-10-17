@@ -41,7 +41,6 @@ export default function LoginForm() {
             width={180}
             height={45}
             priority
-            unoptimized
             className="mx-auto mb-4"
             onError={(e) => {
               console.error('Logo konnte nicht geladen werden');
