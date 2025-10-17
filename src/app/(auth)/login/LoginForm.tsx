@@ -37,7 +37,7 @@ export default function LoginForm() {
           
           {/* Logo mit Error-Handling */}
           <Image
-            src="/logo-data-peak.webp"
+            src="/public/logo-data-peak.webp"
             alt="Data Peak Logo"
             width={180}
             height={45}
