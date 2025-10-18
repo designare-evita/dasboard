@@ -61,19 +61,19 @@ export default function Header() {
   
               {/* Projekte-Button (Standard-Stil) */}
               <Link href="/" passHref>
-                <Button variant="ghost" className="hidden sm:inline-flex">Projekte</Button>
+                <Button>Projekte</Button>
               </Link>
 
               {/* Admin-Bereich Button (nur für Admins, Standard-Stil) */}
               {isAdmin && (
                 <Link href="/admin" passHref>
-                  <Button variant="ghost" className="hidden sm:inline-flex">Admin-Bereich</Button>
+                  <Button>Admin-Bereich</Button>
                 </Link>
               )}
 
 
               {/* Abmelden-Button (Ghost-Stil für weniger Betonung) */}
-              <Button variant="ghost" onClick={() => signOut({ callbackUrl: '/login' })}>
+              <Button onClick={() => signOut({ callbackUrl: '/login' })}>
                 Abmelden
               </Button>
             </>
