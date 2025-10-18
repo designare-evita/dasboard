@@ -1,5 +1,13 @@
-// src/app/api/users/route.ts - GET Methode mit Query-Parameter
+// src/app/api/users/route.ts - KOMPLETT
 
+import { NextResponse } from 'next/server';
+import { sql } from '@vercel/postgres';
+import bcrypt from 'bcryptjs';
+import { User } from '@/types';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+
+// GET: Benutzer abrufen (mit optionalem onlyCustomers Parameter)
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
   
@@ -72,5 +80,41 @@ export async function GET(request: Request) {
       message: 'Interner Serverfehler',
       error: error instanceof Error ? error.message : 'Unbekannter Fehler'
     }, { status: 500 });
+  }
+}
+
+// POST: Neuen Benutzer erstellen
+export async function POST(req: Request) {
+  const session = await getServerSession(authOptions);
+  if (session?.user?.role !== 'ADMIN' && session?.user?.role !== 'SUPERADMIN') {
+    return NextResponse.json({ message: "Zugriff verweigert" }, { status: 403 });
+  }
+
+  try {
+    const body = await req.json();
+    const createdByAdminId = session.user.id; 
+    const { email, password, role, domain, gsc_site_url, ga4_property_id } = body;
+
+    if (!email || !password || !role) {
+      return NextResponse.json({ message: 'E-Mail, Passwort und Rolle sind erforderlich' }, { status: 400 });
+    }
+
+    const { rows } = await sql<User>`SELECT * FROM users WHERE email = ${email}`;
+    if (rows.length > 0) {
+      return NextResponse.json({ message: 'Benutzer existiert bereits' }, { status: 409 });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const { rows: newUsers } = await sql<User>`
+      INSERT INTO users (email, password, role, domain, gsc_site_url, ga4_property_id, "createdByAdminId") 
+      VALUES (${email}, ${hashedPassword}, ${role}, ${domain}, ${gsc_site_url}, ${ga4_property_id}, ${createdByAdminId}) 
+      RETURNING id, email, role, domain`;
+
+    return NextResponse.json(newUsers[0], { status: 201 });
+
+  } catch (error) {
+    console.error('Fehler bei der Benutzererstellung:', error);
+    return NextResponse.json({ message: 'Interner Serverfehler' }, { status: 500 });
   }
 }
