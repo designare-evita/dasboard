@@ -68,7 +68,14 @@ export default function RedaktionsplanPage() {
       const response = await fetch('/api/users');
       if (!response.ok) throw new Error('Fehler beim Laden der Projekte');
       const data: User[] = await response.json();
-      setProjects(data.filter(u => u.id)); // Nur Benutzer mit gültiger ID
+      
+      // ✅ KORREKTUR: Nur Kunden (BENUTZER) anzeigen, keine Admins!
+      const customers = data.filter(u => u.id && u.role === 'BENUTZER');
+      
+      console.log('[Redaktionsplan] Alle User:', data.length);
+      console.log('[Redaktionsplan] Nur Kunden:', customers.length);
+      
+      setProjects(customers);
     } catch (error) {
       console.error('Fehler beim Laden der Projekte:', error);
       setMessage('Fehler beim Laden der Projekte');
