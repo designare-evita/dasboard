@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { User } from '@/types';
+import NotificationBell from '@/components/NotificationBell';
 
 export default function AdminPage() {
   const { data: session, status } = useSession();
@@ -93,6 +94,23 @@ export default function AdminPage() {
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
+      {/* Header mit Benachrichtigungen */}
+      <div className="mb-8 flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Admin-Bereich</h1>
+          <p className="text-gray-600 mt-2">Verwalten Sie Benutzer und Projekte</p>
+        </div>
+        <div className="flex items-center gap-4">
+          <NotificationBell />
+          <Link
+            href="/admin/redaktionsplan"
+            className="bg-indigo-600 text-white px-6 py-3 rounded-md hover:bg-indigo-700 font-medium flex items-center gap-2 transition-colors"
+          >
+            📋 Redaktionsplan
+          </Link>
+        </div>
+      </div>
+
       {message && (
         <p className="my-4 text-center p-3 bg-yellow-100 border border-yellow-300 rounded-md">{message}</p>
       )}
@@ -185,23 +203,16 @@ export default function AdminPage() {
           ) : (
             <ul className="space-y-3">
               {users.map((user: User) => {
-                // ✅ WICHTIG: Logge die ID für Debugging
                 console.log('[AdminPage] User:', user.email, 'ID:', user.id, 'ID-Typ:', typeof user.id);
                 
                 return (
                   <li key={user.id} className="p-3 border rounded-md flex justify-between items-center">
                     <div className="flex-1">
                       <p className="font-semibold">{user.email}</p>
-                      
-                      {/* --- KORREKTUR: Domain anzeigen --- */}
                       {user.domain && (
                         <p className="text-sm text-blue-600 font-medium">{user.domain}</p>
                       )}
-                      {/* --- ENDE KORREKTUR --- */}
-
                       <p className="text-sm text-gray-500">{user.role}</p>
-                      {/* ✅ DEBUG: Zeige die ID an */}
-                      <p className="text-xs text-gray-400 font-mono mt-1">ID: {user.id}</p>
                     </div>
                     <div className="flex gap-2">
                       <Link
