@@ -59,11 +59,12 @@ export default function Header() {
                 </Link>
               )}
   
-              {/* Projekte-Button (Standard-Stil) */}
+            {isAdmin && (
               <Link href="/" passHref>
                 <Button>Projekte</Button>
               </Link>
-
+ )}
+              
               {/* Admin-Bereich Button (nur für Admins, Standard-Stil) */}
               {isAdmin && (
                 <Link href="/admin" passHref>
