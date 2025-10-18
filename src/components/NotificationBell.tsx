@@ -191,4 +191,81 @@ export default function NotificationBell() {
               <div className="p-8 text-center text-gray-500">
                 Lade...
               </div>
-            ) : notifications.length ===
+            ) : notifications.length === 0 ? (
+              <div className="p-8 text-center">
+                <span className="text-4xl">🔔</span>
+                <p className="text-gray-500 mt-2">Keine Benachrichtigungen</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-100">
+                {notifications.map((notification) => (
+                  <div
+                    key={notification.id}
+                    className={`p-4 hover:bg-gray-50 transition-colors ${
+                      !notification.read ? 'bg-blue-50' : ''
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <span className="text-2xl flex-shrink-0">
+                        {getNotificationIcon(notification.type)}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm ${!notification.read ? 'font-semibold' : ''} text-gray-900`}>
+                          {notification.message}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {formatTime(notification.created_at)}
+                        </p>
+                      </div>
+                      <div className="flex gap-1">
+                        {!notification.read && (
+                          <button
+                            onClick={() => markAsRead(notification.id)}
+                            className="text-indigo-600 hover:text-indigo-800 text-xs"
+                            title="Als gelesen markieren"
+                          >
+                            ✓
+                          </button>
+                        )}
+                        <button
+                          onClick={() => deleteNotification(notification.id)}
+                          className="text-red-600 hover:text-red-800 text-xs"
+                          title="Löschen"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          {notifications.length > 0 && (
+            <div className="p-3 border-t border-gray-200 text-center">
+              <button
+                onClick={() => {
+                  setIsOpen(false);
+                  // Optional: Navigiere zu einer Benachrichtigungs-Übersichtsseite
+                }}
+                className="text-sm text-indigo-600 hover:text-indigo-800 font-medium"
+              >
+                Alle Benachrichtigungen anzeigen
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Overlay zum Schließen */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => setIsOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
