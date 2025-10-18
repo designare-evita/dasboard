@@ -21,6 +21,7 @@ export default function AdminPage() {
   const fetchUsers = async (): Promise<void> => {
     setIsLoadingUsers(true);
     try {
+      // ✅ OHNE Parameter = alle Benutzer (Kunden + Admins)
       const response = await fetch('/api/users');
       if (!response.ok) {
         setMessage('Fehler beim Laden der Benutzerliste.');
@@ -99,6 +100,15 @@ export default function AdminPage() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Admin-Bereich</h1>
           <p className="text-gray-600 mt-2">Verwalten Sie Benutzer und Projekte</p>
+        </div>
+        <div className="flex items-center gap-4">
+          <NotificationBell />
+          <Link
+            href="/admin/redaktionsplan"
+            className="bg-indigo-600 text-white px-6 py-3 rounded-md hover:bg-indigo-700 font-medium flex items-center gap-2 transition-colors"
+          >
+            📋 Redaktionsplan
+          </Link>
         </div>
       </div>
 
