@@ -56,22 +56,22 @@ export async function GET() {
     let result;
     
     if (session.user.role === 'SUPERADMIN') {
-      console.log('[/api/users] SUPERADMIN - Lade alle Benutzer außer SUPERADMIN');
+      console.log('[/api/users] SUPERADMIN - Lade nur BENUTZER (Kunden)');
       
-      // Superadmin sieht alle Admins und Benutzer
+      // ✅ KORREKTUR: Superadmin sieht nur Kunden, keine anderen Admins
       result = await sql`
         SELECT id::text as id, email, role, domain 
         FROM users 
-        WHERE role != 'SUPERADMIN'
-        ORDER BY role DESC, email ASC
+        WHERE role = 'BENUTZER'
+        ORDER BY domain ASC, email ASC
       `;
       
-      console.log('[/api/users] Gefunden:', result.rows.length, 'Benutzer');
+      console.log('[/api/users] Gefunden:', result.rows.length, 'Kunden');
       
     } else { // ADMIN
       console.log('[/api/users] ADMIN - Lade zugewiesene Projekte');
       
-      // ✅ KORREKTUR: Admin sieht nur die ihm zugewiesenen Benutzer-Projekte
+      // ✅ Admin sieht nur die ihm zugewiesenen Benutzer-Projekte
       result = await sql`
         SELECT 
           u.id::text as id, 
@@ -82,7 +82,7 @@ export async function GET() {
         INNER JOIN project_assignments pa ON u.id = pa.project_id
         WHERE pa.user_id::text = ${session.user.id}
         AND u.role = 'BENUTZER'
-        ORDER BY u.email ASC
+        ORDER BY u.domain ASC, u.email ASC
       `;
       
       console.log('[/api/users] Gefunden:', result.rows.length, 'zugewiesene Projekte');
