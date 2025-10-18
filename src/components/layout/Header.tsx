@@ -5,7 +5,8 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useSession, signOut } from 'next-auth/react';
 import { usePathname } from 'next/navigation';
-import { Button } from '@/components/ui/button'; // Wird jetzt für alle 3 Buttons genutzt
+import { Button } from '@/components/ui/button';
+import NotificationBell from '@/components/NotificationBell'; // Importiere die Glocken-Komponente
 
 export default function Header() {
   const { data: session, status } = useSession();
@@ -44,24 +45,43 @@ export default function Header() {
 )}
         </div>
 
-        {/* Rechte Seite: Links und Buttons */}
+{/* Rechte Seite: Links, Buttons und Glocke */}
         <div className="flex items-center space-x-4">
           {status === 'authenticated' && (
             <>
+  {/* NEU: Benachrichtigungs-Glocke */}
+              <NotificationBell />
+
+                  {/* NEU: Redaktionsplan Button (nur für Admins, Standard-Stil) */}
+              {isAdmin && (
+                <Link href="/admin/redaktionsplan" passHref>
+                  <Button>Redaktionsplan</Button> {/* Nutzt den Standard-Button-Stil */}
+                </Link>
+              )}
+  
+              {/* Projekte-Button (Standard-Stil) */}
               <Link href="/" passHref>
-                <Button>Projekte</Button>
+                <Button variant="ghost" className="hidden sm:inline-flex">Projekte</Button>
               </Link>
 
+              {/* Admin-Bereich Button (nur für Admins, Standard-Stil) */}
               {isAdmin && (
                 <Link href="/admin" passHref>
-                  <Button>Admin-Bereich</Button>
+                  <Button variant="ghost" className="hidden sm:inline-flex">Admin-Bereich</Button>
                 </Link>
               )}
 
-              <Button onClick={() => signOut({ callbackUrl: '/login' })}>
+
+              {/* Abmelden-Button (Ghost-Stil für weniger Betonung) */}
+              <Button variant="ghost" onClick={() => signOut({ callbackUrl: '/login' })}>
                 Abmelden
               </Button>
             </>
+          )}
+          {status === 'unauthenticated' && (
+             <Link href="/login" passHref>
+               <Button>Anmelden</Button>
+             </Link>
           )}
         </div>
       </nav>
