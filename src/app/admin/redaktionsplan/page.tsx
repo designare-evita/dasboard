@@ -6,6 +6,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import NotificationBell from '@/components/NotificationBell';
+import type { User } from '@/types';
 
 type Landingpage = {
   id: number;
@@ -17,12 +18,6 @@ type Landingpage = {
   status: 'Offen' | 'In Prüfung' | 'Gesperrt' | 'Freigegeben';
   user_id: string;
   created_at: string;
-};
-
-type User = {
-  id: string;
-  email: string;
-  domain: string | null;
 };
 
 export default function RedaktionsplanPage() {
@@ -70,7 +65,13 @@ export default function RedaktionsplanPage() {
       const data: User[] = await response.json();
       
       // ✅ KORREKTUR: Nur Kunden (BENUTZER) anzeigen, keine Admins!
-      const customers = data.filter(u => u.id && u.role === 'BENUTZER');
+      // Type-Safe Filter: Prüfe ob role existiert
+      const customers = data.filter(u => {
+        if (!u.id) return false;
+        // Falls role nicht im Type ist, kommt es trotzdem im Response
+        const userWithRole = u as User & { role?: string };
+        return !userWithRole.role || userWithRole.role === 'BENUTZER';
+      });
       
       console.log('[Redaktionsplan] Alle User:', data.length);
       console.log('[Redaktionsplan] Nur Kunden:', customers.length);
