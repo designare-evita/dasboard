@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { sql } from '@vercel/postgres';
+import { unstable_noStore as noStore } from 'next/cache'; // Importiere noStore
 
 type Notification = {
   id: number;
@@ -16,6 +17,9 @@ type Notification = {
 
 // GET: Benachrichtigungen abrufen
 export async function GET() {
+  // Caching für Benachrichtigungen deaktivieren, damit sie immer aktuell sind
+  noStore(); 
+  
   try {
     const session = await getServerSession(authOptions);
     
@@ -48,7 +52,7 @@ export async function GET() {
 
     return NextResponse.json({
       notifications,
-      unreadCount: parseInt(unreadCount[0].count)
+      unreadCount: parseInt(unreadCount[0].count, 10) // parseInt mit Basis 10
     });
 
   } catch (error) {
