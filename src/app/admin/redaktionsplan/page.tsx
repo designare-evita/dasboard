@@ -60,23 +60,14 @@ export default function RedaktionsplanPage() {
 
   const loadProjects = async () => {
     try {
-      const response = await fetch('/api/users');
+      // ✅ MIT Parameter = nur Kunden (BENUTZER)
+      const response = await fetch('/api/users?onlyCustomers=true');
       if (!response.ok) throw new Error('Fehler beim Laden der Projekte');
       const data: User[] = await response.json();
       
-      // ✅ KORREKTUR: Nur Kunden (BENUTZER) anzeigen, keine Admins!
-      // Type-Safe Filter: Prüfe ob role existiert
-      const customers = data.filter(u => {
-        if (!u.id) return false;
-        // Falls role nicht im Type ist, kommt es trotzdem im Response
-        const userWithRole = u as User & { role?: string };
-        return !userWithRole.role || userWithRole.role === 'BENUTZER';
-      });
+      console.log('[Redaktionsplan] Geladene Kunden:', data.length);
       
-      console.log('[Redaktionsplan] Alle User:', data.length);
-      console.log('[Redaktionsplan] Nur Kunden:', customers.length);
-      
-      setProjects(customers);
+      setProjects(data);
     } catch (error) {
       console.error('Fehler beim Laden der Projekte:', error);
       setMessage('Fehler beim Laden der Projekte');
