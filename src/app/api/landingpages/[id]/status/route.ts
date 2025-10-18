@@ -94,24 +94,26 @@ export async function PUT(
       }
     }
 
-    // ADMIN/SUPERADMIN: Prüfe Zugriff auf Projekt
-    if (isAdmin) {
-      if (session.user.role === 'ADMIN') {
-        // Prüfe, ob der Admin Zugriff auf dieses Projekt hat
-        const { rows: accessCheck } = await sql`
-          SELECT 1 
-          FROM project_assignments 
-          WHERE user_id::text = ${session.user.id} 
-          AND project_id::text = ${landingpage.user_id};
-        `;
+// ADMIN/SUPERADMIN: Prüfe Zugriff auf Projekt
+if (isAdmin) {
+  if (session.user.role === 'ADMIN') {
+    // Prüfe, ob der Admin Zugriff auf dieses Projekt hat
+    const { rows: accessCheck } = await sql`
+      SELECT 1 
+      FROM project_assignments 
+      WHERE user_id::text = ${session.user.id} 
+      AND project_id::text = ${landingpage.user_id};
+    `;
 
-        if (accessCheck.length === 0 && session.user.role !== 'SUPERADMIN') {
-          return NextResponse.json({ 
-            message: 'Sie haben keinen Zugriff auf dieses Projekt' 
-          }, { status: 403 });
-        }
-      }
+    // Nur ADMINs (nicht SUPERADMINs) müssen Projektzugriff haben
+    if (accessCheck.length === 0) {
+      return NextResponse.json({ 
+        message: 'Sie haben keinen Zugriff auf dieses Projekt' 
+      }, { status: 403 });
     }
+  }
+  // SUPERADMIN hat automatisch Zugriff auf alle Projekte
+}
 
     // Status-Update durchführen
     await sql`
