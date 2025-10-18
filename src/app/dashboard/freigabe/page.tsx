@@ -49,17 +49,32 @@ export default function FreigabePage() {
   }, [filterStatus, landingpages]);
 
   const loadLandingpages = async () => {
-    if (!session?.user?.id) return;
+    if (!session?.user?.id) {
+      console.error('[Freigabe] Keine User-ID in Session');
+      return;
+    }
+    
+    console.log('[Freigabe] Lade Landingpages für User:', session.user.id);
     
     try {
       const response = await fetch(`/api/users/${session.user.id}/landingpages`);
-      if (!response.ok) throw new Error('Fehler beim Laden');
+      
+      console.log('[Freigabe] Response Status:', response.status);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('[Freigabe] API Error:', response.status, errorData);
+        throw new Error(`API-Fehler: ${response.status} - ${errorData.message || 'Unbekannter Fehler'}`);
+      }
+      
       const data: Landingpage[] = await response.json();
+      console.log('[Freigabe] Landingpages geladen:', data.length);
+      
       setLandingpages(data);
       setMessage('');
     } catch (error) {
-      console.error('Fehler beim Laden:', error);
-      setMessage('Fehler beim Laden der Landingpages');
+      console.error('[Freigabe] Fehler:', error);
+      setMessage(error instanceof Error ? error.message : 'Fehler beim Laden der Landingpages');
     } finally {
       setIsLoading(false);
     }
