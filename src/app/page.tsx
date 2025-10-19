@@ -3,15 +3,21 @@
 
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, ReactNode } from 'react';
 import Link from 'next/link';
 import { User } from '@/types';
-import { ArrowRepeat } from 'react-bootstrap-icons';
+// Benötigte Icons importieren
+import { 
+  ArrowRepeat, 
+  ExclamationTriangleFill, 
+  GraphUp, 
+  ArrowRightSquare 
+} from 'react-bootstrap-icons';
 import KpiCard from '@/components/kpi-card';
 import KpiTrendChart from '@/components/charts/KpiTrendChart';
 import LandingpageApproval from '@/components/LandingpageApproval';
 
-// Typen für Dashboard-Daten
+// --- Typen für Dashboard-Daten ---
 type KPI = {
   value: number;
   change: number;
@@ -48,6 +54,7 @@ type DashboardData = {
 
 type ActiveKpi = 'clicks' | 'impressions' | 'sessions' | 'totalUsers';
 
+// --- Hauptkomponente ---
 export default function HomePage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -55,50 +62,49 @@ export default function HomePage() {
   // State für Benutzer (Kunden-Dashboard)
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   
-  // State für Admins (Projekt-Übersicht)
+  // State für Admin/Superadmin
   const [projects, setProjects] = useState<User[]>([]);
   
+  // Allgemeiner State
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
 
   useEffect(() => {
     if (status === 'authenticated') {
-      loadData();
+      const fetchData = async () => {
+        setIsLoading(true);
+        setError(null);
+        try {
+          const response = await fetch('/api/data');
+          if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.message || 'Daten konnten nicht geladen werden');
+          }
+          
+          const data = await response.json();
+          
+          // Daten basierend auf der Rolle setzen
+          if (data.role === 'ADMIN' || data.role === 'SUPERADMIN') {
+            setProjects(data.projects || []);
+          } else if (data.role === 'BENUTZER') {
+            setDashboardData(data);
+          }
+        } catch (err) {
+          setError(err instanceof Error ? err.message : 'Ein unbekannter Fehler ist aufgetreten');
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      
+      fetchData();
     }
-  }, [status]);
+  }, [status, session]);
 
-  const loadData = async () => {
-    setIsLoading(true);
-    try {
-      const response = await fetch('/api/data');
-      if (!response.ok) throw new Error('Fehler beim Laden der Daten');
-      const data = await response.json();
-      
-      // Benutzer (Kunde) - Dashboard-Daten
-      if (data.role === 'BENUTZER') {
-        setDashboardData(data);
-      }
-      
-      // Admin/Superadmin - Projekt-Liste
-      if (data.projects) {
-        setProjects(data.projects);
-      }
-      
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Fehler beim Laden');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Auth-Check
-  if (status === 'loading' || isLoading) {
+  if (status === 'loading' || (status === 'authenticated' && isLoading)) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="p-8 text-center flex items-center justify-center min-h-[50vh]">
         <ArrowRepeat className="animate-spin text-indigo-600 mr-2" size={24} />
-        Lade...
+        <p className="text-gray-600">Dashboard wird geladen...</p>
       </div>
     );
   }
@@ -108,193 +114,77 @@ export default function HomePage() {
     return null;
   }
 
-  const tabMeta: Record<ActiveKpi, { title: string; color: string }> = {
-    clicks: { title: 'Klicks', color: '#3b82f6' },
-    impressions: { title: 'Impressionen', color: '#8b5cf6' },
-    sessions: { title: 'Sitzungen', color: '#10b981' },
-    totalUsers: { title: 'Nutzer', color: '#f59e0b' },
-  };
-
-  // === BENUTZER (KUNDE) ANSICHT - PROFESSIONELLES DASHBOARD ===
-  if (session?.user?.role === 'BENUTZER') {
+  if (error) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="max-w-7xl mx-auto p-4 sm:p-6 md:p-8">
-          <h2 className="text-3xl font-bold mb-6">Projekt-Dashboard</h2>
-
-          {/* Fehler-Anzeige */}
-          {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-              <p className="text-red-800">❌ {error}</p>
-            </div>
-          )}
-
-          {dashboardData && (
-            <>
-              {/* KPI-Karten */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                <KpiCard 
-                  title="Klicks" 
-                  isLoading={false} 
-                  value={dashboardData.kpis.clicks.value} 
-                  change={dashboardData.kpis.clicks.change} 
-                />
-                <KpiCard 
-                  title="Impressionen" 
-                  isLoading={false} 
-                  value={dashboardData.kpis.impressions.value} 
-                  change={dashboardData.kpis.impressions.change} 
-                />
-                <KpiCard 
-                  title="Sitzungen" 
-                  isLoading={false} 
-                  value={dashboardData.kpis.sessions.value} 
-                  change={dashboardData.kpis.sessions.change} 
-                />
-                <KpiCard 
-                  title="Nutzer" 
-                  isLoading={false} 
-                  value={dashboardData.kpis.totalUsers.value} 
-                  change={dashboardData.kpis.totalUsers.change} 
-                />
-              </div>
-
-              {/* Charts mit Tabs */}
-              <div className="bg-white p-6 rounded-lg shadow-md mb-8">
-                <div className="flex border-b border-gray-200">
-                  {(Object.keys(tabMeta) as ActiveKpi[]).map((key) => (
-                    <button
-                      key={key}
-                      onClick={() => setActiveKpi(key)}
-                      className={`py-2 px-4 text-sm font-medium ${
-                        activeKpi === key
-                          ? 'border-b-2 border-blue-500 text-blue-600'
-                          : 'text-gray-500 hover:text-gray-700'
-                      }`}
-                    >
-                      {tabMeta[key].title}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="mt-4">
-                  <KpiTrendChart 
-                    data={dashboardData.charts[activeKpi] || []} 
-                    color={tabMeta[activeKpi].color} 
-                  />
-                </div>
-              </div>
-
-              {/* Top 5 Suchanfragen */}
-              {dashboardData.topQueries && dashboardData.topQueries.length > 0 && (
-                <div className="bg-white p-6 rounded-lg shadow-md mb-8">
-                  <h3 className="text-xl font-semibold mb-4">Top 5 Suchanfragen</h3>
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="text-left text-gray-600 border-b">
-                          <th className="pb-3 pr-4 font-medium">Suchanfrage</th>
-                          <th className="pb-3 pr-4 font-medium text-right">Klicks</th>
-                          <th className="pb-3 pr-4 font-medium text-right">Impressionen</th>
-                          <th className="pb-3 pr-4 font-medium text-right">CTR</th>
-                          <th className="pb-3 font-medium text-right">Position</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {dashboardData.topQueries.map((query, index) => (
-                          <tr key={`${query.query}-${index}`} className="border-b hover:bg-gray-50">
-                            <td className="py-3 pr-4 text-gray-900">{query.query}</td>
-                            <td className="py-3 pr-4 text-right text-gray-700">
-                              {query.clicks.toLocaleString('de-DE')}
-                            </td>
-                            <td className="py-3 pr-4 text-right text-gray-700">
-                              {query.impressions.toLocaleString('de-DE')}
-                            </td>
-                            <td className="py-3 pr-4 text-right text-gray-700">
-                              {(query.ctr * 100).toFixed(2)}%
-                            </td>
-                            <td className="py-3 text-right text-gray-700">
-                              {query.position.toFixed(1)}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {/* Landingpage Approval Widget */}
-              <LandingpageApproval />
-            </>
-          )}
-        </div>
+      // KORREKTUR: Error-Styling mit Icon
+      <div className="p-8 text-center text-red-800 bg-red-50 rounded-lg border border-red-200 max-w-2xl mx-auto mt-10">
+        <h3 className="font-bold flex items-center justify-center gap-2">
+          <ExclamationTriangleFill size={18} />
+          Fehler beim Laden der Daten
+        </h3>
+        <p className="text-sm mt-2">{error}</p>
       </div>
     );
   }
 
-  // === ADMIN/SUPERADMIN ANSICHT - PROJEKT-ÜBERSICHT ===
+  // Admin- & Superadmin-Ansicht
+  if (session?.user?.role === 'ADMIN' || session?.user?.role === 'SUPERADMIN') {
+    return <AdminDashboard projects={projects} />;
+  }
+
+  // Kunden-Ansicht
+  if (session?.user?.role === 'BENUTZER' && dashboardData) {
+    return <CustomerDashboard data={dashboardData} isLoading={isLoading} />;
+  }
+
+  // Fallback, falls keine Daten passen
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-8 py-12">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Projekt-Übersicht</h1>
-          <p className="text-gray-600 mt-2">
-            {session?.user?.role === 'SUPERADMIN' 
-              ? 'Alle Kundenprojekte im Überblick'
-              : 'Ihre zugewiesenen Kundenprojekte'}
-          </p>
-        </div>
+      <div className="p-8 text-center text-gray-500">
+        Keine Daten zur Anzeige verfügbar.
+      </div>
+  );
+}
 
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-            <p className="text-red-800">❌ {error}</p>
-          </div>
-        )}
-
+// --- Admin Dashboard Komponente ---
+function AdminDashboard({ projects }: { projects: User[] }) {
+  return (
+    <div className="p-8 bg-gray-50 min-h-screen">
+      <h2 className="text-3xl font-bold text-gray-900 mb-6">
+        Kundenübersicht
+      </h2>
+      <div className="max-w-7xl mx-auto">
         {projects.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-md p-12 text-center">
-            <p className="text-gray-500 text-lg mb-4">
-              {session?.user?.role === 'SUPERADMIN'
-                ? 'Noch keine Kundenprojekte vorhanden.'
-                : 'Ihnen wurden noch keine Projekte zugewiesen.'}
-            </p>
-            {session?.user?.role === 'SUPERADMIN' && (
-              <Link
-                href="/admin"
-                className="inline-block bg-indigo-600 text-white px-6 py-3 rounded-md hover:bg-indigo-700 font-medium"
-              >
-                Zum Admin-Bereich
-              </Link>
-            )}
-          </div>
+          <p className="text-gray-500">Keine Projekte gefunden.</p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {projects.map((project) => (
               <Link
                 key={project.id}
                 href={`/projekt/${project.id}`}
-                className="bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition-shadow border border-gray-200 hover:border-indigo-300"
+                // KORREKTUR: Hover-Effekt minimalistischer
+                className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow border border-gray-200 hover:bg-gray-50 group"
               >
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-xl font-bold text-gray-900 truncate">
                     {project.domain || project.email}
                   </h3>
-                  <span className="text-2xl">📊</span>
+                  {/* KORREKTUR: Emoji durch Icon ersetzt */}
+                  <GraphUp size={24} className="text-indigo-600 flex-shrink-0" />
                 </div>
                 <div className="space-y-2 text-sm text-gray-600">
                   <p className="truncate">
-                    <span className="font-medium">E-Mail:</span> {project.email}
+                    <span className="font-medium text-gray-800">E-Mail:</span> {project.email}
                   </p>
                   {project.gsc_site_url && (
                     <p className="truncate">
-                      <span className="font-medium">Website:</span> {project.gsc_site_url}
+                      <span className="font-medium text-gray-800">Website:</span> {project.gsc_site_url}
                     </p>
                   )}
                 </div>
-                <div className="mt-4 pt-4 border-t border-gray-200">
-                  <span className="text-indigo-600 hover:text-indigo-800 text-sm font-medium">
-                    Dashboard anzeigen →
+                <div className="mt-4 pt-4 border-t border-gray-100">
+                  {/* KORREKTUR: Text-Link durch Icon+Text ersetzt */}
+                  <span className="text-indigo-600 group-hover:text-indigo-800 text-sm font-medium flex items-center gap-1.5 transition-colors">
+                    Dashboard anzeigen <ArrowRightSquare size={14} />
                   </span>
                 </div>
               </Link>
@@ -302,6 +192,105 @@ export default function HomePage() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// --- Kunden Dashboard Komponente ---
+function CustomerDashboard({ data, isLoading }: { data: DashboardData; isLoading: boolean }) {
+  const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
+
+  const kpis = data.kpis || { clicks: { value: 0, change: 0 }, impressions: { value: 0, change: 0 }, sessions: { value: 0, change: 0 }, totalUsers: { value: 0, change: 0 } };
+  const chartSeries: ChartData = (data.charts && data.charts[activeKpi]) ? data.charts[activeKpi]! : [];
+  const showNoDataHint = !data.kpis; // Prüft, ob KPI-Objekt überhaupt existiert
+
+  const tabMeta: Record<ActiveKpi, { title: string; color: string }> = {
+    clicks: { title: 'Klicks', color: '#3b82f6' },
+    impressions: { title: 'Impressionen', color: '#8b5cf6' },
+    sessions: { title: 'Sitzungen', color: '#10b981' },
+    totalUsers: { title: 'Nutzer', color: '#f59e0b' },
+  };
+
+  return (
+    <div className="p-8 bg-gray-50 min-h-screen">
+      <main>
+        <h2 className="text-3xl font-bold text-gray-900 mb-6">Ihr Dashboard</h2>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <KpiCard title="Klicks" isLoading={isLoading} value={kpis.clicks.value} change={kpis.clicks.change} />
+          <KpiCard title="Impressionen" isLoading={isLoading} value={kpis.impressions.value} change={kpis.impressions.change} />
+          <KpiCard title="Sitzungen" isLoading={isLoading} value={kpis.sessions.value} change={kpis.sessions.change} />
+          <KpiCard title="Nutzer" isLoading={isLoading} value={kpis.totalUsers.value} change={kpis.totalUsers.change} />
+        </div>
+        
+        <div className="mt-8 bg-white p-6 rounded-lg shadow-md border border-gray-200">
+          <div className="flex border-b border-gray-200">
+            {(Object.keys(tabMeta) as ActiveKpi[]).map((key) => (
+              <button
+                key={key}
+                onClick={() => setActiveKpi(key)}
+                className={`py-2 px-4 text-sm font-medium transition-colors ${
+                  activeKpi === key
+                    ? 'border-b-2 border-indigo-500 text-indigo-600'
+                    : 'text-gray-500 hover:text-gray-700 hover:border-gray-300 border-b-2 border-transparent'
+                }`}
+              >
+                {tabMeta[key].title}
+              </button>
+            ))}
+          </div>
+          <div className="mt-4 h-72">
+            <KpiTrendChart data={chartSeries} color={tabMeta[activeKpi].color} />
+          </div>
+        </div>
+        
+        {data.topQueries && data.topQueries.length > 0 && (
+          <div className="mt-8 bg-white p-6 rounded-lg shadow-md border border-gray-200">
+            <h3 className="text-xl font-semibold mb-4">Top 5 Suchanfragen</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="text-left text-gray-600 border-b border-gray-200">
+                    <th className="pb-3 pr-4 font-medium">Suchanfrage</th>
+                    <th className="pb-3 pr-4 font-medium text-right">Klicks</th>
+                    <th className="pb-3 pr-4 font-medium text-right">Impressionen</th>
+                    <th className="pb-3 pr-4 font-medium text-right">CTR</th>
+                    <th className="pb-3 font-medium text-right">Position</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.topQueries.map((query, index) => (
+                    <tr key={`${query.query}-${index}`} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="py-3 pr-4 text-gray-900">{query.query}</td>
+                      <td className="py-3 pr-4 text-right text-gray-700">
+                        {query.clicks.toLocaleString('de-DE')}
+                      </td>
+                      <td className="py-3 pr-4 text-right text-gray-700">
+                        {query.impressions.toLocaleString('de-DE')}
+                      </td>
+                      <td className="py-3 pr-4 text-right text-gray-700">
+                        {(query.ctr * 100).toFixed(2)}%
+                      </td>
+                      <td className="py-3 text-right text-gray-700">
+                        {query.position.toFixed(1)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+        
+        {/* Diese Komponente ist bereits auf den neuen Stil angepasst */}
+        <LandingpageApproval />
+
+        {showNoDataHint && (
+          <p className="mt-6 text-sm text-center text-gray-500">
+            Hinweis: Für dieses Projekt wurden noch keine KPI-Daten geliefert. Es werden vorübergehend Platzhalter-Werte angezeigt.
+          </p>
+        )}
+      </main>
     </div>
   );
 }
