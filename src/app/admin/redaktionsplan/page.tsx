@@ -207,13 +207,6 @@ export default function RedaktionsplanPage() {
             <h1 className="text-3xl font-bold text-gray-900">Redaktionsplan</h1>
             <p className="text-gray-600 mt-2">Verwalten Sie den Status von Landingpages für Ihre Projekte.</p>
           </div>
-          {/* Optional: Link zurück zum Admin-Dashboard */}
-          <Link
-            href="/admin"
-            className="text-sm text-indigo-600 hover:underline"
-          >
-            ← Zurück zum Admin-Bereich
-          </Link>
         </div>
 
         {/* Nachrichtenanzeige */}
