@@ -1,13 +1,15 @@
+// src/middleware.ts
 export { default } from "next-auth/middleware"
+
 export const config = { 
   matcher: [
     /*
-     * Alles schützen, außer:
-     * - Die API-Routen
-     * - Interne Next.js-Pfade (_next/...)
-     * - Statische Dateien (z.B. favicon.ico)
-     * - Unsere Login-Seite
+     * Schütze alle Routen AUSSER:
+     * - /login (Login-Seite)
+     * - /api/* (API-Routen)
+     * - /_next/* (Next.js interne Pfade)
+     * - /favicon.ico und statische Assets
      */
-    '/((?!api|_next/static|_next/image|favicon.ico|logo-data-peak.webp|login).*)',
+    '/((?!login|api|_next/static|_next/image|favicon.ico|logo-data-peak.webp).*)',
   ] 
 }
