@@ -1,4 +1,4 @@
-// src/app/page.tsx
+v// src/app/page.tsx
 'use client';
 
 import { useSession } from 'next-auth/react';
@@ -7,23 +7,29 @@ import KpiCard from '@/components/kpi-card';
 import Link from 'next/link';
 import { useState } from 'react';
 import KpiTrendChart from '@/components/charts/KpiTrendChart';
-import LandingpageApproval from '@/components/LandingpageApproval'; // NEUER IMPORT
+import LandingpageApproval from '@/components/LandingpageApproval';
 
 // --- Typ-Definitionen ---
 
-// Einzelner KPI-Wert mit prozentualer Veränderung
 interface KpiDatum {
   value: number;
   change: number;
 }
 
-// Datenpunkt für die Charts (z.B. { date: '2023-10-14', value: 120 })
 interface ChartPoint {
   date: string;
   value: number;
 }
 
-// Struktur aller KPI-Daten
+// ✅ Top Query Interface hinzugefügt
+interface TopQueryData {
+  query: string;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  position: number;
+}
+
 interface KpiData {
   clicks: KpiDatum;
   impressions: KpiDatum;
@@ -31,7 +37,6 @@ interface KpiData {
   totalUsers: KpiDatum;
 }
 
-// Struktur aller Chart-Daten
 interface ChartData {
   clicks: ChartPoint[];
   impressions: ChartPoint[];
@@ -39,7 +44,6 @@ interface ChartData {
   totalUsers: ChartPoint[];
 }
 
-// Struktur eines Projekts für die Admin-Ansicht
 interface Project {
   id: string;
   email: string;
@@ -48,21 +52,20 @@ interface Project {
   ga4_property_id?: string;
 }
 
-// Mögliche API-Antworten
 interface AdminResponse {
   role: 'SUPERADMIN' | 'ADMIN';
   projects: Project[];
 }
+
+// ✅ topQueries zum CustomerResponse hinzugefügt
 interface CustomerResponse {
   role: 'BENUTZER';
   kpis: Partial<KpiData>;
   charts: Partial<ChartData>;
+  topQueries?: TopQueryData[]; // ✅ Hier hinzugefügt
 }
 
-// Gesamt-Typ für die API-Antwort
 type ApiResponse = AdminResponse | CustomerResponse;
-
-// Typ für den aktiven KPI-Tab im Chart
 type ActiveKpi = 'clicks' | 'impressions' | 'sessions' | 'totalUsers';
 
 // --- Hilfsfunktionen (Type Guards) ---
@@ -75,7 +78,6 @@ function isCustomer(data: ApiResponse | null | undefined): data is CustomerRespo
   return !!data && 'role' in data && data.role === 'BENUTZER';
 }
 
-// --- Standardwerte für KPIs, falls keine Daten vorhanden sind ---
 const ZERO_KPI: KpiDatum = { value: 0, change: 0 };
 
 function normalizeKpis(input?: Partial<KpiData>): KpiData {
@@ -165,6 +167,8 @@ export default function DashboardPage() {
       <div className="p-8 bg-gray-50 min-h-screen">
         <main className="mt-6">
           <h2 className="text-2xl font-bold mb-6">Ihr Dashboard</h2>
+          
+          {/* KPI-Karten */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <KpiCard title="Klicks" isLoading={isLoading} value={kpis.clicks.value} change={kpis.clicks.change} />
             <KpiCard title="Impressionen" isLoading={isLoading} value={kpis.impressions.value} change={kpis.impressions.change} />
@@ -172,6 +176,7 @@ export default function DashboardPage() {
             <KpiCard title="Nutzer" isLoading={isLoading} value={kpis.totalUsers.value} change={kpis.totalUsers.change} />
           </div>
           
+          {/* Charts mit Tabs */}
           <div className="mt-8 bg-white p-6 rounded-lg shadow-md">
             <div className="flex border-b border-gray-200">
               {(Object.keys(tabMeta) as ActiveKpi[]).map((key) => (
@@ -193,7 +198,46 @@ export default function DashboardPage() {
             </div>
           </div>
           
-          {/* HIER WIRD DIE NEUE KOMPONENTE EINGEFÜGT */}
+          {/* ✅ Top 5 Suchanfragen Tabelle */}
+          {data.topQueries && data.topQueries.length > 0 && (
+            <div className="mt-8 bg-white p-6 rounded-lg shadow-md">
+              <h3 className="text-xl font-semibold mb-4">Top 5 Suchanfragen</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="text-left text-gray-600 border-b">
+                      <th className="pb-3 pr-4 font-medium">Suchanfrage</th>
+                      <th className="pb-3 pr-4 font-medium text-right">Klicks</th>
+                      <th className="pb-3 pr-4 font-medium text-right">Impressionen</th>
+                      <th className="pb-3 pr-4 font-medium text-right">CTR</th>
+                      <th className="pb-3 font-medium text-right">Position</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.topQueries.map((query, index) => (
+                      <tr key={`${query.query}-${index}`} className="border-b hover:bg-gray-50">
+                        <td className="py-3 pr-4 text-gray-900">{query.query}</td>
+                        <td className="py-3 pr-4 text-right text-gray-700">
+                          {query.clicks.toLocaleString('de-DE')}
+                        </td>
+                        <td className="py-3 pr-4 text-right text-gray-700">
+                          {query.impressions.toLocaleString('de-DE')}
+                        </td>
+                        <td className="py-3 pr-4 text-right text-gray-700">
+                          {(query.ctr * 100).toFixed(2)}%
+                        </td>
+                        <td className="py-3 text-right text-gray-700">
+                          {query.position.toFixed(1)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+          
+          {/* Landingpage Approval Komponente */}
           <LandingpageApproval />
 
           {showNoDataHint && (
