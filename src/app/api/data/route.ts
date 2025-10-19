@@ -3,7 +3,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { getSearchConsoleData, getAnalyticsData } from '@/lib/google-api';
+import { getSearchConsoleData, getAnalyticsData, getTopQueries } from '@/lib/google-api'; // ✅ getTopQueries importieren
 import { sql } from '@vercel/postgres';
 import { User } from '@/types';
 
@@ -35,11 +35,13 @@ async function getDashboardDataForUser(user: Partial<User>) {
   startDatePrevious.setDate(startDatePrevious.getDate() - 29);
 
   try {
-    const [gscCurrent, gscPrevious, gaCurrent, gaPrevious] = await Promise.all([
+    // ✅ getTopQueries parallel mit den anderen API-Aufrufen abrufen
+    const [gscCurrent, gscPrevious, gaCurrent, gaPrevious, topQueries] = await Promise.all([
       getSearchConsoleData(user.gsc_site_url, formatDate(startDateCurrent), formatDate(endDateCurrent)),
       getSearchConsoleData(user.gsc_site_url, formatDate(startDatePrevious), formatDate(endDatePrevious)),
       getAnalyticsData(user.ga4_property_id, formatDate(startDateCurrent), formatDate(endDateCurrent)),
-      getAnalyticsData(user.ga4_property_id, formatDate(startDatePrevious), formatDate(endDatePrevious))
+      getAnalyticsData(user.ga4_property_id, formatDate(startDatePrevious), formatDate(endDatePrevious)),
+      getTopQueries(user.gsc_site_url, formatDate(startDateCurrent), formatDate(endDateCurrent)) // ✅ Neue Funktion
     ]);
     
     return {
@@ -66,7 +68,8 @@ async function getDashboardDataForUser(user: Partial<User>) {
         impressions: gscCurrent.impressions.daily,
         sessions: gaCurrent.sessions.daily,
         totalUsers: gaCurrent.totalUsers.daily,
-      }
+      },
+      topQueries // ✅ Top Queries zum Response hinzufügen
     };
   } catch (error) {
     console.error('[getDashboardDataForUser] Fehler beim Abrufen der Google-Daten:', error);
@@ -166,7 +169,7 @@ export async function GET() {
       
       const response = {
         role: 'BENUTZER',
-        ...dashboardData 
+        ...dashboardData // ✅ Enthält jetzt auch topQueries
       };
       return NextResponse.json(response);
     }
