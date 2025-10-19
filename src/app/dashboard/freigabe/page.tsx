@@ -1,7 +1,7 @@
 // src/app/dashboard/freigabe/page.tsx
 'use client';
 
-import { useState, useEffect, ReactNode } from 'react';
+import { useState, useEffect, ReactNode, useCallback } from 'react'; // useCallback hinzugefügt
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -44,28 +44,9 @@ export default function FreigabePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState('');
 
-  // Landingpages laden und Auto-Refresh einrichten
-  useEffect(() => {
-    if (authStatus === 'authenticated' && session?.user?.id) {
-      loadLandingpages(); // Initiales Laden
-
-      // Auto-Refresh alle 30 Sekunden
-      const interval = setInterval(loadLandingpages, 30000);
-      return () => clearInterval(interval); // Aufräumen bei Unmount
-    }
-  }, [authStatus, session?.user?.id]); // Abhängigkeiten korrigiert
-
-  // Filter anwenden, wenn sich Filter oder Landingpages ändern
-  useEffect(() => {
-    if (filterStatus === 'alle') {
-      setFilteredPages(landingpages);
-    } else {
-      setFilteredPages(landingpages.filter(lp => lp.status === filterStatus));
-    }
-  }, [filterStatus, landingpages]);
-
   // Funktion zum Laden der Landingpages
-  const loadLandingpages = async () => {
+  // KORREKTUR: Mit useCallback umschlossen
+  const loadLandingpages = useCallback(async () => {
     // isLoading nur beim ersten Laden setzen, nicht bei Refresh
     if (landingpages.length === 0) setIsLoading(true);
 
@@ -83,12 +64,30 @@ export default function FreigabePage() {
     } catch (error) {
       console.error('[Freigabe] Fehler:', error);
       setMessage(error instanceof Error ? error.message : 'Fehler beim Laden der Landingpages');
-      // Optional: Alte Daten bei Refresh-Fehler behalten statt leeren?
-      // setLandingpages([]);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [session?.user?.id, landingpages.length]); // Abhängigkeiten für useCallback
+
+  // Landingpages laden und Auto-Refresh einrichten
+  useEffect(() => {
+    if (authStatus === 'authenticated' && session?.user?.id) {
+      loadLandingpages(); // Initiales Laden
+
+      // Auto-Refresh alle 30 Sekunden
+      const interval = setInterval(loadLandingpages, 30000);
+      return () => clearInterval(interval); // Aufräumen bei Unmount
+    }
+  }, [authStatus, session?.user?.id, loadLandingpages]); // KORREKTUR: loadLandingpages hinzugefügt
+
+  // Filter anwenden, wenn sich Filter oder Landingpages ändern
+  useEffect(() => {
+    if (filterStatus === 'alle') {
+      setFilteredPages(landingpages);
+    } else {
+      setFilteredPages(landingpages.filter(lp => lp.status === filterStatus));
+    }
+  }, [filterStatus, landingpages]);
 
   // Funktion zum Aktualisieren des Status (nur Freigeben/Sperren)
   const updateStatus = async (landingpageId: number, newStatus: 'Freigegeben' | 'Gesperrt') => {
@@ -113,10 +112,6 @@ export default function FreigabePage() {
 
       setMessage(`Landingpage erfolgreich ${newStatus === 'Freigegeben' ? 'freigegeben' : 'gesperrt'}`);
       setTimeout(() => setMessage(''), 3000); // Erfolgsmeldung nach 3s ausblenden
-
-      // Kein erneutes Laden nötig dank optimistischer Aktualisierung
-      // await loadLandingpages();
-
     } catch (error) {
       setLandingpages(originalLandingpages); // Sicherstellen, dass Rollback passiert
       console.error('Fehler beim Status-Update:', error);
@@ -208,7 +203,8 @@ export default function FreigabePage() {
                   {pendingReviewCount} Landingpage{pendingReviewCount > 1 ? 's warten' : ' wartet'} auf Ihre Freigabe
                 </p>
                 <p className="text-sm text-yellow-700 mt-1">
-                  Bitte prüfen Sie die Seiten unter <span className="font-medium">"In Prüfung"</span> und geben Sie sie frei oder sperren Sie sie.
+                  {/* KORREKTUR: " durch &quot; ersetzt */}
+                  Bitte prüfen Sie die Seiten unter <span className="font-medium">&quot;In Prüfung&quot;</span> und geben Sie sie frei oder sperren Sie sie.
                 </p>
               </div>
             </div>
@@ -228,7 +224,6 @@ export default function FreigabePage() {
                     <button
                         key={option.value}
                         onClick={() => setFilterStatus(option.value)}
-                        // Minimalistischer Button-Stil mit aktiver Hervorhebung
                         className={`px-3 py-1.5 text-sm rounded-md font-medium border transition-colors flex items-center gap-1 ${
                             isActive
                             ? 'bg-indigo-600 text-white border-indigo-600'
@@ -258,14 +253,12 @@ export default function FreigabePage() {
              </p>
           </div>
         ) : (
-          // Kartenansicht für Landingpages
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {filteredPages.map((lp) => (
               <div
                 key={lp.id}
                 className="bg-white rounded-lg shadow-md border border-gray-200 hover:shadow-lg transition-shadow overflow-hidden"
               >
-                {/* Header der Karte */}
                 <div className={`p-4 border-b ${getStatusStyle(lp.status)} flex items-center justify-between`}>
                   <div className="flex items-center gap-2 font-semibold">
                      {getStatusIcon(lp.status)}
@@ -275,8 +268,6 @@ export default function FreigabePage() {
                      ID: {lp.id}
                   </span>
                 </div>
-
-                {/* Inhalt der Karte */}
                 <div className="p-5 space-y-4">
                   <div>
                     <h3 className="text-lg font-semibold text-gray-800 mb-1">
@@ -292,8 +283,6 @@ export default function FreigabePage() {
                       {lp.url}
                     </a>
                   </div>
-
-                  {/* Details (Suchvolumen, Position etc.) */}
                   <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
                     {lp.suchvolumen != null && (
                       <div>
@@ -320,8 +309,6 @@ export default function FreigabePage() {
                       </div>
                     )}
                   </div>
-
-                  {/* Aktions-Buttons */}
                   <div className="pt-4 border-t border-gray-100 flex gap-2 justify-end">
                     {lp.status === 'In Prüfung' && (
                       <>
@@ -367,7 +354,6 @@ export default function FreigabePage() {
           </div>
         )}
 
-        {/* Info-Box unten */}
         <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-6 text-sm text-blue-800 space-y-3">
            <h3 className="font-semibold text-blue-900 flex items-center gap-2">
             <InfoCircleFill size={18}/> Status-Bedeutungen
