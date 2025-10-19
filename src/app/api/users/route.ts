@@ -86,18 +86,41 @@ export async function GET(request: Request) {
 // POST: Neuen Benutzer erstellen
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
-  if (session?.user?.role !== 'ADMIN' && session?.user?.role !== 'SUPERADMIN') {
+  
+  // Prüfen, ob der Benutzer eingeloggt ist UND Admin oder Superadmin ist
+  if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
     return NextResponse.json({ message: "Zugriff verweigert" }, { status: 403 });
   }
 
   try {
     const body = await req.json();
-    const createdByAdminId = session.user.id; 
+    const createdByAdminId = session.user.id;
     const { email, password, role, domain, gsc_site_url, ga4_property_id } = body;
 
     if (!email || !password || !role) {
       return NextResponse.json({ message: 'E-Mail, Passwort und Rolle sind erforderlich' }, { status: 400 });
     }
+
+    // --- NEUE BERECHTIGUNGSPRÜFUNG ---
+    const loggedInUserRole = session.user.role;
+    const roleToCreate = role;
+
+    // 1. Nur Superadmin darf Admins erstellen
+    if (roleToCreate === 'ADMIN' && loggedInUserRole !== 'SUPERADMIN') {
+      return NextResponse.json({ message: 'Nur Superadmins dürfen Admins erstellen.' }, { status: 403 });
+    }
+
+    // 2. Admins dürfen NUR Kunden (Benutzer) erstellen
+    if (loggedInUserRole === 'ADMIN' && roleToCreate !== 'BENUTZER') {
+       return NextResponse.json({ message: 'Admins dürfen nur Kunden (Benutzer) erstellen.' }, { status: 403 });
+    }
+
+    // 3. Superadmin darf keine Superadmins erstellen (Sicherheitsmaßnahme)
+    if (roleToCreate === 'SUPERADMIN') {
+       return NextResponse.json({ message: 'Superadmins können nicht über diese API erstellt werden.' }, { status: 403 });
+    }
+    // --- ENDE BERECHTIGUNGSPRÜFUNG ---
+
 
     const { rows } = await sql<User>`SELECT * FROM users WHERE email = ${email}`;
     if (rows.length > 0) {
@@ -107,8 +130,8 @@ export async function POST(req: Request) {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const { rows: newUsers } = await sql<User>`
-      INSERT INTO users (email, password, role, domain, gsc_site_url, ga4_property_id, "createdByAdminId") 
-      VALUES (${email}, ${hashedPassword}, ${role}, ${domain}, ${gsc_site_url}, ${ga4_property_id}, ${createdByAdminId}) 
+      INSERT INTO users (email, password, role, domain, gsc_site_url, ga4_property_id, "createdByAdminId")
+      VALUES (${email}, ${hashedPassword}, ${roleToCreate}, ${domain}, ${gsc_site_url}, ${ga4_property_id}, ${createdByAdminId})
       RETURNING id, email, role, domain`;
 
     return NextResponse.json(newUsers[0], { status: 201 });
