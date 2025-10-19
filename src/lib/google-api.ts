@@ -138,7 +138,6 @@ export async function getSearchConsoleData(
 
 /**
  * Ruft die Top 5 Suchanfragen (nach Klicks) von der Google Search Console ab.
- * KORRIGIERTE VERSION
  */
 export async function getTopQueries(
   siteUrl: string,
@@ -156,10 +155,9 @@ export async function getTopQueries(
         endDate,
         dimensions: ["query"], // Dimension ist 'query'
         type: "web",
-        rowLimit: 100,         // 1. MEHR Zeilen abrufen (z.B. 100)
+        rowLimit: 100, // Mehr Zeilen abrufen für bessere Auswahl
         dataState: "all",
         aggregationType: "byProperty",
-        // 2. 'orderBy' wurde ENTFERNT, da es hier nicht unterstützt wird
       },
     });
 
@@ -172,14 +170,14 @@ export async function getTopQueries(
       position: row.position || 0,
     })) || [];
 
-    // 3. Im Code sortieren und die Top 5 auswählen
+    // Im Code sortieren und die Top 5 auswählen
     return allQueries
       .sort((a, b) => b.clicks - a.clicks)
       .slice(0, 5);
 
   } catch (error: unknown) {
     console.error("Fehler beim Abrufen der Top GSC Queries:", error);
-     // Detailliertere Fehlermeldung für Debugging
+    // Detailliertere Fehlermeldung für Debugging
     console.error("GSC Top Queries API Request Details:", { siteUrl, startDate, endDate });
     // Bei Fehler leeres Array zurückgeben, anstatt den gesamten Prozess abzubrechen
     return [];
@@ -213,7 +211,7 @@ export async function getAnalyticsData(
           dimension: {
             dimensionName: 'date',
           },
-          orderType: 'ALPHANUMERIC', // Für Datumsdimensionen
+          desc: false, // false = aufsteigend, true = absteigend
         }],
       },
     });
