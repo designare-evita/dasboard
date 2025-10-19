@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 import { sql } from '@vercel/postgres';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { getSearchConsoleData, getAnalyticsData } from '@/lib/google-api';
+import { getSearchConsoleData, getAnalyticsData, getTopQueries } from '@/lib/google-api'; // ✅ getTopQueries importieren
 import { User } from '@/types';
 import bcrypt from 'bcryptjs';
 
@@ -23,7 +23,7 @@ function calculateChange(current: number, previous: number): number {
 async function getProjectDashboardData(user: Partial<User>) {
   if (!user.gsc_site_url || !user.ga4_property_id) {
     console.warn(`[getProjectDashboardData] Benutzer ${user.email} hat keine GSC/GA4-Daten konfiguriert.`);
-    return { kpis: {}, charts: {} };
+    return { kpis: {}, charts: {}, topQueries: [] };
   }
 
   const endDateCurrent = new Date();
@@ -37,11 +37,13 @@ async function getProjectDashboardData(user: Partial<User>) {
   startDatePrevious.setDate(startDatePrevious.getDate() - 29);
 
   try {
-    const [gscCurrent, gscPrevious, gaCurrent, gaPrevious] = await Promise.all([
+    // ✅ getTopQueries parallel mit den anderen API-Aufrufen abrufen
+    const [gscCurrent, gscPrevious, gaCurrent, gaPrevious, topQueries] = await Promise.all([
       getSearchConsoleData(user.gsc_site_url, formatDate(startDateCurrent), formatDate(endDateCurrent)),
       getSearchConsoleData(user.gsc_site_url, formatDate(startDatePrevious), formatDate(endDatePrevious)),
       getAnalyticsData(user.ga4_property_id, formatDate(startDateCurrent), formatDate(endDateCurrent)),
       getAnalyticsData(user.ga4_property_id, formatDate(startDatePrevious), formatDate(endDatePrevious)),
+      getTopQueries(user.gsc_site_url, formatDate(startDateCurrent), formatDate(endDateCurrent)), // ✅ Top Queries abrufen
     ]);
 
     return {
@@ -69,10 +71,11 @@ async function getProjectDashboardData(user: Partial<User>) {
         sessions: gaCurrent.sessions.daily,
         totalUsers: gaCurrent.totalUsers.daily,
       },
+      topQueries, // ✅ Top Queries zum Response hinzufügen
     };
   } catch (error) {
     console.error(`[getProjectDashboardData] Fehler für ${user.email}:`, error);
-    return { kpis: {}, charts: {}, error: (error as Error).message };
+    return { kpis: {}, charts: {}, topQueries: [], error: (error as Error).message };
   }
 }
 
