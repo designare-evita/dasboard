@@ -131,12 +131,7 @@ export default function AdminPage() {
           <h1 className="text-3xl font-bold text-gray-900">Admin-Bereich</h1>
           <p className="text-gray-600 mt-2">Verwalten Sie Benutzer und Projekte</p>
         </div>
-        {/* Hier könnte der Link zum Redaktionsplan hin, falls gewünscht */}
-         <Button asChild variant="default" size="default">
-           <Link href="/admin/redaktionsplan">
-             Zum Redaktionsplan
-           </Link>
-         </Button>
+      
       </div>
 
       {/* Überarbeitete Nachrichtenanzeige */}
