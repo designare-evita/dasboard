@@ -1,244 +1,287 @@
-// src/app/page.tsx
+// src/app/admin/page.tsx
 'use client';
 
 import { useSession } from 'next-auth/react';
-import useApiData from '@/hooks/use-api-data';
-import KpiCard from '@/components/kpi-card';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState, FormEvent } from 'react';
 import Link from 'next/link';
-import { useState } from 'react';
-import KpiTrendChart from '@/components/charts/KpiTrendChart';
-import LandingpageApproval from '@/components/LandingpageApproval';
+import { User } from '@/types';
+import { Button } from '@/components/ui/button'; // Globale Button-Komponente importiert
+import { 
+  Pencil, 
+  Trash, 
+  PersonPlus, 
+  ArrowRepeat, 
+  InfoCircleFill, 
+  ExclamationTriangleFill,
+  People
+} from 'react-bootstrap-icons'; // Icons importiert
+// NotificationBell wurde nicht verwendet und entfernt
 
-// --- Typ-Definitionen ---
+export default function AdminPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
 
-interface KpiDatum {
-  value: number;
-  change: number;
-}
+  // State management for the component
+  const [message, setMessage] = useState<string>('');
+  const [users, setUsers] = useState<User[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState<boolean>(true);
+  const [selectedRole, setSelectedRole] = useState<'BENUTZER' | 'ADMIN'>('BENUTZER');
 
-interface ChartPoint {
-  date: string;
-  value: number;
-}
+  // Check if the current user is a Superadmin
+  const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
 
-interface TopQueryData {
-  query: string;
-  clicks: number;
-  impressions: number;
-  ctr: number;
-  position: number;
-}
-
-interface KpiData {
-  clicks: KpiDatum;
-  impressions: KpiDatum;
-  sessions: KpiDatum;
-  totalUsers: KpiDatum;
-}
-
-interface ChartData {
-  clicks: ChartPoint[];
-  impressions: ChartPoint[];
-  sessions: ChartPoint[];
-  totalUsers: ChartPoint[];
-}
-
-interface Project {
-  id: string;
-  email: string;
-  domain: string;
-  gsc_site_url?: string;
-  ga4_property_id?: string;
-}
-
-interface AdminResponse {
-  role: 'SUPERADMIN' | 'ADMIN';
-  projects: Project[];
-}
-
-interface CustomerResponse {
-  role: 'BENUTZER';
-  kpis: Partial<KpiData>;
-  charts: Partial<ChartData>;
-  topQueries?: TopQueryData[];
-}
-
-type ApiResponse = AdminResponse | CustomerResponse;
-type ActiveKpi = 'clicks' | 'impressions' | 'sessions' | 'totalUsers';
-
-function isAdmin(data: ApiResponse | null | undefined): data is AdminResponse {
-  return !!data && 'role' in data && (data.role === 'SUPERADMIN' || data.role === 'ADMIN');
-}
-
-function isCustomer(data: ApiResponse | null | undefined): data is CustomerResponse {
-  return !!data && 'role' in data && data.role === 'BENUTZER';
-}
-
-const ZERO_KPI: KpiDatum = { value: 0, change: 0 };
-
-function normalizeKpis(input?: Partial<KpiData>): KpiData {
-  return {
-    clicks: input?.clicks ?? ZERO_KPI,
-    impressions: input?.impressions ?? ZERO_KPI,
-    sessions: input?.sessions ?? ZERO_KPI,
-    totalUsers: input?.totalUsers ?? ZERO_KPI,
+  // Fetches the list of users from the API
+  const fetchUsers = async (): Promise<void> => {
+    setIsLoadingUsers(true);
+    try {
+      const response = await fetch('/api/users');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Fehler beim Laden der Benutzerliste.');
+      }
+      const data: User[] = await response.json();
+      setUsers(data);
+    } catch (error) {
+      console.error('[AdminPage] Fetch Users Error:', error);
+      setMessage(error instanceof Error ? `Fehler: ${error.message}` : 'Fehler: Beim Verbinden mit der API.');
+    } finally {
+      setIsLoadingUsers(false);
+    }
   };
-}
 
-export default function DashboardPage() {
-  const { status } = useSession();
-  const { data, isLoading, error } = useApiData<ApiResponse>('/api/data');
-  const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
+  // Load users when the component mounts and the session is authenticated
+  useEffect(() => {
+    if (status === 'authenticated') {
+      void fetchUsers();
+    }
+  }, [status]);
 
-  if (status === 'loading' || isLoading) {
+  // Handles the form submission for creating a new user
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>): Promise<void> => {
+    e.preventDefault();
+    setMessage('Erstelle Benutzer...');
+    
+    const formData = new FormData(e.currentTarget);
+    const rawData = Object.fromEntries(formData) as Record<string, unknown>;
+    const payload = { ...rawData, role: selectedRole };
+
+    try {
+      const response = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.message || 'Ein unbekannter Fehler ist aufgetreten.');
+      }
+
+      setMessage(`Benutzer "${result.email}" erfolgreich erstellt.`);
+      (e.target as HTMLFormElement).reset();
+      setSelectedRole('BENUTZER'); // Reset role selection
+      await fetchUsers(); // Refresh the user list
+    } catch (error) {
+        setMessage(`Fehler: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`);
+    }
+  };
+
+  // Handles deleting a user
+  const handleDelete = async (userId: string): Promise<void> => {
+    if (!window.confirm('Sind Sie sicher, dass Sie diesen Nutzer endgültig löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.')) {
+        return;
+    }
+
+    try {
+      const response = await fetch(`/api/users/${userId}`, { method: 'DELETE' });
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || 'Fehler beim Löschen');
+      }
+      
+      setMessage('Benutzer erfolgreich gelöscht.');
+      await fetchUsers(); // Refresh the user list
+    } catch (error) {
+      setMessage(`Fehler: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`);
+    }
+  };
+
+  // Authentication and authorization check
+  if (status === 'loading') {
     return (
-      <div className="p-8 text-center">
-        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
-        <p className="mt-2 text-gray-600">Dashboard wird geladen...</p>
-      </div>
+        <div className="p-8 text-center flex items-center justify-center min-h-screen">
+          <ArrowRepeat className="animate-spin text-indigo-600 mr-2" size={24} />
+          Lade...
+        </div>
     );
   }
-
-  if (error) {
-    return (
-      <div className="p-8 text-center text-red-600 bg-red-50 rounded-lg">
-        <h3 className="font-bold">Fehler beim Laden der Dashboard-Daten</h3>
-        <p className="text-sm mt-1">{error}</p>
-      </div>
-    );
+  if (status === 'unauthenticated' || !session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
+    router.push('/login');
+    return null;
   }
 
-  if (isAdmin(data)) {
-    return (
-      <div className="p-8 bg-gray-50 min-h-screen">
-        <main className="mt-6">
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <h2 className="text-2xl font-bold mb-4">
-              {data.role === 'SUPERADMIN' ? 'Alle Kundenprojekte' : 'Meine Kundenprojekte'}
-            </h2>
-            {data.projects.length === 0 ? (
-              <p className="text-gray-500">Keine Projekte gefunden.</p>
-            ) : (
-              <div className="space-y-3">
-                {data.projects.map((project) => (
-                  <div key={project.id} className="p-4 border rounded-md hover:shadow-lg transition-shadow flex justify-between items-center">
-                    <div>
-                      <p className="font-semibold text-lg text-gray-800">{project.domain}</p>
-                      <p className="text-sm text-gray-500">{project.email}</p>
-                    </div>
-                    <div>
-                      <Link href={`/projekt/${project.id}`} className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors">
-                        Dashboard ansehen
-                      </Link>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </main>
-      </div>
-    );
-  }
-
-  if (isCustomer(data)) {
-    const kpis = normalizeKpis(data.kpis);
-    const chartSeries: ChartPoint[] = (data.charts && data.charts[activeKpi]) ? data.charts[activeKpi]! : [];
-    const showNoDataHint = !data.kpis || Object.keys(data.kpis).length === 0;
-
-    const tabMeta: Record<ActiveKpi, { title: string; color: string }> = {
-      clicks: { title: 'Klicks', color: '#3b82f6' },
-      impressions: { title: 'Impressionen', color: '#8b5cf6' },
-      sessions: { title: 'Sitzungen', color: '#10b981' },
-      totalUsers: { title: 'Nutzer', color: '#f59e0b' },
-    };
-
-    return (
-      <div className="p-8 bg-gray-50 min-h-screen">
-        <main className="mt-6">
-          <h2 className="text-2xl font-bold mb-6">Ihr Dashboard</h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <KpiCard title="Klicks" isLoading={isLoading} value={kpis.clicks.value} change={kpis.clicks.change} />
-            <KpiCard title="Impressionen" isLoading={isLoading} value={kpis.impressions.value} change={kpis.impressions.change} />
-            <KpiCard title="Sitzungen" isLoading={isLoading} value={kpis.sessions.value} change={kpis.sessions.change} />
-            <KpiCard title="Nutzer" isLoading={isLoading} value={kpis.totalUsers.value} change={kpis.totalUsers.change} />
-          </div>
-          
-          <div className="mt-8 bg-white p-6 rounded-lg shadow-md">
-            <div className="flex border-b border-gray-200">
-              {(Object.keys(tabMeta) as ActiveKpi[]).map((key) => (
-                <button
-                  key={key}
-                  onClick={() => setActiveKpi(key)}
-                  className={`py-2 px-4 text-sm font-medium transition-colors ${
-                    activeKpi === key
-                      ? 'border-b-2 border-indigo-500 text-indigo-600'
-                      : 'text-gray-500 hover:text-gray-700 hover:border-gray-300 border-b-2 border-transparent'
-                  }`}
-                >
-                  {tabMeta[key].title}
-                </button>
-              ))}
-            </div>
-            <div className="mt-4 h-72">
-              <KpiTrendChart data={chartSeries} color={tabMeta[activeKpi].color} />
-            </div>
-          </div>
-          
-          {data.topQueries && data.topQueries.length > 0 && (
-            <div className="mt-8 bg-white p-6 rounded-lg shadow-md">
-              <h3 className="text-xl font-semibold mb-4">Top 5 Suchanfragen</h3>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="text-left text-gray-600 border-b">
-                      <th className="pb-3 pr-4 font-medium">Suchanfrage</th>
-                      <th className="pb-3 pr-4 font-medium text-right">Klicks</th>
-                      <th className="pb-3 pr-4 font-medium text-right">Impressionen</th>
-                      <th className="pb-3 pr-4 font-medium text-right">CTR</th>
-                      <th className="pb-3 font-medium text-right">Position</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.topQueries.map((query, index) => (
-                      <tr key={`${query.query}-${index}`} className="border-b hover:bg-gray-50">
-                        <td className="py-3 pr-4 text-gray-900">{query.query}</td>
-                        <td className="py-3 pr-4 text-right text-gray-700">
-                          {query.clicks.toLocaleString('de-DE')}
-                        </td>
-                        <td className="py-3 pr-4 text-right text-gray-700">
-                          {query.impressions.toLocaleString('de-DE')}
-                        </td>
-                        <td className="py-3 pr-4 text-right text-gray-700">
-                          {(query.ctr * 100).toFixed(2)}%
-                        </td>
-                        <td className="py-3 text-right text-gray-700">
-                          {query.position.toFixed(1)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-          
-          <LandingpageApproval />
-
-          {showNoDataHint && (
-            <p className="mt-6 text-sm text-center text-gray-500">
-              Hinweis: Für dieses Projekt wurden noch keine KPI-Daten geliefert. Es werden vorübergehend Platzhalter-Werte angezeigt.
-            </p>
-          )}
-        </main>
-      </div>
-    );
-  }
-
+  // Render the admin page UI
   return (
-    <div className="p-8 text-center text-gray-600">
-      <p>Keine Daten zur Anzeige verfügbar oder unbekannte Benutzerrolle.</p>
+    <div className="p-8 max-w-6xl mx-auto bg-gray-50 min-h-screen">
+      <div className="mb-8 flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Admin-Bereich</h1>
+          <p className="text-gray-600 mt-2">Verwalten Sie Benutzer und Projekte</p>
+        </div>
+        {/* Hier könnte der Link zum Redaktionsplan hin, falls gewünscht */}
+         <Button asChild variant="default" size="default">
+           <Link href="/admin/redaktionsplan">
+             Zum Redaktionsplan
+           </Link>
+         </Button>
+      </div>
+
+      {/* Überarbeitete Nachrichtenanzeige */}
+      {message && (
+        <div className={`my-4 p-4 border rounded-md flex items-center gap-2 ${
+          message.startsWith('Fehler:') 
+          ? 'bg-red-50 border-red-200 text-red-800' 
+          : 'bg-blue-50 border-blue-200 text-blue-800'
+        }`}>
+          {message.startsWith('Fehler:') ? <ExclamationTriangleFill size={18}/> : <InfoCircleFill size={18}/>}
+          {message}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-6">
+        {/* User Creation Form */}
+        <div className="bg-white p-6 rounded-lg shadow-md h-fit border border-gray-200">
+          <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+            <PersonPlus size={22} /> Neuen Nutzer anlegen
+          </h2>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Rolle</label>
+              <select
+                name="role"
+                value={selectedRole}
+                onChange={(e) => setSelectedRole(e.target.value as 'BENUTZER' | 'ADMIN')}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+              >
+                <option value="BENUTZER">Kunde (Benutzer)</option>
+                {isSuperAdmin && <option value="ADMIN">Admin</option>}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700">E-Mail</label>
+              <input
+                name="email"
+                type="email"
+                required
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Initial-Passwort</label>
+              <input
+                name="password"
+                type="text"
+                required
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+              />
+            </div>
+
+            {selectedRole === 'BENUTZER' && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Domain (z. B. kundendomain.at)</label>
+                  <input
+                    name="domain"
+                    type="text"
+                    required
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">GSC Site URL (z. B. https://kundendomain.at/)</label>
+                  <input
+                    name="gsc_site_url"
+                    type="text"
+                    required
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">GA4 Property ID (nur die Nummer)</label>
+                  <input
+                    name="ga4_property_id"
+                    type="text"
+                    required
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Dieser Button bleibt blau, da er die primäre Aktion ist und nicht 'default' sein soll */}
+            <button 
+              type="submit" 
+              className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+            >
+              <PersonPlus size={18} />
+              {selectedRole === 'BENUTZER' ? 'Kunden erstellen' : 'Admin erstellen'}
+            </button>
+          </form>
+        </div>
+
+        {/* Existing Users List */}
+        <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
+          <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+            <People size={22} /> Vorhandene Nutzer
+          </h2>
+          {isLoadingUsers ? (
+            <div className="flex items-center text-gray-500">
+              <ArrowRepeat className="animate-spin text-indigo-600 mr-2" size={18} />
+              Lade Benutzer...
+            </div>
+          ) : users.length === 0 ? (
+            <div className="text-center text-gray-400 p-8">
+              <People size={32} className="mx-auto mb-2" />
+              <p>Keine Benutzer gefunden.</p>
+            </div>
+          ) : (
+            <ul className="space-y-3">
+              {users.map((user) => (
+                  <li key={user.id} className="p-3 border rounded-md flex justify-between items-center transition-colors hover:bg-gray-50">
+                    <div className="flex-1 overflow-hidden">
+                      <p className="font-semibold truncate" title={user.email}>{user.email}</p>
+                      {user.domain && (
+                        <p className="text-sm text-blue-600 font-medium truncate">{user.domain}</p>
+                      )}
+                      <p className="text-xs uppercase font-medium text-gray-500">{user.role}</p>
+                    </div>
+                    
+                    {/* Überarbeitete Buttons */}
+                    <div className="flex gap-2 flex-shrink-0 ml-4">
+                      <Button asChild variant="default" size="default">
+                        <Link href={`/admin/edit/${user.id}`}>
+                          <Pencil size={16} className="mr-1.5" /> Bearbeiten
+                        </Link>
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="default"
+                        onClick={() => void handleDelete(user.id)}
+                      >
+                        <Trash size={16} className="mr-1.5" /> Löschen
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+            </ul>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
