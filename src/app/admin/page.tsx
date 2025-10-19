@@ -3,99 +3,117 @@
 
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, FormEvent } from 'react';
 import Link from 'next/link';
 import { User } from '@/types';
-import NotificationBell from '@/components/NotificationBell';
+import NotificationBell from '../../components/NotificationBell';
 
 export default function AdminPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
 
+  // State management for the component
   const [message, setMessage] = useState<string>('');
   const [users, setUsers] = useState<User[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState<boolean>(true);
   const [selectedRole, setSelectedRole] = useState<'BENUTZER' | 'ADMIN'>('BENUTZER');
 
-  // Benutzer laden
+  // Check if the current user is a Superadmin
+  const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
+
+  // Fetches the list of users from the API
   const fetchUsers = async (): Promise<void> => {
     setIsLoadingUsers(true);
     try {
-      // ✅ OHNE Parameter = alle Benutzer (Kunden + Admins)
+      // The API endpoint handles permissions (Admins only see their assigned users)
       const response = await fetch('/api/users');
       if (!response.ok) {
-        setMessage('Fehler beim Laden der Benutzerliste.');
-        return;
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Fehler beim Laden der Benutzerliste.');
       }
       const data: User[] = await response.json();
-      console.log('[AdminPage] Geladene Benutzer:', data);
       setUsers(data);
     } catch (error) {
-      console.error('[AdminPage] Fehler beim Laden:', error);
-      setMessage('Fehler beim Verbinden mit der API.');
+      console.error('[AdminPage] Fetch Users Error:', error);
+      setMessage(error instanceof Error ? error.message : 'Fehler beim Verbinden mit der API.');
     } finally {
       setIsLoadingUsers(false);
     }
   };
 
+  // Load users when the component mounts and the session is authenticated
   useEffect(() => {
     if (status === 'authenticated') {
       void fetchUsers();
     }
   }, [status]);
 
-  // Benutzer anlegen
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
+  // Handles the form submission for creating a new user
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
     setMessage('Erstelle Benutzer...');
+    
     const formData = new FormData(e.currentTarget);
-    const raw = Object.fromEntries(formData) as Record<string, unknown>;
-    const payload = { ...raw, role: selectedRole };
+    const rawData = Object.fromEntries(formData) as Record<string, unknown>;
 
-    const response = await fetch('/api/users', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+    // Ensure the role from the state is used
+    const payload = { ...rawData, role: selectedRole };
 
-    const result: { message?: string } = await response.json();
-    if (response.ok) {
-      setMessage(`Erfolg! ${result.message ?? ''}`);
+    try {
+      const response = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.message || 'Ein unbekannter Fehler ist aufgetreten.');
+      }
+
+      setMessage(`Benutzer "${result.email}" erfolgreich erstellt.`);
       (e.target as HTMLFormElement).reset();
-      setSelectedRole('BENUTZER');
-      void fetchUsers();
-    } else {
-      setMessage(`Fehler: ${result.message ?? ''}`);
+      setSelectedRole('BENUTZER'); // Reset role selection
+      await fetchUsers(); // Refresh the user list
+    } catch (error) {
+        setMessage(`Fehler: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`);
     }
   };
 
-  // Benutzer löschen
+  // Handles deleting a user
   const handleDelete = async (userId: string): Promise<void> => {
-    console.log('[AdminPage] Lösche Benutzer mit ID:', userId);
-    const confirmed = window.confirm('Sind Sie sicher, dass Sie diesen Nutzer endgültig löschen möchten?');
-    if (!confirmed) return;
+    if (!window.confirm('Sind Sie sicher, dass Sie diesen Nutzer endgültig löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.')) {
+        return;
+    }
 
-    const response = await fetch(`/api/users/${userId}`, { method: 'DELETE' });
-    const result: { message?: string } = await response.json();
+    try {
+      const response = await fetch(`/api/users/${userId}`, { method: 'DELETE' });
+      const result = await response.json();
 
-    if (response.ok) {
+      if (!response.ok) {
+        throw new Error(result.message || 'Fehler beim Löschen');
+      }
+      
       setMessage('Benutzer erfolgreich gelöscht.');
-      void fetchUsers();
-    } else {
-      setMessage(`Fehler: ${result.message ?? ''}`);
+      await fetchUsers(); // Refresh the user list
+    } catch (error) {
+      setMessage(`Fehler: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`);
     }
   };
 
-  // Auth-Check
-  if (status === 'loading') return <div className="p-8 text-center">Lade...</div>;
-  if (status === 'unauthenticated' || (session?.user?.role !== 'ADMIN' && session?.user?.role !== 'SUPERADMIN')) {
-    router.push('/');
+  // Authentication and authorization check
+  if (status === 'loading') {
+    return <div className="p-8 text-center">Lade...</div>;
+  }
+  if (status === 'unauthenticated' || !session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
+    router.push('/login');
     return null;
   }
 
+  // Render the admin page UI
   return (
     <div className="p-8 max-w-6xl mx-auto">
-      {/* Header mit Benachrichtigungen */}
       <div className="mb-8 flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Admin-Bereich</h1>
@@ -117,7 +135,7 @@ export default function AdminPage() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-6">
-        {/* Formular */}
+        {/* User Creation Form */}
         <div className="bg-white p-6 rounded-lg shadow-md h-fit">
           <h2 className="text-xl font-bold mb-4">Neuen Nutzer anlegen</h2>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -129,8 +147,9 @@ export default function AdminPage() {
                 onChange={(e) => setSelectedRole(e.target.value as 'BENUTZER' | 'ADMIN')}
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               >
-                <option value="BENUTZER">Kunde</option>
-                <option value="ADMIN">Admin</option>
+                <option value="BENUTZER">Kunde (Benutzer)</option>
+                {/* Only Superadmins can see the option to create an Admin */}
+                {isSuperAdmin && <option value="ADMIN">Admin</option>}
               </select>
             </div>
 
@@ -154,6 +173,7 @@ export default function AdminPage() {
               />
             </div>
 
+            {/* Fields only for "BENUTZER" (Customer) role */}
             {selectedRole === 'BENUTZER' && (
               <>
                 <div>
@@ -161,27 +181,25 @@ export default function AdminPage() {
                   <input
                     name="domain"
                     type="text"
-                    required={selectedRole === 'BENUTZER'}
+                    required
                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
-
                 <div>
                   <label className="block text-sm font-medium text-gray-700">GSC Site URL (z. B. https://kundendomain.at/)</label>
                   <input
                     name="gsc_site_url"
                     type="text"
-                    required={selectedRole === 'BENUTZER'}
+                    required
                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
-
                 <div>
                   <label className="block text-sm font-medium text-gray-700">GA4 Property ID (nur die Nummer)</label>
                   <input
                     name="ga4_property_id"
                     type="text"
-                    required={selectedRole === 'BENUTZER'}
+                    required
                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
@@ -194,7 +212,7 @@ export default function AdminPage() {
           </form>
         </div>
 
-        {/* Benutzerliste */}
+        {/* Existing Users List */}
         <div className="bg-white p-6 rounded-lg shadow-md">
           <h2 className="text-xl font-bold mb-4">Vorhandene Nutzer</h2>
           {isLoadingUsers ? (
@@ -203,24 +221,18 @@ export default function AdminPage() {
             <p className="text-gray-500">Keine Benutzer gefunden.</p>
           ) : (
             <ul className="space-y-3">
-              {users.map((user: User) => {
-                console.log('[AdminPage] User:', user.email, 'ID:', user.id, 'ID-Typ:', typeof user.id);
-                
-                return (
+              {users.map((user) => (
                   <li key={user.id} className="p-3 border rounded-md flex justify-between items-center">
-                    <div className="flex-1">
-                      <p className="font-semibold">{user.email}</p>
+                    <div className="flex-1 overflow-hidden">
+                      <p className="font-semibold truncate" title={user.email}>{user.email}</p>
                       {user.domain && (
-                        <p className="text-sm text-blue-600 font-medium">{user.domain}</p>
+                        <p className="text-sm text-blue-600 font-medium truncate">{user.domain}</p>
                       )}
                       <p className="text-sm text-gray-500">{user.role}</p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-shrink-0 ml-4">
                       <Link
                         href={`/admin/edit/${user.id}`}
-                        onClick={() => {
-                          console.log('[AdminPage] Navigiere zu Edit-Seite für:', user.email, 'mit ID:', user.id);
-                        }}
                         className="bg-gray-200 text-gray-700 px-3 py-1 rounded hover:bg-gray-300 text-sm"
                       >
                         Bearbeiten
@@ -233,8 +245,7 @@ export default function AdminPage() {
                       </button>
                     </div>
                   </li>
-                );
-              })}
+                ))}
             </ul>
           )}
         </div>
@@ -242,3 +253,4 @@ export default function AdminPage() {
     </div>
   );
 }
+
