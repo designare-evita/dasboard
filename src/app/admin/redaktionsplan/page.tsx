@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import NotificationBell from '@/components/NotificationBell';
 import type { User } from '@/types';
+import { FileEarmarkText, Search, SlashCircleFill, CheckCircleFill, InfoCircleFill, ExclamationTriangleFill } from 'react-bootstrap-icons';
 
 type Landingpage = {
   id: number;
