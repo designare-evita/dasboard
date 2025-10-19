@@ -177,12 +177,6 @@ export default function FreigabePage() {
               Geben Sie hier Landingpages frei oder sperren Sie diese.
             </p>
           </div>
-          <Link
-            href="/dashboard"
-            className="text-sm text-indigo-600 hover:underline flex items-center gap-1"
-          >
-            ← Zurück zum Dashboard
-          </Link>
         </div>
 
         {/* Nachrichtenanzeige */}
