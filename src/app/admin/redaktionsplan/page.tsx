@@ -1,7 +1,7 @@
 // src/app/admin/redaktionsplan/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, ReactNode } from 'react'; // ReactNode hier hinzugefügt
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -177,7 +177,7 @@ export default function RedaktionsplanPage() {
   };
 
    // Definiert die Filter-Buttons
-  const filterOptions: { label: string; value: LandingpageStatus | 'alle'; icon: JSX.Element }[] = [
+  const filterOptions: { label: string; value: LandingpageStatus | 'alle'; icon: ReactNode }[] = [ // HIER WAR DER FEHLER
     { label: 'Alle', value: 'alle', icon: <ListTask className="inline-block mr-1" size={16}/> },
     { label: 'Offen', value: 'Offen', icon: <FileEarmarkText className="inline-block mr-1" size={16}/> },
     { label: 'In Prüfung', value: 'In Prüfung', icon: <Search className="inline-block mr-1" size={16}/> },
