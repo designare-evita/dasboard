@@ -7,7 +7,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { User } from '@/types';
 import { ArrowRepeat } from 'react-bootstrap-icons';
-import NotificationBell from '@/components/NotificationBell';
+import KpiCard from '@/components/kpi-card';
+import KpiTrendChart from '@/components/charts/KpiTrendChart';
 import LandingpageApproval from '@/components/LandingpageApproval';
 
 // Typen für Dashboard-Daten
@@ -20,6 +21,14 @@ type ChartData = {
   date: string;
   value: number;
 }[];
+
+type TopQueryData = {
+  query: string;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  position: number;
+};
 
 type DashboardData = {
   kpis: {
@@ -34,7 +43,10 @@ type DashboardData = {
     sessions: ChartData;
     totalUsers: ChartData;
   };
+  topQueries?: TopQueryData[];
 };
+
+type ActiveKpi = 'clicks' | 'impressions' | 'sessions' | 'totalUsers';
 
 export default function HomePage() {
   const { data: session, status } = useSession();
@@ -48,6 +60,7 @@ export default function HomePage() {
   
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
 
   useEffect(() => {
     if (status === 'authenticated') {
@@ -95,79 +108,19 @@ export default function HomePage() {
     return null;
   }
 
-  const formatNumber = (num: number) => {
-    return new Intl.NumberFormat('de-DE').format(num);
+  const tabMeta: Record<ActiveKpi, { title: string; color: string }> = {
+    clicks: { title: 'Klicks', color: '#3b82f6' },
+    impressions: { title: 'Impressionen', color: '#8b5cf6' },
+    sessions: { title: 'Sitzungen', color: '#10b981' },
+    totalUsers: { title: 'Nutzer', color: '#f59e0b' },
   };
 
-  const getChangeColor = (change: number) => {
-    if (change > 0) return 'text-green-600';
-    if (change < 0) return 'text-red-600';
-    return 'text-gray-600';
-  };
-
-  const getChangeIcon = (change: number) => {
-    if (change > 0) return '↑';
-    if (change < 0) return '↓';
-    return '→';
-  };
-
-  // === BENUTZER (KUNDE) ANSICHT ===
+  // === BENUTZER (KUNDE) ANSICHT - PROFESSIONELLES DASHBOARD ===
   if (session?.user?.role === 'BENUTZER') {
     return (
       <div className="min-h-screen bg-gray-50">
-        {/* Header */}
-        <div className="bg-white shadow-sm border-b border-gray-200">
-          <div className="max-w-7xl mx-auto px-8 py-6">
-            <div className="flex justify-between items-center">
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-                <p className="text-gray-600 mt-1">
-                  Willkommen zurück, {session.user.email}
-                </p>
-              </div>
-              <div className="flex items-center gap-4">
-                <NotificationBell />
-                <Link
-                  href="/dashboard/freigabe"
-                  className="bg-green-600 text-white px-6 py-3 rounded-md hover:bg-green-700 font-medium flex items-center gap-2 transition-colors shadow-sm"
-                >
-                  ✅ Landingpages freigeben
-                </Link>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="max-w-7xl mx-auto px-8 py-8">
-          {/* Quick-Action Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            <Link
-              href="/dashboard/freigabe"
-              className="bg-gradient-to-br from-green-500 to-green-600 text-white p-6 rounded-lg shadow-lg hover:shadow-xl transition-all hover:scale-105"
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-xl font-bold mb-2">Landingpages freigeben</h3>
-                  <p className="text-green-100">
-                    Verwalten Sie Ihre Landingpages und geben Sie diese frei
-                  </p>
-                </div>
-                <span className="text-5xl">✅</span>
-              </div>
-            </Link>
-
-            <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-6 rounded-lg shadow-lg">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-xl font-bold mb-2">Performance-Übersicht</h3>
-                  <p className="text-blue-100">
-                    Ihre wichtigsten Kennzahlen auf einen Blick
-                  </p>
-                </div>
-                <span className="text-5xl">📊</span>
-              </div>
-            </div>
-          </div>
+        <div className="max-w-7xl mx-auto p-4 sm:p-6 md:p-8">
+          <h2 className="text-3xl font-bold mb-6">Projekt-Dashboard</h2>
 
           {/* Fehler-Anzeige */}
           {error && (
@@ -176,80 +129,103 @@ export default function HomePage() {
             </div>
           )}
 
-          {/* KPIs */}
           {dashboardData && (
             <>
+              {/* KPI-Karten */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                {/* Clicks */}
-                <div className="bg-white p-6 rounded-lg shadow-md">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-sm font-medium text-gray-600">Klicks</h3>
-                    <span className="text-2xl">🖱️</span>
-                  </div>
-                  <p className="text-3xl font-bold text-gray-900 mb-1">
-                    {formatNumber(dashboardData.kpis.clicks.value)}
-                  </p>
-                  <p className={`text-sm font-medium ${getChangeColor(dashboardData.kpis.clicks.change)}`}>
-                    {getChangeIcon(dashboardData.kpis.clicks.change)} {Math.abs(dashboardData.kpis.clicks.change)}%
-                  </p>
+                <KpiCard 
+                  title="Klicks" 
+                  isLoading={false} 
+                  value={dashboardData.kpis.clicks.value} 
+                  change={dashboardData.kpis.clicks.change} 
+                />
+                <KpiCard 
+                  title="Impressionen" 
+                  isLoading={false} 
+                  value={dashboardData.kpis.impressions.value} 
+                  change={dashboardData.kpis.impressions.change} 
+                />
+                <KpiCard 
+                  title="Sitzungen" 
+                  isLoading={false} 
+                  value={dashboardData.kpis.sessions.value} 
+                  change={dashboardData.kpis.sessions.change} 
+                />
+                <KpiCard 
+                  title="Nutzer" 
+                  isLoading={false} 
+                  value={dashboardData.kpis.totalUsers.value} 
+                  change={dashboardData.kpis.totalUsers.change} 
+                />
+              </div>
+
+              {/* Charts mit Tabs */}
+              <div className="bg-white p-6 rounded-lg shadow-md mb-8">
+                <div className="flex border-b border-gray-200">
+                  {(Object.keys(tabMeta) as ActiveKpi[]).map((key) => (
+                    <button
+                      key={key}
+                      onClick={() => setActiveKpi(key)}
+                      className={`py-2 px-4 text-sm font-medium ${
+                        activeKpi === key
+                          ? 'border-b-2 border-blue-500 text-blue-600'
+                          : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      {tabMeta[key].title}
+                    </button>
+                  ))}
                 </div>
 
-                {/* Impressions */}
-                <div className="bg-white p-6 rounded-lg shadow-md">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-sm font-medium text-gray-600">Impressionen</h3>
-                    <span className="text-2xl">👁️</span>
-                  </div>
-                  <p className="text-3xl font-bold text-gray-900 mb-1">
-                    {formatNumber(dashboardData.kpis.impressions.value)}
-                  </p>
-                  <p className={`text-sm font-medium ${getChangeColor(dashboardData.kpis.impressions.change)}`}>
-                    {getChangeIcon(dashboardData.kpis.impressions.change)} {Math.abs(dashboardData.kpis.impressions.change)}%
-                  </p>
-                </div>
-
-                {/* Sessions */}
-                <div className="bg-white p-6 rounded-lg shadow-md">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-sm font-medium text-gray-600">Sitzungen</h3>
-                    <span className="text-2xl">📈</span>
-                  </div>
-                  <p className="text-3xl font-bold text-gray-900 mb-1">
-                    {formatNumber(dashboardData.kpis.sessions.value)}
-                  </p>
-                  <p className={`text-sm font-medium ${getChangeColor(dashboardData.kpis.sessions.change)}`}>
-                    {getChangeIcon(dashboardData.kpis.sessions.change)} {Math.abs(dashboardData.kpis.sessions.change)}%
-                  </p>
-                </div>
-
-                {/* Users */}
-                <div className="bg-white p-6 rounded-lg shadow-md">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-sm font-medium text-gray-600">Nutzer</h3>
-                    <span className="text-2xl">👥</span>
-                  </div>
-                  <p className="text-3xl font-bold text-gray-900 mb-1">
-                    {formatNumber(dashboardData.kpis.totalUsers.value)}
-                  </p>
-                  <p className={`text-sm font-medium ${getChangeColor(dashboardData.kpis.totalUsers.change)}`}>
-                    {getChangeIcon(dashboardData.kpis.totalUsers.change)} {Math.abs(dashboardData.kpis.totalUsers.change)}%
-                  </p>
+                <div className="mt-4">
+                  <KpiTrendChart 
+                    data={dashboardData.charts[activeKpi] || []} 
+                    color={tabMeta[activeKpi].color} 
+                  />
                 </div>
               </div>
 
-              {/* Landingpage Approval Component */}
+              {/* Top 5 Suchanfragen */}
+              {dashboardData.topQueries && dashboardData.topQueries.length > 0 && (
+                <div className="bg-white p-6 rounded-lg shadow-md mb-8">
+                  <h3 className="text-xl font-semibold mb-4">Top 5 Suchanfragen</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="text-left text-gray-600 border-b">
+                          <th className="pb-3 pr-4 font-medium">Suchanfrage</th>
+                          <th className="pb-3 pr-4 font-medium text-right">Klicks</th>
+                          <th className="pb-3 pr-4 font-medium text-right">Impressionen</th>
+                          <th className="pb-3 pr-4 font-medium text-right">CTR</th>
+                          <th className="pb-3 font-medium text-right">Position</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {dashboardData.topQueries.map((query, index) => (
+                          <tr key={`${query.query}-${index}`} className="border-b hover:bg-gray-50">
+                            <td className="py-3 pr-4 text-gray-900">{query.query}</td>
+                            <td className="py-3 pr-4 text-right text-gray-700">
+                              {query.clicks.toLocaleString('de-DE')}
+                            </td>
+                            <td className="py-3 pr-4 text-right text-gray-700">
+                              {query.impressions.toLocaleString('de-DE')}
+                            </td>
+                            <td className="py-3 pr-4 text-right text-gray-700">
+                              {(query.ctr * 100).toFixed(2)}%
+                            </td>
+                            <td className="py-3 text-right text-gray-700">
+                              {query.position.toFixed(1)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Landingpage Approval Widget */}
               <LandingpageApproval />
-
-              {/* Info-Box */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mt-8">
-                <h3 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
-                  <span>💡</span> Tipp
-                </h3>
-                <p className="text-sm text-blue-800">
-                  Nutzen Sie die Freigabe-Funktion, um Ihre Landingpages zu verwalten. 
-                  Sie werden benachrichtigt, sobald eine Landingpage zur Prüfung bereitsteht.
-                </p>
-              </div>
             </>
           )}
         </div>
@@ -257,7 +233,7 @@ export default function HomePage() {
     );
   }
 
-  // === ADMIN/SUPERADMIN ANSICHT ===
+  // === ADMIN/SUPERADMIN ANSICHT - PROJEKT-ÜBERSICHT ===
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-8 py-12">
