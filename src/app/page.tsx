@@ -1,4 +1,4 @@
-v// src/app/page.tsx
+// src/app/page.tsx
 'use client';
 
 import { useSession } from 'next-auth/react';
@@ -21,7 +21,6 @@ interface ChartPoint {
   value: number;
 }
 
-// ✅ Top Query Interface hinzugefügt
 interface TopQueryData {
   query: string;
   clicks: number;
@@ -57,18 +56,15 @@ interface AdminResponse {
   projects: Project[];
 }
 
-// ✅ topQueries zum CustomerResponse hinzugefügt
 interface CustomerResponse {
   role: 'BENUTZER';
   kpis: Partial<KpiData>;
   charts: Partial<ChartData>;
-  topQueries?: TopQueryData[]; // ✅ Hier hinzugefügt
+  topQueries?: TopQueryData[];
 }
 
 type ApiResponse = AdminResponse | CustomerResponse;
 type ActiveKpi = 'clicks' | 'impressions' | 'sessions' | 'totalUsers';
-
-// --- Hilfsfunktionen (Type Guards) ---
 
 function isAdmin(data: ApiResponse | null | undefined): data is AdminResponse {
   return !!data && 'role' in data && (data.role === 'SUPERADMIN' || data.role === 'ADMIN');
@@ -89,14 +85,11 @@ function normalizeKpis(input?: Partial<KpiData>): KpiData {
   };
 }
 
-// --- Hauptkomponente: DashboardPage ---
-
 export default function DashboardPage() {
   const { status } = useSession();
   const { data, isLoading, error } = useApiData<ApiResponse>('/api/data');
   const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
 
-  // Ladezustand
   if (status === 'loading' || isLoading) {
     return (
       <div className="p-8 text-center">
@@ -106,7 +99,6 @@ export default function DashboardPage() {
     );
   }
 
-  // Fehlerzustand
   if (error) {
     return (
       <div className="p-8 text-center text-red-600 bg-red-50 rounded-lg">
@@ -116,7 +108,6 @@ export default function DashboardPage() {
     );
   }
 
-  // --- Ansicht für Admin / Superadmin ---
   if (isAdmin(data)) {
     return (
       <div className="p-8 bg-gray-50 min-h-screen">
@@ -150,7 +141,6 @@ export default function DashboardPage() {
     );
   }
 
-  // --- Ansicht für Benutzer (Kunde) ---
   if (isCustomer(data)) {
     const kpis = normalizeKpis(data.kpis);
     const chartSeries: ChartPoint[] = (data.charts && data.charts[activeKpi]) ? data.charts[activeKpi]! : [];
@@ -168,7 +158,6 @@ export default function DashboardPage() {
         <main className="mt-6">
           <h2 className="text-2xl font-bold mb-6">Ihr Dashboard</h2>
           
-          {/* KPI-Karten */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <KpiCard title="Klicks" isLoading={isLoading} value={kpis.clicks.value} change={kpis.clicks.change} />
             <KpiCard title="Impressionen" isLoading={isLoading} value={kpis.impressions.value} change={kpis.impressions.change} />
@@ -176,7 +165,6 @@ export default function DashboardPage() {
             <KpiCard title="Nutzer" isLoading={isLoading} value={kpis.totalUsers.value} change={kpis.totalUsers.change} />
           </div>
           
-          {/* Charts mit Tabs */}
           <div className="mt-8 bg-white p-6 rounded-lg shadow-md">
             <div className="flex border-b border-gray-200">
               {(Object.keys(tabMeta) as ActiveKpi[]).map((key) => (
@@ -198,7 +186,6 @@ export default function DashboardPage() {
             </div>
           </div>
           
-          {/* ✅ Top 5 Suchanfragen Tabelle */}
           {data.topQueries && data.topQueries.length > 0 && (
             <div className="mt-8 bg-white p-6 rounded-lg shadow-md">
               <h3 className="text-xl font-semibold mb-4">Top 5 Suchanfragen</h3>
@@ -237,7 +224,6 @@ export default function DashboardPage() {
             </div>
           )}
           
-          {/* Landingpage Approval Komponente */}
           <LandingpageApproval />
 
           {showNoDataHint && (
@@ -250,7 +236,6 @@ export default function DashboardPage() {
     );
   }
 
-  // --- Fallback, falls keine Daten oder Rolle passen ---
   return (
     <div className="p-8 text-center text-gray-600">
       <p>Keine Daten zur Anzeige verfügbar oder unbekannte Benutzerrolle.</p>
