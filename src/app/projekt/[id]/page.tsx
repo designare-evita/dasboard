@@ -16,6 +16,13 @@ interface ChartPoint {
   date: string;
   value: number;
 }
+interface TopQueryData {
+  query: string;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  position: number;
+}
 interface ProjectApiData {
   kpis?: {
     clicks?: KpiDatum;
@@ -29,6 +36,7 @@ interface ProjectApiData {
     sessions?: ChartPoint[];
     totalUsers?: ChartPoint[];
   };
+  topQueries?: TopQueryData[]; // ✅ Top Queries hinzugefügt
 }
 type ActiveKpi = 'clicks' | 'impressions' | 'sessions' | 'totalUsers';
 
@@ -112,45 +120,85 @@ export default function ProjektDetailPage() {
   return (
     <>
       <div className="p-4 sm:p-6 md:p-8">
-      <h2 className="text-3xl font-bold mb-6">Projekt-Dashboard</h2>
+        <h2 className="text-3xl font-bold mb-6">Projekt-Dashboard</h2>
 
-      {/* KPI-Karten */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <KpiCard title="Klicks" isLoading={false} value={k.clicks.value} change={k.clicks.change} />
-        <KpiCard title="Impressionen" isLoading={false} value={k.impressions.value} change={k.impressions.change} />
-        <KpiCard title="Sitzungen" isLoading={false} value={k.sessions.value} change={k.sessions.change} />
-        <KpiCard title="Nutzer" isLoading={false} value={k.totalUsers.value} change={k.totalUsers.change} />
-      </div>
-
-      {/* Charts mit Tabs */}
-      <div className="mt-8 bg-white p-6 rounded-lg shadow-md">
-        <div className="flex border-b border-gray-200">
-          {(Object.keys(tabMeta) as ActiveKpi[]).map((key) => (
-            <button
-              key={key}
-              onClick={() => setActiveKpi(key)}
-              className={`py-2 px-4 text-sm font-medium ${
-                activeKpi === key
-                  ? 'border-b-2 border-blue-500 text-blue-600'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              {tabMeta[key].title}
-            </button>
-          ))}
+        {/* KPI-Karten */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <KpiCard title="Klicks" isLoading={false} value={k.clicks.value} change={k.clicks.change} />
+          <KpiCard title="Impressionen" isLoading={false} value={k.impressions.value} change={k.impressions.change} />
+          <KpiCard title="Sitzungen" isLoading={false} value={k.sessions.value} change={k.sessions.change} />
+          <KpiCard title="Nutzer" isLoading={false} value={k.totalUsers.value} change={k.totalUsers.change} />
         </div>
 
-        <div className="mt-4">
-          <KpiTrendChart data={chartSeries} color={tabMeta[activeKpi].color} />
+        {/* Charts mit Tabs */}
+        <div className="mt-8 bg-white p-6 rounded-lg shadow-md">
+          <div className="flex border-b border-gray-200">
+            {(Object.keys(tabMeta) as ActiveKpi[]).map((key) => (
+              <button
+                key={key}
+                onClick={() => setActiveKpi(key)}
+                className={`py-2 px-4 text-sm font-medium ${
+                  activeKpi === key
+                    ? 'border-b-2 border-blue-500 text-blue-600'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                {tabMeta[key].title}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-4">
+            <KpiTrendChart data={chartSeries} color={tabMeta[activeKpi].color} />
+          </div>
+
+          {showNoDataHint && (
+            <p className="mt-6 text-sm text-gray-500">
+              Hinweis: Für dieses Projekt wurden noch keine KPI-/Zeitreihen-Daten geliefert. Es werden
+              vorübergehend Platzhalter-Werte (0) angezeigt.
+            </p>
+          )}
         </div>
 
-        {showNoDataHint && (
-          <p className="mt-6 text-sm text-gray-500">
-            Hinweis: Für dieses Projekt wurden noch keine KPI-/Zeitreihen-Daten geliefert. Es werden
-            vorübergehend Platzhalter-Werte (0) angezeigt.
-          </p>
+        {/* ✅ Top 5 Suchanfragen Tabelle */}
+        {data?.topQueries && data.topQueries.length > 0 && (
+          <div className="mt-8 bg-white p-6 rounded-lg shadow-md">
+            <h3 className="text-xl font-semibold mb-4">Top 5 Suchanfragen</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="text-left text-gray-600 border-b">
+                    <th className="pb-3 pr-4 font-medium">Suchanfrage</th>
+                    <th className="pb-3 pr-4 font-medium text-right">Klicks</th>
+                    <th className="pb-3 pr-4 font-medium text-right">Impressionen</th>
+                    <th className="pb-3 pr-4 font-medium text-right">CTR</th>
+                    <th className="pb-3 font-medium text-right">Position</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.topQueries.map((query, index) => (
+                    <tr key={`${query.query}-${index}`} className="border-b hover:bg-gray-50">
+                      <td className="py-3 pr-4 text-gray-900">{query.query}</td>
+                      <td className="py-3 pr-4 text-right text-gray-700">
+                        {query.clicks.toLocaleString('de-DE')}
+                      </td>
+                      <td className="py-3 pr-4 text-right text-gray-700">
+                        {query.impressions.toLocaleString('de-DE')}
+                      </td>
+                      <td className="py-3 pr-4 text-right text-gray-700">
+                        {(query.ctr * 100).toFixed(2)}%
+                      </td>
+                      <td className="py-3 text-right text-gray-700">
+                        {query.position.toFixed(1)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
-      </div>  </div>
+      </div>
     </>
   );
 }
