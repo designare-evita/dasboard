@@ -72,6 +72,12 @@ export default function Header() {
                 </Link>
               )}
 
+              {session.data.user.role === "BENUTZER" && (
+      <Link href="/dashboard/freigabe" className="text-sm font-medium hover:underline">
+        Redaktionsplan 
+      </Link>
+    )}
+
 
               {/* Abmelden-Button (Ghost-Stil für weniger Betonung) */}
               <Button onClick={() => signOut({ callbackUrl: '/login' })}>
