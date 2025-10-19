@@ -13,6 +13,7 @@ export default function Header() {
   const pathname = usePathname();
 
   const isAdmin = session?.user?.role === 'ADMIN' || session?.user?.role === 'SUPERADMIN';
+  const isUser = session?.user?.role === 'BENUTZER'; // Hinzugefügt für Klarheit
 
   // Header nicht auf der Login-Seite anzeigen
   if (pathname === '/login') {
@@ -22,10 +23,10 @@ export default function Header() {
   return (
     <header className="bg-white shadow-md">
       <nav className="container mx-auto px-6 py-3 flex justify-between items-center">
-        
+
         {/* Linke Seite: Logo und Begrüßung */}
         <div className="flex items-center space-x-4">
-          
+
           {/* Logo */}
           <Link href="/">
             <Image
@@ -37,34 +38,35 @@ export default function Header() {
             />
           </Link>
 
-{/* "Hallo"-Nachricht */}
-{status === 'authenticated' && (
-  <span className="text-gray-600 underline underline-offset-6">
-    Hallo, {session.user?.name ?? session.user?.email}
-  </span>
-)}
+          {/* "Hallo"-Nachricht */}
+          {status === 'authenticated' && (
+            <span className="text-gray-600 underline underline-offset-6">
+              Hallo, {session.user?.name ?? session.user?.email}
+            </span>
+          )}
         </div>
 
-{/* Rechte Seite: Links, Buttons und Glocke */}
+        {/* Rechte Seite: Links, Buttons und Glocke */}
         <div className="flex items-center space-x-4">
           {status === 'authenticated' && (
             <>
-  {/* NEU: Benachrichtigungs-Glocke */}
+              {/* NEU: Benachrichtigungs-Glocke */}
               <NotificationBell />
 
-                  {/* NEU: Redaktionsplan Button (nur für Admins, Standard-Stil) */}
+              {/* NEU: Redaktionsplan Button (nur für Admins, Standard-Stil) */}
               {isAdmin && (
                 <Link href="/admin/redaktionsplan" passHref>
                   <Button>Redaktionsplan</Button> {/* Nutzt den Standard-Button-Stil */}
                 </Link>
               )}
-  
-            {isAdmin && (
-              <Link href="/" passHref>
-                <Button>Projekte</Button>
-              </Link>
- )}
-              
+
+              {/* Projekte Button (nur für Admins) */}
+              {isAdmin && (
+                <Link href="/" passHref>
+                  <Button>Projekte</Button>
+                </Link>
+              )}
+
               {/* Admin-Bereich Button (nur für Admins, Standard-Stil) */}
               {isAdmin && (
                 <Link href="/admin" passHref>
@@ -72,9 +74,14 @@ export default function Header() {
                 </Link>
               )}
 
+              {/* NEU: Redaktionsplan Button (nur für BENUTZER) */}
+              {isUser && (
+                <Link href="/dashboard/freigabe" passHref>
+                  <Button>Redaktionsplan</Button> {/* Nutzt den Standard-Button-Stil */}
+                </Link>
+              )}
 
-
-              {/* Abmelden-Button (Ghost-Stil für weniger Betonung) */}
+              {/* Abmelden-Button */}
               <Button onClick={() => signOut({ callbackUrl: '/login' })}>
                 Abmelden
               </Button>
