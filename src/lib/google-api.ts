@@ -138,6 +138,7 @@ export async function getSearchConsoleData(
 
 /**
  * Ruft die Top 5 Suchanfragen (nach Klicks) von der Google Search Console ab.
+ * KORRIGIERTE VERSION
  */
 export async function getTopQueries(
   siteUrl: string,
@@ -155,18 +156,15 @@ export async function getTopQueries(
         endDate,
         dimensions: ["query"], // Dimension ist 'query'
         type: "web",
-        rowLimit: 5,           // Nur die Top 5
-        dataState: "all",      // Sowohl frische als auch finale Daten
-        orderBy: [{           // Sortiere nach Klicks absteigend
-          field: "clicks",
-          sortOrder: "descending"
-        }],
+        rowLimit: 100,         // 1. MEHR Zeilen abrufen (z.B. 100)
+        dataState: "all",
         aggregationType: "byProperty",
+        // 2. 'orderBy' wurde ENTFERNT, da es hier nicht unterstützt wird
       },
     });
 
-    // Daten für die Rückgabe formatieren
-    const topQueries = res.data.rows?.map((row) => ({
+    // Alle abgerufenen Anfragen verarbeiten
+    const allQueries = res.data.rows?.map((row) => ({
       query: row.keys?.[0] || "N/A", // Suchanfrage oder "N/A"
       clicks: row.clicks || 0,
       impressions: row.impressions || 0,
@@ -174,8 +172,10 @@ export async function getTopQueries(
       position: row.position || 0,
     })) || [];
 
-    // Stelle sicherheitshalber sicher, dass nach Klicks sortiert ist
-    return topQueries.sort((a, b) => b.clicks - a.clicks);
+    // 3. Im Code sortieren und die Top 5 auswählen
+    return allQueries
+      .sort((a, b) => b.clicks - a.clicks)
+      .slice(0, 5);
 
   } catch (error: unknown) {
     console.error("Fehler beim Abrufen der Top GSC Queries:", error);
