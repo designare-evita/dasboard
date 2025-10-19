@@ -1,8 +1,20 @@
 // src/components/NotificationBell.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react'; // useCallback hinzugefügt
 import { useSession } from 'next-auth/react';
+
+// Icons importiert (ersetzt Emojis)
+import {
+  Bell,
+  CheckCircleFill,
+  ExclamationTriangleFill,
+  InfoCircleFill,
+  X,
+  Check,
+  ArrowRepeat,
+  BellFill,
+} from 'react-bootstrap-icons';
 
 type Notification = {
   id: number;
@@ -21,10 +33,13 @@ export default function NotificationBell() {
   const [isLoading, setIsLoading] = useState(false);
 
   // Benachrichtigungen laden
-  const loadNotifications = async () => {
+  // KORREKTUR: Mit useCallback umschlossen
+  const loadNotifications = useCallback(async () => {
     if (!session?.user?.id) return;
+
+    // Nur beim ersten Öffnen laden, nicht beim Interval-Refresh
+    if (notifications.length === 0) setIsLoading(true);
     
-    setIsLoading(true);
     try {
       const response = await fetch('/api/notifications');
       if (!response.ok) throw new Error('Fehler beim Laden');
@@ -37,7 +52,7 @@ export default function NotificationBell() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [session?.user?.id, notifications.length]); // Abhängigkeiten für useCallback
 
   // Initial und alle 30 Sekunden neu laden
   useEffect(() => {
@@ -50,7 +65,7 @@ export default function NotificationBell() {
       
       return () => clearInterval(interval);
     }
-  }, [session?.user?.id]);
+  }, [session?.user?.id, loadNotifications]); // KORREKTUR: loadNotifications hinzugefügt
 
   const markAsRead = async (notificationId: number) => {
     try {
@@ -92,7 +107,9 @@ export default function NotificationBell() {
       });
       
       setNotifications(prev => prev.filter(n => n.id !== notificationId));
-      if (!notifications.find(n => n.id === notificationId)?.read) {
+      // Prüfen, ob die gelöschte Notification ungelesen war
+      const deletedWasUnread = notifications.find(n => n.id === notificationId)?.read === false;
+      if (deletedWasUnread) {
         setUnreadCount(prev => Math.max(0, prev - 1));
       }
     } catch (error) {
@@ -102,19 +119,13 @@ export default function NotificationBell() {
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
-      case 'success': return '✅';
-      case 'warning': return '⚠️';
-      default: return 'ℹ️';
+      case 'success': return <CheckCircleFill className="text-green-500" size={20}/>;
+      case 'warning': return <ExclamationTriangleFill className="text-yellow-500" size={20}/>;
+      default: return <InfoCircleFill className="text-blue-500" size={20}/>;
     }
   };
 
-  const getNotificationColor = (type: string) => {
-    switch (type) {
-      case 'success': return 'bg-green-50 border-green-200';
-      case 'warning': return 'bg-yellow-50 border-yellow-200';
-      default: return 'bg-blue-50 border-blue-200';
-    }
-  };
+  // KORREKTUR: Unnötige Funktion getNotificationColor entfernt
 
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp);
@@ -144,20 +155,9 @@ export default function NotificationBell() {
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="relative p-2 text-gray-600 hover:text-gray-900 focus:outline-none"
+        aria-label="Benachrichtigungen anzeigen"
       >
-        <svg 
-          className="w-6 h-6" 
-          fill="none" 
-          stroke="currentColor" 
-          viewBox="0 0 24 24"
-        >
-          <path 
-            strokeLinecap="round" 
-            strokeLinejoin="round" 
-            strokeWidth={2} 
-            d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" 
-          />
-        </svg>
+        <Bell size={24} />
         
         {/* Badge mit Anzahl ungelesener Benachrichtigungen */}
         {unreadCount > 0 && (
@@ -188,12 +188,12 @@ export default function NotificationBell() {
           {/* Content */}
           <div className="max-h-96 overflow-y-auto">
             {isLoading ? (
-              <div className="p-8 text-center text-gray-500">
-                Lade...
+              <div className="p-8 text-center text-gray-500 flex items-center justify-center gap-2">
+                <ArrowRepeat size={18} className="animate-spin" /> Lade...
               </div>
             ) : notifications.length === 0 ? (
               <div className="p-8 text-center">
-                <span className="text-4xl">🔔</span>
+                <BellFill className="text-4xl text-gray-300 mx-auto" />
                 <p className="text-gray-500 mt-2">Keine Benachrichtigungen</p>
               </div>
             ) : (
@@ -204,9 +204,10 @@ export default function NotificationBell() {
                     className={`p-4 hover:bg-gray-50 transition-colors ${
                       !notification.read ? 'bg-blue-50' : ''
                     }`}
+                    // KORREKTUR: getNotificationColor() entfernt, da minimalistisch
                   >
                     <div className="flex items-start gap-3">
-                      <span className="text-2xl flex-shrink-0">
+                      <span className="flex-shrink-0 mt-0.5">
                         {getNotificationIcon(notification.type)}
                       </span>
                       <div className="flex-1 min-w-0">
@@ -217,22 +218,22 @@ export default function NotificationBell() {
                           {formatTime(notification.created_at)}
                         </p>
                       </div>
-                      <div className="flex gap-1">
+                      <div className="flex gap-1 flex-shrink-0">
                         {!notification.read && (
                           <button
                             onClick={() => markAsRead(notification.id)}
-                            className="text-indigo-600 hover:text-indigo-800 text-xs"
+                            className="text-indigo-600 hover:text-indigo-800 p-1 rounded hover:bg-indigo-100"
                             title="Als gelesen markieren"
                           >
-                            ✓
+                            <Check size={18} />
                           </button>
                         )}
                         <button
                           onClick={() => deleteNotification(notification.id)}
-                          className="text-red-600 hover:text-red-800 text-xs"
+                          className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-100"
                           title="Löschen"
                         >
-                          ✕
+                          <X size={18} />
                         </button>
                       </div>
                     </div>
@@ -242,20 +243,19 @@ export default function NotificationBell() {
             )}
           </div>
 
-          {/* Footer */}
+          {/* Footer (Optional, Link zu einer Übersichtsseite) */}
+          {/*
           {notifications.length > 0 && (
             <div className="p-3 border-t border-gray-200 text-center">
               <button
-                onClick={() => {
-                  setIsOpen(false);
-                  // Optional: Navigiere zu einer Benachrichtigungs-Übersichtsseite
-                }}
+                onClick={() => setIsOpen(false)}
                 className="text-sm text-indigo-600 hover:text-indigo-800 font-medium"
               >
                 Alle Benachrichtigungen anzeigen
               </button>
             </div>
           )}
+          */}
         </div>
       )}
 
