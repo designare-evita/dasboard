@@ -106,8 +106,8 @@ export default function LoginForm() {
           <div>
             <button
               type="submit"
-              // KORREKTUR: Deine gewünschten Klassen angewendet
-              className="w-full px-4 py-3 font-normal text-[#363f45] bg-transparent border-[3px] border-[#188bdb] rounded-[3px] hover:shadow-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#188bdb] disabled:opacity-50 disabled:cursor-wait flex items-center justify-center gap-2"
+              // ✨ HIER IST DIE ÄNDERUNG ✨
+              className="w-full px-4 py-3 font-normal text-white bg-[#188bdb] border-[3px] border-[#188bdb] rounded-[3px] hover:shadow-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#188bdb] disabled:opacity-50 disabled:cursor-wait flex items-center justify-center gap-2" // Hintergrundfarbe bg-[#188bdb] und Textfarbe text-white hinzugefügt
               disabled={isLoading}
             >
               {isLoading ? (
