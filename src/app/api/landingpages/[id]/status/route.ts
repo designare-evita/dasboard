@@ -132,13 +132,13 @@ if (isAdmin) {
       let customerMessage = '';
       
       if (newStatus === 'In Prüfung') {
-        customerMessage = `📋 Ihre Landingpage "${pageUrl}" wartet auf Ihre Freigabe.`;
+        customerMessage = `Ihre Landingpage "${pageUrl}" wartet auf Ihre Freigabe.`;
       } else if (newStatus === 'Offen') {
-        customerMessage = `📝 Ihre Landingpage "${pageUrl}" wurde auf "Offen" gesetzt.`;
+        customerMessage = `Ihre Landingpage "${pageUrl}" wurde auf "Offen" gesetzt.`;
       } else if (newStatus === 'Freigegeben') {
-        customerMessage = `✅ Ihre Landingpage "${pageUrl}" wurde vom Admin freigegeben.`;
+        customerMessage = `Ihre Landingpage "${pageUrl}" wurde vom Admin freigegeben.`;
       } else if (newStatus === 'Gesperrt') {
-        customerMessage = `🚫 Ihre Landingpage "${pageUrl}" wurde vom Admin gesperrt.`;
+        customerMessage = `Ihre Landingpage "${pageUrl}" wurde vom Admin gesperrt.`;
       }
       
       if (customerMessage) {
@@ -175,9 +175,9 @@ if (isAdmin) {
       const customerDomain = landingpage.user_domain || landingpage.user_email;
       
       if (newStatus === 'Freigegeben') {
-        adminMessage = `✅ Kunde "${customerDomain}" hat die Landingpage "${pageUrl}" freigegeben.`;
+        adminMessage = `Kunde "${customerDomain}" hat die Landingpage "${pageUrl}" freigegeben.`;
       } else if (newStatus === 'Gesperrt') {
-        adminMessage = `🚫 Kunde "${customerDomain}" hat die Landingpage "${pageUrl}" gesperrt.`;
+        adminMessage = `Kunde "${customerDomain}" hat die Landingpage "${pageUrl}" gesperrt.`;
       }
 
       if (adminMessage) {
