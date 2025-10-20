@@ -1,4 +1,4 @@
-// src/app/dashboard/freigabe/page.tsx
+r// src/app/dashboard/freigabe/page.tsx
 'use client';
 
 import { useState, useEffect, ReactNode, useCallback } from 'react'; // useCallback hinzugefügt
@@ -338,7 +338,7 @@ export default function FreigabePage() {
                     )}
                     {lp.status === 'Offen' && (
                       <p className="text-sm text-gray-500 italic text-right w-full">
-                        Wartet auf Admin-Prüfung
+                        in Bearbeitung
                       </p>
                     )}
                   </div>
