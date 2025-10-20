@@ -1,4 +1,4 @@
-r// src/app/dashboard/freigabe/page.tsx
+// src/app/dashboard/freigabe/page.tsx
 'use client';
 
 import { useState, useEffect, ReactNode, useCallback } from 'react'; // useCallback hinzugefügt
