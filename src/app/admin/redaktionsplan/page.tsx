@@ -1,11 +1,11 @@
 // src/app/admin/redaktionsplan/page.tsx
 'use client';
 
-import { useState, useEffect, ReactNode } from 'react'; // ReactNode hier hinzugefügt
+import { useState, useEffect, ReactNode } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import type { User } from '@/types';
+
 // Icons importieren
 import {
   FileEarmarkText,
@@ -18,6 +18,7 @@ import {
   InfoCircleFill,
   ListTask,
   Filter,
+  Trash, // ✅ Trash-Icon für Löschen-Button
 } from 'react-bootstrap-icons';
 
 // Typdefinition für Landingpage
@@ -33,7 +34,7 @@ type Landingpage = {
   created_at: string;
 };
 
-// Typdefinition für erlaubte Statuswerte (für bessere Typsicherheit)
+// Typdefinition für erlaubte Statuswerte
 type LandingpageStatus = Landingpage['status'];
 
 export default function RedaktionsplanPage() {
@@ -61,11 +62,9 @@ export default function RedaktionsplanPage() {
     if (selectedProject) {
       loadLandingpages(selectedProject);
     } else {
-      // Zurücksetzen, wenn kein Projekt ausgewählt ist
       setLandingpages([]);
       setFilteredPages([]);
     }
-    // Filter zurücksetzen bei Projektwechsel
     setFilterStatus('alle');
   }, [selectedProject]);
 
@@ -97,19 +96,29 @@ export default function RedaktionsplanPage() {
   // Funktion zum Laden der Landingpages für ein ausgewähltes Projekt
   const loadLandingpages = async (userId: string) => {
     setIsLoading(true);
-    setMessage(''); // Nachricht zurücksetzen
+    setMessage('');
+    
+    console.log('[Redaktionsplan] Lade Landingpages für User:', userId);
+    
     try {
       const response = await fetch(`/api/users/${userId}/landingpages`);
+      
+      console.log('[Redaktionsplan] Response Status:', response.status);
+      
       if (!response.ok) {
          const errorData = await response.json().catch(() => ({}));
+         console.error('[Redaktionsplan] Fehler-Response:', errorData);
          throw new Error(errorData.message || 'Fehler beim Laden der Landingpages');
       }
+      
       const data: Landingpage[] = await response.json();
+      console.log('[Redaktionsplan] Landingpages geladen:', data.length, 'Einträge');
+      
       setLandingpages(data);
     } catch (error) {
-      console.error('Fehler:', error);
+      console.error('[Redaktionsplan] Fehler:', error);
       setMessage(error instanceof Error ? error.message : 'Unbekannter Fehler beim Laden');
-      setLandingpages([]); // Bei Fehler leeren
+      setLandingpages([]);
     } finally {
       setIsLoading(false);
     }
@@ -117,7 +126,6 @@ export default function RedaktionsplanPage() {
 
   // Funktion zum Aktualisieren des Status einer Landingpage
   const updateStatus = async (landingpageId: number, newStatus: LandingpageStatus) => {
-    // Optimistisches Update (optional, verbessert die gefühlte Performance)
     const originalLandingpages = [...landingpages];
     setLandingpages(prev =>
         prev.map(lp => lp.id === landingpageId ? { ...lp, status: newStatus } : lp)
@@ -131,30 +139,54 @@ export default function RedaktionsplanPage() {
       });
 
       if (!response.ok) {
-        // Bei Fehler: Rollback des optimistisches Updates
         setLandingpages(originalLandingpages);
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.message || 'Status-Update fehlgeschlagen');
       }
 
-      // Erfolgsmeldung anzeigen
       setMessage(`Status erfolgreich auf "${newStatus}" geändert`);
-      setTimeout(() => setMessage(''), 3000); // Nachricht nach 3s ausblenden
-
-      // Optional: Neu laden, um sicherzustellen, dass die Daten aktuell sind (statt optimistisches Update)
-      // await loadLandingpages(selectedProject);
+      setTimeout(() => setMessage(''), 3000);
 
     } catch (error) {
-      // Bei Fehler: Rollback des optimistisches Updates (falls nicht schon geschehen)
       setLandingpages(originalLandingpages);
       console.error('Fehler beim Status-Update:', error);
       setMessage(error instanceof Error ? error.message : 'Fehler beim Ändern des Status');
     }
   };
 
+  // ✅ Funktion zum Löschen einer Landingpage
+  const deleteLandingpage = async (landingpageId: number, landingpageUrl: string) => {
+    // Bestätigung vom Benutzer einholen
+    if (!window.confirm(`Möchten Sie diese Landingpage wirklich löschen?\n\n${landingpageUrl}\n\nDiese Aktion kann nicht rückgängig gemacht werden!`)) {
+      return;
+    }
+
+    setMessage('Lösche Landingpage...');
+
+    try {
+      const response = await fetch(`/api/landingpages/${landingpageId}`, {
+        method: 'DELETE'
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Löschen fehlgeschlagen');
+      }
+
+      // Entferne die Landingpage aus dem State
+      setLandingpages(prev => prev.filter(lp => lp.id !== landingpageId));
+      
+      setMessage('✅ Landingpage erfolgreich gelöscht');
+      setTimeout(() => setMessage(''), 3000);
+
+    } catch (error) {
+      console.error('Fehler beim Löschen:', error);
+      setMessage(error instanceof Error ? error.message : 'Fehler beim Löschen der Landingpage');
+    }
+  };
+
   // ---- Hilfsfunktionen für die UI ----
 
-  // Gibt die Text- und Rahmenfarbe für Status-Badges zurück (minimalistischer Stil)
   const getStatusStyle = (status: LandingpageStatus) => {
     switch (status) {
       case 'Offen': return 'text-blue-700 border-blue-300 bg-blue-50';
@@ -165,7 +197,6 @@ export default function RedaktionsplanPage() {
     }
   };
 
-  // Gibt das passende Icon für den Status zurück
   const getStatusIcon = (status: LandingpageStatus) => {
     switch (status) {
       case 'Offen': return <FileEarmarkText className="inline-block mr-1" size={16} />;
@@ -176,8 +207,7 @@ export default function RedaktionsplanPage() {
     }
   };
 
-   // Definiert die Filter-Buttons
-  const filterOptions: { label: string; value: LandingpageStatus | 'alle'; icon: ReactNode }[] = [ // HIER WAR DER FEHLER
+  const filterOptions: { label: string; value: LandingpageStatus | 'alle'; icon: ReactNode }[] = [
     { label: 'Alle', value: 'alle', icon: <ListTask className="inline-block mr-1" size={16}/> },
     { label: 'Offen', value: 'Offen', icon: <FileEarmarkText className="inline-block mr-1" size={16}/> },
     { label: 'In Prüfung', value: 'In Prüfung', icon: <Search className="inline-block mr-1" size={16}/> },
@@ -190,11 +220,10 @@ export default function RedaktionsplanPage() {
     return <div className="p-8 text-center">Lade Sitzung...</div>;
   }
 
-  // Sicherstellen, dass der Nutzer die richtige Rolle hat
   if (authStatus === 'unauthenticated' ||
       (session?.user?.role !== 'ADMIN' && session?.user?.role !== 'SUPERADMIN')) {
-    router.push('/'); // Zurück zur Startseite oder Loginseite
-    return null; // Rendert nichts, während umgeleitet wird
+    router.push('/');
+    return null;
   }
 
   // ---- Rendern der Komponente ----
@@ -211,8 +240,8 @@ export default function RedaktionsplanPage() {
 
         {/* Nachrichtenanzeige */}
         {message && (
-          <div className={`mb-6 p-4 border rounded-md ${message.startsWith('Fehler') ? 'bg-red-50 border-red-200 text-red-800' : 'bg-blue-50 border-blue-200 text-blue-800'} flex items-center gap-2`}>
-            {message.startsWith('Fehler') ? <ExclamationTriangleFill size={18}/> : <InfoCircleFill size={18}/>}
+          <div className={`mb-6 p-4 border rounded-md ${message.startsWith('Fehler') || message.startsWith('❌') ? 'bg-red-50 border-red-200 text-red-800' : 'bg-blue-50 border-blue-200 text-blue-800'} flex items-center gap-2`}>
+            {message.startsWith('Fehler') || message.startsWith('❌') ? <ExclamationTriangleFill size={18}/> : <InfoCircleFill size={18}/>}
             {message}
           </div>
         )}
@@ -226,13 +255,13 @@ export default function RedaktionsplanPage() {
             id="projectSelect"
             value={selectedProject}
             onChange={(e) => setSelectedProject(e.target.value)}
-            disabled={isLoadingProjects} // Deaktivieren während Projekte laden
+            disabled={isLoadingProjects}
             className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
           >
             <option value="">{isLoadingProjects ? 'Lade Projekte...' : '-- Bitte wählen --'}</option>
             {projects.map((project) => (
               <option key={project.id} value={project.id}>
-                {project.domain || project.email} {/* Zeigt Domain oder E-Mail an */}
+                {project.domain || project.email}
               </option>
             ))}
           </select>
@@ -243,7 +272,9 @@ export default function RedaktionsplanPage() {
           <>
             {/* Filter-Buttons */}
             <div className="bg-white p-4 rounded-lg shadow-md mb-6">
-               <h3 className="text-sm font-semibold text-gray-500 mb-3 flex items-center gap-1"><Filter size={16}/> Filtern nach Status</h3>
+               <h3 className="text-sm font-semibold text-gray-500 mb-3 flex items-center gap-1">
+                 <Filter size={16}/> Filtern nach Status
+               </h3>
                <div className="flex gap-2 flex-wrap">
                   {filterOptions.map(option => {
                     const count = option.value === 'alle'
@@ -254,7 +285,6 @@ export default function RedaktionsplanPage() {
                         <button
                             key={option.value}
                             onClick={() => setFilterStatus(option.value)}
-                            // Minimalistischer Button-Stil mit aktiver Hervorhebung
                             className={`px-3 py-1.5 text-sm rounded-md font-medium border transition-colors flex items-center gap-1 ${
                                 isActive
                                 ? 'bg-indigo-600 text-white border-indigo-600'
@@ -275,7 +305,6 @@ export default function RedaktionsplanPage() {
                  <p className="text-gray-600 inline-block">Lade Landingpages...</p>
               </div>
             ) : filteredPages.length === 0 ? (
-              // Nachricht, wenn keine Landingpages gefunden wurden
               <div className="bg-white p-12 rounded-lg shadow-md text-center">
                  <span className="text-gray-400 text-4xl mb-3 block">📄</span>
                  <p className="text-gray-500">
@@ -283,15 +312,10 @@ export default function RedaktionsplanPage() {
                       ? 'Für dieses Projekt sind noch keine Landingpages vorhanden.'
                       : `Keine Landingpages mit Status "${filterStatus}" gefunden.`}
                  </p>
-                 {/* Optional: Button zum Hinzufügen anbieten */}
-                 {/* <Link href={`/admin/edit/${selectedProject}`} className="mt-4 inline-block text-sm text-indigo-600 hover:underline">
-                    Landingpages hochladen
-                 </Link> */}
               </div>
             ) : (
-              // Tabelle mit Landingpages
               <div className="bg-white rounded-lg shadow-md overflow-x-auto">
-                 <table className="w-full min-w-[800px]"> {/* Mindestbreite für bessere Darstellung */}
+                 <table className="w-full min-w-[800px]">
                    <thead className="bg-gray-50 border-b border-gray-200">
                      <tr>
                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -314,7 +338,6 @@ export default function RedaktionsplanPage() {
                    <tbody className="bg-white divide-y divide-gray-200">
                      {filteredPages.map((lp) => (
                        <tr key={lp.id} className="hover:bg-gray-50 transition-colors">
-                         {/* URL und Haupt-Keyword */}
                          <td className="px-6 py-4 whitespace-nowrap">
                            <div className="text-sm font-medium text-gray-900 truncate" title={lp.haupt_keyword || undefined}>
                              {lp.haupt_keyword || <span className="text-gray-400 italic">Kein Keyword</span>}
@@ -329,40 +352,43 @@ export default function RedaktionsplanPage() {
                              {lp.url}
                            </a>
                          </td>
-                         {/* Suchvolumen */}
                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                            {lp.suchvolumen?.toLocaleString('de-DE') || '-'}
                          </td>
-                         {/* Position */}
                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                            {lp.aktuelle_position || '-'}
                          </td>
-                         {/* Status Badge */}
                          <td className="px-6 py-4 whitespace-nowrap">
                            <span className={`px-2.5 py-0.5 text-xs font-medium rounded-full border ${getStatusStyle(lp.status)}`}>
                              {getStatusIcon(lp.status)} {lp.status}
                            </span>
                          </td>
-                         {/* Aktionen (Status ändern) */}
                          <td className="px-6 py-4 whitespace-nowrap">
                            <div className="flex gap-1">
-                             {/* Generiere Buttons für jeden möglichen Status */}
+                             {/* Status-Buttons */}
                              {(['Offen', 'In Prüfung', 'Freigegeben', 'Gesperrt'] as LandingpageStatus[]).map(statusValue => (
                                <button
                                  key={statusValue}
                                  onClick={() => updateStatus(lp.id, statusValue)}
-                                 disabled={lp.status === statusValue} // Deaktiviert, wenn es der aktuelle Status ist
-                                 // Minimalistischer Button-Stil
+                                 disabled={lp.status === statusValue}
                                  className={`px-2 py-1 text-xs font-medium rounded border transition-colors ${
                                     lp.status === statusValue
-                                      ? 'bg-gray-200 text-gray-500 border-gray-200 cursor-not-allowed' // Aktiver Status
-                                      : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed' // Nicht aktiver Status
+                                      ? 'bg-gray-200 text-gray-500 border-gray-200 cursor-not-allowed'
+                                      : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed'
                                  }`}
-                                 title={`${statusValue}`}
+                                 title={statusValue}
                                >
-                                 {getStatusIcon(statusValue)} {/* Zeigt nur Icon */}
+                                 {getStatusIcon(statusValue)}
                                </button>
                              ))}
+                             {/* Löschen-Button */}
+                             <button
+                               onClick={() => deleteLandingpage(lp.id, lp.url)}
+                               className="px-2 py-1 text-xs font-medium rounded border border-red-600 bg-red-50 text-red-700 hover:bg-red-100 transition-colors flex items-center gap-1"
+                               title="Landingpage löschen"
+                             >
+                               <Trash size={14} />
+                             </button>
                            </div>
                          </td>
                        </tr>
