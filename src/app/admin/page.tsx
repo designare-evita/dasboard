@@ -6,17 +6,17 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState, FormEvent } from 'react';
 import Link from 'next/link';
 import { User } from '@/types';
-import { Button } from '@/components/ui/button'; // Globale Button-Komponente importiert
-import { 
-  Pencil, 
-  Trash, 
-  PersonPlus, 
-  ArrowRepeat, 
-  InfoCircleFill, 
+// KEIN Import für die globale 'Button' Komponente mehr
+import {
+  Pencil,
+  Trash,
+  PersonPlus,
+  ArrowRepeat,
+  InfoCircleFill,
   ExclamationTriangleFill,
-  People
+  People,
+  FileText // Icon für Redaktionsplan
 } from 'react-bootstrap-icons'; // Icons importiert
-// NotificationBell wurde nicht verwendet und entfernt
 
 export default function AdminPage() {
   const { data: session, status } = useSession();
@@ -27,6 +27,7 @@ export default function AdminPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState<boolean>(true);
   const [selectedRole, setSelectedRole] = useState<'BENUTZER' | 'ADMIN'>('BENUTZER');
+  const [isSubmitting, setIsSubmitting] = useState(false); // Ladezustand für Formular
 
   // Check if the current user is a Superadmin
   const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
@@ -61,7 +62,8 @@ export default function AdminPage() {
   const handleSubmit = async (e: FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
     setMessage('Erstelle Benutzer...');
-    
+    setIsSubmitting(true); // Ladevorgang starten
+
     const formData = new FormData(e.currentTarget);
     const rawData = Object.fromEntries(formData) as Record<string, unknown>;
     const payload = { ...rawData, role: selectedRole };
@@ -74,17 +76,19 @@ export default function AdminPage() {
       });
 
       const result = await response.json();
-      
+
       if (!response.ok) {
         throw new Error(result.message || 'Ein unbekannter Fehler ist aufgetreten.');
       }
 
       setMessage(`Benutzer "${result.email}" erfolgreich erstellt.`);
       (e.target as HTMLFormElement).reset();
-      setSelectedRole('BENUTZER'); // Reset role selection
-      await fetchUsers(); // Refresh the user list
+      setSelectedRole('BENUTZER');
+      await fetchUsers();
     } catch (error) {
         setMessage(`Fehler: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`);
+    } finally {
+      setIsSubmitting(false); // Ladevorgang beenden
     }
   };
 
@@ -101,7 +105,7 @@ export default function AdminPage() {
       if (!response.ok) {
         throw new Error(result.message || 'Fehler beim Löschen');
       }
-      
+
       setMessage('Benutzer erfolgreich gelöscht.');
       await fetchUsers(); // Refresh the user list
     } catch (error) {
@@ -114,7 +118,7 @@ export default function AdminPage() {
     return (
         <div className="p-8 text-center flex items-center justify-center min-h-screen">
           <ArrowRepeat className="animate-spin text-indigo-600 mr-2" size={24} />
-          Lade...
+          Lade Sitzung...
         </div>
     );
   }
@@ -126,24 +130,25 @@ export default function AdminPage() {
   // Render the admin page UI
   return (
     <div className="p-8 max-w-6xl mx-auto bg-gray-50 min-h-screen">
-      <div className="mb-8 flex justify-between items-center">
+      <div className="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Admin-Bereich</h1>
           <p className="text-gray-600 mt-2">Verwalten Sie Benutzer und Projekte</p>
         </div>
-        {/* Hier könnte der Link zum Redaktionsplan hin, falls gewünscht */}
-         <Button asChild variant="default" size="default">
-           <Link href="/admin/redaktionsplan">
-             Zum Redaktionsplan
-           </Link>
-         </Button>
+        {/* KORREKTUR: Button wieder als normaler Link mit Tailwind-Klassen */}
+        <Link
+          href="/admin/redaktionsplan"
+          className="px-4 py-2 text-sm font-medium rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-1.5 whitespace-nowrap"
+        >
+          <FileText size={16} /> Zum Redaktionsplan
+        </Link>
       </div>
 
       {/* Überarbeitete Nachrichtenanzeige */}
       {message && (
         <div className={`my-4 p-4 border rounded-md flex items-center gap-2 ${
-          message.startsWith('Fehler:') 
-          ? 'bg-red-50 border-red-200 text-red-800' 
+          message.startsWith('Fehler:')
+          ? 'bg-red-50 border-red-200 text-red-800'
           : 'bg-blue-50 border-blue-200 text-blue-800'
         }`}>
           {message.startsWith('Fehler:') ? <ExclamationTriangleFill size={18}/> : <InfoCircleFill size={18}/>}
@@ -164,7 +169,8 @@ export default function AdminPage() {
                 name="role"
                 value={selectedRole}
                 onChange={(e) => setSelectedRole(e.target.value as 'BENUTZER' | 'ADMIN')}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                disabled={isSubmitting}
               >
                 <option value="BENUTZER">Kunde (Benutzer)</option>
                 {isSuperAdmin && <option value="ADMIN">Admin</option>}
@@ -177,7 +183,8 @@ export default function AdminPage() {
                 name="email"
                 type="email"
                 required
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                disabled={isSubmitting}
               />
             </div>
 
@@ -187,7 +194,8 @@ export default function AdminPage() {
                 name="password"
                 type="text"
                 required
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                disabled={isSubmitting}
               />
             </div>
 
@@ -199,7 +207,8 @@ export default function AdminPage() {
                     name="domain"
                     type="text"
                     required
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    disabled={isSubmitting}
                   />
                 </div>
                 <div>
@@ -208,7 +217,8 @@ export default function AdminPage() {
                     name="gsc_site_url"
                     type="text"
                     required
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    disabled={isSubmitting}
                   />
                 </div>
                 <div>
@@ -217,19 +227,30 @@ export default function AdminPage() {
                     name="ga4_property_id"
                     type="text"
                     required
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    disabled={isSubmitting}
                   />
                 </div>
               </>
             )}
 
-            {/* Dieser Button bleibt blau, da er die primäre Aktion ist und nicht 'default' sein soll */}
-            <button 
-              type="submit" 
-              className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+            {/* Angepasster Button "Kunden/Admin erstellen" */}
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full px-4 py-2 font-normal text-white bg-[#188bdb] border-[3px] border-[#188bdb] rounded-[3px] hover:shadow-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#188bdb] disabled:opacity-50 disabled:cursor-wait flex items-center justify-center gap-2"
             >
-              <PersonPlus size={18} />
-              {selectedRole === 'BENUTZER' ? 'Kunden erstellen' : 'Admin erstellen'}
+              {isSubmitting ? (
+                <>
+                  <ArrowRepeat className="animate-spin" size={18} />
+                  <span>Wird erstellt...</span>
+                </>
+              ) : (
+                <>
+                  <PersonPlus size={18} />
+                  {selectedRole === 'BENUTZER' ? 'Kunden erstellen' : 'Admin erstellen'}
+                </>
+              )}
             </button>
           </form>
         </div>
@@ -252,7 +273,8 @@ export default function AdminPage() {
           ) : (
             <ul className="space-y-3">
               {users.map((user) => (
-                  <li key={user.id} className="p-3 border rounded-md flex justify-between items-center transition-colors hover:bg-gray-50">
+                  <li key={user.id} className="p-3 border rounded-md flex flex-col sm:flex-row justify-between sm:items-center gap-3 transition-colors hover:bg-gray-50">
+                    {/* User Info */}
                     <div className="flex-1 overflow-hidden">
                       <p className="font-semibold truncate" title={user.email}>{user.email}</p>
                       {user.domain && (
@@ -260,21 +282,21 @@ export default function AdminPage() {
                       )}
                       <p className="text-xs uppercase font-medium text-gray-500">{user.role}</p>
                     </div>
-                    
-                    {/* Überarbeitete Buttons */}
-                    <div className="flex gap-2 flex-shrink-0 ml-4">
-                      <Button asChild variant="default" size="default">
-                        <Link href={`/admin/edit/${user.id}`}>
-                          <Pencil size={16} className="mr-1.5" /> Bearbeiten
-                        </Link>
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        size="default"
-                        onClick={() => void handleDelete(user.id)}
+
+                    {/* Action Buttons - KORREKTUR: Globale Button-Komponente entfernt */}
+                    <div className="flex gap-2 flex-shrink-0 w-full sm:w-auto">
+                      <Link
+                        href={`/admin/edit/${user.id}`}
+                        className="flex-1 sm:flex-none justify-center bg-gray-200 text-gray-700 px-3 py-1.5 rounded hover:bg-gray-300 text-sm flex items-center gap-1.5 transition-colors"
                       >
-                        <Trash size={16} className="mr-1.5" /> Löschen
-                      </Button>
+                        <Pencil size={14} /> Bearbeiten
+                      </Link>
+                      <button
+                        onClick={() => void handleDelete(user.id)}
+                        className="flex-1 sm:flex-none justify-center bg-red-500 text-white px-3 py-1.5 rounded hover:bg-red-600 text-sm flex items-center gap-1.5 transition-colors"
+                      >
+                        <Trash size={14} /> Löschen
+                      </button>
                     </div>
                   </li>
                 ))}
