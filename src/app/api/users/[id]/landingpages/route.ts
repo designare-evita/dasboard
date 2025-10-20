@@ -31,7 +31,6 @@ const normalizeKey = (key: string) =>
     .replace(/[^\w]/g, '');
 
 // GET: Landingpages eines Benutzers abrufen
-// ✅ FIX: params ist jetzt ein Promise und muss awaited werden
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -39,23 +38,73 @@ export async function GET(
   const { id } = await params;
   const session = await getServerSession(authOptions);
 
-  if (!session || (session.user.id !== id && session.user.role !== 'ADMIN')) {
-    return NextResponse.json([], { status: 403 }); 
+  console.log('[GET /api/users/[id]/landingpages] Request für User:', id);
+  console.log('[GET] Angemeldet als:', session?.user?.email, 'Rolle:', session?.user?.role);
+
+  if (!session?.user?.id) {
+    console.warn('[GET] Nicht autorisiert - keine Session');
+    return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 }); 
+  }
+
+  // ✅ WICHTIGE ÄNDERUNG: Berechtigungsprüfung erweitern
+  const isSuperAdmin = session.user.role === 'SUPERADMIN';
+  const isAdmin = session.user.role === 'ADMIN';
+  const isOwner = session.user.id === id;
+
+  console.log('[GET] Berechtigungen:', { isSuperAdmin, isAdmin, isOwner });
+
+  // Superadmin darf alles sehen
+  if (isSuperAdmin) {
+    console.log('[GET] ✅ Superadmin-Zugriff gewährt');
+  }
+  // Admin darf nur zugewiesene Projekte sehen
+  else if (isAdmin) {
+    console.log('[GET] Prüfe Admin-Zugriff für Projekt:', id);
+    
+    const { rows: accessCheck } = await sql`
+      SELECT 1 
+      FROM project_assignments 
+      WHERE user_id::text = ${session.user.id} 
+      AND project_id::text = ${id};
+    `;
+
+    if (accessCheck.length === 0) {
+      console.warn('[GET] ❌ Admin hat keinen Zugriff auf dieses Projekt');
+      return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
+    }
+    
+    console.log('[GET] ✅ Admin-Zugriff gewährt');
+  }
+  // Benutzer darf nur seine eigenen Landingpages sehen
+  else if (!isOwner) {
+    console.warn('[GET] ❌ Benutzer hat keinen Zugriff (nicht Owner)');
+    return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 }); 
   }
 
   try {
-    const { rows } = await sql`SELECT * FROM landingpages WHERE user_id = ${id};`;
+    console.log('[GET] Lade Landingpages aus Datenbank...');
+    
+    const { rows } = await sql`
+      SELECT * 
+      FROM landingpages 
+      WHERE user_id::text = ${id}
+      ORDER BY created_at DESC;
+    `;
+    
+    console.log('[GET] ✅ Gefunden:', rows.length, 'Landingpages für User:', id);
     
     return NextResponse.json(rows, { status: 200 });
 
   } catch (error) {
-    console.error('Datenbankfehler:', error);
-    return NextResponse.json([], { status: 500 });
+    console.error('[GET] ❌ Datenbankfehler:', error);
+    return NextResponse.json(
+      { message: 'Datenbankfehler beim Laden der Landingpages' }, 
+      { status: 500 }
+    );
   }
 }
 
 // POST: Excel-Datei hochladen und Landingpages importieren
-// ✅ FIX: params ist jetzt ein Promise und muss awaited werden
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
