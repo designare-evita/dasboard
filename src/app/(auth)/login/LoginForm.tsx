@@ -71,7 +71,8 @@ export default function LoginForm() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="mt-1 block w-full px-3 py-5 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-50"
+              // ✨ HIER IST DIE KORREKTUR: (py-5 zu py-2 geändert) ✨
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-50"
               disabled={isLoading} // Deaktivieren während des Ladevorgangs
             />
           </div>
@@ -90,6 +91,7 @@ export default function LoginForm() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              // (Dieses war korrekt mit py-2)
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-50"
               disabled={isLoading} // Deaktivieren während des Ladevorgangs
             />
@@ -106,8 +108,7 @@ export default function LoginForm() {
           <div>
             <button
               type="submit"
-              // ✨ HIER IST DIE ÄNDERUNG ✨
-              className="w-full px-4 py-3 font-normal text-white bg-[#188bdb] border-[3px] border-[#188bdb] rounded-[3px] hover:shadow-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#188bdb] disabled:opacity-50 disabled:cursor-wait flex items-center justify-center gap-2" // Hintergrundfarbe bg-[#188bdb] und Textfarbe text-white hinzugefügt
+              className="w-full px-4 py-3 font-normal text-white bg-[#188bdb] border-[3px] border-[#188bdb] rounded-[3px] hover:shadow-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#188bdb] disabled:opacity-50 disabled:cursor-wait flex items-center justify-center gap-2"
               disabled={isLoading}
             >
               {isLoading ? (
