@@ -3,7 +3,12 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { getSearchConsoleData, getAnalyticsData, getTopQueries } from '@/lib/google-api'; // ✅ getTopQueries importieren
+import { 
+  getSearchConsoleData, 
+  getAnalyticsData, 
+  getTopQueries,
+  getAiTrafficData // ✅ Neue Funktion
+} from '@/lib/google-api';
 import { sql } from '@vercel/postgres';
 import { User } from '@/types';
 
