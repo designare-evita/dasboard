@@ -455,7 +455,7 @@ export async function getAiTrafficData(
         source,
         sessions,
         users: usersBySource[source] || 0,
-        percentage: totalSessions > 0 ? (sessions / totalSessions) * 100 : 0,
+        percentage: totalSessions > 0 ? (sessions / totalSessions) * 100 : 0, // Anteil am KI-Traffic
       }))
       .sort((a, b) => b.sessions - a.sessions)
       .slice(0, 5);
