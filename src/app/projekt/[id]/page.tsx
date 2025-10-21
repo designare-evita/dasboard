@@ -6,16 +6,23 @@ import { useParams } from 'next/navigation';
 import useApiData from '@/hooks/use-api-data';
 import KpiCard from '@/components/kpi-card';
 import KpiTrendChart from '@/components/charts/KpiTrendChart';
+import AiTrafficCard from '@/components/AiTrafficCard'; // ✅ Neue Komponente
 
-// --- Typen für die API-Antwort (flache KPI-Struktur auf Projektebene) ---
+// --- Typen für die API-Antwort ---
 interface KpiDatum {
   value: number;
   change: number;
+  aiTraffic?: { // ✅ Optional für Sessions
+    value: number;
+    percentage: number;
+  };
 }
+
 interface ChartPoint {
   date: string;
   value: number;
 }
+
 interface TopQueryData {
   query: string;
   clicks: number;
@@ -23,6 +30,25 @@ interface TopQueryData {
   ctr: number;
   position: number;
 }
+
+interface AiTrafficData { // ✅ Neuer Typ
+  totalSessions: number;
+  totalUsers: number;
+  sessionsBySource: {
+    [source: string]: number;
+  };
+  topAiSources: Array<{
+    source: string;
+    sessions: number;
+    users: number;
+    percentage: number;
+  }>;
+  trend: Array<{
+    date: string;
+    sessions: number;
+  }>;
+}
+
 interface ProjectApiData {
   kpis?: {
     clicks?: KpiDatum;
@@ -36,12 +62,15 @@ interface ProjectApiData {
     sessions?: ChartPoint[];
     totalUsers?: ChartPoint[];
   };
-  topQueries?: TopQueryData[]; // ✅ Top Queries hinzugefügt
+  topQueries?: TopQueryData[];
+  aiTraffic?: AiTrafficData; // ✅ KI-Traffic hinzugefügt
 }
+
 type ActiveKpi = 'clicks' | 'impressions' | 'sessions' | 'totalUsers';
 
-// --- sichere Defaults + Normalisierung (liefert immer vollständige KPI-Werte) ---
+// --- sichere Defaults + Normalisierung ---
 const ZERO_KPI: KpiDatum = { value: 0, change: 0 };
+
 function normalizeFlatKpis(input?: ProjectApiData['kpis']) {
   return {
     clicks: input?.clicks ?? ZERO_KPI,
@@ -88,7 +117,7 @@ export default function ProjektDetailPage() {
   // Immer sichere KPI-Werte verwenden
   const k = normalizeFlatKpis(data.kpis);
 
-  // Aktuelle Chartserie (leer, wenn nicht vorhanden)
+  // Aktuelle Chartserie
   const chartSeries: ChartPoint[] =
     (data.charts && data.charts[activeKpi]) ? data.charts[activeKpi]! : [];
 
@@ -118,87 +147,103 @@ export default function ProjektDetailPage() {
   };
 
   return (
-    <>
-      <div className="p-4 sm:p-6 md:p-8">
-        <h2 className="text-3xl font-bold mb-6">Projekt-Dashboard</h2>
+    <div className="p-4 sm:p-6 md:p-8">
+      <h2 className="text-3xl font-bold mb-6">Projekt-Dashboard</h2>
 
-        {/* KPI-Karten */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <KpiCard title="Klicks" isLoading={false} value={k.clicks.value} change={k.clicks.change} />
-          <KpiCard title="Impressionen" isLoading={false} value={k.impressions.value} change={k.impressions.change} />
-          <KpiCard title="Sitzungen" isLoading={false} value={k.sessions.value} change={k.sessions.change} />
-          <KpiCard title="Nutzer" isLoading={false} value={k.totalUsers.value} change={k.totalUsers.change} />
-        </div>
+      {/* KPI-Karten */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <KpiCard title="Klicks" isLoading={false} value={k.clicks.value} change={k.clicks.change} />
+        <KpiCard title="Impressionen" isLoading={false} value={k.impressions.value} change={k.impressions.change} />
+        <KpiCard title="Sitzungen" isLoading={false} value={k.sessions.value} change={k.sessions.change} />
+        <KpiCard title="Nutzer" isLoading={false} value={k.totalUsers.value} change={k.totalUsers.change} />
+      </div>
 
-        {/* Charts mit Tabs */}
-        <div className="mt-8 bg-white p-6 rounded-lg shadow-md">
-          <div className="flex border-b border-gray-200">
-            {(Object.keys(tabMeta) as ActiveKpi[]).map((key) => (
-              <button
-                key={key}
-                onClick={() => setActiveKpi(key)}
-                className={`py-2 px-4 text-sm font-medium ${
-                  activeKpi === key
-                    ? 'border-b-2 border-blue-500 text-blue-600'
-                    : 'text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                {tabMeta[key].title}
-              </button>
-            ))}
-          </div>
-
-          <div className="mt-4">
-            <KpiTrendChart data={chartSeries} color={tabMeta[activeKpi].color} />
-          </div>
-
-          {showNoDataHint && (
-            <p className="mt-6 text-sm text-gray-500">
-              Hinweis: Für dieses Projekt wurden noch keine KPI-/Zeitreihen-Daten geliefert. Es werden
-              vorübergehend Platzhalter-Werte (0) angezeigt.
-            </p>
-          )}
-        </div>
-
-        {/* ✅ Top 5 Suchanfragen Tabelle */}
-        {data?.topQueries && data.topQueries.length > 0 && (
-          <div className="mt-8 bg-white p-6 rounded-lg shadow-md">
-            <h3 className="text-xl font-semibold mb-4">Top 5 Suchanfragen</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="text-left text-gray-600 border-b">
-                    <th className="pb-3 pr-4 font-medium">Suchanfrage</th>
-                    <th className="pb-3 pr-4 font-medium text-right">Klicks</th>
-                    <th className="pb-3 pr-4 font-medium text-right">Impressionen</th>
-                    <th className="pb-3 pr-4 font-medium text-right">CTR</th>
-                    <th className="pb-3 font-medium text-right">Position</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.topQueries.map((query, index) => (
-                    <tr key={`${query.query}-${index}`} className="border-b hover:bg-gray-50">
-                      <td className="py-3 pr-4 text-gray-900">{query.query}</td>
-                      <td className="py-3 pr-4 text-right text-gray-700">
-                        {query.clicks.toLocaleString('de-DE')}
-                      </td>
-                      <td className="py-3 pr-4 text-right text-gray-700">
-                        {query.impressions.toLocaleString('de-DE')}
-                      </td>
-                      <td className="py-3 pr-4 text-right text-gray-700">
-                        {(query.ctr * 100).toFixed(2)}%
-                      </td>
-                      <td className="py-3 text-right text-gray-700">
-                        {query.position.toFixed(1)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+      {/* ✅ NEUE Sektion: KI-Traffic + Charts nebeneinander */}
+      <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* ✅ KI-Traffic Card (1 Spalte) */}
+        {data.aiTraffic && (
+          <div className="lg:col-span-1">
+            <AiTrafficCard
+              totalSessions={data.aiTraffic.totalSessions}
+              totalUsers={data.aiTraffic.totalUsers}
+              percentage={k.sessions.aiTraffic?.percentage || 0}
+              topSources={data.aiTraffic.topAiSources}
+              isLoading={false}
+            />
           </div>
         )}
+
+        {/* Charts (2 Spalten, oder 3 wenn kein KI-Traffic) */}
+        <div className={`${data.aiTraffic ? 'lg:col-span-2' : 'lg:col-span-3'}`}>
+          <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
+            <div className="flex border-b border-gray-200">
+              {(Object.keys(tabMeta) as ActiveKpi[]).map((key) => (
+                <button
+                  key={key}
+                  onClick={() => setActiveKpi(key)}
+                  className={`py-2 px-4 text-sm font-medium transition-colors ${
+                    activeKpi === key
+                      ? 'border-b-2 border-blue-500 text-blue-600'
+                      : 'text-gray-500 hover:text-gray-700 border-b-2 border-transparent'
+                  }`}
+                >
+                  {tabMeta[key].title}
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-4 h-72">
+              <KpiTrendChart data={chartSeries} color={tabMeta[activeKpi].color} />
+            </div>
+
+            {showNoDataHint && (
+              <p className="mt-6 text-sm text-gray-500">
+                Hinweis: Für dieses Projekt wurden noch keine KPI-/Zeitreihen-Daten geliefert. Es werden
+                vorübergehend Platzhalter-Werte (0) angezeigt.
+              </p>
+            )}
+          </div>
+        </div>
       </div>
-    </>
+
+      {/* ✅ Top 5 Suchanfragen Tabelle */}
+      {data?.topQueries && data.topQueries.length > 0 && (
+        <div className="mt-8 bg-white p-6 rounded-lg shadow-md border border-gray-200">
+          <h3 className="text-xl font-semibold mb-4">Top 5 Suchanfragen</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="text-left text-gray-600 border-b border-gray-200">
+                  <th className="pb-3 pr-4 font-medium">Suchanfrage</th>
+                  <th className="pb-3 pr-4 font-medium text-right">Klicks</th>
+                  <th className="pb-3 pr-4 font-medium text-right">Impressionen</th>
+                  <th className="pb-3 pr-4 font-medium text-right">CTR</th>
+                  <th className="pb-3 font-medium text-right">Position</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.topQueries.map((query, index) => (
+                  <tr key={`${query.query}-${index}`} className="border-b border-gray-100 hover:bg-gray-50">
+                    <td className="py-3 pr-4 text-gray-900">{query.query}</td>
+                    <td className="py-3 pr-4 text-right text-gray-700">
+                      {query.clicks.toLocaleString('de-DE')}
+                    </td>
+                    <td className="py-3 pr-4 text-right text-gray-700">
+                      {query.impressions.toLocaleString('de-DE')}
+                    </td>
+                    <td className="py-3 pr-4 text-right text-gray-700">
+                      {(query.ctr * 100).toFixed(2)}%
+                    </td>
+                    <td className="py-3 text-right text-gray-700">
+                      {query.position.toFixed(1)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
