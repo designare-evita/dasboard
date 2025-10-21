@@ -2,7 +2,7 @@
 'use client';
 
 import React from 'react';
-import { Bot, TrendingUp, Users } from 'react-bootstrap-icons';
+import { Cpu, TrendingUp, People } from 'react-bootstrap-icons';
 
 interface AiTrafficCardProps {
   totalSessions: number;
@@ -51,7 +51,7 @@ export default function AiTrafficCard({
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <Bot className="text-purple-600" size={24} />
+          <Cpu className="text-purple-600" size={24} />
           <h3 className="text-lg font-semibold text-gray-900">KI-Traffic</h3>
         </div>
         <div className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-sm font-medium">
@@ -73,7 +73,7 @@ export default function AiTrafficCard({
         
         <div className="bg-purple-50 rounded-lg p-4">
           <div className="flex items-center gap-2 mb-1">
-            <Users size={16} className="text-purple-600" />
+            <People size={16} className="text-purple-600" />
             <p className="text-sm text-purple-700 font-medium">Nutzer</p>
           </div>
           <p className="text-2xl font-bold text-purple-900">
