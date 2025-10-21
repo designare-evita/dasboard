@@ -375,7 +375,7 @@ export async function getAiTrafficData(
           metric: { metricName: 'sessions' }, 
           desc: true 
         }],
-        limit: 1000, // Mehr Daten für bessere Erkennung
+        limit: '1000', // String statt Number
       },
     });
 
@@ -395,7 +395,7 @@ export async function getAiTrafficData(
           dimension: { dimensionName: 'date' }, 
           desc: false 
         }],
-        limit: 10000,
+        limit: '10000', // String statt Number
       },
     });
 
