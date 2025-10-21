@@ -3,15 +3,9 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { 
-  getSearchConsoleData, 
-  getAnalyticsData, 
-  getTopQueries,
-  getAiTrafficData // ✅ Neue Funktion
-} from '@/lib/google-api';
+import { getSearchConsoleData, getAnalyticsData, getTopQueries } from '@/lib/google-api'; // ✅ getTopQueries importieren
 import { sql } from '@vercel/postgres';
 import { User } from '@/types';
-
 // Hilfsfunktionen
 function formatDate(date: Date): string { 
   return date.toISOString().split('T')[0]; 
