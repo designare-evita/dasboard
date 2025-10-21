@@ -158,8 +158,81 @@ export default function ProjektDetailPage() {
         <KpiCard title="Nutzer" isLoading={false} value={k.totalUsers.value} change={k.totalUsers.change} />
       </div>
 
-      {/* ✅ NEUE Sektion: KI-Traffic + Charts nebeneinander */}
+      {/* Charts - volle Breite */}
+      <div className="mt-8">
+        <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
+          <div className="flex border-b border-gray-200">
+            {(Object.keys(tabMeta) as ActiveKpi[]).map((key) => (
+              <button
+                key={key}
+                onClick={() => setActiveKpi(key)}
+                className={`py-2 px-4 text-sm font-medium transition-colors ${
+                  activeKpi === key
+                    ? 'border-b-2 border-blue-500 text-blue-600'
+                    : 'text-gray-500 hover:text-gray-700 border-b-2 border-transparent'
+                }`}
+              >
+                {tabMeta[key].title}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-4 h-72">
+            <KpiTrendChart data={chartSeries} color={tabMeta[activeKpi].color} />
+          </div>
+
+          {showNoDataHint && (
+            <p className="mt-6 text-sm text-gray-500">
+              Hinweis: Für dieses Projekt wurden noch keine KPI-/Zeitreihen-Daten geliefert. Es werden
+              vorübergehend Platzhalter-Werte (0) angezeigt.
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* ✅ Top Queries + KI-Traffic nebeneinander */}
       <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Top 5 Suchanfragen Tabelle (2 Spalten) */}
+        {data?.topQueries && data.topQueries.length > 0 && (
+          <div className="lg:col-span-2">
+            <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
+              <h3 className="text-xl font-semibold mb-4">Top 5 Suchanfragen</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="text-left text-gray-600 border-b border-gray-200">
+                      <th className="pb-3 pr-4 font-medium">Suchanfrage</th>
+                      <th className="pb-3 pr-4 font-medium text-right">Klicks</th>
+                      <th className="pb-3 pr-4 font-medium text-right">Impressionen</th>
+                      <th className="pb-3 pr-4 font-medium text-right">CTR</th>
+                      <th className="pb-3 font-medium text-right">Position</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.topQueries.map((query, index) => (
+                      <tr key={`${query.query}-${index}`} className="border-b border-gray-100 hover:bg-gray-50">
+                        <td className="py-3 pr-4 text-gray-900">{query.query}</td>
+                        <td className="py-3 pr-4 text-right text-gray-700">
+                          {query.clicks.toLocaleString('de-DE')}
+                        </td>
+                        <td className="py-3 pr-4 text-right text-gray-700">
+                          {query.impressions.toLocaleString('de-DE')}
+                        </td>
+                        <td className="py-3 pr-4 text-right text-gray-700">
+                          {(query.ctr * 100).toFixed(2)}%
+                        </td>
+                        <td className="py-3 text-right text-gray-700">
+                          {query.position.toFixed(1)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ✅ KI-Traffic Card (1 Spalte) */}
         {data.aiTraffic && (
           <div className="lg:col-span-1">
@@ -172,78 +245,7 @@ export default function ProjektDetailPage() {
             />
           </div>
         )}
-
-        {/* Charts (2 Spalten, oder 3 wenn kein KI-Traffic) */}
-        <div className={`${data.aiTraffic ? 'lg:col-span-2' : 'lg:col-span-3'}`}>
-          <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
-            <div className="flex border-b border-gray-200">
-              {(Object.keys(tabMeta) as ActiveKpi[]).map((key) => (
-                <button
-                  key={key}
-                  onClick={() => setActiveKpi(key)}
-                  className={`py-2 px-4 text-sm font-medium transition-colors ${
-                    activeKpi === key
-                      ? 'border-b-2 border-blue-500 text-blue-600'
-                      : 'text-gray-500 hover:text-gray-700 border-b-2 border-transparent'
-                  }`}
-                >
-                  {tabMeta[key].title}
-                </button>
-              ))}
-            </div>
-
-            <div className="mt-4 h-72">
-              <KpiTrendChart data={chartSeries} color={tabMeta[activeKpi].color} />
-            </div>
-
-            {showNoDataHint && (
-              <p className="mt-6 text-sm text-gray-500">
-                Hinweis: Für dieses Projekt wurden noch keine KPI-/Zeitreihen-Daten geliefert. Es werden
-                vorübergehend Platzhalter-Werte (0) angezeigt.
-              </p>
-            )}
-          </div>
-        </div>
       </div>
-
-      {/* ✅ Top 5 Suchanfragen Tabelle */}
-      {data?.topQueries && data.topQueries.length > 0 && (
-        <div className="mt-8 bg-white p-6 rounded-lg shadow-md border border-gray-200">
-          <h3 className="text-xl font-semibold mb-4">Top 5 Suchanfragen</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="text-left text-gray-600 border-b border-gray-200">
-                  <th className="pb-3 pr-4 font-medium">Suchanfrage</th>
-                  <th className="pb-3 pr-4 font-medium text-right">Klicks</th>
-                  <th className="pb-3 pr-4 font-medium text-right">Impressionen</th>
-                  <th className="pb-3 pr-4 font-medium text-right">CTR</th>
-                  <th className="pb-3 font-medium text-right">Position</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.topQueries.map((query, index) => (
-                  <tr key={`${query.query}-${index}`} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="py-3 pr-4 text-gray-900">{query.query}</td>
-                    <td className="py-3 pr-4 text-right text-gray-700">
-                      {query.clicks.toLocaleString('de-DE')}
-                    </td>
-                    <td className="py-3 pr-4 text-right text-gray-700">
-                      {query.impressions.toLocaleString('de-DE')}
-                    </td>
-                    <td className="py-3 pr-4 text-right text-gray-700">
-                      {(query.ctr * 100).toFixed(2)}%
-                    </td>
-                    <td className="py-3 text-right text-gray-700">
-                      {query.position.toFixed(1)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
