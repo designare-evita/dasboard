@@ -3,10 +3,9 @@
 
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState, ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { User } from '@/types';
-// Benötigte Icons importieren
 import { 
   ArrowRepeat, 
   ExclamationTriangleFill, 
@@ -16,11 +15,16 @@ import {
 import KpiCard from '@/components/kpi-card';
 import KpiTrendChart from '@/components/charts/KpiTrendChart';
 import LandingpageApproval from '@/components/LandingpageApproval';
+import AiTrafficCard from '@/components/AiTrafficCard'; // ✅ Neue Komponente
 
 // --- Typen für Dashboard-Daten ---
 type KPI = {
   value: number;
   change: number;
+  aiTraffic?: { // ✅ Optional für Sessions
+    value: number;
+    percentage: number;
+  };
 };
 
 type ChartData = {
@@ -34,6 +38,24 @@ type TopQueryData = {
   impressions: number;
   ctr: number;
   position: number;
+};
+
+type AiTrafficData = { // ✅ Neuer Typ
+  totalSessions: number;
+  totalUsers: number;
+  sessionsBySource: {
+    [source: string]: number;
+  };
+  topAiSources: Array<{
+    source: string;
+    sessions: number;
+    users: number;
+    percentage: number;
+  }>;
+  trend: Array<{
+    date: string;
+    sessions: number;
+  }>;
 };
 
 type DashboardData = {
@@ -50,6 +72,7 @@ type DashboardData = {
     totalUsers: ChartData;
   };
   topQueries?: TopQueryData[];
+  aiTraffic?: AiTrafficData; // ✅ Neue Property
 };
 
 type ActiveKpi = 'clicks' | 'impressions' | 'sessions' | 'totalUsers';
@@ -59,13 +82,8 @@ export default function HomePage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   
-  // State für Benutzer (Kunden-Dashboard)
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
-  
-  // State für Admin/Superadmin
   const [projects, setProjects] = useState<User[]>([]);
-  
-  // Allgemeiner State
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -83,7 +101,6 @@ export default function HomePage() {
           
           const data = await response.json();
           
-          // Daten basierend auf der Rolle setzen
           if (data.role === 'ADMIN' || data.role === 'SUPERADMIN') {
             setProjects(data.projects || []);
           } else if (data.role === 'BENUTZER') {
@@ -116,7 +133,6 @@ export default function HomePage() {
 
   if (error) {
     return (
-      // KORREKTUR: Error-Styling mit Icon
       <div className="p-8 text-center text-red-800 bg-red-50 rounded-lg border border-red-200 max-w-2xl mx-auto mt-10">
         <h3 className="font-bold flex items-center justify-center gap-2">
           <ExclamationTriangleFill size={18} />
@@ -137,11 +153,10 @@ export default function HomePage() {
     return <CustomerDashboard data={dashboardData} isLoading={isLoading} />;
   }
 
-  // Fallback, falls keine Daten passen
   return (
-      <div className="p-8 text-center text-gray-500">
-        Keine Daten zur Anzeige verfügbar.
-      </div>
+    <div className="p-8 text-center text-gray-500">
+      Keine Daten zur Anzeige verfügbar.
+    </div>
   );
 }
 
@@ -161,14 +176,12 @@ function AdminDashboard({ projects }: { projects: User[] }) {
               <Link
                 key={project.id}
                 href={`/projekt/${project.id}`}
-                // KORREKTUR: Hover-Effekt minimalistischer
                 className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow border border-gray-200 hover:bg-gray-50 group"
               >
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-xl font-bold text-gray-900 truncate">
                     {project.domain || project.email}
                   </h3>
-                  {/* KORREKTUR: Emoji durch Icon ersetzt */}
                   <GraphUp size={24} className="text-indigo-600 flex-shrink-0" />
                 </div>
                 <div className="space-y-2 text-sm text-gray-600">
@@ -182,7 +195,6 @@ function AdminDashboard({ projects }: { projects: User[] }) {
                   )}
                 </div>
                 <div className="mt-4 pt-4 border-t border-gray-100">
-                  {/* KORREKTUR: Text-Link durch Icon+Text ersetzt */}
                   <span className="text-indigo-600 group-hover:text-indigo-800 text-sm font-medium flex items-center gap-1.5 transition-colors">
                     Dashboard anzeigen <ArrowRightSquare size={14} />
                   </span>
@@ -200,9 +212,15 @@ function AdminDashboard({ projects }: { projects: User[] }) {
 function CustomerDashboard({ data, isLoading }: { data: DashboardData; isLoading: boolean }) {
   const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
 
-  const kpis = data.kpis || { clicks: { value: 0, change: 0 }, impressions: { value: 0, change: 0 }, sessions: { value: 0, change: 0 }, totalUsers: { value: 0, change: 0 } };
+  const kpis = data.kpis || { 
+    clicks: { value: 0, change: 0 }, 
+    impressions: { value: 0, change: 0 }, 
+    sessions: { value: 0, change: 0 }, 
+    totalUsers: { value: 0, change: 0 } 
+  };
+  
   const chartSeries: ChartData = (data.charts && data.charts[activeKpi]) ? data.charts[activeKpi]! : [];
-  const showNoDataHint = !data.kpis; // Prüft, ob KPI-Objekt überhaupt existiert
+  const showNoDataHint = !data.kpis;
 
   const tabMeta: Record<ActiveKpi, { title: string; color: string }> = {
     clicks: { title: 'Klicks', color: '#3b82f6' },
@@ -216,6 +234,7 @@ function CustomerDashboard({ data, isLoading }: { data: DashboardData; isLoading
       <main>
         <h2 className="text-3xl font-bold text-gray-900 mb-6">Ihr Dashboard</h2>
         
+        {/* KPI-Karten Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <KpiCard title="Klicks" isLoading={isLoading} value={kpis.clicks.value} change={kpis.clicks.change} />
           <KpiCard title="Impressionen" isLoading={isLoading} value={kpis.impressions.value} change={kpis.impressions.change} />
@@ -223,27 +242,47 @@ function CustomerDashboard({ data, isLoading }: { data: DashboardData; isLoading
           <KpiCard title="Nutzer" isLoading={isLoading} value={kpis.totalUsers.value} change={kpis.totalUsers.change} />
         </div>
         
-        <div className="mt-8 bg-white p-6 rounded-lg shadow-md border border-gray-200">
-          <div className="flex border-b border-gray-200">
-            {(Object.keys(tabMeta) as ActiveKpi[]).map((key) => (
-              <button
-                key={key}
-                onClick={() => setActiveKpi(key)}
-                className={`py-2 px-4 text-sm font-medium transition-colors ${
-                  activeKpi === key
-                    ? 'border-b-2 border-indigo-500 text-indigo-600'
-                    : 'text-gray-500 hover:text-gray-700 hover:border-gray-300 border-b-2 border-transparent'
-                }`}
-              >
-                {tabMeta[key].title}
-              </button>
-            ))}
-          </div>
-          <div className="mt-4 h-72">
-            <KpiTrendChart data={chartSeries} color={tabMeta[activeKpi].color} />
+        {/* ✅ NEUE Sektion: KI-Traffic + Charts nebeneinander */}
+        <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* ✅ KI-Traffic Card (1 Spalte) */}
+          {data.aiTraffic && (
+            <div className="lg:col-span-1">
+              <AiTrafficCard
+                totalSessions={data.aiTraffic.totalSessions}
+                totalUsers={data.aiTraffic.totalUsers}
+                percentage={kpis.sessions.aiTraffic?.percentage || 0}
+                topSources={data.aiTraffic.topAiSources}
+                isLoading={isLoading}
+              />
+            </div>
+          )}
+          
+          {/* Charts (2 Spalten, oder 3 wenn kein KI-Traffic) */}
+          <div className={`${data.aiTraffic ? 'lg:col-span-2' : 'lg:col-span-3'}`}>
+            <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
+              <div className="flex border-b border-gray-200">
+                {(Object.keys(tabMeta) as ActiveKpi[]).map((key) => (
+                  <button
+                    key={key}
+                    onClick={() => setActiveKpi(key)}
+                    className={`py-2 px-4 text-sm font-medium transition-colors ${
+                      activeKpi === key
+                        ? 'border-b-2 border-indigo-500 text-indigo-600'
+                        : 'text-gray-500 hover:text-gray-700 hover:border-gray-300 border-b-2 border-transparent'
+                    }`}
+                  >
+                    {tabMeta[key].title}
+                  </button>
+                ))}
+              </div>
+              <div className="mt-4 h-72">
+                <KpiTrendChart data={chartSeries} color={tabMeta[activeKpi].color} />
+              </div>
+            </div>
           </div>
         </div>
         
+        {/* Top Queries Tabelle */}
         {data.topQueries && data.topQueries.length > 0 && (
           <div className="mt-8 bg-white p-6 rounded-lg shadow-md border border-gray-200">
             <h3 className="text-xl font-semibold mb-4">Top 5 Suchanfragen</h3>
@@ -282,7 +321,7 @@ function CustomerDashboard({ data, isLoading }: { data: DashboardData; isLoading
           </div>
         )}
         
-        {/* Diese Komponente ist bereits auf den neuen Stil angepasst */}
+        {/* Landingpage Approval */}
         <LandingpageApproval />
 
         {showNoDataHint && (
