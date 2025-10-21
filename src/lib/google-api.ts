@@ -132,13 +132,17 @@ function isAiSource(source: string): boolean {
     
     // KI-Crawler
     'gptbot', 'claudebot',
-    'google-extended',
+    'google-extended', // Google's AI Training Bot
     'cohere-ai',
     'ai2bot',
     
     // Suchmaschinen-KI
     'you.com', 'neeva',
     'phind', 'metaphor',
+    
+    // Zusätzliche KI-Dienste
+    'notion ai', 'jasper',
+    'copy.ai', 'writesonic',
   ];
 
   const sourceLower = source.toLowerCase();
