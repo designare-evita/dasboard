@@ -4,7 +4,13 @@ import { NextResponse } from 'next/server';
 import { sql } from '@vercel/postgres';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { getSearchConsoleData, getAnalyticsData, getTopQueries } from '@/lib/google-api'; // ✅ getTopQueries importieren
+import { 
+  getSearchConsoleData, 
+  getAnalyticsData, 
+  getTopQueries,
+  getAiTrafficData, // ✅ KI-Traffic importieren
+  type AiTrafficData
+} from '@/lib/google-api';
 import { User } from '@/types';
 import bcrypt from 'bcryptjs';
 
@@ -20,10 +26,18 @@ function calculateChange(current: number, previous: number): number {
   return Math.round(change * 10) / 10;
 }
 
+/**
+ * Lädt vollständige Dashboard-Daten für ein Projekt inkl. KI-Traffic
+ */
 async function getProjectDashboardData(user: Partial<User>) {
   if (!user.gsc_site_url || !user.ga4_property_id) {
     console.warn(`[getProjectDashboardData] Benutzer ${user.email} hat keine GSC/GA4-Daten konfiguriert.`);
-    return { kpis: {}, charts: {}, topQueries: [] };
+    return { 
+      kpis: {}, 
+      charts: {}, 
+      topQueries: [], 
+      aiTraffic: null 
+    };
   }
 
   const endDateCurrent = new Date();
@@ -37,32 +51,49 @@ async function getProjectDashboardData(user: Partial<User>) {
   startDatePrevious.setDate(startDatePrevious.getDate() - 29);
 
   try {
-    // ✅ getTopQueries parallel mit den anderen API-Aufrufen abrufen
-    const [gscCurrent, gscPrevious, gaCurrent, gaPrevious, topQueries] = await Promise.all([
+    console.log(`[getProjectDashboardData] 📊 Lade Daten für Projekt: ${user.email}`);
+    
+    // ✅ Alle API-Calls parallel ausführen (inkl. KI-Traffic)
+    const [gscCurrent, gscPrevious, gaCurrent, gaPrevious, topQueries, aiTraffic] = await Promise.all([
       getSearchConsoleData(user.gsc_site_url, formatDate(startDateCurrent), formatDate(endDateCurrent)),
       getSearchConsoleData(user.gsc_site_url, formatDate(startDatePrevious), formatDate(endDatePrevious)),
       getAnalyticsData(user.ga4_property_id, formatDate(startDateCurrent), formatDate(endDateCurrent)),
       getAnalyticsData(user.ga4_property_id, formatDate(startDatePrevious), formatDate(endDatePrevious)),
-      getTopQueries(user.gsc_site_url, formatDate(startDateCurrent), formatDate(endDateCurrent)), // ✅ Top Queries abrufen
+      getTopQueries(user.gsc_site_url, formatDate(startDateCurrent), formatDate(endDateCurrent)),
+      getAiTrafficData(user.ga4_property_id, formatDate(startDateCurrent), formatDate(endDateCurrent)), // ✅ KI-Traffic
     ]);
+
+    // ✅ KI-Traffic-Anteil berechnen
+    const totalSessions = gaCurrent.sessions.total ?? 0;
+    const aiSessionsPercentage = totalSessions > 0 
+      ? (aiTraffic.totalSessions / totalSessions) * 100 
+      : 0;
+
+    console.log(`[getProjectDashboardData] ✅ Daten erfolgreich geladen`);
+    console.log(`[getProjectDashboardData] 🤖 KI-Traffic: ${aiTraffic.totalSessions} Sitzungen (${aiSessionsPercentage.toFixed(2)}%)`);
 
     return {
       kpis: {
         clicks: {
-          value: gscCurrent.clicks.total,
-          change: calculateChange(gscCurrent.clicks.total, gscPrevious.clicks.total),
+          value: gscCurrent.clicks.total ?? 0,
+          change: calculateChange(gscCurrent.clicks.total ?? 0, gscPrevious.clicks.total ?? 0),
         },
         impressions: {
-          value: gscCurrent.impressions.total,
-          change: calculateChange(gscCurrent.impressions.total, gscPrevious.impressions.total),
+          value: gscCurrent.impressions.total ?? 0,
+          change: calculateChange(gscCurrent.impressions.total ?? 0, gscPrevious.impressions.total ?? 0),
         },
         sessions: {
-          value: gaCurrent.sessions.total,
-          change: calculateChange(gaCurrent.sessions.total, gaPrevious.sessions.total),
+          value: gaCurrent.sessions.total ?? 0,
+          change: calculateChange(gaCurrent.sessions.total ?? 0, gaPrevious.sessions.total ?? 0),
+          // ✅ KI-Traffic-Info zu Sessions hinzufügen
+          aiTraffic: {
+            value: aiTraffic.totalSessions,
+            percentage: aiSessionsPercentage
+          }
         },
         totalUsers: {
-          value: gaCurrent.totalUsers.total,
-          change: calculateChange(gaCurrent.totalUsers.total, gaPrevious.totalUsers.total),
+          value: gaCurrent.totalUsers.total ?? 0,
+          change: calculateChange(gaCurrent.totalUsers.total ?? 0, gaPrevious.totalUsers.total ?? 0),
         },
       },
       charts: {
@@ -71,25 +102,36 @@ async function getProjectDashboardData(user: Partial<User>) {
         sessions: gaCurrent.sessions.daily,
         totalUsers: gaCurrent.totalUsers.daily,
       },
-      topQueries, // ✅ Top Queries zum Response hinzufügen
+      topQueries, // ✅ Top 5 Suchanfragen
+      aiTraffic, // ✅ Vollständige KI-Traffic-Daten
     };
   } catch (error) {
-    console.error(`[getProjectDashboardData] Fehler für ${user.email}:`, error);
-    return { kpis: {}, charts: {}, topQueries: [], error: (error as Error).message };
+    console.error(`[getProjectDashboardData] ❌ Fehler für ${user.email}:`, error);
+    return { 
+      kpis: {}, 
+      charts: {}, 
+      topQueries: [],
+      aiTraffic: null,
+      error: (error as Error).message 
+    };
   }
 }
 
-// --- API ROUTE HANDLER ---
+// --- API ROUTE HANDLERS ---
 
+/**
+ * GET /api/projects/[id]
+ * Ruft Dashboard-Daten für ein spezifisches Projekt ab
+ */
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id: projectId } = await params;
+    const { id: projectId } = await context.params;
     const session = await getServerSession(authOptions);
 
-    console.log('[GET /api/projects/[id]] Start');
+    console.log('[GET /api/projects/[id]] 🚀 Start');
     console.log('[GET] Project ID:', projectId);
     console.log('[GET] User:', session?.user?.email, 'Role:', session?.user?.role);
 
@@ -100,24 +142,29 @@ export async function GET(
     const { role: sessionRole, id: sessionUserId } = session.user;
     let targetUser: User | undefined;
 
+    // ========================================
     // SUPERADMIN: Kann alle Benutzer-Projekte sehen
+    // ========================================
     if (sessionRole === 'SUPERADMIN') {
-      console.log('[GET] SUPERADMIN - Lade Projekt:', projectId);
+      console.log('[GET] 👑 SUPERADMIN - Lade Projekt:', projectId);
       
       const { rows } = await sql<User>`
-        SELECT * FROM users WHERE id::text = ${projectId} AND role = 'BENUTZER'
+        SELECT * FROM users 
+        WHERE id::text = ${projectId} 
+        AND role = 'BENUTZER'
       `;
       targetUser = rows[0];
       
       if (!targetUser) {
-        console.error('[GET] Projekt nicht gefunden für SUPERADMIN');
+        console.error('[GET] ❌ Projekt nicht gefunden für SUPERADMIN');
       }
     } 
+    // ========================================
     // ADMIN: Kann nur zugewiesene Projekte sehen
+    // ========================================
     else if (sessionRole === 'ADMIN') {
-      console.log('[GET] ADMIN - Prüfe Zugriff auf Projekt:', projectId);
+      console.log('[GET] 👤 ADMIN - Prüfe Zugriff auf Projekt:', projectId);
       
-      // ✅ KORREKTUR: Prüfe, ob das Projekt dem Admin zugewiesen ist
       const { rows } = await sql<User>`
         SELECT u.* 
         FROM users u
@@ -130,7 +177,7 @@ export async function GET(
       targetUser = rows[0];
       
       if (!targetUser) {
-        console.error('[GET] Projekt nicht gefunden oder nicht zugewiesen an Admin:', sessionUserId);
+        console.error('[GET] ❌ Projekt nicht gefunden oder nicht zugewiesen an Admin:', sessionUserId);
         
         // Debug: Zeige alle zugewiesenen Projekte für diesen Admin
         const { rows: debugAssignments } = await sql`
@@ -144,15 +191,17 @@ export async function GET(
           AND u.role = 'BENUTZER'
         `;
         
-        console.log('[GET] Debug - Zugewiesene Projekte für Admin:', debugAssignments);
+        console.log('[GET] 🔍 Debug - Zugewiesene Projekte für Admin:', debugAssignments);
       }
     } 
+    // ========================================
     // BENUTZER: Kann nur sein eigenes Projekt sehen
+    // ========================================
     else if (sessionRole === 'BENUTZER') {
-      console.log('[GET] BENUTZER - Lade eigenes Projekt');
+      console.log('[GET] 👥 BENUTZER - Lade eigenes Projekt');
       
       if (projectId !== sessionUserId) {
-        console.error('[GET] BENUTZER versucht fremdes Projekt zu laden');
+        console.error('[GET] ❌ BENUTZER versucht fremdes Projekt zu laden');
         return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
       }
       
@@ -162,25 +211,26 @@ export async function GET(
       targetUser = rows[0];
     }
 
+    // Projekt nicht gefunden oder keine Berechtigung
     if (!targetUser) {
-      console.error('[GET] Kein Zugriff auf Projekt oder Projekt nicht gefunden');
+      console.error('[GET] ❌ Kein Zugriff auf Projekt oder Projekt nicht gefunden');
       return NextResponse.json({ 
         message: 'Projekt nicht gefunden oder keine Berechtigung',
         details: 'Sie haben keine Berechtigung, dieses Projekt anzusehen, oder das Projekt existiert nicht.'
       }, { status: 404 });
     }
 
-    console.log('[GET] Projekt gefunden:', targetUser.email, '- Lade Dashboard-Daten');
+    console.log('[GET] ✅ Projekt gefunden:', targetUser.email, '- Lade Dashboard-Daten (inkl. KI-Traffic)');
 
-    // Dashboard-Daten für den Zielbenutzer abrufen
+    // Dashboard-Daten für den Zielbenutzer abrufen (inkl. KI-Traffic)
     const dashboardData = await getProjectDashboardData(targetUser);
 
-    console.log('[GET] Dashboard-Daten erfolgreich geladen');
+    console.log('[GET] ✅ Dashboard-Daten erfolgreich geladen');
 
     return NextResponse.json(dashboardData);
 
   } catch (error) {
-    console.error(`[GET /api/projects/[id]] Fehler:`, error);
+    console.error(`[GET /api/projects/[id]] ❌ Fehler:`, error);
     return NextResponse.json({ 
       message: 'Interner Serverfehler',
       error: error instanceof Error ? error.message : 'Unbekannter Fehler'
@@ -188,14 +238,19 @@ export async function GET(
   }
 }
 
-// PUT - Projekt aktualisieren
+/**
+ * PUT /api/projects/[id]
+ * Aktualisiert Projekt-Daten
+ */
 export async function PUT(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params;
+    const { id } = await context.params;
     const session = await getServerSession(authOptions);
+    
+    console.log('[PUT /api/projects/[id]] 🔄 Update-Anfrage für Projekt:', id);
     
     if (!session?.user?.id) {
       return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
@@ -224,14 +279,17 @@ export async function PUT(
       `;
 
       if (accessCheck.length === 0) {
+        console.error('[PUT] ❌ Admin hat keinen Zugriff auf Projekt:', id);
         return NextResponse.json({ message: 'Projekt nicht gefunden oder keine Berechtigung' }, { status: 404 });
       }
     }
 
     // Update Query
     let updateQuery;
-    if (password) {
+    if (password && password.trim().length > 0) {
       const hashedPassword = await bcrypt.hash(password, 10);
+      console.log('[PUT] 🔐 Passwort wird geändert');
+      
       updateQuery = sql`
         UPDATE users
         SET 
@@ -244,6 +302,8 @@ export async function PUT(
         RETURNING id, email, role, domain, gsc_site_url, ga4_property_id;
       `;
     } else {
+      console.log('[PUT] 📝 Daten werden aktualisiert (ohne Passwort)');
+      
       updateQuery = sql`
         UPDATE users
         SET 
@@ -259,24 +319,35 @@ export async function PUT(
     const { rows } = await updateQuery;
 
     if (rows.length === 0) {
+      console.error('[PUT] ❌ Projekt nicht gefunden:', id);
       return NextResponse.json({ message: 'Projekt nicht gefunden' }, { status: 404 });
     }
 
+    console.log('[PUT] ✅ Projekt erfolgreich aktualisiert:', rows[0].email);
     return NextResponse.json(rows[0]);
+    
   } catch (error) {
-    console.error('Fehler beim Aktualisieren des Projekts:', error);
-    return NextResponse.json({ message: 'Interner Serverfehler' }, { status: 500 });
+    console.error('[PUT /api/projects/[id]] ❌ Fehler:', error);
+    return NextResponse.json({ 
+      message: 'Interner Serverfehler',
+      error: error instanceof Error ? error.message : 'Unbekannter Fehler'
+    }, { status: 500 });
   }
 }
 
-// DELETE - Projekt löschen
+/**
+ * DELETE /api/projects/[id]
+ * Löscht ein Projekt
+ */
 export async function DELETE(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params;
+    const { id } = await context.params;
     const session = await getServerSession(authOptions);
+    
+    console.log('[DELETE /api/projects/[id]] 🗑️ Lösch-Anfrage für Projekt:', id);
     
     if (!session?.user?.id) {
       return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
@@ -286,14 +357,20 @@ export async function DELETE(
       return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
     }
 
-    // Admin: Prüfe Zugriff
+    // Lösch-Query abhängig von Rolle
     let deleteQuery;
+    
     if (session.user.role === 'SUPERADMIN') {
+      console.log('[DELETE] 👑 SUPERADMIN löscht Projekt');
+      
       deleteQuery = sql`
         DELETE FROM users 
-        WHERE id::text = ${id} AND role = 'BENUTZER';
+        WHERE id::text = ${id} 
+        AND role = 'BENUTZER';
       `;
     } else {
+      console.log('[DELETE] 👤 ADMIN löscht zugewiesenes Projekt');
+      
       // Admin kann nur zugewiesene Projekte löschen
       deleteQuery = sql`
         DELETE FROM users 
@@ -310,12 +387,20 @@ export async function DELETE(
     const result = await deleteQuery;
 
     if (result.rowCount === 0) {
-      return NextResponse.json({ message: 'Projekt nicht gefunden oder keine Berechtigung' }, { status: 404 });
+      console.error('[DELETE] ❌ Projekt nicht gefunden oder keine Berechtigung');
+      return NextResponse.json({ 
+        message: 'Projekt nicht gefunden oder keine Berechtigung' 
+      }, { status: 404 });
     }
 
+    console.log('[DELETE] ✅ Projekt erfolgreich gelöscht');
     return NextResponse.json({ message: 'Projekt erfolgreich gelöscht' });
+    
   } catch (error) {
-    console.error('Fehler beim Löschen des Projekts:', error);
-    return NextResponse.json({ message: 'Interner Serverfehler' }, { status: 500 });
+    console.error('[DELETE /api/projects/[id]] ❌ Fehler:', error);
+    return NextResponse.json({ 
+      message: 'Interner Serverfehler',
+      error: error instanceof Error ? error.message : 'Unbekannter Fehler'
+    }, { status: 500 });
   }
 }
