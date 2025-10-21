@@ -3,9 +3,16 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { getSearchConsoleData, getAnalyticsData, getTopQueries } from '@/lib/google-api'; // ✅ getTopQueries importieren
+import { 
+  getSearchConsoleData, 
+  getAnalyticsData, 
+  getTopQueries,
+  getAiTrafficData, // ✅ Neue Funktion
+  type AiTrafficData // ✅ Typ importieren
+} from '@/lib/google-api';
 import { sql } from '@vercel/postgres';
 import { User } from '@/types';
+
 // Hilfsfunktionen
 function formatDate(date: Date): string { 
   return date.toISOString().split('T')[0]; 
@@ -17,8 +24,12 @@ function calculateChange(current: number, previous: number): number {
   return Math.round(change * 10) / 10;
 }
 
+/**
+ * Lädt vollständige Dashboard-Daten für einen Benutzer inkl. KI-Traffic
+ */
 async function getDashboardDataForUser(user: Partial<User>) {
   if (!user.gsc_site_url || !user.ga4_property_id) {
+    console.warn(`[getDashboardDataForUser] Benutzer ${user.email} hat keine GSC/GA4-Daten konfiguriert.`);
     return null;
   }
 
@@ -34,15 +45,29 @@ async function getDashboardDataForUser(user: Partial<User>) {
   startDatePrevious.setDate(startDatePrevious.getDate() - 29);
 
   try {
-    // ✅ getTopQueries parallel mit den anderen API-Aufrufen abrufen
-    const [gscCurrent, gscPrevious, gaCurrent, gaPrevious, topQueries] = await Promise.all([
+    console.log(`[getDashboardDataForUser] Lade Daten für ${user.email}`);
+    
+    // ✅ Alle API-Calls parallel ausführen (inkl. KI-Traffic)
+    const [gscCurrent, gscPrevious, gaCurrent, gaPrevious, topQueries, aiTraffic] = await Promise.all([
       getSearchConsoleData(user.gsc_site_url, formatDate(startDateCurrent), formatDate(endDateCurrent)),
       getSearchConsoleData(user.gsc_site_url, formatDate(startDatePrevious), formatDate(endDatePrevious)),
       getAnalyticsData(user.ga4_property_id, formatDate(startDateCurrent), formatDate(endDateCurrent)),
       getAnalyticsData(user.ga4_property_id, formatDate(startDatePrevious), formatDate(endDatePrevious)),
-      getTopQueries(user.gsc_site_url, formatDate(startDateCurrent), formatDate(endDateCurrent)) // ✅ Neue Funktion
+      getTopQueries(user.gsc_site_url, formatDate(startDateCurrent), formatDate(endDateCurrent)),
+      getAiTrafficData(user.ga4_property_id, formatDate(startDateCurrent), formatDate(endDateCurrent)) // ✅ NEU
     ]);
     
+    console.log(`[getDashboardDataForUser] ✅ Daten erfolgreich geladen`);
+    console.log(`[getDashboardDataForUser] KI-Traffic: ${aiTraffic.totalSessions} Sitzungen`);
+    
+    // ✅ KI-Traffic-Anteil berechnen
+    const totalSessions = gaCurrent.sessions.total ?? 0;
+    const aiSessionsPercentage = totalSessions > 0 
+      ? (aiTraffic.totalSessions / totalSessions) * 100 
+      : 0;
+
+    console.log(`[getDashboardDataForUser] KI-Traffic-Anteil: ${aiSessionsPercentage.toFixed(2)}%`);
+
     return {
       kpis: {
         clicks: { 
@@ -55,7 +80,12 @@ async function getDashboardDataForUser(user: Partial<User>) {
         },
         sessions: { 
           value: gaCurrent.sessions.total ?? 0, 
-          change: calculateChange(gaCurrent.sessions.total ?? 0, gaPrevious.sessions.total ?? 0) 
+          change: calculateChange(gaCurrent.sessions.total ?? 0, gaPrevious.sessions.total ?? 0),
+          // ✅ KI-Traffic-Info zu Sessions hinzufügen
+          aiTraffic: {
+            value: aiTraffic.totalSessions,
+            percentage: aiSessionsPercentage
+          }
         },
         totalUsers: { 
           value: gaCurrent.totalUsers.total ?? 0, 
@@ -68,7 +98,8 @@ async function getDashboardDataForUser(user: Partial<User>) {
         sessions: gaCurrent.sessions.daily,
         totalUsers: gaCurrent.totalUsers.daily,
       },
-      topQueries // ✅ Top Queries zum Response hinzufügen
+      topQueries, // Top 5 Suchanfragen
+      aiTraffic // ✅ Vollständige KI-Traffic-Daten
     };
   } catch (error) {
     console.error('[getDashboardDataForUser] Fehler beim Abrufen der Google-Daten:', error);
@@ -76,6 +107,10 @@ async function getDashboardDataForUser(user: Partial<User>) {
   }
 }
 
+/**
+ * GET /api/data
+ * Hauptendpoint für Dashboard-Daten - unterstützt alle Rollen
+ */
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
@@ -89,7 +124,9 @@ export async function GET() {
     console.log('[/api/data] GET Request');
     console.log('[/api/data] User:', session.user.email, 'Role:', role, 'ID:', id);
 
+    // ========================================
     // SUPERADMIN: Sieht alle Benutzer-Projekte
+    // ========================================
     if (role === 'SUPERADMIN') {
       console.log('[/api/data] Loading projects for SUPERADMIN');
       
@@ -105,11 +142,12 @@ export async function GET() {
       return NextResponse.json({ role, projects });
     }
     
+    // ========================================
     // ADMIN: Sieht nur zugewiesene Projekte
+    // ========================================
     if (role === 'ADMIN') {
       console.log('[/api/data] Loading projects for ADMIN:', id);
       
-      // ✅ KORREKTUR: Lade Projekte über die project_assignments Tabelle
       const { rows: projects } = await sql<User>`
         SELECT 
           u.id, 
@@ -146,7 +184,9 @@ export async function GET() {
       return NextResponse.json({ role, projects });
     }
     
+    // ========================================
     // BENUTZER: Sieht sein eigenes Dashboard
+    // ========================================
     if (role === 'BENUTZER') {
       console.log('[/api/data] Loading dashboard for BENUTZER');
       
@@ -163,13 +203,18 @@ export async function GET() {
       
       const dashboardData = await getDashboardDataForUser(user);
       if (!dashboardData) {
-        return NextResponse.json({ message: 'Für diesen Benutzer sind keine Google-Properties konfiguriert.' }, { status: 404 });
+        return NextResponse.json({ 
+          message: 'Für diesen Benutzer sind keine Google-Properties konfiguriert.' 
+        }, { status: 404 });
       }
+      
+      console.log('[/api/data] ✅ Dashboard-Daten erfolgreich geladen');
       
       const response = {
         role: 'BENUTZER',
-        ...dashboardData // ✅ Enthält jetzt auch topQueries
+        ...dashboardData // ✅ Enthält jetzt auch aiTraffic
       };
+      
       return NextResponse.json(response);
     }
 
