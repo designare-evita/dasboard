@@ -258,3 +258,134 @@ export async function getAnalyticsData(
     throw new Error(`Fehler bei Google Analytics API: ${errorMessage}`);
   }
 }
+
+
+/**
+ * Ruft KI-Traffic-Daten aus Google Analytics 4 ab
+ * Identifiziert Traffic von bekannten KI-Bots und Crawlern
+ */
+export async function getAiTrafficData(
+  propertyId: string,
+  startDate: string,
+  endDate: string
+): Promise<AiTrafficData> {
+  try {
+    const auth = await getGoogleAuth();
+    const analyticsData = google.analyticsdata('v1beta');
+
+    // Bekannte KI-Bot User-Agents und Quellen
+    const aiSources = [
+      'ChatGPT-User',
+      'GPTBot',
+      'Claude-Web',
+      'Google-Extended',
+      'Bingbot',
+      'Perplexity',
+      'Anthropic-AI',
+      'OpenAI'
+    ];
+
+    // Filter für KI-Traffic
+    const aiFilterExpression = aiSources
+      .map(source => `sessionSource=~"${source}"|deviceCategory=~"${source}"`)
+      .join('|');
+
+    // Haupt-Query für KI-Traffic
+    const response = await analyticsData.properties.runReport({
+      auth,
+      property: `properties/${propertyId}`,
+      requestBody: {
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [
+          { name: 'sessionSource' },
+          { name: 'date' }
+        ],
+        metrics: [
+          { name: 'sessions' },
+          { name: 'totalUsers' }
+        ],
+        dimensionFilter: {
+          filter: {
+            fieldName: 'sessionSource',
+            stringFilter: {
+              matchType: 'CONTAINS',
+              value: 'bot|Bot|gpt|GPT|claude|Claude|AI|perplexity',
+              caseSensitive: false
+            }
+          }
+        },
+        orderBys: [{ metric: { metricName: 'sessions' }, desc: true }]
+      }
+    });
+
+    const rows = response.data.rows || [];
+    
+    let totalSessions = 0;
+    let totalUsers = 0;
+    const sessionsBySource: { [key: string]: number } = {};
+    const trendMap: { [date: string]: number } = {};
+
+    // Daten aggregieren
+    rows.forEach(row => {
+      const source = row.dimensionValues?.[0]?.value || 'Unknown';
+      const date = row.dimensionValues?.[1]?.value || '';
+      const sessions = parseInt(row.metricValues?.[0]?.value || '0', 10);
+      const users = parseInt(row.metricValues?.[1]?.value || '0', 10);
+
+      totalSessions += sessions;
+      totalUsers += users;
+
+      sessionsBySource[source] = (sessionsBySource[source] || 0) + sessions;
+      trendMap[date] = (trendMap[date] || 0) + sessions;
+    });
+
+    // Top AI Sources ermitteln
+    const topAiSources = Object.entries(sessionsBySource)
+      .map(([source, sessions]) => ({
+        source,
+        sessions,
+        users: Math.round(sessions * 0.8), // Schätzung
+        percentage: totalSessions > 0 ? (sessions / totalSessions) * 100 : 0
+      }))
+      .sort((a, b) => b.sessions - a.sessions)
+      .slice(0, 5);
+
+    // Trend-Daten formatieren
+    const trend = Object.entries(trendMap)
+      .map(([date, sessions]) => ({
+        date: formatDateForChart(date),
+        sessions
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    return {
+      totalSessions,
+      totalUsers,
+      sessionsBySource,
+      topAiSources,
+      trend
+    };
+
+  } catch (error) {
+    console.error('[getAiTrafficData] Fehler:', error);
+    // Fallback mit leeren Daten
+    return {
+      totalSessions: 0,
+      totalUsers: 0,
+      sessionsBySource: {},
+      topAiSources: [],
+      trend: []
+    };
+  }
+}
+
+/**
+ * Formatiert Datum für Charts (YYYYMMDD -> DD.MM)
+ */
+function formatDateForChart(dateStr: string): string {
+  if (dateStr.length !== 8) return dateStr;
+  const year = dateStr.substring(0, 4);
+  const month = dateStr.substring(4, 6);
+  const day = dateStr.substring(6, 8);
+  return `${day}.${month}`;
+}
