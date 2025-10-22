@@ -1,0 +1,27 @@
+// src/app/api/setup-logs/route.ts
+import { sql } from '@vercel/postgres';
+import { NextResponse } from 'next/server';
+
+export async function GET() {
+  try {
+    await sql`
+      CREATE TABLE IF NOT EXISTS landingpage_logs (
+          id SERIAL PRIMARY KEY,
+          landingpage_id INTEGER NOT NULL REFERENCES landingpages(id) ON DELETE CASCADE,
+          user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+          user_email VARCHAR(255),
+          action TEXT NOT NULL,
+          timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+
+    await sql`
+      CREATE INDEX IF NOT EXISTS idx_landingpage_logs_landingpage_id ON landingpage_logs(landingpage_id);
+    `;
+
+    return NextResponse.json({ message: 'Log-Tabelle erfolgreich erstellt!' }, { status: 200 });
+
+  } catch (error) {
+    return NextResponse.json({ error: (error as Error).message }, { status: 500 });
+  }
+}
