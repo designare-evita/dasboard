@@ -6,7 +6,8 @@ import { useParams } from 'next/navigation';
 import useApiData from '@/hooks/use-api-data';
 import KpiCard from '@/components/kpi-card';
 import KpiTrendChart from '@/components/charts/KpiTrendChart';
-import AiTrafficCard from '@/components/AiTrafficCard'; // ✅ Neue Komponente
+import AiTrafficCard from '@/components/AiTrafficCard';
+import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector';
 
 // --- Typen für die API-Antwort ---
 interface KpiDatum {
@@ -85,8 +86,11 @@ export default function ProjektDetailPage() {
   const projectId = params.id as string;
 
   const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
+  const [dateRange, setDateRange] = useState<DateRangeOption>('30d');
 
-  const { data, isLoading, error } = useApiData<ProjectApiData>(`/api/projects/${projectId}`);
+  const { data, isLoading, error } = useApiData<ProjectApiData>(
+    `/api/projects/${projectId}?dateRange=${dateRange}`
+  );
 
   // Lade- und Fehlerzustände
   if (isLoading) {
@@ -148,7 +152,14 @@ export default function ProjektDetailPage() {
 
   return (
     <div className="p-4 sm:p-6 md:p-8">
-      <h2 className="text-3xl font-bold mb-6">Projekt-Dashboard</h2>
+      {/* Header mit DateRangeSelector */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <h2 className="text-3xl font-bold text-gray-900">Projekt-Dashboard</h2>
+        <DateRangeSelector 
+          value={dateRange} 
+          onChange={setDateRange}
+        />
+      </div>
 
       {/* KPI-Karten */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -201,6 +212,7 @@ export default function ProjektDetailPage() {
               percentage={k.sessions.aiTraffic?.percentage || 0}
               topSources={data.aiTraffic.topAiSources}
               isLoading={false}
+              dateRange={dateRange}
             />
           </div>
         )}
