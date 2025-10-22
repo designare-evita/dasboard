@@ -1,6 +1,6 @@
 // src/app/api/projects/[id]/route.ts - KOMPLETT KORRIGIERT
 
-import { NextResponse, NextRequest } from 'next/server'; // NextRequest hinzugefügt
+import { NextResponse, NextRequest } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import {
@@ -8,25 +8,32 @@ import {
   getAnalyticsData,
   getTopQueries,
   getAiTrafficData,
-  type AiTrafficData // Typ importieren
+  type AiTrafficData
 } from '@/lib/google-api';
 import { sql } from '@vercel/postgres';
 import { User } from '@/types';
 
-// Hilfsfunktionen (unverändert)
+// ✅ TopQuery-Typ Definition
+interface TopQuery {
+  query: string;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  position: number;
+}
+
+// Hilfsfunktionen
 function formatDate(date: Date): string {
   return date.toISOString().split('T')[0];
 }
 
 function calculateChange(current: number, previous: number): number {
-  if (previous === 0) return current > 0 ? 100 : 0; // Vermeide Division durch Null
-  // Stelle sicher, dass current und previous Zahlen sind (Fallback auf 0)
+  if (previous === 0) return current > 0 ? 100 : 0;
   const currentNum = typeof current === 'number' ? current : 0;
   const previousNum = typeof previous === 'number' ? previous : 0;
   if (previousNum === 0) return currentNum > 0 ? 100 : 0;
 
   const change = ((currentNum - previousNum) / previousNum) * 100;
-  // Runde auf eine Nachkommastelle
   return Math.round(change * 10) / 10;
 }
 
@@ -39,7 +46,7 @@ async function getProjectDashboardData(user: Partial<User>, dateRange: string = 
   // ✅ Standard-Platzhalter-Werte definieren
   const defaultGscData = { clicks: { total: 0, daily: [] }, impressions: { total: 0, daily: [] } };
   const defaultGaData = { sessions: { total: 0, daily: [] }, totalUsers: { total: 0, daily: [] } };
-  const defaultTopQueries: any[] = [];
+  const defaultTopQueries: TopQuery[] = [];
   const defaultAiTraffic: AiTrafficData = {
     totalSessions: 0,
     totalUsers: 0,
@@ -48,10 +55,10 @@ async function getProjectDashboardData(user: Partial<User>, dateRange: string = 
     trend: []
   };
 
-  // ✅ Zeitberechnung (unverändert)
+  // ✅ Zeitberechnung
   const today = new Date();
   const endDateCurrent = new Date(today);
-  endDateCurrent.setDate(endDateCurrent.getDate() - 1); // Bis gestern
+  endDateCurrent.setDate(endDateCurrent.getDate() - 1);
 
   const startDateCurrent = new Date(endDateCurrent);
   let daysBack: number;
@@ -68,13 +75,12 @@ async function getProjectDashboardData(user: Partial<User>, dateRange: string = 
       break;
     case '30d':
     default:
-      daysBack = 29; // 30 Tage insgesamt (inkl. Starttag)
+      daysBack = 29;
       break;
   }
 
   startDateCurrent.setDate(startDateCurrent.getDate() - daysBack);
 
-  // Vorheriger Zeitraum (für Vergleich)
   const endDatePrevious = new Date(startDateCurrent);
   endDatePrevious.setDate(endDatePrevious.getDate() - 1);
   const startDatePrevious = new Date(endDatePrevious);
@@ -109,7 +115,7 @@ async function getProjectDashboardData(user: Partial<User>, dateRange: string = 
     console.log(`[getProjectDashboardData] GSC konfiguriert: ${!!user.gsc_site_url}`);
     console.log(`[getProjectDashboardData] GA4 konfiguriert: ${!!user.ga4_property_id}`);
 
-    // ✅ Promise.allSettled verwenden, damit einzelne Fehler nicht alles abbrechen
+    // ✅ Promise.allSettled verwenden
     const [
       gscCurrentResult,
       gscPreviousResult,
@@ -122,15 +128,18 @@ async function getProjectDashboardData(user: Partial<User>, dateRange: string = 
       ...gaPromises
     ]);
 
-    // ✅ Helfer, um Ergebnisse sicher auszulesen oder auf Platzhalter zurückzufallen
-    const getValue = (result: PromiseSettledResult<any>, defaultValue: any, apiName: string) => {
+    // ✅ Typsichere Helfer-Funktion mit generics
+    const getValue = <T,>(
+      result: PromiseSettledResult<T>, 
+      defaultValue: T, 
+      apiName: string
+    ): T => {
       if (result.status === 'fulfilled') {
         console.log(`[getProjectDashboardData] ✅ ${apiName} erfolgreich`);
-        return result.value ?? defaultValue; // Fallback, falls API null/undefined liefert
+        return result.value ?? defaultValue;
       }
-      // Loggt den Fehler, wenn ein API-Call fehlschlägt (z.B. falsche ID trotz Angabe)
       console.error(`[getProjectDashboardData] ❌ ${apiName} Fehler:`, result.reason);
-      return defaultValue; // Fällt auf Platzhalter zurück
+      return defaultValue;
     };
 
     const gscCurrent = getValue(gscCurrentResult, defaultGscData, 'GSC Aktuell');
@@ -142,7 +151,7 @@ async function getProjectDashboardData(user: Partial<User>, dateRange: string = 
 
     console.log(`[getProjectDashboardData] ✅ Daten erfolgreich verarbeitet (ggf. mit Platzhaltern)`);
 
-    // ✅ KI-Traffic-Anteil berechnen (sicher, da Nullen verwendet werden)
+    // ✅ KI-Traffic-Anteil berechnen
     const totalSessions = gaCurrent.sessions.total ?? 0;
     const aiSessionsPercentage = totalSessions > 0
       ? (aiTraffic.totalSessions / totalSessions) * 100
@@ -181,14 +190,11 @@ async function getProjectDashboardData(user: Partial<User>, dateRange: string = 
         sessions: gaCurrent.sessions.daily ?? [],
         totalUsers: gaCurrent.totalUsers.daily ?? [],
       },
-      topQueries, // Wird immer ein Array sein (ggf. leer)
-      aiTraffic // Wird immer ein Objekt sein (ggf. mit Nullen)
+      topQueries,
+      aiTraffic
     };
   } catch (error) {
-    // Dieser Fehler sollte jetzt nur noch bei fundamentalen Problemen auftreten
-    // (z.B. Datumsberechnung, unerwarteter Code-Fehler)
     console.error('[getProjectDashboardData] Schwerwiegender Fehler:', error);
-    // Gib trotzdem Platzhalter zurück, um die Seite nicht abstürzen zu lassen
     return {
       kpis: {
         clicks: { value: 0, change: 0 },
@@ -215,7 +221,7 @@ async function getProjectDashboardData(user: Partial<User>, dateRange: string = 
  * Query-Parameter: dateRange (optional) - '30d' | '3m' | '6m' | '12m'
  */
 export async function GET(
-  request: NextRequest, // Typ zu NextRequest geändert
+  request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -252,7 +258,6 @@ export async function GET(
       `;
       hasAccess = rows.length > 0;
     } else if (role === 'BENUTZER') {
-      // WICHTIG: Prüfen, ob die Projekt-ID der Benutzer-ID entspricht
       hasAccess = userId === projectId;
     }
 
@@ -263,7 +268,7 @@ export async function GET(
       }, { status: 403 });
     }
 
-    // Lade Projekt-Daten (aus der users Tabelle, da Projekte Benutzer sind)
+    // Lade Projekt-Daten
     const { rows } = await sql<User>`
       SELECT id, gsc_site_url, ga4_property_id, email, domain
       FROM users
@@ -275,20 +280,11 @@ export async function GET(
       return NextResponse.json({ message: 'Projekt nicht gefunden.' }, { status: 404 });
     }
 
-    // ✅ Rufe Dashboard-Daten auf (gibt immer ein Objekt zurück)
+    // ✅ Rufe Dashboard-Daten auf
     const dashboardData = await getProjectDashboardData(project, dateRange);
-
-    /* // ⛔️ DIESE PRÜFUNG IST NICHT MEHR NÖTIG
-    if (!dashboardData) {
-      return NextResponse.json({
-        message: 'Für dieses Projekt sind keine Google-Properties konfiguriert oder Daten konnten nicht geladen werden.'
-      }, { status: 404 }); // Oder 500, je nachdem, was besser passt
-    }
-    */
 
     console.log('[/api/projects/[id]] ✅ Projekt-Daten erfolgreich verarbeitet');
 
-    // Gib die Daten zurück (auch wenn es nur Platzhalter sind)
     return NextResponse.json(dashboardData);
 
   } catch (error) {
