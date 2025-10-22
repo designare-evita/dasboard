@@ -110,8 +110,9 @@ async function getDashboardDataForUser(user: Partial<User>) {
 /**
  * GET /api/data
  * Hauptendpoint für Dashboard-Daten - unterstützt alle Rollen
+ * Query-Parameter: dateRange (optional) - '30d' | '3m' | '6m' | '12m'
  */
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions);
 
@@ -121,8 +122,13 @@ export async function GET() {
 
     const { role, id } = session.user;
 
+    // ✅ DateRange-Parameter aus URL extrahieren
+    const { searchParams } = new URL(request.url);
+    const dateRange = searchParams.get('dateRange') || '30d';
+
     console.log('[/api/data] GET Request');
     console.log('[/api/data] User:', session.user.email, 'Role:', role, 'ID:', id);
+    console.log('[/api/data] DateRange:', dateRange);
 
     // ========================================
     // SUPERADMIN: Sieht alle Benutzer-Projekte
