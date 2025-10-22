@@ -220,12 +220,12 @@ export async function PUT(
         adminMessage = `Kunde "${customerDomain}" hat die Landingpage "${pageUrl}" freigegeben.`;
         // NEU: E-Mail-Inhalte definieren
         emailSubject = `Landingpage Freigegeben: ${customerDomain} (${pageUrl})`;
-        emailTextContent = `Hallo,\n\nder Kunde "${customerDomain}" hat die Landingpage ${landingpage.url} soeben freigegeben.\n\nStatus alt: ${oldStatus}\nStatus neu: ${newStatus}\n\nViele Grüße,\nDein Dashboard`;
+        emailTextContent = `Hallo,\n\nder Kunde "${customerDomain}" hat die Landingpage ${landingpage.url} soeben freigegeben.\n\nStatus alt: ${oldStatus}\nStatus neu: ${newStatus}\n\nGesendet von,\nDeinem Data Peak Dashboardd`;
       } else if (newStatus === 'Gesperrt') {
         adminMessage = `Kunde "${customerDomain}" hat die Landingpage "${pageUrl}" gesperrt.`;
         // NEU: E-Mail-Inhalte definieren
         emailSubject = `Landingpage Gesperrt: ${customerDomain} (${pageUrl})`;
-        emailTextContent = `Hallo,\n\nder Kunde "${customerDomain}" hat die Landingpage ${landingpage.url} soeben gesperrt.\n\nStatus alt: ${oldStatus}\nStatus neu: ${newStatus}\n\nViele Grüße,\nDein Dashboard`;
+        emailTextContent = `Hallo,\n\nder Kunde "${customerDomain}" hat die Landingpage ${landingpage.url} soeben gesperrt.\n\nStatus alt: ${oldStatus}\nStatus neu: ${newStatus}\n\nGesendet von,\nDeinem Data Peak Dashboard`;
       }
 
       if (adminMessage && emailSubject) { // Prüfen, ob E-Mail-Inhalt vorhanden ist
@@ -241,7 +241,7 @@ export async function PUT(
           // *** NEU: E-Mail-Versand über Brevo ***
           const sendSmtpEmail = new Brevo.SendSmtpEmail();
           // Sender: Verwende die System-E-Mail aus den Umgebungsvariablen
-          sendSmtpEmail.sender = { email: systemEmail, name: 'Dashboard Notification' }; 
+          sendSmtpEmail.sender = { email: systemEmail, name: 'Projekt-Updates' }; 
           // Empfänger: Der jeweilige Admin
           sendSmtpEmail.to = [{ email: admin.email }]; 
           sendSmtpEmail.subject = emailSubject;
