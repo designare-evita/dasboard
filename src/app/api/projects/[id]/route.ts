@@ -13,13 +13,28 @@ import {
 import { sql } from '@vercel/postgres';
 import { User } from '@/types';
 
-// ✅ TopQuery-Typ Definition
+// ✅ Typ-Definitionen
 interface TopQuery {
   query: string;
   clicks: number;
   impressions: number;
   ctr: number;
   position: number;
+}
+
+interface DateRangeData {
+  total: number;
+  daily: Array<{ date: string; value: number }>;
+}
+
+interface GscData {
+  clicks: DateRangeData;
+  impressions: DateRangeData;
+}
+
+interface GaData {
+  sessions: DateRangeData;
+  totalUsers: DateRangeData;
 }
 
 // Hilfsfunktionen
@@ -44,8 +59,14 @@ function calculateChange(current: number, previous: number): number {
 async function getProjectDashboardData(user: Partial<User>, dateRange: string = '30d') {
 
   // ✅ Standard-Platzhalter-Werte definieren
-  const defaultGscData = { clicks: { total: 0, daily: [] }, impressions: { total: 0, daily: [] } };
-  const defaultGaData = { sessions: { total: 0, daily: [] }, totalUsers: { total: 0, daily: [] } };
+  const defaultGscData: GscData = { 
+    clicks: { total: 0, daily: [] }, 
+    impressions: { total: 0, daily: [] } 
+  };
+  const defaultGaData: GaData = { 
+    sessions: { total: 0, daily: [] }, 
+    totalUsers: { total: 0, daily: [] } 
+  };
   const defaultTopQueries: TopQuery[] = [];
   const defaultAiTraffic: AiTrafficData = {
     totalSessions: 0,
@@ -92,20 +113,20 @@ async function getProjectDashboardData(user: Partial<User>, dateRange: string = 
     console.log(`[getProjectDashboardData] Vorheriger Zeitraum: ${formatDate(startDatePrevious)} bis ${formatDate(endDatePrevious)}`);
 
     // ✅ Promises bedingt zusammenstellen
-    const gscPromises = user.gsc_site_url ? [
-      getSearchConsoleData(user.gsc_site_url, formatDate(startDateCurrent), formatDate(endDateCurrent)),
-      getSearchConsoleData(user.gsc_site_url, formatDate(startDatePrevious), formatDate(endDatePrevious)),
-      getTopQueries(user.gsc_site_url, formatDate(startDateCurrent), formatDate(endDateCurrent)),
+    const gscPromises: [Promise<GscData>, Promise<GscData>, Promise<TopQuery[]>] = user.gsc_site_url ? [
+      getSearchConsoleData(user.gsc_site_url, formatDate(startDateCurrent), formatDate(endDateCurrent)) as Promise<GscData>,
+      getSearchConsoleData(user.gsc_site_url, formatDate(startDatePrevious), formatDate(endDatePrevious)) as Promise<GscData>,
+      getTopQueries(user.gsc_site_url, formatDate(startDateCurrent), formatDate(endDateCurrent)) as Promise<TopQuery[]>,
     ] : [
       Promise.resolve(defaultGscData),
       Promise.resolve(defaultGscData),
       Promise.resolve(defaultTopQueries)
     ];
 
-    const gaPromises = user.ga4_property_id ? [
-      getAnalyticsData(user.ga4_property_id, formatDate(startDateCurrent), formatDate(endDateCurrent)),
-      getAnalyticsData(user.ga4_property_id, formatDate(startDatePrevious), formatDate(endDatePrevious)),
-      getAiTrafficData(user.ga4_property_id, formatDate(startDateCurrent), formatDate(endDateCurrent))
+    const gaPromises: [Promise<GaData>, Promise<GaData>, Promise<AiTrafficData>] = user.ga4_property_id ? [
+      getAnalyticsData(user.ga4_property_id, formatDate(startDateCurrent), formatDate(endDateCurrent)) as Promise<GaData>,
+      getAnalyticsData(user.ga4_property_id, formatDate(startDatePrevious), formatDate(endDatePrevious)) as Promise<GaData>,
+      getAiTrafficData(user.ga4_property_id, formatDate(startDateCurrent), formatDate(endDateCurrent)) as Promise<AiTrafficData>
     ] : [
       Promise.resolve(defaultGaData),
       Promise.resolve(defaultGaData),
@@ -142,12 +163,12 @@ async function getProjectDashboardData(user: Partial<User>, dateRange: string = 
       return defaultValue;
     };
 
-    const gscCurrent = getValue(gscCurrentResult, defaultGscData, 'GSC Aktuell');
-    const gscPrevious = getValue(gscPreviousResult, defaultGscData, 'GSC Vorher');
-    const topQueries = getValue(topQueriesResult, defaultTopQueries, 'GSC Top Queries');
-    const gaCurrent = getValue(gaCurrentResult, defaultGaData, 'GA4 Aktuell');
-    const gaPrevious = getValue(gaPreviousResult, defaultGaData, 'GA4 Vorher');
-    const aiTraffic = getValue(aiTrafficResult, defaultAiTraffic, 'GA4 AI Traffic');
+    const gscCurrent: GscData = getValue(gscCurrentResult, defaultGscData, 'GSC Aktuell');
+    const gscPrevious: GscData = getValue(gscPreviousResult, defaultGscData, 'GSC Vorher');
+    const topQueries: TopQuery[] = getValue(topQueriesResult, defaultTopQueries, 'GSC Top Queries');
+    const gaCurrent: GaData = getValue(gaCurrentResult, defaultGaData, 'GA4 Aktuell');
+    const gaPrevious: GaData = getValue(gaPreviousResult, defaultGaData, 'GA4 Vorher');
+    const aiTraffic: AiTrafficData = getValue(aiTrafficResult, defaultAiTraffic, 'GA4 AI Traffic');
 
     console.log(`[getProjectDashboardData] ✅ Daten erfolgreich verarbeitet (ggf. mit Platzhaltern)`);
 
