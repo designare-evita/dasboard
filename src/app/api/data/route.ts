@@ -27,22 +27,43 @@ function calculateChange(current: number, previous: number): number {
 /**
  * Lädt vollständige Dashboard-Daten für einen Benutzer inkl. KI-Traffic
  */
-async function getDashboardDataForUser(user: Partial<User>) {
+async function getDashboardDataForUser(user: Partial<User>, dateRange: string = '30d') {
   if (!user.gsc_site_url || !user.ga4_property_id) {
     console.warn(`[getDashboardDataForUser] Benutzer ${user.email} hat keine GSC/GA4-Daten konfiguriert.`);
     return null;
   }
 
+  // ✅ Berechne Zeitraum basierend auf dateRange Parameter
   const today = new Date();
   const endDateCurrent = new Date(today);
   endDateCurrent.setDate(endDateCurrent.getDate() - 1);
+  
   const startDateCurrent = new Date(endDateCurrent);
-  startDateCurrent.setDate(startDateCurrent.getDate() - 29);
+  let daysBack: number;
+  
+  switch (dateRange) {
+    case '3m':
+      daysBack = 90;
+      break;
+    case '6m':
+      daysBack = 180;
+      break;
+    case '12m':
+      daysBack = 365;
+      break;
+    case '30d':
+    default:
+      daysBack = 29;
+      break;
+  }
+  
+  startDateCurrent.setDate(startDateCurrent.getDate() - daysBack);
 
+  // Vorheriger Zeitraum (für Vergleich)
   const endDatePrevious = new Date(startDateCurrent);
   endDatePrevious.setDate(endDatePrevious.getDate() - 1);
   const startDatePrevious = new Date(endDatePrevious);
-  startDatePrevious.setDate(startDatePrevious.getDate() - 29);
+  startDatePrevious.setDate(startDatePrevious.getDate() - daysBack);
 
   try {
     console.log(`[getDashboardDataForUser] Lade Daten für ${user.email}`);
@@ -207,7 +228,8 @@ export async function GET(request: Request) {
         return NextResponse.json({ message: 'Benutzer nicht gefunden.' }, { status: 404 });
       }
       
-      const dashboardData = await getDashboardDataForUser(user);
+      // ✅ Übergebe dateRange Parameter
+      const dashboardData = await getDashboardDataForUser(user, dateRange);
       if (!dashboardData) {
         return NextResponse.json({ 
           message: 'Für diesen Benutzer sind keine Google-Properties konfiguriert.' 
