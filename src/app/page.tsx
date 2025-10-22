@@ -266,9 +266,22 @@ function CustomerDashboard({ data, isLoading }: { data: DashboardData; isLoading
           </div>
         </div>
         
-        {/* ✅ Top Queries + KI-Traffic nebeneinander */}
+        {/* ✅ KI-Traffic + Top Queries nebeneinander */}
         <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Top Queries Tabelle (2 Spalten) */}
+          {/* ✅ KI-Traffic Card ZUERST (1 Spalte) */}
+          {data.aiTraffic && (
+            <div className="lg:col-span-1">
+              <AiTrafficCard
+                totalSessions={data.aiTraffic.totalSessions}
+                totalUsers={data.aiTraffic.totalUsers}
+                percentage={kpis.sessions.aiTraffic?.percentage || 0}
+                topSources={data.aiTraffic.topAiSources}
+                isLoading={isLoading}
+              />
+            </div>
+          )}
+          
+          {/* Top Queries Tabelle DANACH (2 Spalten) */}
           {data.topQueries && data.topQueries.length > 0 && (
             <div className="lg:col-span-2">
               <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
@@ -306,19 +319,6 @@ function CustomerDashboard({ data, isLoading }: { data: DashboardData; isLoading
                   </table>
                 </div>
               </div>
-            </div>
-          )}
-          
-          {/* ✅ KI-Traffic Card (1 Spalte) */}
-          {data.aiTraffic && (
-            <div className="lg:col-span-1">
-              <AiTrafficCard
-                totalSessions={data.aiTraffic.totalSessions}
-                totalUsers={data.aiTraffic.totalUsers}
-                percentage={kpis.sessions.aiTraffic?.percentage || 0}
-                topSources={data.aiTraffic.topAiSources}
-                isLoading={isLoading}
-              />
             </div>
           )}
         </div>
