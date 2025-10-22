@@ -59,6 +59,9 @@ export default function AiTrafficCard({
         </div>
       </div>
 
+      {/* Zeitraum-Hinweis */}
+      <p className="text-xs text-gray-500 mb-4">Letzte 30 Tage</p>
+
       {/* Haupt-Metriken */}
       <div className="grid grid-cols-2 gap-4 mb-6">
         <div className="bg-purple-50 rounded-lg p-4">
