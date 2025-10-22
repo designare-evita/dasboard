@@ -216,7 +216,6 @@ export default function AdminPage() {
                   <input
                     name="gsc_site_url"
                     type="text"
-                    required
                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                     disabled={isSubmitting}
                   />
@@ -226,7 +225,6 @@ export default function AdminPage() {
                   <input
                     name="ga4_property_id"
                     type="text"
-                    required
                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                     disabled={isSubmitting}
                   />
