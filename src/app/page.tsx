@@ -15,7 +15,8 @@ import {
 import KpiCard from '@/components/kpi-card';
 import KpiTrendChart from '@/components/charts/KpiTrendChart';
 import LandingpageApproval from '@/components/LandingpageApproval';
-import DateRangeSelector, { type DateRangeOption, getRangeLabel } from '@/components/DateRangeSelector'; // ✅ Neue Komponente
+import AiTrafficCard from '@/components/AiTrafficCard';
+import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector';
 
 // ... Typen für Dashboard-Daten ...
 type KPI = {
@@ -86,36 +87,37 @@ export default function HomePage() {
   const [projects, setProjects] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [dateRange, setDateRange] = useState<DateRangeOption>('30d');
+
+  const fetchData = async (range: DateRangeOption = dateRange) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/data?dateRange=${range}`);
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.message || 'Daten konnten nicht geladen werden');
+      }
+      
+      const data = await response.json();
+      
+      if (data.role === 'ADMIN' || data.role === 'SUPERADMIN') {
+        setProjects(data.projects || []);
+      } else if (data.role === 'BENUTZER') {
+        setDashboardData(data);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ein unbekannter Fehler ist aufgetreten');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (status === 'authenticated') {
-      const fetchData = async () => {
-        setIsLoading(true);
-        setError(null);
-        try {
-          const response = await fetch('/api/data');
-          if (!response.ok) {
-            const errData = await response.json().catch(() => ({}));
-            throw new Error(errData.message || 'Daten konnten nicht geladen werden');
-          }
-          
-          const data = await response.json();
-          
-          if (data.role === 'ADMIN' || data.role === 'SUPERADMIN') {
-            setProjects(data.projects || []);
-          } else if (data.role === 'BENUTZER') {
-            setDashboardData(data);
-          }
-        } catch (err) {
-          setError(err instanceof Error ? err.message : 'Ein unbekannter Fehler ist aufgetreten');
-        } finally {
-          setIsLoading(false);
-        }
-      };
-      
-      fetchData();
+      fetchData(dateRange);
     }
-  }, [status, session]);
+  }, [status, dateRange]);
 
   if (status === 'loading' || (status === 'authenticated' && isLoading)) {
     return (
@@ -150,7 +152,14 @@ export default function HomePage() {
 
   // Kunden-Ansicht
   if (session?.user?.role === 'BENUTZER' && dashboardData) {
-    return <CustomerDashboard data={dashboardData} isLoading={isLoading} />;
+    return (
+      <CustomerDashboard 
+        data={dashboardData} 
+        isLoading={isLoading} 
+        dateRange={dateRange}
+        onDateRangeChange={setDateRange}
+      />
+    );
   }
 
   return (
@@ -209,7 +218,17 @@ function AdminDashboard({ projects }: { projects: User[] }) {
 }
 
 // --- Kunden Dashboard Komponente ---
-function CustomerDashboard({ data, isLoading }: { data: DashboardData; isLoading: boolean }) {
+function CustomerDashboard({ 
+  data, 
+  isLoading, 
+  dateRange, 
+  onDateRangeChange 
+}: { 
+  data: DashboardData; 
+  isLoading: boolean;
+  dateRange: DateRangeOption;
+  onDateRangeChange: (range: DateRangeOption) => void;
+}) {
   const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
 
   const kpis = data.kpis || { 
@@ -232,7 +251,14 @@ function CustomerDashboard({ data, isLoading }: { data: DashboardData; isLoading
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
       <main>
-        <h2 className="text-3xl font-bold text-gray-900 mb-6">Ihr Dashboard</h2>
+        {/* Header mit DateRangeSelector */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+          <h2 className="text-3xl font-bold text-gray-900">Ihr Dashboard</h2>
+          <DateRangeSelector 
+            value={dateRange} 
+            onChange={onDateRangeChange}
+          />
+        </div>
         
         {/* KPI-Karten Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -277,6 +303,7 @@ function CustomerDashboard({ data, isLoading }: { data: DashboardData; isLoading
                 percentage={kpis.sessions.aiTraffic?.percentage || 0}
                 topSources={data.aiTraffic.topAiSources}
                 isLoading={isLoading}
+                dateRange={dateRange}
               />
             </div>
           )}
