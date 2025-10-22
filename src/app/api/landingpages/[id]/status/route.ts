@@ -4,6 +4,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { sql } from '@vercel/postgres';
+import * as Brevo from '@getbrevo/brevo'; // NEU: Brevo importieren
+
+// NEU: Brevo API-Client initialisieren
+const apiInstance = new Brevo.TransactionalEmailsApi();
+const apiKey = apiInstance.authentications['apiKey'];
+apiKey.apiKey = process.env.BREVO_API_KEY || ''; // API Key aus Umgebungsvariablen laden
+
+// NEU: System-E-Mail-Adresse für den Absender laden
+const systemEmail = process.env.BREVO_SYSTEM_EMAIL || 'status@datapeak.at'; // Passe die Fallback-Adresse an
 
 type StatusType = 'Offen' | 'In Prüfung' | 'Gesperrt' | 'Freigegeben';
 
@@ -25,7 +34,7 @@ async function createNotification(
   }
 }
 
-// *** HIER BEGINNT DIE AKTUALISIERTE PUT-FUNKTION ***
+// *** PUT-Funktion zum Aktualisieren des Status ***
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -79,7 +88,7 @@ export async function PUT(
     // Berechtigungsprüfung
     const isAdmin = session.user.role === 'ADMIN' || session.user.role === 'SUPERADMIN';
     const isOwner = session.user.id === landingpage.user_id;
-    const currentUser = session.user; // Aktuellen Benutzer für Logging speichern
+    const currentUser = session.user; // Aktuellen Benutzer für Logging und E-Mail speichern
 
     // BENUTZER darf nur zwischen Freigegeben und Gesperrt wechseln
     if (session.user.role === 'BENUTZER') {
@@ -127,9 +136,8 @@ export async function PUT(
 
     console.log('✅ Status erfolgreich aktualisiert');
 
-    // === NEU: Log-Eintrag erstellen ===
+    // === Log-Eintrag erstellen ===
     try {
-      // Detailliertere Beschreibung, wer die Aktion ausgeführt hat
       let actionPerformer = '';
       if (isAdmin) {
         actionPerformer = `${currentUser.role} (${currentUser.email})`;
@@ -152,7 +160,7 @@ export async function PUT(
     }
     // === ENDE: Log-Eintrag erstellen ===
 
-    // Benachrichtigungen erstellen (wie im Originalcode)
+    // Benachrichtigungen erstellen
     const pageUrl = new URL(landingpage.url).pathname;
 
     // 1. Benachrichtigung an den Kunden (wenn Admin den Status ändert)
@@ -179,7 +187,7 @@ export async function PUT(
       }
     }
 
-    // 2. Benachrichtigung an Admins (wenn Kunde den Status ändert)
+    // 2. Benachrichtigung an Admins (wenn Kunde den Status ändert) + *** E-MAIL VERSAND ***
     if (isOwner && !isAdmin && oldStatus !== newStatus) {
       // Finde alle Admins, die Zugriff auf dieses Projekt haben
       const { rows: admins } = await sql`
@@ -199,23 +207,53 @@ export async function PUT(
 
       const allAdmins = [...admins, ...superadmins];
 
-      let adminMessage = '';
+      let adminMessage = ''; // Für interne Benachrichtigung
+      let emailSubject = ''; // NEU: Betreff für E-Mail
+      let emailTextContent = ''; // NEU: Textinhalt für E-Mail
       const customerDomain = landingpage.user_domain || landingpage.user_email;
 
       if (newStatus === 'Freigegeben') {
         adminMessage = `Kunde "${customerDomain}" hat die Landingpage "${pageUrl}" freigegeben.`;
+        // NEU: E-Mail-Inhalte definieren
+        emailSubject = `Landingpage Freigegeben: ${customerDomain} (${pageUrl})`;
+        emailTextContent = `Hallo,\n\nder Kunde "${customerDomain}" hat die Landingpage ${landingpage.url} soeben freigegeben.\n\nStatus alt: ${oldStatus}\nStatus neu: ${newStatus}\n\nViele Grüße,\nDein Dashboard`;
       } else if (newStatus === 'Gesperrt') {
         adminMessage = `Kunde "${customerDomain}" hat die Landingpage "${pageUrl}" gesperrt.`;
+        // NEU: E-Mail-Inhalte definieren
+        emailSubject = `Landingpage Gesperrt: ${customerDomain} (${pageUrl})`;
+        emailTextContent = `Hallo,\n\nder Kunde "${customerDomain}" hat die Landingpage ${landingpage.url} soeben gesperrt.\n\nStatus alt: ${oldStatus}\nStatus neu: ${newStatus}\n\nViele Grüße,\nDein Dashboard`;
       }
 
-      if (adminMessage) {
+      if (adminMessage && emailSubject) { // Prüfen, ob E-Mail-Inhalt vorhanden ist
         for (const admin of allAdmins) {
+          // Bestehende interne Benachrichtigung
           await createNotification(
             admin.id,
             adminMessage,
             newStatus === 'Freigegeben' ? 'success' : 'warning',
             parseInt(landingpageId)
           );
+
+          // *** NEU: E-Mail-Versand über Brevo ***
+          const sendSmtpEmail = new Brevo.SendSmtpEmail();
+          // Sender: Verwende die System-E-Mail aus den Umgebungsvariablen
+          sendSmtpEmail.sender = { email: systemEmail, name: 'Dashboard Notification' }; 
+          // Empfänger: Der jeweilige Admin
+          sendSmtpEmail.to = [{ email: admin.email }]; 
+          sendSmtpEmail.subject = emailSubject;
+          sendSmtpEmail.textContent = emailTextContent;
+          // Optional: HTML-Inhalt hinzufügen für schönere E-Mails
+          // sendSmtpEmail.htmlContent = `<html><body><p>${emailTextContent.replace(/\n/g, '<br>')}</p></body></html>`;
+
+          try {
+            await apiInstance.sendTransacEmail(sendSmtpEmail);
+            console.log(`✅ E-Mail gesendet an Admin: ${admin.email} für Landingpage ${landingpageId}`);
+          } catch (emailError) {
+            console.error(`❌ Fehler beim Senden der E-Mail an ${admin.email}:`, emailError);
+            // Fehler loggen, aber den Prozess nicht unbedingt abbrechen,
+            // damit interne Benachrichtigungen ggf. noch funktionieren.
+          }
+          // *** ENDE: E-Mail-Versand ***
         }
       }
     }
@@ -243,4 +281,3 @@ export async function PUT(
     );
   }
 }
-// *** HIER ENDET DIE AKTUALISIERTE PUT-FUNKTION ***
