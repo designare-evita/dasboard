@@ -1,4 +1,4 @@
-// src/app/api/users/route.ts - KOMPLETT
+// src/app/api/users/route.ts - KOMPLETT (mit automatischer Zuweisung)
 
 import { NextResponse, NextRequest } from 'next/server'; // NextRequest hinzugefügt
 import { sql } from '@vercel/postgres';
@@ -122,12 +122,7 @@ export async function POST(req: NextRequest) { // Request-Typ zu NextRequest ge�
     // --- ENDE BERECHTIGUNGSPRÜFUNG ---
 
     // ✨ Validierung für domain, gsc_site_url, ga4_property_id wurde entfernt ✨
-    /* // ALT:
-    if (role === 'BENUTZER' && (!domain || !gsc_site_url || !ga4_property_id)) {
-      return NextResponse.json({ message: 'Für Benutzer sind Domain, GSC Site URL und GA4 Property ID Pflichtfelder.' }, { status: 400 });
-    }
-    */
-
+    
     const { rows } = await sql<User>`SELECT * FROM users WHERE email = ${email}`;
     if (rows.length > 0) {
       return NextResponse.json({ message: 'Benutzer existiert bereits' }, { status: 409 });
@@ -140,6 +135,29 @@ export async function POST(req: NextRequest) { // Request-Typ zu NextRequest ge�
       INSERT INTO users (email, password, role, domain, gsc_site_url, ga4_property_id, "createdByAdminId")
       VALUES (${email}, ${hashedPassword}, ${roleToCreate}, ${domain || null}, ${gsc_site_url || null}, ${ga4_property_id || null}, ${createdByAdminId})
       RETURNING id, email, role, domain`;
+
+    // --- NEU: Automatische Zuweisung für ADMINS ---
+    // Wenn der eingeloggte Benutzer ein ADMIN ist, der einen BENUTZER erstellt hat,
+    // weise diesen neuen Benutzer (Projekt) automatisch dem Admin zu.
+    if (loggedInUserRole === 'ADMIN' && roleToCreate === 'BENUTZER' && newUsers.length > 0) {
+      const newCustomerId = newUsers[0].id;
+      
+      console.log(`[/api/users] ADMIN ${createdByAdminId} erstellt Kunde ${newCustomerId}.`);
+      console.log(`[/api/users] Füge automatische Zuweisung hinzu...`);
+
+      try {
+        await sql`
+          INSERT INTO project_assignments (user_id, project_id)
+          VALUES (${createdByAdminId}, ${newCustomerId})
+        `;
+        console.log(`[/api/users] Zuweisung erfolgreich.`);
+      } catch (assignError) {
+        // Selbst wenn die Zuweisung fehlschlägt, wurde der Benutzer erstellt.
+        // Wir loggen den Fehler, aber senden trotzdem die Erfolgsantwort für die Benutzererstellung.
+        console.error(`[/api/users] FEHLER bei automatischer Zuweisung:`, assignError);
+      }
+    }
+    // --- ENDE NEU ---
 
     return NextResponse.json(newUsers[0], { status: 201 });
 
