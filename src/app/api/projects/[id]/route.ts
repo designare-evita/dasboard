@@ -135,7 +135,7 @@ async function getProjectDashboardData(user: Partial<User>, dateRange: string = 
  */
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -145,7 +145,7 @@ export async function GET(
     }
 
     const { role, id: userId } = session.user;
-    const projectId = params.id;
+    const { id: projectId } = await context.params;
 
     // ✅ DateRange-Parameter aus URL extrahieren
     const { searchParams } = new URL(request.url);
