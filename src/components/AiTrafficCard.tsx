@@ -15,6 +15,7 @@ interface AiTrafficCardProps {
     percentage: number;
   }>;
   isLoading?: boolean;
+  dateRange?: string;
 }
 
 export default function AiTrafficCard({ 
@@ -22,13 +23,23 @@ export default function AiTrafficCard({
   totalUsers = 0, 
   percentage = 0, 
   topSources = [],
-  isLoading = false 
+  isLoading = false,
+  dateRange = '30d'
 }: AiTrafficCardProps) {
   // Sichere Werte mit Fallbacks
   const safePercentage = typeof percentage === 'number' && !isNaN(percentage) ? percentage : 0;
   const safeTotalSessions = typeof totalSessions === 'number' && !isNaN(totalSessions) ? totalSessions : 0;
   const safeTotalUsers = typeof totalUsers === 'number' && !isNaN(totalUsers) ? totalUsers : 0;
   const safeTopSources = Array.isArray(topSources) ? topSources : [];
+
+  // Zeitraum-Label generieren
+  const rangeLabels: Record<string, string> = {
+    '30d': 'Letzte 30 Tage',
+    '3m': 'Letzte 3 Monate',
+    '6m': 'Letzte 6 Monate',
+    '12m': 'Letzte 12 Monate',
+  };
+  const rangeLabel = rangeLabels[dateRange] || 'Letzte 30 Tage';
 
   if (isLoading) {
     return (
@@ -60,7 +71,7 @@ export default function AiTrafficCard({
       </div>
 
       {/* Zeitraum-Hinweis */}
-      <p className="text-xs text-gray-500 mb-4">Letzte 30 Tage</p>
+      <p className="text-xs text-gray-500 mb-4">{rangeLabel}</p>
 
       {/* Haupt-Metriken */}
       <div className="grid grid-cols-2 gap-4 mb-6">
