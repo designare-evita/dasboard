@@ -8,8 +8,12 @@ import * as Brevo from '@getbrevo/brevo'; // NEU: Brevo importieren
 
 // NEU: Brevo API-Client initialisieren
 const apiInstance = new Brevo.TransactionalEmailsApi();
-const apiKey = apiInstance.authentications['apiKey'];
-apiKey.apiKey = process.env.BREVO_API_KEY || ''; // API Key aus Umgebungsvariablen laden
+
+// NEU (KORRIGIERT): API-Key über die setApiKey-Methode setzen
+apiInstance.setApiKey(
+  Brevo.TransactionalEmailsApiApiKeys.apiKey,
+  process.env.BREVO_API_KEY || '' // API Key aus Umgebungsvariablen laden
+);
 
 // NEU: System-E-Mail-Adresse für den Absender laden
 const systemEmail = process.env.BREVO_SYSTEM_EMAIL || 'status@datapeak.at'; // Passe die Fallback-Adresse an
