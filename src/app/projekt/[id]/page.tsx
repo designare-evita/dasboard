@@ -190,11 +190,24 @@ export default function ProjektDetailPage() {
         </div>
       </div>
 
-      {/* ✅ Top Queries + KI-Traffic nebeneinander */}
+      {/* ✅ KI-Traffic ZUERST + Top Queries DANACH nebeneinander */}
       <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Top 5 Suchanfragen Tabelle (2 Spalten) */}
+        {/* ✅ KI-Traffic Card ZUERST (1 Spalte) */}
+        {data.aiTraffic && (
+          <div className="lg:col-span-1 order-1">
+            <AiTrafficCard
+              totalSessions={data.aiTraffic.totalSessions}
+              totalUsers={data.aiTraffic.totalUsers}
+              percentage={k.sessions.aiTraffic?.percentage || 0}
+              topSources={data.aiTraffic.topAiSources}
+              isLoading={false}
+            />
+          </div>
+        )}
+
+        {/* Top 5 Suchanfragen Tabelle DANACH (2 Spalten) */}
         {data?.topQueries && data.topQueries.length > 0 && (
-          <div className="lg:col-span-2">
+          <div className={`${data.aiTraffic ? 'lg:col-span-2 order-2' : 'lg:col-span-3'}`}>
             <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
               <h3 className="text-xl font-semibold mb-4">Top 5 Suchanfragen</h3>
               <div className="overflow-x-auto">
@@ -230,19 +243,6 @@ export default function ProjektDetailPage() {
                 </table>
               </div>
             </div>
-          </div>
-        )}
-
-        {/* ✅ KI-Traffic Card (1 Spalte) */}
-        {data.aiTraffic && (
-          <div className="lg:col-span-1">
-            <AiTrafficCard
-              totalSessions={data.aiTraffic.totalSessions}
-              totalUsers={data.aiTraffic.totalUsers}
-              percentage={k.sessions.aiTraffic?.percentage || 0}
-              topSources={data.aiTraffic.topAiSources}
-              isLoading={false}
-            />
           </div>
         )}
       </div>
