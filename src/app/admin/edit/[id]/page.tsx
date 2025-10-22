@@ -8,13 +8,14 @@ import type { User } from '@/types';
 import EditUserForm from './EditUserForm';
 import LandingpageManager from './LandingpageManager';
 import ProjectAssignmentManager from './ProjectAssignmentManager';
-// NEU: Importiere die Logbuch-Komponente für den Benutzer
-import UserLogbook from '@/components/UserLogbook';
+// KORRIGIERTER IMPORT: Importiere die neue UserLogbook Komponente
+import UserLogbook from '@/components/UserLogbook'; 
 
 type PageProps = {
   params: Promise<{ id: string }>;
 };
 
+// --- (Interfaces und Datenladefunktionen bleiben gleich) ---
 interface Project {
   id: string;
   name: string;
@@ -23,8 +24,6 @@ interface Project {
 interface UserWithAssignments extends User {
   assigned_projects: { project_id: string }[];
 }
-
-// --- Datenladefunktionen (unverändert) ---
 
 async function getUserData(id: string): Promise<UserWithAssignments | null> {
   try {
@@ -39,6 +38,7 @@ async function getUserData(id: string): Promise<UserWithAssignments | null> {
         COALESCE(ga4_property_id, '') as ga4_property_id
       FROM users
       WHERE id::text = ${id}`;
+      
     if (users.length === 0) {
       console.error('[getUserData] ❌ Benutzer nicht gefunden!');
       return null;
@@ -128,8 +128,8 @@ export default async function EditUserPage({ params }: PageProps) {
         <div className="min-h-screen bg-gray-50 p-8">
             <div className="p-8 bg-white rounded-lg shadow-md max-w-2xl mx-auto mt-10">
                 <h2 className="text-xl font-bold text-red-600 mb-4">Benutzer nicht gefunden</h2>
-                {/* ... (Rest der Fehleranzeige bleibt gleich) ... */}
-                 <div className="space-y-4">
+                <p>Der Benutzer mit der ID konnte nicht geladen werden.</p>
+                 <div className="space-y-4 mt-6">
                     <div className="bg-gray-100 p-4 rounded">
                         <p className="font-semibold mb-2">Gesuchte ID:</p>
                         <code className="text-xs break-all block">{id}</code>
@@ -140,19 +140,16 @@ export default async function EditUserPage({ params }: PageProps) {
                             <p className="text-sm text-red-700">{loadError}</p>
                         </div>
                     )}
-                    {/* ... (Mögliche Lösungen und Buttons bleiben gleich) ... */}
                      <div className="bg-yellow-50 border border-yellow-200 p-4 rounded">
                         <p className="font-semibold text-yellow-800 mb-2">🔧 Mögliche Lösungen:</p>
                         <ol className="list-decimal list-inside space-y-2 text-sm text-yellow-700">
-                           <li>Rufe <code className="bg-yellow-100 px-1">/api/fix-users-table</code> auf, um die Tabelle zu reparieren</li>
-                           <li>Prüfe die Vercel Function Logs für detaillierte Fehlermeldungen</li>
-                           <li>Stelle sicher, dass die Postgres-Datenbank erreichbar ist</li>
+                           <li>Stelle sicher, dass die ID korrekt ist.</li>
+                           <li>Prüfe die Vercel Function Logs für detaillierte Fehlermeldungen.</li>
+                           <li>Stelle sicher, dass die Postgres-Datenbank erreichbar ist.</li>
                         </ol>
                     </div>
                     <div className="flex gap-4 justify-center mt-6">
                         <a href="/admin" className="bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700">Zurück zur Übersicht</a>
-                        <a href="/api/fix-users-table" target="_blank" className="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700">Tabelle reparieren</a>
-                        <a href="/api/debug-users" target="_blank" className="bg-gray-600 text-white px-6 py-2 rounded-md hover:bg-gray-700">Alle Benutzer anzeigen</a>
                     </div>
                 </div>
             </div>
@@ -167,6 +164,7 @@ export default async function EditUserPage({ params }: PageProps) {
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-4xl mx-auto space-y-8">
+        
         {/* Benutzerdetails bearbeiten */}
         <div className="bg-white p-8 rounded-lg shadow-md">
           <div className="flex justify-between items-center mb-6">
@@ -186,7 +184,8 @@ export default async function EditUserPage({ params }: PageProps) {
         {user.role === 'BENUTZER' && (
           <>
             <LandingpageManager userId={id} />
-            {/* NEU: Logbuch-Komponente hier einfügen */}
+            
+            {/* KORRIGIERTE KOMPONENTE: Verwende UserLogbook mit der userId */}
             <UserLogbook userId={id} />
           </>
         )}
