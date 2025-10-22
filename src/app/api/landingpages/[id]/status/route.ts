@@ -25,6 +25,7 @@ async function createNotification(
   }
 }
 
+// *** HIER BEGINNT DIE AKTUALISIERTE PUT-FUNKTION ***
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -32,7 +33,7 @@ export async function PUT(
   try {
     const { id: landingpageId } = await params;
     const session = await getServerSession(authOptions);
-    
+
     if (!session?.user?.email) {
       return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
     }
@@ -47,16 +48,17 @@ export async function PUT(
     // Validierung: Status muss einer der erlaubten Werte sein
     const validStatuses: StatusType[] = ['Offen', 'In Prüfung', 'Gesperrt', 'Freigegeben'];
     if (!validStatuses.includes(newStatus)) {
-      return NextResponse.json({ 
+      return NextResponse.json({
         message: 'Ungültiger Status',
-        validStatuses 
+        validStatuses
       }, { status: 400 });
     }
 
     // Lade die Landingpage mit User-Info
     const { rows: landingpages } = await sql`
-      SELECT 
+      SELECT
         lp.*,
+        u.id as user_id, -- Sicherstellen, dass user_id als UUID verfügbar ist
         u.email as user_email,
         u.domain as user_domain
       FROM landingpages lp
@@ -77,43 +79,44 @@ export async function PUT(
     // Berechtigungsprüfung
     const isAdmin = session.user.role === 'ADMIN' || session.user.role === 'SUPERADMIN';
     const isOwner = session.user.id === landingpage.user_id;
+    const currentUser = session.user; // Aktuellen Benutzer für Logging speichern
 
     // BENUTZER darf nur zwischen Freigegeben und Gesperrt wechseln
     if (session.user.role === 'BENUTZER') {
       if (!isOwner) {
-        return NextResponse.json({ 
-          message: 'Sie dürfen nur Ihre eigenen Landingpages bearbeiten' 
+        return NextResponse.json({
+          message: 'Sie dürfen nur Ihre eigenen Landingpages bearbeiten'
         }, { status: 403 });
       }
 
       // BENUTZER darf nur Freigegeben/Gesperrt ändern
       if (newStatus !== 'Freigegeben' && newStatus !== 'Gesperrt') {
-        return NextResponse.json({ 
-          message: 'Sie dürfen nur zwischen "Freigegeben" und "Gesperrt" wechseln' 
+        return NextResponse.json({
+          message: 'Sie dürfen nur zwischen "Freigegeben" und "Gesperrt" wechseln'
         }, { status: 403 });
       }
     }
 
-// ADMIN/SUPERADMIN: Prüfe Zugriff auf Projekt
-if (isAdmin) {
-  if (session.user.role === 'ADMIN') {
-    // Prüfe, ob der Admin Zugriff auf dieses Projekt hat
-    const { rows: accessCheck } = await sql`
-      SELECT 1 
-      FROM project_assignments 
-      WHERE user_id::text = ${session.user.id} 
-      AND project_id::text = ${landingpage.user_id};
-    `;
+    // ADMIN/SUPERADMIN: Prüfe Zugriff auf Projekt
+    if (isAdmin) {
+      if (session.user.role === 'ADMIN') {
+        // Prüfe, ob der Admin Zugriff auf dieses Projekt hat
+        const { rows: accessCheck } = await sql`
+          SELECT 1
+          FROM project_assignments
+          WHERE user_id::text = ${session.user.id}
+          AND project_id::text = ${landingpage.user_id};
+        `;
 
-    // Nur ADMINs (nicht SUPERADMINs) müssen Projektzugriff haben
-    if (accessCheck.length === 0) {
-      return NextResponse.json({ 
-        message: 'Sie haben keinen Zugriff auf dieses Projekt' 
-      }, { status: 403 });
+        // Nur ADMINs (nicht SUPERADMINs) müssen Projektzugriff haben
+        if (accessCheck.length === 0) {
+          return NextResponse.json({
+            message: 'Sie haben keinen Zugriff auf dieses Projekt'
+          }, { status: 403 });
+        }
+      }
+      // SUPERADMIN hat automatisch Zugriff auf alle Projekte
     }
-  }
-  // SUPERADMIN hat automatisch Zugriff auf alle Projekte
-}
 
     // Status-Update durchführen
     await sql`
@@ -124,13 +127,38 @@ if (isAdmin) {
 
     console.log('✅ Status erfolgreich aktualisiert');
 
-    // Benachrichtigungen erstellen
+    // === NEU: Log-Eintrag erstellen ===
+    try {
+      // Detailliertere Beschreibung, wer die Aktion ausgeführt hat
+      let actionPerformer = '';
+      if (isAdmin) {
+        actionPerformer = `${currentUser.role} (${currentUser.email})`;
+      } else if (isOwner) {
+        actionPerformer = `Kunde (${currentUser.email})`;
+      } else {
+        actionPerformer = `System (${currentUser.email})`; // Fallback
+      }
+
+      const actionDescription = `Status von "${oldStatus}" auf "${newStatus}" geändert durch ${actionPerformer}`;
+
+      await sql`
+        INSERT INTO landingpage_logs (landingpage_id, user_id, user_email, action)
+        VALUES (${landingpageId}, ${currentUser.id}::uuid, ${currentUser.email}, ${actionDescription});
+      `;
+      console.log('✅ Log-Eintrag erstellt für Landingpage:', landingpageId);
+    } catch (logError) {
+      console.error('❌ Fehler beim Erstellen des Log-Eintrags:', logError);
+      // Fahre trotzdem fort, das Logging ist sekundär
+    }
+    // === ENDE: Log-Eintrag erstellen ===
+
+    // Benachrichtigungen erstellen (wie im Originalcode)
     const pageUrl = new URL(landingpage.url).pathname;
-    
+
     // 1. Benachrichtigung an den Kunden (wenn Admin den Status ändert)
     if (isAdmin && oldStatus !== newStatus) {
       let customerMessage = '';
-      
+
       if (newStatus === 'In Prüfung') {
         customerMessage = `Ihre Landingpage "${pageUrl}" wartet auf Ihre Freigabe.`;
       } else if (newStatus === 'Offen') {
@@ -140,7 +168,7 @@ if (isAdmin) {
       } else if (newStatus === 'Gesperrt') {
         customerMessage = `Ihre Landingpage "${pageUrl}" wurde vom Admin gesperrt.`;
       }
-      
+
       if (customerMessage) {
         await createNotification(
           landingpage.user_id,
@@ -173,7 +201,7 @@ if (isAdmin) {
 
       let adminMessage = '';
       const customerDomain = landingpage.user_domain || landingpage.user_email;
-      
+
       if (newStatus === 'Freigegeben') {
         adminMessage = `Kunde "${customerDomain}" hat die Landingpage "${pageUrl}" freigegeben.`;
       } else if (newStatus === 'Gesperrt') {
@@ -192,7 +220,8 @@ if (isAdmin) {
       }
     }
 
-    return NextResponse.json({ 
+    // Erfolgs-Response senden
+    return NextResponse.json({
       message: 'Status erfolgreich aktualisiert',
       oldStatus,
       newStatus,
@@ -206,7 +235,7 @@ if (isAdmin) {
   } catch (error) {
     console.error('❌ Fehler beim Status-Update:', error);
     return NextResponse.json(
-      { 
+      {
         message: 'Fehler beim Aktualisieren des Status',
         error: error instanceof Error ? error.message : 'Unbekannter Fehler'
       },
@@ -214,3 +243,4 @@ if (isAdmin) {
     );
   }
 }
+// *** HIER ENDET DIE AKTUALISIERTE PUT-FUNKTION ***
