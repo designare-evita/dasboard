@@ -15,9 +15,9 @@ import {
 import KpiCard from '@/components/kpi-card';
 import KpiTrendChart from '@/components/charts/KpiTrendChart';
 import LandingpageApproval from '@/components/LandingpageApproval';
-import AiTrafficCard from '@/components/AiTrafficCard'; // ✅ Neue Komponente
+import DateRangeSelector, { type DateRangeOption, getRangeLabel } from '@/components/DateRangeSelector'; // ✅ Neue Komponente
 
-// --- Typen für Dashboard-Daten ---
+// ... Typen für Dashboard-Daten ...
 type KPI = {
   value: number;
   change: number;
