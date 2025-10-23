@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import useApiData from '@/hooks/use-api-data';
 import KpiCard from '@/components/kpi-card';
+import KpiCardsGrid from '@/components/KpiCardsGrid';
 import KpiTrendChart from '@/components/charts/KpiTrendChart';
 import AiTrafficCard from '@/components/AiTrafficCard';
 import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector';
@@ -163,12 +164,7 @@ export default function ProjektDetailPage() {
       </div>
 
       {/* KPI-Karten */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <KpiCard title="Klicks" isLoading={false} value={k.clicks.value} change={k.clicks.change} />
-        <KpiCard title="Impressionen" isLoading={false} value={k.impressions.value} change={k.impressions.change} />
-        <KpiCard title="Sitzungen" isLoading={false} value={k.sessions.value} change={k.sessions.change} />
-        <KpiCard title="Nutzer" isLoading={false} value={k.totalUsers.value} change={k.totalUsers.change} />
-      </div>
+<KpiCardsGrid kpis={kpis} isLoading={isLoading} />
 
       {/* Charts - volle Breite */}
       <div className="mt-8">
