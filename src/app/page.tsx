@@ -293,7 +293,7 @@ function CustomerDashboard({
         <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* ✅ KI-Traffic Card ZUERST (1 Spalte) */}
           {data.aiTraffic && (
-            <div className="lg:col-span-1 order-1">
+            <div className="lg:col-span-1">
               <AiTrafficCard
                 totalSessions={data.aiTraffic.totalSessions}
                 totalUsers={data.aiTraffic.totalUsers}
