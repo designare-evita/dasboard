@@ -267,7 +267,7 @@ export async function getTopQueries(
 
     return allQueries
       .sort((a, b) => b.clicks - a.clicks)
-      .slice(0, 5);
+      .slice(0, 100);
 
   } catch (error: unknown) {
     console.error("[GSC] Fehler beim Abrufen der Top Queries:", error);
