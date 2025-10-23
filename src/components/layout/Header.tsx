@@ -53,6 +53,13 @@ export default function Header() {
               {/* NEU: Benachrichtigungs-Glocke */}
               <NotificationBell />
 
+                  {/* Projekte Button (nur für Admins) */}
+              {isAdmin && (
+                <Link href="/" passHref>
+                  <Button>Projekte</Button>
+                </Link>
+              )}
+
               {/* NEU: Redaktionsplan Button (nur für Admins, Standard-Stil) */}
               {isAdmin && (
                 <Link href="/admin/redaktionsplan" passHref>
@@ -60,12 +67,6 @@ export default function Header() {
                 </Link>
               )}
 
-              {/* Projekte Button (nur für Admins) */}
-              {isAdmin && (
-                <Link href="/" passHref>
-                  <Button>Projekte</Button>
-                </Link>
-              )}
 
               {/* Admin-Bereich Button (nur für Admins, Standard-Stil) */}
               {isAdmin && (
