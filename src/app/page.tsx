@@ -6,10 +6,10 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { User } from '@/types';
-import { 
-  ArrowRepeat, 
-  ExclamationTriangleFill, 
-  GraphUp, 
+import {
+  ArrowRepeat,
+  ExclamationTriangleFill,
+  GraphUp,
   ArrowRightSquare,
   ClockHistory // ClockHistory wird jetzt in TopQueriesList verwendet, kann hier aber bleiben
 } from 'react-bootstrap-icons';
@@ -49,7 +49,7 @@ type AiTrafficData = {
   totalSessions: number;
   totalUsers: number;
   sessionsBySource: {
-    : number;
+    : number; // ✅ KORREKTUR: Index-Signatur hinzugefügt
   };
   topAiSources: Array<{
     source: string;
@@ -100,7 +100,7 @@ const emptyData: DashboardData = {
   aiTraffic: {
     totalSessions: 0,
     totalUsers: 0,
-    sessionsBySource: {},
+    sessionsBySource: {}, // Dieses leere Objekt passt nun zum Typ { : number }
     topAiSources: [],
     trend: []
   }
@@ -216,7 +216,7 @@ function AdminDashboard({ user }: { user: User }) {
               </span>
             </div>
           </Link>
-          
+
           <Link href="/admin/redaktionsplan">
             <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200 hover:shadow-lg transition-shadow cursor-pointer group">
               <h3 className="text-xl font-semibold text-gray-800 mb-3">Redaktionsplan</h3>
@@ -323,7 +323,7 @@ function CustomerDashboard({
 
         {/* KI-Traffic + Top Queries nebeneinander */}
         <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
-          
+
           {/* KI-Traffic Card (1 Spalte) */}
           {aiTraffic && (
             <div className="lg:col-span-1">
@@ -339,7 +339,7 @@ function CustomerDashboard({
           )}
 
           {/* ==========================================================
-            ✅ ÄNDERUNG: TopQueriesList Komponente wird hier verwendet 
+            ✅ ÄNDERUNG: TopQueriesList Komponente wird hier verwendet
             ==========================================================
           */}
           {(topQueries && topQueries.length > 0) && (
@@ -356,7 +356,7 @@ function CustomerDashboard({
           {/* ========================================================== */}
 
         </div>
-        
+
         {/* Landingpage Approval */}
         <div className="mt-8">
           <LandingpageApproval />
