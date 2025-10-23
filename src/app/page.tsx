@@ -323,9 +323,9 @@ function CustomerDashboard({
                     {data.topQueries.map((query, index) => (
                       <li key={`${query.query}-${index}`} className="p-4 space-y-2 hover:bg-gray-50">
                         {/* Suchanfrage */}
-                        <p className="text-sm font-medium text-gray-900">{query.query}</p>
+                        <p className="text-base font-medium text-gray-900">{query.query}</p>
                         {/* Metadaten */}
-                        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs text-gray-500">
+                        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-sm text-gray-500">
                           <span title="Klicks">
                             Klicks: <span className="font-semibold text-gray-700">{query.clicks.toLocaleString('de-DE')}</span>
                           </span>
