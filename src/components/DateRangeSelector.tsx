@@ -37,7 +37,7 @@ export default function DateRangeSelector({
           onClick={() => onChange(option)}
           className={`px-4 py-2 text-sm font-medium transition-colors first:rounded-l-lg last:rounded-r-lg ${
             value === option
-              ? 'bg-indigo-600 text-white'
+              ? 'bg-[#188BDB] text-white'
               : 'text-gray-700 hover:bg-gray-50'
           } ${
             value !== option && option !== options[0] ? 'border-l border-gray-300' : ''
