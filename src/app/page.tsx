@@ -14,6 +14,7 @@ import {
 } from 'react-bootstrap-icons';
 import KpiCard from '@/components/kpi-card';
 import KpiTrendChart from '@/components/charts/KpiTrendChart';
+import KpiCardsGrid from '@/components/KpiCardsGrid';
 import LandingpageApproval from '@/components/LandingpageApproval';
 import AiTrafficCard from '@/components/AiTrafficCard';
 import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector';
@@ -262,12 +263,7 @@ function CustomerDashboard({
         </div>
         
         {/* KPI-Karten Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <KpiCard title="Klicks" isLoading={isLoading} value={kpis.clicks.value} change={kpis.clicks.change} />
-          <KpiCard title="Impressionen" isLoading={isLoading} value={kpis.impressions.value} change={kpis.impressions.change} />
-          <KpiCard title="Sitzungen" isLoading={isLoading} value={kpis.sessions.value} change={kpis.sessions.change} />
-          <KpiCard title="Nutzer" isLoading={isLoading} value={kpis.totalUsers.value} change={kpis.totalUsers.change} />
-        </div>
+<KpiCardsGrid kpis={kpis} isLoading={isLoading} />
         
         {/* Charts - volle Breite */}
         <div className="mt-8">
