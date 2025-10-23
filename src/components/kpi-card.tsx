@@ -1,55 +1,56 @@
-// src/components/KpiCardsGrid.tsx
+// src/components/kpi-card.tsx
 import React from 'react';
-import KpiCard from './kpi-card'; // Verwendet die bestehende kpi-card Komponente
-import type { KPI } from '@/types/dashboard';
+import { ArrowUp, ArrowDown } from 'react-bootstrap-icons';
 
-interface KpiCardsGridProps {
-  kpis: {
-    clicks: KPI;
-    impressions: KPI;
-    sessions: KPI;
-    totalUsers: KPI;
-  };
+interface KpiCardProps {
+  title: string;
+  value: number;
+  change: number;
   isLoading?: boolean;
 }
 
 /**
- * KpiCardsGrid - Grid-Layout für die 4 Standard-KPI-Karten
+ * KpiCard - Einzelne KPI-Karte mit Wert und Veränderung
  * 
- * Diese Komponente kapselt das Grid-Layout für Klicks, Impressionen, 
- * Sitzungen und Nutzer-KPIs und verwendet die bestehende KpiCard Komponente.
+ * Zeigt einen KPI-Wert mit optionalem Lade-Skeleton und 
+ * prozentualer Veränderung (mit Pfeil-Icon) an.
  * 
- * @param kpis - Objekt mit allen KPI-Werten
+ * @param title - Titel der KPI-Karte (z.B. "Klicks")
+ * @param value - Aktueller Wert der KPI
+ * @param change - Prozentuale Veränderung (positiv oder negativ)
  * @param isLoading - Optional: Zeigt Lade-Skeleton an
  */
+export default function KpiCard({ title, value, change, isLoading = false }: KpiCardProps) {
+  const isPositive = change >= 0;
 
-export default function KpiCardsGrid({ kpis, isLoading = false }: KpiCardsGridProps) {
+  if (isLoading) {
+    return (
+      <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
+        <div className="animate-pulse">
+          <div className="h-4 bg-gray-200 rounded w-1/2 mb-4"></div>
+          <div className="h-8 bg-gray-200 rounded w-3/4 mb-2"></div>
+          <div className="h-3 bg-gray-200 rounded w-1/3"></div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-      <KpiCard 
-        title="Klicks" 
-        isLoading={isLoading} 
-        value={kpis.clicks.value} 
-        change={kpis.clicks.change} 
-      />
-      <KpiCard 
-        title="Impressionen" 
-        isLoading={isLoading} 
-        value={kpis.impressions.value} 
-        change={kpis.impressions.change} 
-      />
-      <KpiCard 
-        title="Sitzungen" 
-        isLoading={isLoading} 
-        value={kpis.sessions.value} 
-        change={kpis.sessions.change} 
-      />
-      <KpiCard 
-        title="Nutzer" 
-        isLoading={isLoading} 
-        value={kpis.totalUsers.value} 
-        change={kpis.totalUsers.change} 
-      />
+    <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200 hover:shadow-lg transition-shadow">
+      <h3 className="text-sm font-medium text-gray-500 mb-2">{title}</h3>
+      <p className="text-3xl font-bold text-gray-900 mb-2">
+        {value.toLocaleString('de-DE')}
+      </p>
+      <div className={`flex items-center text-sm font-medium ${
+        isPositive ? 'text-green-600' : 'text-red-600'
+      }`}>
+        {isPositive ? (
+          <ArrowUp className="mr-1" size={16} />
+        ) : (
+          <ArrowDown className="mr-1" size={16} />
+        )}
+        <span>{Math.abs(change).toFixed(1)}%</span>
+      </div>
     </div>
   );
 }
