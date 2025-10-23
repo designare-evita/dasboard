@@ -11,19 +11,22 @@ import {
   ExclamationTriangleFill, 
   GraphUp, 
   ArrowRightSquare,
-  ClockHistory 
+  ClockHistory // ClockHistory wird jetzt in TopQueriesList verwendet, kann hier aber bleiben
 } from 'react-bootstrap-icons';
 import KpiCard from '@/components/kpi-card';
 import KpiTrendChart from '@/components/charts/KpiTrendChart';
 import LandingpageApproval from '@/components/LandingpageApproval';
 import AiTrafficCard from '@/components/AiTrafficCard';
 import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector';
+// ✅ NEUER IMPORT
+import TopQueriesList from '@/components/TopQueriesList';
 
-// ... Typen für Dashboard-Daten ...
+// --- Typen für Dashboard-Daten ---
+// (Diese Typen könntest du auch in @/types/index.ts auslagern)
 type KPI = {
   value: number;
   change: number;
-  aiTraffic?: { // ✅ Optional für Sessions
+  aiTraffic?: { // Optional für Sessions
     value: number;
     percentage: number;
   };
@@ -42,11 +45,11 @@ type TopQueryData = {
   position: number;
 };
 
-type AiTrafficData = { // ✅ Neuer Typ
+type AiTrafficData = {
   totalSessions: number;
   totalUsers: number;
   sessionsBySource: {
-    [source: string]: number;
+    : number;
   };
   topAiSources: Array<{
     source: string;
@@ -74,173 +77,197 @@ type DashboardData = {
     totalUsers: ChartData;
   };
   topQueries?: TopQueryData[];
-  aiTraffic?: AiTrafficData; // ✅ Neue Property
+  aiTraffic?: AiTrafficData;
 };
 
 type ActiveKpi = 'clicks' | 'impressions' | 'sessions' | 'totalUsers';
 
-// --- Hauptkomponente ---
-export default function HomePage() {
+// --- Leere/Standard-Daten ---
+const emptyData: DashboardData = {
+  kpis: {
+    clicks: { value: 0, change: 0 },
+    impressions: { value: 0, change: 0 },
+    sessions: { value: 0, change: 0, aiTraffic: { value: 0, percentage: 0 } },
+    totalUsers: { value: 0, change: 0 },
+  },
+  charts: {
+    clicks: [],
+    impressions: [],
+    sessions: [],
+    totalUsers: [],
+  },
+  topQueries: [],
+  aiTraffic: {
+    totalSessions: 0,
+    totalUsers: 0,
+    sessionsBySource: {},
+    topAiSources: [],
+    trend: []
+  }
+};
+
+
+// --- Hauptkomponente (Page) ---
+export default function Home() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  
-  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
-  const [projects, setProjects] = useState<User[]>([]);
+  const [data, setData] = useState<DashboardData>(emptyData);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<DateRangeOption>('30d');
 
-  const fetchData = useCallback(async (range: DateRangeOption = dateRange) => {
+  const fetchData = useCallback(async (range: DateRangeOption) => {
     setIsLoading(true);
     setError(null);
     try {
       const response = await fetch(`/api/data?dateRange=${range}`);
       if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.message || 'Daten konnten nicht geladen werden');
+        throw new Error('Netzwerkantwort war nicht erfolgreich');
       }
-      
-      const data = await response.json();
-      
-      if (data.role === 'ADMIN' || data.role === 'SUPERADMIN') {
-        setProjects(data.projects || []);
-      } else if (data.role === 'BENUTZER') {
-        setDashboardData(data);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ein unbekannter Fehler ist aufgetreten');
+      const result = await response.json();
+      setData(result || emptyData);
+    } catch (error) {
+      console.error('Fehler beim Abrufen der Daten:', error);
+      setError(error instanceof Error ? error.message : 'Ein unbekannter Fehler ist aufgetreten');
+      setData(emptyData); // Bei Fehler leere Daten setzen
     } finally {
       setIsLoading(false);
     }
-  }, [dateRange]);
+  }, []);
 
   useEffect(() => {
     if (status === 'authenticated') {
       fetchData(dateRange);
+    } else if (status === 'unauthenticated') {
+      router.push('/login');
     }
-  }, [status, dateRange, fetchData]);
+    // Abhängigkeit 'fetchData' hinzugefügt
+  }, [status, dateRange, router, fetchData]);
 
-  if (status === 'loading' || (status === 'authenticated' && isLoading)) {
+  const handleDateRangeChange = (range: DateRangeOption) => {
+    setDateRange(range);
+    // fetchData wird durch den useEffect oben ausgelöst, wenn sich dateRange ändert
+  };
+
+  // Ladezustand, während die Session geprüft wird
+  if (status === 'loading' || !session) {
     return (
-      <div className="p-8 text-center flex items-center justify-center min-h-[50vh]">
-        <ArrowRepeat className="animate-spin text-indigo-600 mr-2" size={24} />
-        <p className="text-gray-600">Dashboard wird geladen...</p>
+      <div className="flex justify-center items-center min-h-screen bg-gray-50">
+        <ArrowRepeat className="animate-spin text-4xl text-indigo-600" />
       </div>
     );
   }
 
-  if (status === 'unauthenticated') {
-    router.push('/login');
-    return null;
-  }
-
+  // Fehleranzeige
   if (error) {
     return (
-      <div className="p-8 text-center text-red-800 bg-red-50 rounded-lg border border-red-200 max-w-2xl mx-auto mt-10">
-        <h3 className="font-bold flex items-center justify-center gap-2">
-          <ExclamationTriangleFill size={18} />
-          Fehler beim Laden der Daten
-        </h3>
-        <p className="text-sm mt-2">{error}</p>
+      <div className="flex flex-col justify-center items-center min-h-screen bg-red-50 p-8">
+        <ExclamationTriangleFill className="text-5xl text-red-500 mb-4" />
+        <h2 className="text-2xl font-semibold text-red-800 mb-2">Daten konnten nicht geladen werden</h2>
+        <p className="text-red-700 mb-6 text-center">{error}</p>
+        <button
+          onClick={() => fetchData(dateRange)}
+          disabled={isLoading}
+          className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 disabled:opacity-50 flex items-center gap-2"
+        >
+          <ArrowRepeat className={isLoading ? 'animate-spin' : ''} />
+          Erneut versuchen
+        </button>
       </div>
     );
   }
 
-  // Admin- & Superadmin-Ansicht
-  if (session?.user?.role === 'ADMIN' || session?.user?.role === 'SUPERADMIN') {
-    return <AdminDashboard projects={projects} />;
-  }
-
-  // Kunden-Ansicht
-  if (session?.user?.role === 'BENUTZER' && dashboardData) {
+  // Rollenbasierte Dashboards
+  const { user } = session;
+  if (user.role === 'ADMIN' || user.role === 'SUPERADMIN') {
+    // Admin/Superadmin Dashboard (Zeigt Admin-Übersicht)
+    return <AdminDashboard user={user} />;
+  } else {
+    // Kunden-Dashboard (BENUTZER)
     return (
-      <CustomerDashboard 
-        data={dashboardData} 
-        isLoading={isLoading} 
+      <CustomerDashboard
+        data={data}
+        isLoading={isLoading}
         dateRange={dateRange}
-        onDateRangeChange={setDateRange}
+        onDateRangeChange={handleDateRangeChange}
       />
     );
   }
-
-  return (
-    <div className="p-8 text-center text-gray-500">
-      Keine Daten zur Anzeige verfügbar.
-    </div>
-  );
 }
+
 
 // --- Admin Dashboard Komponente ---
-function AdminDashboard({ projects }: { projects: User[] }) {
+function AdminDashboard({ user }: { user: User }) {
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
-      <h2 className="text-3xl font-bold text-gray-900 mb-6">
-        Kundenübersicht
-      </h2>
-      <div className="max-w-7xl mx-auto">
-        {projects.length === 0 ? (
-          <p className="text-gray-500">Keine Projekte gefunden.</p>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {projects.map((project) => (
-              <Link
-                key={project.id}
-                href={`/projekt/${project.id}`}
-                className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow border border-gray-200 hover:bg-gray-50 group"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-xl font-bold text-gray-900 truncate">
-                    {project.domain || project.email}
-                  </h3>
-                  <GraphUp size={24} className="text-indigo-600 flex-shrink-0" />
-                </div>
-                <div className="space-y-2 text-sm text-gray-600">
-                  <p className="truncate">
-                    <span className="font-medium text-gray-800">E-Mail:</span> {project.email}
-                  </p>
-                  {project.gsc_site_url && (
-                    <p className="truncate">
-                      <span className="font-medium text-gray-800">Website:</span> {project.gsc_site_url}
-                    </p>
-                  )}
-                </div>
-                <div className="mt-4 pt-4 border-t border-gray-100">
-                  <span className="text-indigo-600 group-hover:text-indigo-800 text-sm font-medium flex items-center gap-1.5 transition-colors">
-                    Dashboard anzeigen <ArrowRightSquare size={14} />
-                  </span>
-                </div>
-              </Link>
-            ))}
+      <main>
+        <h2 className="text-3xl font-bold text-gray-900 mb-6">Willkommen, {user.name || user.email}!</h2>
+        <p className="text-lg text-gray-700 mb-8">
+          Du bist als {user.role} angemeldet. Hier siehst du bald eine Übersicht aller Projekte.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* Beispiel-Karten für Admins */}
+          <Link href="/admin">
+            <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200 hover:shadow-lg transition-shadow cursor-pointer group">
+              <h3 className="text-xl font-semibold text-gray-800 mb-3">Benutzerverwaltung</h3>
+              <p className="text-gray-600 mb-4">Benutzerkonten anzeigen, erstellen und bearbeiten.</p>
+              <span className="font-medium text-indigo-600 group-hover:text-indigo-800 flex items-center gap-2">
+                Zur Verwaltung <ArrowRightSquare />
+              </span>
+            </div>
+          </Link>
+          
+          <Link href="/admin/redaktionsplan">
+            <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200 hover:shadow-lg transition-shadow cursor-pointer group">
+              <h3 className="text-xl font-semibold text-gray-800 mb-3">Redaktionsplan</h3>
+              <p className="text-gray-600 mb-4">Übersicht aller Landingpages und deren Status.</p>
+              <span className="font-medium text-indigo-600 group-hover:text-indigo-800 flex items-center gap-2">
+                Zum Redaktionsplan <ArrowRightSquare />
+              </span>
+            </div>
+          </Link>
+
+          {/* Platzhalter */}
+          <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
+            <h3 className="text-xl font-semibold text-gray-800 mb-3">Systemstatus</h3>
+            <p className="text-gray-600">Aktuelle Systemauslastung und API-Status.</p>
+            {/* Hier könnte eine Statusanzeige hin */}
           </div>
-        )}
-      </div>
+        </div>
+      </main>
     </div>
   );
 }
 
+
 // --- Kunden Dashboard Komponente ---
-function CustomerDashboard({ 
-  data, 
-  isLoading, 
-  dateRange, 
-  onDateRangeChange 
-}: { 
-  data: DashboardData; 
+function CustomerDashboard({
+  data,
+  isLoading,
+  dateRange,
+  onDateRangeChange
+}: {
+  data: DashboardData;
   isLoading: boolean;
   dateRange: DateRangeOption;
   onDateRangeChange: (range: DateRangeOption) => void;
 }) {
   const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
 
-  const kpis = data.kpis || { 
-    clicks: { value: 0, change: 0 }, 
-    impressions: { value: 0, change: 0 }, 
-    sessions: { value: 0, change: 0 }, 
-    totalUsers: { value: 0, change: 0 } 
-  };
-  
-  const chartSeries: ChartData = (data.charts && data.charts[activeKpi]) ? data.charts[activeKpi]! : [];
-  const showNoDataHint = !data.kpis;
+  // Sicherstellen, dass Daten vorhanden sind, bevor darauf zugegriffen wird
+  const kpis = data.kpis || emptyData.kpis;
+  const charts = data.charts || emptyData.charts;
+  const aiTraffic = data.aiTraffic || emptyData.aiTraffic;
+  const topQueries = data.topQueries || emptyData.topQueries;
+
+  const chartSeries: ChartData = charts[activeKpi] || [];
+
+  // Prüfen, ob *überhaupt* Daten vorhanden sind (nach dem Laden)
+  const showNoDataHint = !isLoading && (
+    kpis.clicks.value === 0 &&
+    kpis.impressions.value === 0 &&
+    charts.clicks.length === 0
+  );
 
   const tabMeta: Record<ActiveKpi, { title: string; color: string }> = {
     clicks: { title: 'Klicks', color: '#3b82f6' },
@@ -250,17 +277,17 @@ function CustomerDashboard({
   };
 
   return (
-    <div className="p-8 bg-gray-50 min-h-screen">
+    <div className="p-4 sm:p-6 md:p-8 bg-gray-50 min-h-screen">
       <main>
         {/* Header mit DateRangeSelector */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <h2 className="text-3xl font-bold text-gray-900">Ihr Dashboard</h2>
-          <DateRangeSelector 
-            value={dateRange} 
+          <DateRangeSelector
+            value={dateRange}
             onChange={onDateRangeChange}
           />
         </div>
-        
+
         {/* KPI-Karten Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <KpiCard title="Klicks" isLoading={isLoading} value={kpis.clicks.value} change={kpis.clicks.change} />
@@ -268,11 +295,12 @@ function CustomerDashboard({
           <KpiCard title="Sitzungen" isLoading={isLoading} value={kpis.sessions.value} change={kpis.sessions.change} />
           <KpiCard title="Nutzer" isLoading={isLoading} value={kpis.totalUsers.value} change={kpis.totalUsers.change} />
         </div>
-        
+
         {/* Charts - volle Breite */}
         <div className="mt-8">
           <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
             <div className="flex border-b border-gray-200">
+              {/* Tab-Buttons für Chart-Auswahl */}
               {(Object.keys(tabMeta) as ActiveKpi[]).map((key) => (
                 <button
                   key={key}
@@ -292,68 +320,52 @@ function CustomerDashboard({
             </div>
           </div>
         </div>
-        
-        {/* ✅ KI-Traffic + Top Queries nebeneinander */}
+
+        {/* KI-Traffic + Top Queries nebeneinander */}
         <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* ✅ KI-Traffic Card ZUERST (1 Spalte) */}
-          {data.aiTraffic && (
+          
+          {/* KI-Traffic Card (1 Spalte) */}
+          {aiTraffic && (
             <div className="lg:col-span-1">
-              <AiTrafficCard
-                totalSessions={data.aiTraffic.totalSessions}
-                totalUsers={data.aiTraffic.totalUsers}
+               <AiTrafficCard
+                totalSessions={aiTraffic.totalSessions}
+                totalUsers={aiTraffic.totalUsers}
                 percentage={kpis.sessions.aiTraffic?.percentage || 0}
-                topSources={data.aiTraffic.topAiSources}
+                topSources={aiTraffic.topAiSources}
                 isLoading={isLoading}
                 dateRange={dateRange}
               />
             </div>
           )}
-          
-        {/* Top 100 Suchanfragen Liste (Logbuch-Stil) */}
-          {data.topQueries && data.topQueries.length > 0 && (
-            <div className={`${data.aiTraffic ? 'lg:col-span-2' : 'lg:col-span-3'}`}>
-              <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
-                <h3 className="text-xl font-semibold mb-4 flex items-center gap-2 text-gray-800">
-                  <ClockHistory size={20} />
-                  Top 100 Suchanfragen
-                </h3>
-                {/* Container mit Scrollbar */}
-                <div className="border rounded-lg max-h-96 overflow-y-auto">
-                  <ul className="divide-y divide-gray-100">
-                    {data.topQueries.map((query, index) => (
-                      <li key={`${query.query}-${index}`} className="p-4 space-y-2 hover:bg-gray-50">
-                        {/* Suchanfrage */}
-                        <p className="text-base font-medium text-gray-900">{query.query}</p>
-                        {/* Metadaten */}
-                        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-sm text-gray-500">
-                          <span title="Klicks">
-                            Klicks: <span className="font-semibold text-gray-700">{query.clicks.toLocaleString('de-DE')}</span>
-                          </span>
-                          <span title="Impressionen">
-                            Impr.: <span className="font-semibold text-gray-700">{query.impressions.toLocaleString('de-DE')}</span>
-                          </span>
-                          <span title="Click-Through-Rate">
-                            CTR: <span className="font-semibold text-gray-700">{(query.ctr * 100).toFixed(1)}%</span>
-                          </span>
-                          <span title="Position">
-                            Pos.: <span className="font-semibold text-gray-700">{query.position.toFixed(1)}</span>
-                          </span>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
+
+          {/* ==========================================================
+            ✅ ÄNDERUNG: TopQueriesList Komponente wird hier verwendet 
+            ==========================================================
+          */}
+          {(topQueries && topQueries.length > 0) && (
+            // Passt die Breite an: 2 Spalten, wenn AI-Traffic da ist, sonst 3
+            <div className={`${aiTraffic ? 'lg:col-span-2' : 'lg:col-span-3'}`}>
+              <TopQueriesList
+                queries={topQueries}
+                isLoading={isLoading}
+              />
             </div>
           )}
+          {/* ========================================================== */}
+          {/* ENDE DER ÄNDERUNG                                        */}
+          {/* ========================================================== */}
+
         </div>
         
         {/* Landingpage Approval */}
-        <LandingpageApproval />
+        <div className="mt-8">
+          <LandingpageApproval />
+        </div>
 
+        {/* Hinweis, wenn keine Daten geladen wurden */}
         {showNoDataHint && (
           <p className="mt-6 text-sm text-center text-gray-500">
-            Hinweis: Für dieses Projekt wurden noch keine KPI-Daten geliefert. Es werden vorübergehend Platzhalter-Werte angezeigt.
+            Hinweis: Für dieses Projekt wurden noch keine Daten geliefert oder die APIs sind nicht korrekt konfiguriert.
           </p>
         )}
       </main>
