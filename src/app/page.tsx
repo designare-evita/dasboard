@@ -263,7 +263,7 @@ function CustomerDashboard({
         </div>
         
         {/* KPI-Karten Grid */}
-<KpiCardsGrid kpis={kpis} isLoading={isLoading} />
+<KpiCardsGrid kpis={k} isLoading={false} />
         
         {/* Charts - volle Breite */}
         <div className="mt-8">
