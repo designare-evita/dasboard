@@ -1,31 +1,29 @@
-// src/app/page.tsx (KOMPLETT NEU UND KORRIGIERT)
+// src/app/page.tsx
 'use client';
 
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { User, Project } from '@/types'; // Annahme: Project-Typ existiert in @/types
+import { User } from '@/types';
 import { 
   ArrowRepeat, 
   ExclamationTriangleFill, 
   GraphUp, 
   ArrowRightSquare,
-  BriefcaseFill // Icon für Projekte
+  ClockHistory 
 } from 'react-bootstrap-icons';
 import KpiCard from '@/components/kpi-card';
 import KpiTrendChart from '@/components/charts/KpiTrendChart';
 import LandingpageApproval from '@/components/LandingpageApproval';
 import AiTrafficCard from '@/components/AiTrafficCard';
 import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector';
-import TopQueriesList from '@/components/TopQueriesList';
 
-// --- Typen für Dashboard-Daten ---
-// (Diese Typen könntest du auch in @/types/index.ts auslagern)
+// ... Typen für Dashboard-Daten ...
 type KPI = {
   value: number;
   change: number;
-  aiTraffic?: {
+  aiTraffic?: { // ✅ Optional für Sessions
     value: number;
     percentage: number;
   };
@@ -44,12 +42,22 @@ type TopQueryData = {
   position: number;
 };
 
-type AiTrafficData = {
+type AiTrafficData = { // ✅ Neuer Typ
   totalSessions: number;
   totalUsers: number;
-  sessionsBySource: { [key: string]: number; };
-  topAiSources: Array<{ source: string; sessions: number; users: number; percentage: number; }>;
-  trend: Array<{ date: string; sessions: number; }>;
+  sessionsBySource: {
+    [source: string]: number;
+  };
+  topAiSources: Array<{
+    source: string;
+    sessions: number;
+    users: number;
+    percentage: number;
+  }>;
+  trend: Array<{
+    date: string;
+    sessions: number;
+  }>;
 };
 
 type DashboardData = {
@@ -66,274 +74,173 @@ type DashboardData = {
     totalUsers: ChartData;
   };
   topQueries?: TopQueryData[];
-  aiTraffic?: AiTrafficData;
+  aiTraffic?: AiTrafficData; // ✅ Neue Property
 };
 
 type ActiveKpi = 'clicks' | 'impressions' | 'sessions' | 'totalUsers';
 
-// --- Leere/Standard-Daten (für Kunde) ---
-const emptyCustomerData: DashboardData = {
-  kpis: {
-    clicks: { value: 0, change: 0 },
-    impressions: { value: 0, change: 0 },
-    sessions: { value: 0, change: 0, aiTraffic: { value: 0, percentage: 0 } },
-    totalUsers: { value: 0, change: 0 },
-  },
-  charts: {
-    clicks: [],
-    impressions: [],
-    sessions: [],
-    totalUsers: [],
-  },
-  topQueries: [],
-  aiTraffic: {
-    totalSessions: 0,
-    totalUsers: 0,
-    sessionsBySource: {},
-    topAiSources: [],
-    trend: []
-  }
-};
-
-
-// --- Hauptkomponente (Page) ---
-export default function Home() {
+// --- Hauptkomponente ---
+export default function HomePage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   
-  // States für Kundendaten
-  const [customerData, setCustomerData] = useState<DashboardData>(emptyCustomerData);
-  const [isCustomerLoading, setIsCustomerLoading] = useState(true);
-  const [customerError, setCustomerError] = useState<string | null>(null);
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+  const [projects, setProjects] = useState<User[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<DateRangeOption>('30d');
-  
-  // States für Admin-Projektdaten
-  const [projects, setProjects] = useState<Project[]>([]); // Annahme: Typ Project aus @/types
-  const [isAdminLoading, setIsAdminLoading] = useState(true);
-  const [adminError, setAdminError] = useState<string | null>(null);
 
-  const userRole = session?.user?.role;
-
-  // Datenabruf für Kunden (BENUTZER)
-  const fetchCustomerData = useCallback(async (range: DateRangeOption) => {
-    setIsCustomerLoading(true);
-    setCustomerError(null);
+  const fetchData = useCallback(async (range: DateRangeOption = dateRange) => {
+    setIsLoading(true);
+    setError(null);
     try {
       const response = await fetch(`/api/data?dateRange=${range}`);
-      if (!response.ok) throw new Error('Netzwerkantwort war nicht erfolgreich');
-      const result = await response.json();
-      setCustomerData(result || emptyCustomerData);
-    } catch (error) {
-      console.error('Fehler beim Abrufen der Kundendaten:', error);
-      setCustomerError(error instanceof Error ? error.message : 'Ein unbekannter Fehler ist aufgetreten');
-      setCustomerData(emptyCustomerData);
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.message || 'Daten konnten nicht geladen werden');
+      }
+      
+      const data = await response.json();
+      
+      if (data.role === 'ADMIN' || data.role === 'SUPERADMIN') {
+        setProjects(data.projects || []);
+      } else if (data.role === 'BENUTZER') {
+        setDashboardData(data);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ein unbekannter Fehler ist aufgetreten');
     } finally {
-      setIsCustomerLoading(false);
+      setIsLoading(false);
     }
-  }, []);
-
-  // Datenabruf für Admins (Projekte)
-  const fetchAdminProjects = useCallback(async () => {
-    setIsAdminLoading(true);
-    setAdminError(null);
-    try {
-      // Diese API-Route (/api/projects) gibt alle Projekte zurück (muss ggf. erstellt werden)
-      const response = await fetch('/api/projects'); 
-      if (!response.ok) throw new Error('Netzwerkantwort war nicht erfolgreich');
-      const result = await response.json();
-      setProjects(result || []);
-    } catch (error) {
-      console.error('Fehler beim Abrufen der Projekte:', error);
-      setAdminError(error instanceof Error ? error.message : 'Ein unbekannter Fehler ist aufgetreten');
-      setProjects([]);
-    } finally {
-      setIsAdminLoading(false);
-    }
-  }, []);
+  }, [dateRange]);
 
   useEffect(() => {
     if (status === 'authenticated') {
-      if (userRole === 'ADMIN' || userRole === 'SUPERADMIN') {
-        fetchAdminProjects();
-      } else if (userRole === 'BENUTZER') {
-        fetchCustomerData(dateRange);
-      }
-    } else if (status === 'unauthenticated') {
-      router.push('/login');
+      fetchData(dateRange);
     }
-  }, [status, userRole, dateRange, router, fetchCustomerData, fetchAdminProjects]);
+  }, [status, dateRange, fetchData]);
 
-  const handleDateRangeChange = (range: DateRangeOption) => {
-    setDateRange(range);
-  };
-
-  // Ladezustand, während die Session geprüft wird
-  if (status === 'loading' || !session) {
+  if (status === 'loading' || (status === 'authenticated' && isLoading)) {
     return (
-      <div className="flex justify-center items-center min-h-screen bg-gray-50">
-        <ArrowRepeat className="animate-spin text-4xl text-indigo-600" />
+      <div className="p-8 text-center flex items-center justify-center min-h-[50vh]">
+        <ArrowRepeat className="animate-spin text-indigo-600 mr-2" size={24} />
+        <p className="text-gray-600">Dashboard wird geladen...</p>
       </div>
     );
   }
 
-  // Rollenbasierte Dashboards
-  const { user } = session;
+  if (status === 'unauthenticated') {
+    router.push('/login');
+    return null;
+  }
 
-  if (user.role === 'ADMIN' || user.role === 'SUPERADMIN') {
-    // ✅ KORRIGIERT: Admins sehen die Projektübersicht
+  if (error) {
     return (
-      <AdminProjectOverview
-        user={user}
-        projects={projects}
-        isLoading={isAdminLoading}
-        error={adminError}
-        onRefresh={fetchAdminProjects} // Funktion zum Neuladen übergeben
-      />
+      <div className="p-8 text-center text-red-800 bg-red-50 rounded-lg border border-red-200 max-w-2xl mx-auto mt-10">
+        <h3 className="font-bold flex items-center justify-center gap-2">
+          <ExclamationTriangleFill size={18} />
+          Fehler beim Laden der Daten
+        </h3>
+        <p className="text-sm mt-2">{error}</p>
+      </div>
     );
-  } else {
-    // Kunden-Dashboard (BENUTZER)
-    // Fehleranzeige für Kunden
-    if (customerError) {
-      return (
-        <div className="flex flex-col justify-center items-center min-h-screen bg-red-50 p-8">
-          <ExclamationTriangleFill className="text-5xl text-red-500 mb-4" />
-          <h2 className="text-2xl font-semibold text-red-800 mb-2">Daten konnten nicht geladen werden</h2>
-          <p className="text-red-700 mb-6 text-center">{customerError}</p>
-          <button
-            onClick={() => fetchCustomerData(dateRange)}
-            disabled={isCustomerLoading}
-            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 disabled:opacity-50 flex items-center gap-2"
-          >
-            <ArrowRepeat className={isCustomerLoading ? 'animate-spin' : ''} />
-            Erneut versuchen
-          </button>
-        </div>
-      );
-    }
-    
+  }
+
+  // Admin- & Superadmin-Ansicht
+  if (session?.user?.role === 'ADMIN' || session?.user?.role === 'SUPERADMIN') {
+    return <AdminDashboard projects={projects} />;
+  }
+
+  // Kunden-Ansicht
+  if (session?.user?.role === 'BENUTZER' && dashboardData) {
     return (
-      <CustomerDashboard
-        data={customerData}
-        isLoading={isCustomerLoading}
+      <CustomerDashboard 
+        data={dashboardData} 
+        isLoading={isLoading} 
         dateRange={dateRange}
-        onDateRangeChange={handleDateRangeChange}
+        onDateRangeChange={setDateRange}
       />
     );
   }
-}
 
-// ==========================================================
-// ✅ NEUE KOMPONENTE: Admin Projektübersicht
-// ==========================================================
-function AdminProjectOverview({ 
-  user, 
-  projects, 
-  isLoading, 
-  error,
-  onRefresh
-} : { 
-  user: User, 
-  projects: Project[], // Annahme: Typ Project[]
-  isLoading: boolean, 
-  error: string | null,
-  onRefresh: () => void 
-}) {
-  
   return (
-    <div className="p-4 sm:p-6 md:p-8 bg-gray-50 min-h-screen">
-      <main>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-          <h2 className="text-3xl font-bold text-gray-900">Projektübersicht</h2>
-           <button
-            onClick={onRefresh}
-            disabled={isLoading}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50 disabled:opacity-50 flex items-center gap-2"
-          >
-            <ArrowRepeat className={isLoading ? 'animate-spin' : ''} />
-            Aktualisieren
-          </button>
-        </div>
-
-        {/* Fehleranzeige */}
-        {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-6" role="alert">
-            <strong className="font-bold">Fehler: </strong>
-            <span className="block sm:inline">{error}</span>
-          </div>
-        )}
-
-        {/* Ladeanzeige */}
-        {isLoading && (
-           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-             {[...Array(6)].map((_, i) => (
-                <div key={i} className="bg-white p-6 rounded-lg shadow-md border border-gray-200 animate-pulse">
-                  <div className="h-6 bg-gray-200 rounded w-3/4 mb-3"></div>
-                  <div className="h-4 bg-gray-200 rounded w-1/2 mb-4"></div>
-                  <div className="h-8 bg-gray-200 rounded w-1/3"></div>
-                </div>
-             ))}
-           </div>
-        )}
-
-        {/* Projektliste */}
-        {!isLoading && !error && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {projects.length > 0 ? (
-              projects.map((project) => (
-                <Link href={`/projekt/${project.id}`} key={project.id} passHref>
-                  <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200 hover:shadow-lg hover:border-indigo-300 transition-all cursor-pointer group">
-                    <h3 className="text-xl font-semibold text-gray-800 mb-2 flex items-center gap-2">
-                       <BriefcaseFill className="text-indigo-500" />
-                       {project.domain || project.name || 'Unbenanntes Projekt'}
-                    </h3>
-                    <p className="text-sm text-gray-500 mb-4">{project.email}</p>
-                    <span className="font-medium text-indigo-600 group-hover:text-indigo-800 flex items-center gap-1.5">
-                      Zum Dashboard
-                      <ArrowRightSquare className="transition-transform group-hover:translate-x-1" />
-                    </span>
-                  </div>
-                </Link>
-              ))
-            ) : (
-              <p className="text-gray-600 md:col-span-2 lg:col-span-3 text-center">
-                Keine Projekte gefunden.
-              </p>
-            )}
-          </div>
-        )}
-      </main>
+    <div className="p-8 text-center text-gray-500">
+      Keine Daten zur Anzeige verfügbar.
     </div>
   );
 }
 
+// --- Admin Dashboard Komponente ---
+function AdminDashboard({ projects }: { projects: User[] }) {
+  return (
+    <div className="p-8 bg-gray-50 min-h-screen">
+      <h2 className="text-3xl font-bold text-gray-900 mb-6">
+        Kundenübersicht
+      </h2>
+      <div className="max-w-7xl mx-auto">
+        {projects.length === 0 ? (
+          <p className="text-gray-500">Keine Projekte gefunden.</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {projects.map((project) => (
+              <Link
+                key={project.id}
+                href={`/projekt/${project.id}`}
+                className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow border border-gray-200 hover:bg-gray-50 group"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xl font-bold text-gray-900 truncate">
+                    {project.domain || project.email}
+                  </h3>
+                  <GraphUp size={24} className="text-indigo-600 flex-shrink-0" />
+                </div>
+                <div className="space-y-2 text-sm text-gray-600">
+                  <p className="truncate">
+                    <span className="font-medium text-gray-800">E-Mail:</span> {project.email}
+                  </p>
+                  {project.gsc_site_url && (
+                    <p className="truncate">
+                      <span className="font-medium text-gray-800">Website:</span> {project.gsc_site_url}
+                    </p>
+                  )}
+                </div>
+                <div className="mt-4 pt-4 border-t border-gray-100">
+                  <span className="text-indigo-600 group-hover:text-indigo-800 text-sm font-medium flex items-center gap-1.5 transition-colors">
+                    Dashboard anzeigen <ArrowRightSquare size={14} />
+                  </span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
-// ==========================================================
-// KUNDEN-DASHBOARD (Unverändert)
-// ==========================================================
-function CustomerDashboard({
-  data,
-  isLoading,
-  dateRange,
-  onDateRangeChange
-}: {
-  data: DashboardData;
+// --- Kunden Dashboard Komponente ---
+function CustomerDashboard({ 
+  data, 
+  isLoading, 
+  dateRange, 
+  onDateRangeChange 
+}: { 
+  data: DashboardData; 
   isLoading: boolean;
   dateRange: DateRangeOption;
   onDateRangeChange: (range: DateRangeOption) => void;
 }) {
   const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
 
-  const kpis = data.kpis || emptyCustomerData.kpis;
-  const charts = data.charts || emptyCustomerData.charts;
-  const aiTraffic = data.aiTraffic || emptyCustomerData.aiTraffic;
-  const topQueries = data.topQueries || emptyCustomerData.topQueries;
-  const chartSeries: ChartData = charts[activeKpi] || [];
-
-  const showNoDataHint = !isLoading && (
-    kpis.clicks.value === 0 &&
-    kpis.impressions.value === 0 &&
-    charts.clicks.length === 0
-  );
+  const kpis = data.kpis || { 
+    clicks: { value: 0, change: 0 }, 
+    impressions: { value: 0, change: 0 }, 
+    sessions: { value: 0, change: 0 }, 
+    totalUsers: { value: 0, change: 0 } 
+  };
+  
+  const chartSeries: ChartData = (data.charts && data.charts[activeKpi]) ? data.charts[activeKpi]! : [];
+  const showNoDataHint = !data.kpis;
 
   const tabMeta: Record<ActiveKpi, { title: string; color: string }> = {
     clicks: { title: 'Klicks', color: '#3b82f6' },
@@ -343,17 +250,17 @@ function CustomerDashboard({
   };
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 bg-gray-50 min-h-screen">
+    <div className="p-8 bg-gray-50 min-h-screen">
       <main>
         {/* Header mit DateRangeSelector */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <h2 className="text-3xl font-bold text-gray-900">Ihr Dashboard</h2>
-          <DateRangeSelector
-            value={dateRange}
+          <DateRangeSelector 
+            value={dateRange} 
             onChange={onDateRangeChange}
           />
         </div>
-
+        
         {/* KPI-Karten Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <KpiCard title="Klicks" isLoading={isLoading} value={kpis.clicks.value} change={kpis.clicks.change} />
@@ -361,7 +268,7 @@ function CustomerDashboard({
           <KpiCard title="Sitzungen" isLoading={isLoading} value={kpis.sessions.value} change={kpis.sessions.change} />
           <KpiCard title="Nutzer" isLoading={isLoading} value={kpis.totalUsers.value} change={kpis.totalUsers.change} />
         </div>
-
+        
         {/* Charts - volle Breite */}
         <div className="mt-8">
           <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
@@ -385,40 +292,68 @@ function CustomerDashboard({
             </div>
           </div>
         </div>
-
-        {/* KI-Traffic + Top Queries nebeneinander */}
+        
+        {/* ✅ KI-Traffic + Top Queries nebeneinander */}
         <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {aiTraffic && (
+          {/* ✅ KI-Traffic Card ZUERST (1 Spalte) */}
+          {data.aiTraffic && (
             <div className="lg:col-span-1">
-               <AiTrafficCard
-                totalSessions={aiTraffic.totalSessions}
-                totalUsers={aiTraffic.totalUsers}
+              <AiTrafficCard
+                totalSessions={data.aiTraffic.totalSessions}
+                totalUsers={data.aiTraffic.totalUsers}
                 percentage={kpis.sessions.aiTraffic?.percentage || 0}
-                topSources={aiTraffic.topAiSources}
+                topSources={data.aiTraffic.topAiSources}
                 isLoading={isLoading}
                 dateRange={dateRange}
               />
             </div>
           )}
-
-          {(topQueries && topQueries.length > 0) && (
-            <div className={`${aiTraffic ? 'lg:col-span-2' : 'lg:col-span-3'}`}>
-              <TopQueriesList
-                queries={topQueries}
-                isLoading={isLoading}
-              />
+          
+        {/* Top 100 Suchanfragen Liste (Logbuch-Stil) */}
+          {data.topQueries && data.topQueries.length > 0 && (
+            <div className={`${data.aiTraffic ? 'lg:col-span-2' : 'lg:col-span-3'}`}>
+              <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
+                <h3 className="text-xl font-semibold mb-4 flex items-center gap-2 text-gray-800">
+                  <ClockHistory size={20} />
+                  Top 100 Suchanfragen
+                </h3>
+                {/* Container mit Scrollbar */}
+                <div className="border rounded-lg max-h-96 overflow-y-auto">
+                  <ul className="divide-y divide-gray-100">
+                    {data.topQueries.map((query, index) => (
+                      <li key={`${query.query}-${index}`} className="p-4 space-y-2 hover:bg-gray-50">
+                        {/* Suchanfrage */}
+                        <p className="text-base font-medium text-gray-900">{query.query}</p>
+                        {/* Metadaten */}
+                        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-sm text-gray-500">
+                          <span title="Klicks">
+                            Klicks: <span className="font-semibold text-gray-700">{query.clicks.toLocaleString('de-DE')}</span>
+                          </span>
+                          <span title="Impressionen">
+                            Impr.: <span className="font-semibold text-gray-700">{query.impressions.toLocaleString('de-DE')}</span>
+                          </span>
+                          <span title="Click-Through-Rate">
+                            CTR: <span className="font-semibold text-gray-700">{(query.ctr * 100).toFixed(1)}%</span>
+                          </span>
+                          <span title="Position">
+                            Pos.: <span className="font-semibold text-gray-700">{query.position.toFixed(1)}</span>
+                          </span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
             </div>
           )}
         </div>
         
         {/* Landingpage Approval */}
-        <div className="mt-8">
-          <LandingpageApproval />
-        </div>
+        <LandingpageApproval />
 
         {showNoDataHint && (
           <p className="mt-6 text-sm text-center text-gray-500">
-            Hinweis: Für dieses Projekt wurden noch keine Daten geliefert oder die APIs sind nicht korrekt konfiguriert.
+            Hinweis: Für dieses Projekt wurden noch keine KPI-Daten geliefert. Es werden vorübergehend Platzhalter-Werte angezeigt.
           </p>
         )}
       </main>
