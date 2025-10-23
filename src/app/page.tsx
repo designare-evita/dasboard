@@ -10,14 +10,14 @@ import {
   ArrowRepeat, 
   ExclamationTriangleFill, 
   GraphUp, 
-  ArrowRightSquare,
-  ClockHistory 
+  ArrowRightSquare
 } from 'react-bootstrap-icons';
 import KpiCard from '@/components/kpi-card';
 import KpiTrendChart from '@/components/charts/KpiTrendChart';
 import LandingpageApproval from '@/components/LandingpageApproval';
 import AiTrafficCard from '@/components/AiTrafficCard';
 import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector';
+import TopQueriesList from '@/components/TopQueriesList';
 
 // ... Typen für Dashboard-Daten ...
 type KPI = {
@@ -309,41 +309,13 @@ function CustomerDashboard({
             </div>
           )}
           
-        {/* Top 100 Suchanfragen Liste (Logbuch-Stil) */}
+          {/* ✅ Top Queries mit extrahierter Komponente */}
           {data.topQueries && data.topQueries.length > 0 && (
             <div className={`${data.aiTraffic ? 'lg:col-span-2' : 'lg:col-span-3'}`}>
-              <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
-                <h3 className="text-xl font-semibold mb-4 flex items-center gap-2 text-gray-800">
-                  <ClockHistory size={20} />
-                  Top 100 Suchanfragen
-                </h3>
-                {/* Container mit Scrollbar */}
-                <div className="border rounded-lg max-h-96 overflow-y-auto">
-                  <ul className="divide-y divide-gray-100">
-                    {data.topQueries.map((query, index) => (
-                      <li key={`${query.query}-${index}`} className="p-4 space-y-2 hover:bg-gray-50">
-                        {/* Suchanfrage */}
-                        <p className="text-base font-medium text-gray-900">{query.query}</p>
-                        {/* Metadaten */}
-                        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-sm text-gray-500">
-                          <span title="Klicks">
-                            Klicks: <span className="font-semibold text-gray-700">{query.clicks.toLocaleString('de-DE')}</span>
-                          </span>
-                          <span title="Impressionen">
-                            Impr.: <span className="font-semibold text-gray-700">{query.impressions.toLocaleString('de-DE')}</span>
-                          </span>
-                          <span title="Click-Through-Rate">
-                            CTR: <span className="font-semibold text-gray-700">{(query.ctr * 100).toFixed(1)}%</span>
-                          </span>
-                          <span title="Position">
-                            Pos.: <span className="font-semibold text-gray-700">{query.position.toFixed(1)}</span>
-                          </span>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
+              <TopQueriesList 
+                queries={data.topQueries} 
+                isLoading={isLoading}
+              />
             </div>
           )}
         </div>
