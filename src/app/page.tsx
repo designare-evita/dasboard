@@ -49,7 +49,7 @@ type AiTrafficData = {
   totalSessions: number;
   totalUsers: number;
   sessionsBySource: {
-    : number; // ✅ KORREKTUR: Index-Signatur hinzugefügt
+    [key: string]: number; // ✅ Index-Signatur
   };
   topAiSources: Array<{
     source: string;
@@ -62,6 +62,7 @@ type AiTrafficData = {
     sessions: number;
   }>;
 };
+
 
 type DashboardData = {
   kpis: {
