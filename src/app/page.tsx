@@ -6,12 +6,11 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { User } from '@/types';
-import {
-  ArrowRepeat,
-  ExclamationTriangleFill,
-  GraphUp,
-  ArrowRightSquare,
-  ClockHistory // Hinzugefügt für Logbuch-Stil
+import { 
+  ArrowRepeat, 
+  ExclamationTriangleFill, 
+  GraphUp, 
+  ArrowRightSquare 
 } from 'react-bootstrap-icons';
 import KpiCard from '@/components/kpi-card';
 import KpiTrendChart from '@/components/charts/KpiTrendChart';
@@ -19,11 +18,11 @@ import LandingpageApproval from '@/components/LandingpageApproval';
 import AiTrafficCard from '@/components/AiTrafficCard';
 import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector';
 
-// --- Typen für Dashboard-Daten ---
+// ... Typen für Dashboard-Daten ...
 type KPI = {
   value: number;
   change: number;
-  aiTraffic?: {
+  aiTraffic?: { // ✅ Optional für Sessions
     value: number;
     percentage: number;
   };
@@ -42,11 +41,11 @@ type TopQueryData = {
   position: number;
 };
 
-type AiTrafficData = {
+type AiTrafficData = { // ✅ Neuer Typ
   totalSessions: number;
   totalUsers: number;
   sessionsBySource: {
-    : number; // <<<<<<< KORRIGIERTE ZEILE
+    [source: string]: number;
   };
   topAiSources: Array<{
     source: string;
@@ -74,7 +73,7 @@ type DashboardData = {
     totalUsers: ChartData;
   };
   topQueries?: TopQueryData[];
-  aiTraffic?: AiTrafficData;
+  aiTraffic?: AiTrafficData; // ✅ Neue Property
 };
 
 type ActiveKpi = 'clicks' | 'impressions' | 'sessions' | 'totalUsers';
@@ -83,14 +82,13 @@ type ActiveKpi = 'clicks' | 'impressions' | 'sessions' | 'totalUsers';
 export default function HomePage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-
+  
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [projects, setProjects] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<DateRangeOption>('30d');
 
-  // fetchData Funktion mit korrektem Error Handling
   const fetchData = async (range: DateRangeOption = dateRange) => {
     setIsLoading(true);
     setError(null);
@@ -100,9 +98,9 @@ export default function HomePage() {
         const errData = await response.json().catch(() => ({}));
         throw new Error(errData.message || 'Daten konnten nicht geladen werden');
       }
-
+      
       const data = await response.json();
-
+      
       if (data.role === 'ADMIN' || data.role === 'SUPERADMIN') {
         setProjects(data.projects || []);
       } else if (data.role === 'BENUTZER') {
@@ -119,10 +117,8 @@ export default function HomePage() {
     if (status === 'authenticated') {
       fetchData(dateRange);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, dateRange]);
 
-  // Lade-, Auth- und Fehler-Zustände
   if (status === 'loading' || (status === 'authenticated' && isLoading)) {
     return (
       <div className="p-8 text-center flex items-center justify-center min-h-[50vh]">
@@ -157,16 +153,15 @@ export default function HomePage() {
   // Kunden-Ansicht
   if (session?.user?.role === 'BENUTZER' && dashboardData) {
     return (
-      <CustomerDashboard
-        data={dashboardData}
-        isLoading={isLoading}
+      <CustomerDashboard 
+        data={dashboardData} 
+        isLoading={isLoading} 
         dateRange={dateRange}
         onDateRangeChange={setDateRange}
       />
     );
   }
 
-  // Fallback
   return (
     <div className="p-8 text-center text-gray-500">
       Keine Daten zur Anzeige verfügbar.
@@ -222,27 +217,27 @@ function AdminDashboard({ projects }: { projects: User[] }) {
   );
 }
 
-// --- Kunden Dashboard Komponente (mit Top 100) ---
-function CustomerDashboard({
-  data,
-  isLoading,
-  dateRange,
-  onDateRangeChange
-}: {
-  data: DashboardData;
+// --- Kunden Dashboard Komponente ---
+function CustomerDashboard({ 
+  data, 
+  isLoading, 
+  dateRange, 
+  onDateRangeChange 
+}: { 
+  data: DashboardData; 
   isLoading: boolean;
   dateRange: DateRangeOption;
   onDateRangeChange: (range: DateRangeOption) => void;
 }) {
   const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
 
-  const kpis = data.kpis || {
-    clicks: { value: 0, change: 0 },
-    impressions: { value: 0, change: 0 },
-    sessions: { value: 0, change: 0 },
-    totalUsers: { value: 0, change: 0 }
+  const kpis = data.kpis || { 
+    clicks: { value: 0, change: 0 }, 
+    impressions: { value: 0, change: 0 }, 
+    sessions: { value: 0, change: 0 }, 
+    totalUsers: { value: 0, change: 0 } 
   };
-
+  
   const chartSeries: ChartData = (data.charts && data.charts[activeKpi]) ? data.charts[activeKpi]! : [];
   const showNoDataHint = !data.kpis;
 
@@ -259,12 +254,12 @@ function CustomerDashboard({
         {/* Header mit DateRangeSelector */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <h2 className="text-3xl font-bold text-gray-900">Ihr Dashboard</h2>
-          <DateRangeSelector
-            value={dateRange}
+          <DateRangeSelector 
+            value={dateRange} 
             onChange={onDateRangeChange}
           />
         </div>
-
+        
         {/* KPI-Karten Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <KpiCard title="Klicks" isLoading={isLoading} value={kpis.clicks.value} change={kpis.clicks.change} />
@@ -272,7 +267,7 @@ function CustomerDashboard({
           <KpiCard title="Sitzungen" isLoading={isLoading} value={kpis.sessions.value} change={kpis.sessions.change} />
           <KpiCard title="Nutzer" isLoading={isLoading} value={kpis.totalUsers.value} change={kpis.totalUsers.change} />
         </div>
-
+        
         {/* Charts - volle Breite */}
         <div className="mt-8">
           <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
@@ -296,10 +291,10 @@ function CustomerDashboard({
             </div>
           </div>
         </div>
-
-        {/* KI-Traffic + Top Queries nebeneinander */}
+        
+        {/* ✅ KI-Traffic + Top Queries nebeneinander */}
         <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* KI-Traffic Card */}
+          {/* ✅ KI-Traffic Card ZUERST (1 Spalte) */}
           {data.aiTraffic && (
             <div className="lg:col-span-1">
               <AiTrafficCard
@@ -312,8 +307,8 @@ function CustomerDashboard({
               />
             </div>
           )}
-
-          {/* Top 100 Suchanfragen Liste (Logbuch-Stil) */}
+          
+        {/* Top 100 Suchanfragen Liste (Logbuch-Stil) */}
           {data.topQueries && data.topQueries.length > 0 && (
             <div className={`${data.aiTraffic ? 'lg:col-span-2' : 'lg:col-span-3'}`}>
               <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
@@ -351,15 +346,14 @@ function CustomerDashboard({
             </div>
           )}
         </div>
+        
+        {/* Landingpage Approval */}
+        <LandingpageApproval />
 
-        {/* Landingpage Approval (auskommentiert, falls nicht benötigt) */}
-        {/* <LandingpageApproval /> */}
-
-        {/* Hinweis bei fehlenden Daten */}
         {showNoDataHint && (
           <p className="mt-6 text-sm text-center text-gray-500">
             Hinweis: Für dieses Projekt wurden noch keine KPI-Daten geliefert. Es werden vorübergehend Platzhalter-Werte angezeigt.
-          </D>
+          </p>
         )}
       </main>
     </div>
