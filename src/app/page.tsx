@@ -5,28 +5,38 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { User } from '@/types';
 import {
   ArrowRepeat,
   ExclamationTriangleFill,
   GraphUp,
   ArrowRightSquare,
-  ClockHistory // ClockHistory wird jetzt in TopQueriesList verwendet, kann hier aber bleiben
+  ClockHistory // bleibt importiert; kann bei Bedarf entfernt werden
 } from 'react-bootstrap-icons';
+
 import KpiCard from '@/components/kpi-card';
 import KpiTrendChart from '@/components/charts/KpiTrendChart';
 import LandingpageApproval from '@/components/LandingpageApproval';
 import AiTrafficCard from '@/components/AiTrafficCard';
 import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector';
-// ✅ NEUER IMPORT
 import TopQueriesList from '@/components/TopQueriesList';
 
+/**
+ * SessionUser: Reiner Session-Typ (NextAuth) ohne createdAt etc.
+ * Entkoppelt vom DB-User-Typ.
+ */
+type SessionUser = {
+  id: string;
+  role: 'BENUTZER' | 'ADMIN' | 'SUPERADMIN';
+  name?: string | null;
+  email?: string | null;
+  image?: string | null;
+};
+
 // --- Typen für Dashboard-Daten ---
-// (Diese Typen könntest du auch in @/types/index.ts auslagern)
 type KPI = {
   value: number;
   change: number;
-  aiTraffic?: { // Optional für Sessions
+  aiTraffic?: {
     value: number;
     percentage: number;
   };
@@ -49,7 +59,7 @@ type AiTrafficData = {
   totalSessions: number;
   totalUsers: number;
   sessionsBySource: {
-    [key: string]: number; // ✅ Index-Signatur
+    [key: string]: number; // ✅ korrigierte Index-Signatur
   };
   topAiSources: Array<{
     source: string;
@@ -62,7 +72,6 @@ type AiTrafficData = {
     sessions: number;
   }>;
 };
-
 
 type DashboardData = {
   kpis: {
@@ -89,24 +98,23 @@ const emptyData: DashboardData = {
     clicks: { value: 0, change: 0 },
     impressions: { value: 0, change: 0 },
     sessions: { value: 0, change: 0, aiTraffic: { value: 0, percentage: 0 } },
-    totalUsers: { value: 0, change: 0 },
+    totalUsers: { value: 0, change: 0 }
   },
   charts: {
     clicks: [],
     impressions: [],
     sessions: [],
-    totalUsers: [],
+    totalUsers: []
   },
   topQueries: [],
   aiTraffic: {
     totalSessions: 0,
     totalUsers: 0,
-    sessionsBySource: {}, // Dieses leere Objekt passt nun zum Typ { : number }
+    sessionsBySource: {},
     topAiSources: [],
     trend: []
   }
 };
-
 
 // --- Hauptkomponente (Page) ---
 export default function Home() {
@@ -127,10 +135,10 @@ export default function Home() {
       }
       const result = await response.json();
       setData(result || emptyData);
-    } catch (error) {
-      console.error('Fehler beim Abrufen der Daten:', error);
-      setError(error instanceof Error ? error.message : 'Ein unbekannter Fehler ist aufgetreten');
-      setData(emptyData); // Bei Fehler leere Daten setzen
+    } catch (err) {
+      console.error('Fehler beim Abrufen der Daten:', err);
+      setError(err instanceof Error ? err.message : 'Ein unbekannter Fehler ist aufgetreten');
+      setData(emptyData);
     } finally {
       setIsLoading(false);
     }
@@ -142,12 +150,10 @@ export default function Home() {
     } else if (status === 'unauthenticated') {
       router.push('/login');
     }
-    // Abhängigkeit 'fetchData' hinzugefügt
   }, [status, dateRange, router, fetchData]);
 
   const handleDateRangeChange = (range: DateRangeOption) => {
     setDateRange(range);
-    // fetchData wird durch den useEffect oben ausgelöst, wenn sich dateRange ändert
   };
 
   // Ladezustand, während die Session geprüft wird
@@ -179,32 +185,33 @@ export default function Home() {
   }
 
   // Rollenbasierte Dashboards
-  const { user } = session;
+  const user = session.user as SessionUser;
   if (user.role === 'ADMIN' || user.role === 'SUPERADMIN') {
     // Admin/Superadmin Dashboard (Zeigt Admin-Übersicht)
     return <AdminDashboard user={user} />;
-  } else {
-    // Kunden-Dashboard (BENUTZER)
-    return (
-      <CustomerDashboard
-        data={data}
-        isLoading={isLoading}
-        dateRange={dateRange}
-        onDateRangeChange={handleDateRangeChange}
-      />
-    );
   }
+
+  // Kunden-Dashboard (BENUTZER)
+  return (
+    <CustomerDashboard
+      data={data}
+      isLoading={isLoading}
+      dateRange={dateRange}
+      onDateRangeChange={handleDateRangeChange}
+    />
+  );
 }
 
-
 // --- Admin Dashboard Komponente ---
-function AdminDashboard({ user }: { user: User }) {
+function AdminDashboard({ user }: { user: SessionUser }) {
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
       <main>
-        <h2 className="text-3xl font-bold text-gray-900 mb-6">Willkommen, {user.name || user.email}!</h2>
+        <h2 className="text-3xl font-bold text-gray-900 mb-6">
+          Willkommen, {user.name || user.email}!
+        </h2>
         <p className="text-lg text-gray-700 mb-8">
-          Du bist als {user.role} angemeldet. Hier siehst du bald eine Übersicht aller Projekte.
+          Sie sind als {user.role} angemeldet. Hier sehen Sie bald eine Übersicht aller Projekte.
         </p>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {/* Beispiel-Karten für Admins */}
@@ -240,7 +247,6 @@ function AdminDashboard({ user }: { user: User }) {
   );
 }
 
-
 // --- Kunden Dashboard Komponente ---
 function CustomerDashboard({
   data,
@@ -263,18 +269,18 @@ function CustomerDashboard({
 
   const chartSeries: ChartData = charts[activeKpi] || [];
 
-  // Prüfen, ob *überhaupt* Daten vorhanden sind (nach dem Laden)
-  const showNoDataHint = !isLoading && (
+  // Prüfen, ob überhaupt Daten vorhanden sind (nach dem Laden)
+  const showNoDataHint =
+    !isLoading &&
     kpis.clicks.value === 0 &&
     kpis.impressions.value === 0 &&
-    charts.clicks.length === 0
-  );
+    charts.clicks.length === 0;
 
   const tabMeta: Record<ActiveKpi, { title: string; color: string }> = {
     clicks: { title: 'Klicks', color: '#3b82f6' },
     impressions: { title: 'Impressionen', color: '#8b5cf6' },
     sessions: { title: 'Sitzungen', color: '#10b981' },
-    totalUsers: { title: 'Nutzer', color: '#f59e0b' },
+    totalUsers: { title: 'Nutzer', color: '#f59e0b' }
   };
 
   return (
@@ -283,10 +289,7 @@ function CustomerDashboard({
         {/* Header mit DateRangeSelector */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <h2 className="text-3xl font-bold text-gray-900">Ihr Dashboard</h2>
-          <DateRangeSelector
-            value={dateRange}
-            onChange={onDateRangeChange}
-          />
+          <DateRangeSelector value={dateRange} onChange={onDateRangeChange} />
         </div>
 
         {/* KPI-Karten Grid */}
@@ -301,7 +304,6 @@ function CustomerDashboard({
         <div className="mt-8">
           <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
             <div className="flex border-b border-gray-200">
-              {/* Tab-Buttons für Chart-Auswahl */}
               {(Object.keys(tabMeta) as ActiveKpi[]).map((key) => (
                 <button
                   key={key}
@@ -324,11 +326,10 @@ function CustomerDashboard({
 
         {/* KI-Traffic + Top Queries nebeneinander */}
         <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
-
           {/* KI-Traffic Card (1 Spalte) */}
           {aiTraffic && (
             <div className="lg:col-span-1">
-               <AiTrafficCard
+              <AiTrafficCard
                 totalSessions={aiTraffic.totalSessions}
                 totalUsers={aiTraffic.totalUsers}
                 percentage={kpis.sessions.aiTraffic?.percentage || 0}
@@ -339,23 +340,12 @@ function CustomerDashboard({
             </div>
           )}
 
-          {/* ==========================================================
-            ✅ ÄNDERUNG: TopQueriesList Komponente wird hier verwendet
-            ==========================================================
-          */}
-          {(topQueries && topQueries.length > 0) && (
-            // Passt die Breite an: 2 Spalten, wenn AI-Traffic da ist, sonst 3
-            <div className={`${aiTraffic ? 'lg:col-span-2' : 'lg:col-span-3'}`}>
-              <TopQueriesList
-                queries={topQueries}
-                isLoading={isLoading}
-              />
+          {/* Top Queries */}
+          {topQueries && topQueries.length > 0 && (
+            <div className={aiTraffic ? 'lg:col-span-2' : 'lg:col-span-3'}>
+              <TopQueriesList queries={topQueries} isLoading={isLoading} />
             </div>
           )}
-          {/* ========================================================== */}
-          {/* ENDE DER ÄNDERUNG                                        */}
-          {/* ========================================================== */}
-
         </div>
 
         {/* Landingpage Approval */}
