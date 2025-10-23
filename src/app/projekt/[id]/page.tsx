@@ -217,47 +217,41 @@ export default function ProjektDetailPage() {
           </div>
         )}
 
-        {/* Top 5 Suchanfragen Tabelle DANACH (2 Spalten) */}
-        {data?.topQueries && data.topQueries.length > 0 && (
-          <div className={`${data.aiTraffic ? 'lg:col-span-2 order-2' : 'lg:col-span-3'}`}>
-            <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
-              <h3 className="text-xl font-semibold mb-4">Top 5 Suchanfragen</h3>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="text-left text-gray-600 border-b border-gray-200">
-                      <th className="pb-3 pr-4 font-medium">Suchanfrage</th>
-                      <th className="pb-3 pr-4 font-medium text-right">Klicks</th>
-                      <th className="pb-3 pr-4 font-medium text-right">Impressionen</th>
-                      <th className="pb-3 pr-4 font-medium text-right">CTR</th>
-                      <th className="pb-3 font-medium text-right">Position</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+       {/* Top 100 Suchanfragen Liste (Logbuch-Stil) */}
+          {data.topQueries && data.topQueries.length > 0 && (
+            <div className={`${data.aiTraffic ? 'lg:col-span-2' : 'lg:col-span-3'}`}>
+              <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
+                <h3 className="text-xl font-semibold mb-4 flex items-center gap-2 text-gray-800">
+                  <ClockHistory size={20} />
+                  Top 100 Suchanfragen
+                </h3>
+                {/* Container mit Scrollbar */}
+                <div className="border rounded-lg max-h-96 overflow-y-auto">
+                  <ul className="divide-y divide-gray-100">
                     {data.topQueries.map((query, index) => (
-                      <tr key={`${query.query}-${index}`} className="border-b border-gray-100 hover:bg-gray-50">
-                        <td className="py-3 pr-4 text-gray-900">{query.query}</td>
-                        <td className="py-3 pr-4 text-right text-gray-700">
-                          {query.clicks.toLocaleString('de-DE')}
-                        </td>
-                        <td className="py-3 pr-4 text-right text-gray-700">
-                          {query.impressions.toLocaleString('de-DE')}
-                        </td>
-                        <td className="py-3 pr-4 text-right text-gray-700">
-                          {(query.ctr * 100).toFixed(2)}%
-                        </td>
-                        <td className="py-3 text-right text-gray-700">
-                          {query.position.toFixed(1)}
-                        </td>
-                      </tr>
+                      <li key={`${query.query}-${index}`} className="p-4 space-y-2 hover:bg-gray-50">
+                        {/* Suchanfrage */}
+                        <p className="text-base font-medium text-gray-900">{query.query}</p>
+                        {/* Metadaten */}
+                        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-sm text-gray-500">
+                          <span title="Klicks">
+                            Klicks: <span className="font-semibold text-gray-700">{query.clicks.toLocaleString('de-DE')}</span>
+                          </span>
+                          <span title="Impressionen">
+                            Impr.: <span className="font-semibold text-gray-700">{query.impressions.toLocaleString('de-DE')}</span>
+                          </span>
+                          <span title="Click-Through-Rate">
+                            CTR: <span className="font-semibold text-gray-700">{(query.ctr * 100).toFixed(1)}%</span>
+                          </span>
+                          <span title="Position">
+                            Pos.: <span className="font-semibold text-gray-700">{query.position.toFixed(1)}</span>
+                          </span>
+                        </div>
+                      </li>
                     ))}
-                  </tbody>
-                </table>
+                  </ul>
+                </div>
               </div>
             </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+          )}
+        </div>
