@@ -3,14 +3,15 @@
 
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { User } from '@/types';
 import { 
   ArrowRepeat, 
   ExclamationTriangleFill, 
   GraphUp, 
-  ArrowRightSquare 
+  ArrowRightSquare,
+  ClockHistory 
 } from 'react-bootstrap-icons';
 import KpiCard from '@/components/kpi-card';
 import KpiTrendChart from '@/components/charts/KpiTrendChart';
@@ -89,7 +90,7 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<DateRangeOption>('30d');
 
-  const fetchData = async (range: DateRangeOption = dateRange) => {
+  const fetchData = useCallback(async (range: DateRangeOption = dateRange) => {
     setIsLoading(true);
     setError(null);
     try {
@@ -111,13 +112,13 @@ export default function HomePage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [dateRange]);
 
   useEffect(() => {
     if (status === 'authenticated') {
       fetchData(dateRange);
     }
-  }, [status, dateRange]);
+  }, [status, dateRange, fetchData]);
 
   if (status === 'loading' || (status === 'authenticated' && isLoading)) {
     return (
