@@ -1,50 +1,55 @@
-// src/components/kpi-card.tsx
-
+// src/components/KpiCardsGrid.tsx
 import React from 'react';
+import KpiCard from './kpi-card'; // Verwendet die bestehende kpi-card Komponente
+import type { KPI } from '@/types/dashboard';
 
-// Eine kleine Komponente für die prozentuale Veränderung
-const ChangeIndicator = ({ change }: { change: number | null }) => {
-  if (change === null || isNaN(change)) {
-    return null;
-  }
-
-  const isPositive = change > 0;
-  const isNegative = change < 0;
-  const colorClass = isPositive ? 'bg-green-100 text-green-800' : isNegative ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800';
-  const arrow = isPositive ? '↑' : isNegative ? '↓' : '';
-
-  return (
-    <span className={`ml-2 text-xs font-semibold px-2 py-0.5 rounded-full ${colorClass}`}>
-      {arrow} {Math.abs(change)}%
-    </span>
-  );
-};
-
-interface KpiCardProps {
-  title: string;
-  value: number | undefined;
-  change: number | undefined;
-  isLoading: boolean;
+interface KpiCardsGridProps {
+  kpis: {
+    clicks: KPI;
+    impressions: KPI;
+    sessions: KPI;
+    totalUsers: KPI;
+  };
+  isLoading?: boolean;
 }
 
-const KpiCard: React.FC<KpiCardProps> = ({ title, value, change, isLoading }) => {
-  // Formatiert große Zahlen für eine bessere Lesbarkeit (z.B. 12345 -> 12.345)
-  const formattedValue = value?.toLocaleString('de-DE') ?? '...';
+/**
+ * KpiCardsGrid - Grid-Layout für die 4 Standard-KPI-Karten
+ * 
+ * Diese Komponente kapselt das Grid-Layout für Klicks, Impressionen, 
+ * Sitzungen und Nutzer-KPIs und verwendet die bestehende KpiCard Komponente.
+ * 
+ * @param kpis - Objekt mit allen KPI-Werten
+ * @param isLoading - Optional: Zeigt Lade-Skeleton an
+ */
 
+export default function KpiCardsGrid({ kpis, isLoading = false }: KpiCardsGridProps) {
   return (
-    <div className="bg-white p-6 rounded-lg shadow-md flex flex-col justify-between">
-      <h3 className="text-lg font-medium text-gray-500">{title}</h3>
-      {isLoading ? (
-        <div className="mt-2 h-8 w-24 bg-gray-200 rounded animate-pulse"></div>
-      ) : (
-        <div className="mt-2 flex items-baseline">
-          <p className="text-3xl font-bold text-gray-900">{formattedValue}</p>
-          <ChangeIndicator change={change ?? null} />
-        </div>
-      )}
-      <p className="text-sm text-gray-400 mt-1">Letzte 30 Tage vs. Vorperiode</p>
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <KpiCard 
+        title="Klicks" 
+        isLoading={isLoading} 
+        value={kpis.clicks.value} 
+        change={kpis.clicks.change} 
+      />
+      <KpiCard 
+        title="Impressionen" 
+        isLoading={isLoading} 
+        value={kpis.impressions.value} 
+        change={kpis.impressions.change} 
+      />
+      <KpiCard 
+        title="Sitzungen" 
+        isLoading={isLoading} 
+        value={kpis.sessions.value} 
+        change={kpis.sessions.change} 
+      />
+      <KpiCard 
+        title="Nutzer" 
+        isLoading={isLoading} 
+        value={kpis.totalUsers.value} 
+        change={kpis.totalUsers.change} 
+      />
     </div>
   );
-};
-
-export default KpiCard;
+}
