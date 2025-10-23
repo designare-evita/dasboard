@@ -74,6 +74,12 @@ export default function Header() {
                 </Link>
               )}
 
+              {isUser && (
+                <Link href="/" passHref> {/* Link zum Haupt-Dashboard */}
+                  <Button>Dashboard</Button> {/* Nutzt den Standard-Button-Stil */}
+                </Link>
+              )}
+
               {/* NEU: Redaktionsplan Button (nur für BENUTZER) */}
               {isUser && (
                 <Link href="/dashboard/freigabe" passHref>
