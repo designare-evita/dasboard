@@ -15,11 +15,11 @@ import {
 } from 'react-bootstrap-icons';
 import KpiCard from '@/components/kpi-card';
 import KpiTrendChart from '@/components/charts/KpiTrendChart';
-import LandingpageApproval from '@/components/LandingpageApproval'; // Beibehalten, falls benötigt
+import LandingpageApproval from '@/components/LandingpageApproval';
 import AiTrafficCard from '@/components/AiTrafficCard';
 import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector';
 
-// --- Typen für Dashboard-Daten (unverändert) ---
+// --- Typen für Dashboard-Daten ---
 type KPI = {
   value: number;
   change: number;
@@ -46,7 +46,7 @@ type AiTrafficData = {
   totalSessions: number;
   totalUsers: number;
   sessionsBySource: {
-    : number;
+    : number; // <<<<<<< KORRIGIERTE ZEILE
   };
   topAiSources: Array<{
     source: string;
@@ -79,7 +79,7 @@ type DashboardData = {
 
 type ActiveKpi = 'clicks' | 'impressions' | 'sessions' | 'totalUsers';
 
-// --- Hauptkomponente (unverändert) ---
+// --- Hauptkomponente ---
 export default function HomePage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -90,7 +90,7 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<DateRangeOption>('30d');
 
-  // fetchData Funktion mit korrektem Error Handling (unverändert)
+  // fetchData Funktion mit korrektem Error Handling
   const fetchData = async (range: DateRangeOption = dateRange) => {
     setIsLoading(true);
     setError(null);
@@ -120,9 +120,9 @@ export default function HomePage() {
       fetchData(dateRange);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, dateRange]); // fetchData aus Abhängigkeiten entfernt, um Loop zu vermeiden
+  }, [status, dateRange]);
 
-  // Lade-, Auth- und Fehler-Zustände (unverändert)
+  // Lade-, Auth- und Fehler-Zustände
   if (status === 'loading' || (status === 'authenticated' && isLoading)) {
     return (
       <div className="p-8 text-center flex items-center justify-center min-h-[50vh]">
@@ -149,12 +149,12 @@ export default function HomePage() {
     );
   }
 
-  // Admin- & Superadmin-Ansicht (unverändert)
+  // Admin- & Superadmin-Ansicht
   if (session?.user?.role === 'ADMIN' || session?.user?.role === 'SUPERADMIN') {
     return <AdminDashboard projects={projects} />;
   }
 
-  // Kunden-Ansicht (jetzt mit überarbeitetem CustomerDashboard)
+  // Kunden-Ansicht
   if (session?.user?.role === 'BENUTZER' && dashboardData) {
     return (
       <CustomerDashboard
@@ -166,7 +166,7 @@ export default function HomePage() {
     );
   }
 
-  // Fallback (unverändert)
+  // Fallback
   return (
     <div className="p-8 text-center text-gray-500">
       Keine Daten zur Anzeige verfügbar.
@@ -174,7 +174,7 @@ export default function HomePage() {
   );
 }
 
-// --- Admin Dashboard Komponente (unverändert) ---
+// --- Admin Dashboard Komponente ---
 function AdminDashboard({ projects }: { projects: User[] }) {
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
@@ -222,7 +222,7 @@ function AdminDashboard({ projects }: { projects: User[] }) {
   );
 }
 
-// --- Kunden Dashboard Komponente (ÜBERARBEITET) ---
+// --- Kunden Dashboard Komponente (mit Top 100) ---
 function CustomerDashboard({
   data,
   isLoading,
@@ -236,7 +236,6 @@ function CustomerDashboard({
 }) {
   const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
 
-  // Sicherstellen, dass KPIs immer vorhanden sind (unverändert)
   const kpis = data.kpis || {
     clicks: { value: 0, change: 0 },
     impressions: { value: 0, change: 0 },
@@ -244,7 +243,6 @@ function CustomerDashboard({
     totalUsers: { value: 0, change: 0 }
   };
 
-  // Chart-Daten und Meta-Informationen (unverändert)
   const chartSeries: ChartData = (data.charts && data.charts[activeKpi]) ? data.charts[activeKpi]! : [];
   const showNoDataHint = !data.kpis;
 
@@ -258,7 +256,7 @@ function CustomerDashboard({
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
       <main>
-        {/* Header mit DateRangeSelector (unverändert) */}
+        {/* Header mit DateRangeSelector */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <h2 className="text-3xl font-bold text-gray-900">Ihr Dashboard</h2>
           <DateRangeSelector
@@ -267,7 +265,7 @@ function CustomerDashboard({
           />
         </div>
 
-        {/* KPI-Karten Grid (unverändert) */}
+        {/* KPI-Karten Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <KpiCard title="Klicks" isLoading={isLoading} value={kpis.clicks.value} change={kpis.clicks.change} />
           <KpiCard title="Impressionen" isLoading={isLoading} value={kpis.impressions.value} change={kpis.impressions.change} />
@@ -275,7 +273,7 @@ function CustomerDashboard({
           <KpiCard title="Nutzer" isLoading={isLoading} value={kpis.totalUsers.value} change={kpis.totalUsers.change} />
         </div>
 
-        {/* Charts - volle Breite (unverändert) */}
+        {/* Charts - volle Breite */}
         <div className="mt-8">
           <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
             <div className="flex border-b border-gray-200">
@@ -299,9 +297,9 @@ function CustomerDashboard({
           </div>
         </div>
 
-        {/* KI-Traffic + Top Queries nebeneinander (ÜBERARBEITET) */}
+        {/* KI-Traffic + Top Queries nebeneinander */}
         <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* KI-Traffic Card (unverändert) */}
+          {/* KI-Traffic Card */}
           {data.aiTraffic && (
             <div className="lg:col-span-1">
               <AiTrafficCard
@@ -317,22 +315,20 @@ function CustomerDashboard({
 
           {/* Top 100 Suchanfragen Liste (Logbuch-Stil) */}
           {data.topQueries && data.topQueries.length > 0 && (
-            <div className={`${data.aiTraffic ? 'lg:col-span-2' : 'lg:col-span-3'}`}> {/* Nimmt mehr Platz ein, wenn AI-Traffic fehlt */}
+            <div className={`${data.aiTraffic ? 'lg:col-span-2' : 'lg:col-span-3'}`}>
               <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
-                {/* Geänderte Überschrift */}
                 <h3 className="text-xl font-semibold mb-4 flex items-center gap-2 text-gray-800">
-                  <ClockHistory size={20} /> {/* Optional: Icon hinzugefügt */}
+                  <ClockHistory size={20} />
                   Top 100 Suchanfragen
                 </h3>
                 {/* Container mit Scrollbar */}
-                <div className="border rounded-lg max-h-96 overflow-y-auto"> {/* Höhe 96 = 24rem */}
+                <div className="border rounded-lg max-h-96 overflow-y-auto">
                   <ul className="divide-y divide-gray-100">
-                    {/* Keine Begrenzung mehr (.slice entfernt) */}
                     {data.topQueries.map((query, index) => (
                       <li key={`${query.query}-${index}`} className="p-4 space-y-2 hover:bg-gray-50">
                         {/* Suchanfrage */}
                         <p className="text-sm font-medium text-gray-900">{query.query}</p>
-                        {/* Metadaten (Klicks, Impressionen etc.) */}
+                        {/* Metadaten */}
                         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs text-gray-500">
                           <span title="Klicks">
                             Klicks: <span className="font-semibold text-gray-700">{query.clicks.toLocaleString('de-DE')}</span>
@@ -356,14 +352,14 @@ function CustomerDashboard({
           )}
         </div>
 
-        {/* Landingpage Approval (unverändert, falls noch benötigt) */}
+        {/* Landingpage Approval (auskommentiert, falls nicht benötigt) */}
         {/* <LandingpageApproval /> */}
 
-        {/* Hinweis bei fehlenden Daten (unverändert) */}
+        {/* Hinweis bei fehlenden Daten */}
         {showNoDataHint && (
           <p className="mt-6 text-sm text-center text-gray-500">
             Hinweis: Für dieses Projekt wurden noch keine KPI-Daten geliefert. Es werden vorübergehend Platzhalter-Werte angezeigt.
-          </p>
+          </D>
         )}
       </main>
     </div>
