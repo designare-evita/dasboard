@@ -116,6 +116,7 @@ export default function AiTrafficCard({
                       index === 0 ? 'bg-purple-600' :
                       index === 1 ? 'bg-purple-500' :
                       index === 2 ? 'bg-purple-400' :
+                  index === 3 ? 'bg-purple-300' :
                       'bg-purple-300'
                     }`}></div>
                     <span className="text-sm text-gray-700 truncate">{source.source || 'Unbekannt'}</span>
