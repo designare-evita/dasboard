@@ -21,7 +21,6 @@ import {
 import ProjectDashboard from '@/components/ProjectDashboard';
 import LandingpageApproval from '@/components/LandingpageApproval';
 import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector';
-// Alte, spezifische Typen wie KPI, ChartData, DashboardData, ActiveKpi können entfernt werden
 
 // --- Hauptkomponente ---
 export default function HomePage() {
@@ -122,14 +121,18 @@ export default function HomePage() {
 }
 
 // --- Admin Dashboard Komponente ---
-// (Diese Komponente bleibt unverändert)
 function AdminDashboard({ projects }: { projects: User[] }) {
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
-      <h2 className="text-3xl font-bold text-gray-900 mb-6">
-        Kundenübersicht
-      </h2>
+      {/* Container für die maximale Breite und Zentrierung */}
       <div className="max-w-7xl mx-auto">
+        
+        {/* ✅ KORREKTUR: Überschrift hierher verschoben und umbenannt */}
+        <h2 className="text-3xl font-bold text-gray-900 mb-6">
+          Projektübersicht
+        </h2>
+
+        {/* Inhalt (Karten-Grid oder "Keine Projekte"-Text) */}
         {projects.length === 0 ? (
           <p className="text-gray-500">Keine Projekte gefunden.</p>
         ) : (
@@ -172,7 +175,6 @@ function AdminDashboard({ projects }: { projects: User[] }) {
 
 
 // --- Kunden Dashboard Komponente ---
-// (Diese Komponente verwendet jetzt ProjectDashboard)
 function CustomerDashboard({
   data,
   isLoading,
@@ -193,8 +195,8 @@ function CustomerDashboard({
       <main>
         {/* Nutze die neue ProjectDashboard Komponente */}
         <ProjectDashboard
-          data={data}
-          isLoading={isLoading} // Gib isLoading weiter
+          data={data} // Gib isLoading weiter
+          isLoading={isLoading}
           dateRange={dateRange}
           onDateRangeChange={onDateRangeChange}
           showNoDataHint={showNoDataHint} // Zeige Hinweis nur, wenn keine Daten da sind
