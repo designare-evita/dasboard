@@ -10,19 +10,21 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        // HIER IST DEINE ÄNDERUNG:
-        default: "border border-gray-300 text-gray-600 hover:bg-gray-100",
+        // ✅ KORRIGIERT: 'default' ist jetzt der blaue Button (#188BDB)
+        default:
+          "bg-[#188BDB] text-white hover:bg-[#188BDB]/90",
         destructive:
           "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+        // ✅ KORRIGIERT: 'outline' ist jetzt der graue Button (was vorher 'default' war)
         outline:
-          "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+          "border border-gray-300 text-gray-600 hover:bg-gray-100",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
-        // HIER IST DEINE ÄNDERUNG:
+        // HIER IST DEINE ÄNDERUNG: (bleibt erhalten)
         default: "h-9 px-3 py-1",
         sm: "h-9 rounded-md px-3",
         lg: "h-11 rounded-md px-8",
