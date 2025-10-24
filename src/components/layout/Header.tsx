@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { useSession, signOut } from 'next-auth/react';
 import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import NotificationBell from '@/components/NotificationBell';
+import NotificationBell from '@/components/NotificationBell'; //
 
 export default function Header() {
   const { data: session, status } = useSession();
@@ -26,6 +26,7 @@ export default function Header() {
 
         {/* Linke Seite: Logo und Begrüßung */}
         <div className="flex items-center space-x-4"> {/* */}
+
           {/* Logo */}
           <Link href="/"> {/* */}
             <Image
@@ -37,11 +38,11 @@ export default function Header() {
             /> {/* */}
           </Link>
 
-          {/* "Hallo"-Nachricht */}
+          {/* "Hallo"-Nachricht (SYNTAX-FEHLER KORRIGIERT) */}
           {status === 'authenticated' && (
             <span className="text-gray-600 underline underline-offset-6">
               Hallo, {session.user?.name ?? session.user?.email}
-            </span> {/* */}
+            </span> //
           )}
         </div>
 
@@ -55,7 +56,7 @@ export default function Header() {
               {/* Projekte Button (nur für Admins) */}
               {isAdmin && (
                 <Link href="/" passHref>
-                  {/* ✅ KORREKTUR: Prüft, ob der Pfad "/" ist */}
+                  {/* KORRIGIERT: 'variant' prüft den Pfad. 'default' ist blau. */}
                   <Button variant={pathname === '/' ? 'default' : 'outline'}>
                     Projekte
                   </Button>
@@ -65,7 +66,7 @@ export default function Header() {
               {/* Redaktionsplan Button (nur für Admins) */}
               {isAdmin && (
                 <Link href="/admin/redaktionsplan" passHref>
-                  {/* ✅ KORREKTUR: Prüft, ob der Pfad "/admin/redaktionsplan" ist */}
+                  {/* KORRIGIERT: 'variant' prüft den Pfad. */}
                   <Button variant={pathname === '/admin/redaktionsplan' ? 'default' : 'outline'}>
                     Redaktionspläne
                   </Button>
@@ -75,7 +76,7 @@ export default function Header() {
               {/* Admin-Bereich Button (nur für Admins) */}
               {isAdmin && (
                 <Link href="/admin" passHref>
-                  {/* ✅ KORREKTUR: Prüft, ob der Pfad "/admin" ist */}
+                  {/* KORRIGIERT: 'variant' prüft den Pfad. */}
                   <Button variant={pathname === '/admin' ? 'default' : 'outline'}>
                     Admin-Bereich
                   </Button>
@@ -85,7 +86,7 @@ export default function Header() {
               {/* Dashboard Button (nur für BENUTZER) */}
               {isUser && (
                 <Link href="/" passHref>
-                  {/* ✅ KORREKTUR: Prüft, ob der Pfad "/" ist */}
+                  {/* KORRIGIERT: 'variant' prüft den Pfad. */}
                   <Button variant={pathname === '/' ? 'default' : 'outline'}>
                     Dashboard
                   </Button>
@@ -95,15 +96,14 @@ export default function Header() {
               {/* Redaktionsplan Button (nur für BENUTZER) */}
               {isUser && (
                 <Link href="/dashboard/freigabe" passHref>
-                  {/* ✅ KORREKTUR: Prüft, ob der Pfad "/dashboard/freigabe" ist */}
+                  {/* KORRIGIERT: 'variant' prüft den Pfad. */}
                   <Button variant={pathname === '/dashboard/freigabe' ? 'default' : 'outline'}>
                     Redaktionsplan
                   </Button>
                 </Link>
               )}
 
-              {/* Abmelden-Button */}
-              {/* ✅ KORREKTUR: 'outline', da es kein aktiver Navigationslink ist */}
+              {/* Abmelden-Button (outline, da keine aktive Seite) */}
               <Button variant="outline" onClick={() => signOut({ callbackUrl: '/login' })}>
                 Abmelden
               </Button>
@@ -112,7 +112,7 @@ export default function Header() {
           {status === 'unauthenticated' && (
              <Link href="/login" passHref>
                {/* 'default' (blau) ist hier korrekt als Call-to-Action */}
-               <Button>Anmelden</Button>
+               <Button variant="default">Anmelden</Button>
              </Link>
           )}
         </div>
