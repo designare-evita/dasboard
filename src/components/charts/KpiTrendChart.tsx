@@ -13,13 +13,19 @@ interface ChartData {
 interface KpiTrendChartProps {
   data: ChartData[];
   color: string; // z.B. '#8884d8'
+  label: string; // z.B. 'Klicks', 'Impressionen', 'Sitzungen', 'Nutzer'
 }
 
-const KpiTrendChart: React.FC<KpiTrendChartProps> = ({ data, color }) => {
+const KpiTrendChart: React.FC<KpiTrendChartProps> = ({ data, color, label }) => {
   // Formatiert das Datum auf der X-Achse (z.B. "01.10.")
   const formatDate = (tickItem: string) => {
     const date = new Date(tickItem);
     return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+  };
+
+  // Formatiert Zahlen im deutschen Format mit Tausendertrennzeichen
+  const formatNumber = (value: number) => {
+    return value.toLocaleString('de-DE');
   };
 
   return (
@@ -40,6 +46,7 @@ const KpiTrendChart: React.FC<KpiTrendChartProps> = ({ data, color }) => {
             tick={{ fill: '#6b7280' }} 
             axisLine={{ stroke: '#d1d5db' }} 
             tickLine={{ stroke: '#d1d5db' }}
+            tickFormatter={formatNumber}
           />
           <Tooltip
             contentStyle={{
@@ -48,6 +55,7 @@ const KpiTrendChart: React.FC<KpiTrendChartProps> = ({ data, color }) => {
               borderRadius: '0.5rem',
             }}
             labelFormatter={formatDate}
+            formatter={(value: number) => [formatNumber(value), label]}
           />
           <Line type="monotone" dataKey="value" stroke={color} strokeWidth={2} dot={false} />
         </LineChart>
