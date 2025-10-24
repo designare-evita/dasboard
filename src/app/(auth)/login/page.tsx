@@ -56,23 +56,16 @@ function LoginLoading() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<LoginLoading />}>
-      {/* Der Hauptcontainer:
-          - relative: Dient als Anker für das absolute SVG
-          - overflow-hidden: Verhindert, dass das SVG übersteht
-          - bg-gray-50: Ein sehr helles, sauberes Grau statt reinweiß */}
-      <div className="relative flex items-center justify-center min-h-screen bg-gray-50 overflow-hidden">
-        {/* 1. Die Hintergrund-SVG-Komponente */}
-        <AbstractNetworkBackground />
-        
-        {/* 2. Die Login-Box:
-            - relative z-10: Stellt sicher, dass sie ÜBER dem Hintergrund (z-0) liegt
-            - shadow-xl: Ein stärkerer Schatten für bessere Trennung
-            - border: Ein subtiler Rand */}
-        <div className="relative z-10 p-8 bg-white rounded-xl shadow-xl border border-gray-200 w-full max-w-md">
+    <div className="relative flex items-center justify-center min-h-screen bg-gray-50 overflow-hidden">
+      {/* Hintergrund SVG */}
+      <AbstractNetworkBackground />
+      
+      {/* Content mit z-10 damit es über dem Hintergrund liegt */}
+      <div className="relative z-10 w-full">
+        <Suspense fallback={<LoginLoading />}>
           <LoginForm />
-        </div>
+        </Suspense>
       </div>
-    </Suspense>
+    </div>
   );
 }
