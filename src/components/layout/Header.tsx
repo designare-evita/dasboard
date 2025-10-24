@@ -63,7 +63,7 @@ export default function Header() {
               {/* NEU: Redaktionsplan Button (nur für Admins, Standard-Stil) */}
               {isAdmin && (
                 <Link href="/admin/redaktionsplan" passHref>
-                  <Button>Redaktionsplan</Button> {/* Nutzt den Standard-Button-Stil */}
+                  <Button>Redaktionspläne</Button> {/* Nutzt den Standard-Button-Stil */}
                 </Link>
               )}
 
