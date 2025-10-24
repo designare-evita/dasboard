@@ -129,19 +129,12 @@ export default function AdminPage() {
 
   // Render the admin page UI
   return (
-  <div className="px-8 pb-8 pt-6 max-w-6xl mx-auto bg-gray-50 min-h-screen">
+  <div className="p-8 mt-8 max-w-6xl mx-auto bg-gray-50 min-h-screen">
       <div className="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Admin-Bereich</h1>
           <p className="text-gray-600 mt-2">Verwalten Sie Benutzer und Projekte</p>
         </div>
-        {/* KORREKTUR: Button wieder als normaler Link mit Tailwind-Klassen */}
-        <Link
-          href="/admin/redaktionsplan"
-          className="px-4 py-2 text-sm font-medium rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-1.5 whitespace-nowrap"
-        >
-          <FileText size={16} /> Zum Redaktionsplan
-        </Link>
       </div>
 
       {/* Überarbeitete Nachrichtenanzeige */}
