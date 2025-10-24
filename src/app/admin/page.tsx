@@ -129,7 +129,7 @@ export default function AdminPage() {
 
   // Render the admin page UI
   return (
-    <div className="p-8 max-w-6xl mx-auto bg-gray-50 min-h-screen">
+  <div className="px-8 pb-8 pt-6 max-w-6xl mx-auto bg-gray-50 min-h-screen">
       <div className="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Admin-Bereich</h1>
