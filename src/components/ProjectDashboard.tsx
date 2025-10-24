@@ -41,11 +41,12 @@ export default function ProjectDashboard({
   const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
 
   // Deutsche Labels für KPIs
-  const kpiLabels: Record<ActiveKpi, string> = {
+  const kpiLabels: Partial<Record<string, string>> = {
     clicks: 'Klicks',
     impressions: 'Impressionen',
     sessions: 'Sitzungen',
-    users: 'Nutzer'
+    users: 'Nutzer',
+    visitors: 'Nutzer', // Falls der Typ 'visitors' heißt
   };
 
   // Normalisierte KPIs für eine sichere Anzeige
@@ -90,7 +91,7 @@ export default function ProjectDashboard({
             <KpiTrendChart 
               data={chartSeries} 
               color={KPI_TAB_META[activeKpi].color}
-              label={kpiLabels[activeKpi]}
+              label={kpiLabels[activeKpi] || KPI_TAB_META[activeKpi].title}
             />
           </div>
 
