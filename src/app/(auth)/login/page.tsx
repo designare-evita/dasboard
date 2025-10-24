@@ -10,31 +10,46 @@ import LoginForm from './LoginForm';
 function AbstractNetworkBackground() {
   return (
     <svg
-      className="absolute inset-0 z-0 h-full w-full opacity-[0.08] [mask-image:radial-gradient(100%_100%_at_top_right,white,transparent)]"
+      className="absolute inset-0 z-0 h-full w-full text-gray-300"
       aria-hidden="true"
     >
       <defs>
         <pattern
           id="network-pattern"
-          width="100"
-          height="100"
+          width="80"
+          height="80"
           patternUnits="userSpaceOnUse"
-          x="50%"
-          y="50%"
         >
-          {/* Ein subtiles Gitter */}
+          {/* Vertikale und horizontale Linien */}
           <path
-            d="M 0 100 V.5 M 100 0 H.5"
+            d="M 0 80 V 0 M 80 0 H 0"
             fill="none"
             stroke="currentColor"
             strokeWidth="0.5"
+            opacity="0.3"
           />
-          {/* Die "Netzwerk"-Punkte */}
-          <circle cx="50" cy="50" r="1.5" fill="currentColor" />
+          {/* Netzwerk-Punkte an den Kreuzungen */}
+          <circle cx="0" cy="0" r="2" fill="currentColor" opacity="0.4" />
+          <circle cx="80" cy="0" r="2" fill="currentColor" opacity="0.4" />
+          <circle cx="0" cy="80" r="2" fill="currentColor" opacity="0.4" />
+          <circle cx="80" cy="80" r="2" fill="currentColor" opacity="0.4" />
+          {/* Zentrale Punkte */}
+          <circle cx="40" cy="40" r="1.5" fill="currentColor" opacity="0.3" />
         </pattern>
+        
+        {/* Gradient für Fade-Effekt an den Rändern */}
+        <radialGradient id="fade-gradient">
+          <stop offset="0%" stopColor="white" stopOpacity="0" />
+          <stop offset="50%" stopColor="white" stopOpacity="0" />
+          <stop offset="100%" stopColor="white" stopOpacity="0.8" />
+        </radialGradient>
       </defs>
+      
       {/* Das Muster auf die gesamte Fläche anwenden */}
       <rect width="100%" height="100%" fill="url(#network-pattern)" />
+      
+      {/* Overlay für Fade-Effekt */}
+      <rect width="100%" height="100%" fill="url(#fade-gradient)" />
     </svg>
   );
 }
