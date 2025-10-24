@@ -32,7 +32,7 @@ export interface AiTrafficData {
   totalSessions: number;
   totalUsers: number;
   sessionsBySource: {
-    : number;
+    [source: string]: number;
   };
   topAiSources: Array<{
     source: string;
