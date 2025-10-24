@@ -6,96 +6,112 @@ import Image from 'next/image';
 import { useSession, signOut } from 'next-auth/react';
 import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import NotificationBell from '@/components/NotificationBell'; // Importiere die Glocken-Komponente
+import NotificationBell from '@/components/NotificationBell';
 
 export default function Header() {
   const { data: session, status } = useSession();
-  const pathname = usePathname();
+  const pathname = usePathname(); //
 
-  const isAdmin = session?.user?.role === 'ADMIN' || session?.user?.role === 'SUPERADMIN';
-  const isUser = session?.user?.role === 'BENUTZER'; // Hinzugefügt für Klarheit
+  const isAdmin = session?.user?.role === 'ADMIN' || session?.user?.role === 'SUPERADMIN'; //
+  const isUser = session?.user?.role === 'BENUTZER'; //
 
   // Header nicht auf der Login-Seite anzeigen
-  if (pathname === '/login') {
+  if (pathname === '/login') { //
     return null;
   }
 
   return (
-    <header className="bg-white shadow-md">
-      <nav className="container mx-auto px-6 py-3 flex justify-between items-center">
+    <header className="bg-white shadow-md"> {/* */}
+      <nav className="container mx-auto px-6 py-3 flex justify-between items-center"> {/* */}
 
         {/* Linke Seite: Logo und Begrüßung */}
-        <div className="flex items-center space-x-4">
-
+        <div className="flex items-center space-x-4"> {/* */}
           {/* Logo */}
-          <Link href="/">
+          <Link href="/"> {/* */}
             <Image
               src="/logo-data-peak.webp"
               alt="Data Peak Logo"
               width={180}
               height={45}
               priority
-            />
+            /> {/* */}
           </Link>
 
           {/* "Hallo"-Nachricht */}
           {status === 'authenticated' && (
             <span className="text-gray-600 underline underline-offset-6">
               Hallo, {session.user?.name ?? session.user?.email}
-            </span>
+            </span> {/* */}
           )}
         </div>
 
         {/* Rechte Seite: Links, Buttons und Glocke */}
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-4"> {/* */}
           {status === 'authenticated' && (
             <>
-              {/* NEU: Benachrichtigungs-Glocke */}
-              <NotificationBell />
+              {/* Benachrichtigungs-Glocke */}
+              <NotificationBell /> {/* */}
 
-                  {/* Projekte Button (nur für Admins) */}
+              {/* Projekte Button (nur für Admins) */}
               {isAdmin && (
                 <Link href="/" passHref>
-                  <Button>Projekte</Button>
+                  {/* ✅ KORREKTUR: Prüft, ob der Pfad "/" ist */}
+                  <Button variant={pathname === '/' ? 'default' : 'outline'}>
+                    Projekte
+                  </Button>
                 </Link>
               )}
 
-              {/* NEU: Redaktionsplan Button (nur für Admins, Standard-Stil) */}
+              {/* Redaktionsplan Button (nur für Admins) */}
               {isAdmin && (
                 <Link href="/admin/redaktionsplan" passHref>
-                  <Button>Redaktionspläne</Button> {/* Nutzt den Standard-Button-Stil */}
+                  {/* ✅ KORREKTUR: Prüft, ob der Pfad "/admin/redaktionsplan" ist */}
+                  <Button variant={pathname === '/admin/redaktionsplan' ? 'default' : 'outline'}>
+                    Redaktionspläne
+                  </Button>
                 </Link>
               )}
 
-
-              {/* Admin-Bereich Button (nur für Admins, Standard-Stil) */}
+              {/* Admin-Bereich Button (nur für Admins) */}
               {isAdmin && (
                 <Link href="/admin" passHref>
-                  <Button>Admin-Bereich</Button>
+                  {/* ✅ KORREKTUR: Prüft, ob der Pfad "/admin" ist */}
+                  <Button variant={pathname === '/admin' ? 'default' : 'outline'}>
+                    Admin-Bereich
+                  </Button>
                 </Link>
               )}
 
+              {/* Dashboard Button (nur für BENUTZER) */}
               {isUser && (
-                <Link href="/" passHref> {/* Link zum Haupt-Dashboard */}
-                  <Button>Dashboard</Button> {/* Nutzt den Standard-Button-Stil */}
+                <Link href="/" passHref>
+                  {/* ✅ KORREKTUR: Prüft, ob der Pfad "/" ist */}
+                  <Button variant={pathname === '/' ? 'default' : 'outline'}>
+                    Dashboard
+                  </Button>
                 </Link>
               )}
 
-              {/* NEU: Redaktionsplan Button (nur für BENUTZER) */}
+              {/* Redaktionsplan Button (nur für BENUTZER) */}
               {isUser && (
                 <Link href="/dashboard/freigabe" passHref>
-                  <Button>Redaktionsplan</Button> {/* Nutzt den Standard-Button-Stil */}
+                  {/* ✅ KORREKTUR: Prüft, ob der Pfad "/dashboard/freigabe" ist */}
+                  <Button variant={pathname === '/dashboard/freigabe' ? 'default' : 'outline'}>
+                    Redaktionsplan
+                  </Button>
                 </Link>
               )}
 
               {/* Abmelden-Button */}
-              <Button onClick={() => signOut({ callbackUrl: '/login' })}>
+              {/* ✅ KORREKTUR: 'outline', da es kein aktiver Navigationslink ist */}
+              <Button variant="outline" onClick={() => signOut({ callbackUrl: '/login' })}>
                 Abmelden
               </Button>
             </>
           )}
           {status === 'unauthenticated' && (
              <Link href="/login" passHref>
+               {/* 'default' (blau) ist hier korrekt als Call-to-Action */}
                <Button>Anmelden</Button>
              </Link>
           )}
