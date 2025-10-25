@@ -359,9 +359,9 @@ export async function GET(
           console.error(`[/api/projects/[id]] ❌ Semrush API Fehler:`, newData.error);
           // ✅ KORRIGIERT (Zeile 355): Type-safe Error-Zuweisung
           projectWithError.semrushError = newData.error;
-          // Setze KPIs auf null, wenn Fehler auftritt, damit alte Daten nicht angezeigt werden
-          projectWithError.semrush_organic_keywords = null;
-          projectWithError.semrush_organic_traffic = null;
+          // Setze KPIs auf undefined, wenn Fehler auftritt, damit alte Daten nicht angezeigt werden
+          projectWithError.semrush_organic_keywords = undefined;
+          projectWithError.semrush_organic_traffic = undefined;
         } else {
           console.log(`[/api/projects/[id]] ✅ Semrush-Daten erfolgreich geholt.`);
           // Aktualisiere das 'project'-Objekt für die aktuelle Anfrage
@@ -387,9 +387,9 @@ export async function GET(
         console.error(`[/api/projects/[id]] ❌ Schwerer Fehler bei Semrush-Fetch:`, fetchError);
         // ✅ KORRIGIERT (Zeile 382): Type-safe Error-Zuweisung
         projectWithError.semrushError = (fetchError as Error).message;
-         // Setze KPIs auf null bei schwerem Fehler
-        projectWithError.semrush_organic_keywords = null;
-        projectWithError.semrush_organic_traffic = null;
+         // Setze KPIs auf undefined bei schwerem Fehler
+        projectWithError.semrush_organic_keywords = undefined;
+        projectWithError.semrush_organic_traffic = undefined;
       }
     } else if (project.domain) {
       // Gültiger Cache vorhanden
@@ -399,9 +399,9 @@ export async function GET(
     } else {
       // Keine Domain konfiguriert
       console.log(`[/api/projects/[id]] ⚠️ Keine Domain für Semrush-Abruf konfiguriert.`);
-       // Setze KPIs auf null, wenn keine Domain da ist
-      projectWithError.semrush_organic_keywords = null;
-      projectWithError.semrush_organic_traffic = null;
+       // Setze KPIs auf undefined, wenn keine Domain da ist
+      projectWithError.semrush_organic_keywords = undefined;
+      projectWithError.semrush_organic_traffic = undefined;
       // ✅ KORRIGIERT (Zeile 398): Type-safe Error-Zuweisung
       projectWithError.semrushError = null;
     }
