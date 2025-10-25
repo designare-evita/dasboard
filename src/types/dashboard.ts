@@ -54,28 +54,3 @@ export const KPI_TAB_META: Record<ActiveKpi, KpiMetadata> = {
   totalUsers: { title: 'Nutzer', color: '#f59e0b' },
 };
 
-export interface Kpis {
-  clicks: Kpi;
-  impressions: Kpi;
-  sessions: Kpi;
-  totalUsers: Kpi;
-  // --- NEU HINZUGEFÜGT ---
-  semrushKeywords: Kpi;
-  semrushTraffic: Kpi;
-  // --------------------
-}
-
-export interface ApiData {
-  kpis: Kpis;
-  charts: {
-    // ... (clicks, impressions, etc.) ...
-  };
-  topQueries: Array<{
-    // ... (query, clicks, etc.) ...
-  }>;
-  aiTraffic: any; // Sieht so aus, als wäre das noch 'any'
-  // --- NEU HINZUGEFÜGT ---
-  semrushError?: string | null; // Für Fehlerbehandlung
-  // --------------------
-  error?: string;
-}
