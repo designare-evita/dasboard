@@ -9,4 +9,7 @@ export interface User {
   ga4_property_id?: string; // NEU: Feld für die GA4 ID
   createdByAdminId?: string;
   createdAt: Date;
+  semrush_organic_keywords?: number;
+  semrush_organic_traffic?: number;
+  semrush_last_fetched?: string; // Kommt als String/Date von der DB
 }
