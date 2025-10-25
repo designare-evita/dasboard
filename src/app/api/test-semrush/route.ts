@@ -41,10 +41,10 @@ export async function GET() {
     const values = lines[1].split(';');
 
     // 5. Daten als strukturiertes Objekt zurückgeben
-    return {
+    return NextResponse.json({
       organicKeywords: parseInt(values[0], 10) || 0,
       organicTraffic: parseInt(values[1], 10) || 0,
-    };
+    });
 
   } catch (error: unknown) {
     
@@ -71,10 +71,10 @@ export async function GET() {
     }
 
     // Den detaillierten Fehler zurückgeben
-    return {
+    return NextResponse.json({
       organicKeywords: null,
       organicTraffic: null,
       error: errorMessage, 
-    };
+    });
   }
 }
