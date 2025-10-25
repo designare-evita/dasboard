@@ -1,4 +1,4 @@
-// src/app/api/projects/[id]/route.ts
+// src/app/api/projects/[id]/route.ts - KOMPLETT KORRIGIERT
 
 import { NextResponse, NextRequest } from 'next/server';
 import { getServerSession } from 'next-auth';
@@ -10,16 +10,10 @@ import {
   getAiTrafficData,
   type AiTrafficData
 } from '@/lib/google-api';
-import { getSemrushDomainOverview } from '@/lib/semrush-api';
 import { sql } from '@vercel/postgres';
-import { User } from '@/types'; // Importiere den Basis-User-Typ
+import { User } from '@/types';
 
-// ✅ NEUER TYP: Erweitert User um ein temporäres Fehlerfeld für Semrush
-type ProjectUser = User & {
-  semrushError?: string | null;
-};
-
-// --- Typ-Definitionen (unverändert) ---
+// ✅ Typ-Definitionen
 interface TopQuery {
   query: string;
   clicks: number;
@@ -27,47 +21,51 @@ interface TopQuery {
   ctr: number;
   position: number;
 }
+
 interface DateRangeData {
   total: number;
   daily: Array<{ date: string; value: number }>;
 }
+
 interface GscData {
   clicks: DateRangeData;
   impressions: DateRangeData;
 }
+
 interface GaData {
   sessions: DateRangeData;
   totalUsers: DateRangeData;
 }
 
-// --- Hilfsfunktionen (unverändert) ---
+// Hilfsfunktionen
 function formatDate(date: Date): string {
   return date.toISOString().split('T')[0];
 }
+
 function calculateChange(current: number, previous: number): number {
   if (previous === 0) return current > 0 ? 100 : 0;
   const currentNum = typeof current === 'number' ? current : 0;
   const previousNum = typeof previous === 'number' ? previous : 0;
   if (previousNum === 0) return currentNum > 0 ? 100 : 0;
+
   const change = ((currentNum - previousNum) / previousNum) * 100;
   return Math.round(change * 10) / 10;
 }
 
-
 /**
  * Lädt vollständige Dashboard-Daten für ein spezifisches Projekt
+ * Gibt Platzhalterdaten zurück, wenn GSC/GA4 nicht konfiguriert sind oder Fehler auftreten.
  */
-// ✅ KORRIGIERT: Akzeptiert den erweiterten Typ 'ProjectUser'
-async function getProjectDashboardData(user: Partial<ProjectUser>, dateRange: string = '30d') {
+async function getProjectDashboardData(user: Partial<User>, dateRange: string = '30d') {
 
-  // --- Standard-Platzhalter-Werte (unverändert) ---
-  const defaultGscData: GscData = {
-    clicks: { total: 0, daily: [] },
-    impressions: { total: 0, daily: [] }
+  // ✅ Standard-Platzhalter-Werte definieren
+  const defaultGscData: GscData = { 
+    clicks: { total: 0, daily: [] }, 
+    impressions: { total: 0, daily: [] } 
   };
-  const defaultGaData: GaData = {
-    sessions: { total: 0, daily: [] },
-    totalUsers: { total: 0, daily: [] }
+  const defaultGaData: GaData = { 
+    sessions: { total: 0, daily: [] }, 
+    totalUsers: { total: 0, daily: [] } 
   };
   const defaultTopQueries: TopQuery[] = [];
   const defaultAiTraffic: AiTrafficData = {
@@ -78,10 +76,11 @@ async function getProjectDashboardData(user: Partial<ProjectUser>, dateRange: st
     trend: []
   };
 
-  // --- Zeitberechnung (unverändert) ---
+  // ✅ Zeitberechnung
   const today = new Date();
   const endDateCurrent = new Date(today);
   endDateCurrent.setDate(endDateCurrent.getDate() - 1);
+
   const startDateCurrent = new Date(endDateCurrent);
   let daysBack: number;
 
@@ -97,11 +96,12 @@ async function getProjectDashboardData(user: Partial<ProjectUser>, dateRange: st
       break;
     case '30d':
     default:
-      daysBack = 29; // Korrekt für 30 Tage (z.B. Tag 30 bis Tag 1 = 29 Tage Differenz)
+      daysBack = 29;
       break;
   }
 
   startDateCurrent.setDate(startDateCurrent.getDate() - daysBack);
+
   const endDatePrevious = new Date(startDateCurrent);
   endDatePrevious.setDate(endDatePrevious.getDate() - 1);
   const startDatePrevious = new Date(endDatePrevious);
@@ -109,9 +109,10 @@ async function getProjectDashboardData(user: Partial<ProjectUser>, dateRange: st
 
   try {
     console.log(`[getProjectDashboardData] Lade Daten für Projekt ${user.email} (${dateRange})`);
-    // ... (restliche console.log unverändert) ...
+    console.log(`[getProjectDashboardData] Aktueller Zeitraum: ${formatDate(startDateCurrent)} bis ${formatDate(endDateCurrent)}`);
+    console.log(`[getProjectDashboardData] Vorheriger Zeitraum: ${formatDate(startDatePrevious)} bis ${formatDate(endDatePrevious)}`);
 
-    // --- Promises (unverändert) ---
+    // ✅ Promises bedingt zusammenstellen
     const gscPromises: [Promise<GscData>, Promise<GscData>, Promise<TopQuery[]>] = user.gsc_site_url ? [
       getSearchConsoleData(user.gsc_site_url, formatDate(startDateCurrent), formatDate(endDateCurrent)) as Promise<GscData>,
       getSearchConsoleData(user.gsc_site_url, formatDate(startDatePrevious), formatDate(endDatePrevious)) as Promise<GscData>,
@@ -121,6 +122,7 @@ async function getProjectDashboardData(user: Partial<ProjectUser>, dateRange: st
       Promise.resolve(defaultGscData),
       Promise.resolve(defaultTopQueries)
     ];
+
     const gaPromises: [Promise<GaData>, Promise<GaData>, Promise<AiTrafficData>] = user.ga4_property_id ? [
       getAnalyticsData(user.ga4_property_id, formatDate(startDateCurrent), formatDate(endDateCurrent)) as Promise<GaData>,
       getAnalyticsData(user.ga4_property_id, formatDate(startDatePrevious), formatDate(endDatePrevious)) as Promise<GaData>,
@@ -134,7 +136,7 @@ async function getProjectDashboardData(user: Partial<ProjectUser>, dateRange: st
     console.log(`[getProjectDashboardData] GSC konfiguriert: ${!!user.gsc_site_url}`);
     console.log(`[getProjectDashboardData] GA4 konfiguriert: ${!!user.ga4_property_id}`);
 
-    // --- Promise.allSettled (unverändert) ---
+    // ✅ Promise.allSettled verwenden
     const [
       gscCurrentResult,
       gscPreviousResult,
@@ -147,10 +149,10 @@ async function getProjectDashboardData(user: Partial<ProjectUser>, dateRange: st
       ...gaPromises
     ]);
 
-    // --- getValue Helfer (unverändert) ---
+    // ✅ Typsichere Helfer-Funktion mit generics
     const getValue = <T,>(
-      result: PromiseSettledResult<T>,
-      defaultValue: T,
+      result: PromiseSettledResult<T>, 
+      defaultValue: T, 
       apiName: string
     ): T => {
       if (result.status === 'fulfilled') {
@@ -161,7 +163,6 @@ async function getProjectDashboardData(user: Partial<ProjectUser>, dateRange: st
       return defaultValue;
     };
 
-    // --- Datenzuweisung (unverändert) ---
     const gscCurrent: GscData = getValue(gscCurrentResult, defaultGscData, 'GSC Aktuell');
     const gscPrevious: GscData = getValue(gscPreviousResult, defaultGscData, 'GSC Vorher');
     const topQueries: TopQuery[] = getValue(topQueriesResult, defaultTopQueries, 'GSC Top Queries');
@@ -171,7 +172,7 @@ async function getProjectDashboardData(user: Partial<ProjectUser>, dateRange: st
 
     console.log(`[getProjectDashboardData] ✅ Daten erfolgreich verarbeitet (ggf. mit Platzhaltern)`);
 
-    // --- KI-Traffic-Anteil (unverändert) ---
+    // ✅ KI-Traffic-Anteil berechnen
     const totalSessions = gaCurrent.sessions.total ?? 0;
     const aiSessionsPercentage = totalSessions > 0
       ? (aiTraffic.totalSessions / totalSessions) * 100
@@ -181,7 +182,6 @@ async function getProjectDashboardData(user: Partial<ProjectUser>, dateRange: st
     console.log(`[getProjectDashboardData] KI-Sitzungen: ${aiTraffic.totalSessions}`);
     console.log(`[getProjectDashboardData] KI-Anteil: ${aiSessionsPercentage.toFixed(2)}%`);
 
-    // ✅ DATENRÜCKGABE (mit Semrush KPIs)
     return {
       kpis: {
         clicks: {
@@ -204,15 +204,6 @@ async function getProjectDashboardData(user: Partial<ProjectUser>, dateRange: st
           value: gaCurrent.totalUsers.total ?? 0,
           change: calculateChange(gaCurrent.totalUsers.total, gaPrevious.totalUsers.total)
         },
-        // --- NEUE SEMRUSH KPIS ---
-        semrushKeywords: {
-          value: user.semrush_organic_keywords ?? 0,
-          change: 0
-        },
-        semrushTraffic: {
-          value: user.semrush_organic_traffic ?? 0,
-          change: 0
-        }
       },
       charts: {
         clicks: gscCurrent.clicks.daily ?? [],
@@ -221,21 +212,16 @@ async function getProjectDashboardData(user: Partial<ProjectUser>, dateRange: st
         totalUsers: gaCurrent.totalUsers.daily ?? [],
       },
       topQueries,
-      aiTraffic,
-      // ✅ KORRIGIERT: Typsicherer Zugriff auf semrushError (kein 'any' nötig)
-      semrushError: user.semrushError || null
+      aiTraffic
     };
   } catch (error) {
     console.error('[getProjectDashboardData] Schwerwiegender Fehler:', error);
-    // --- Fehlerfall-Rückgabe (unverändert) ---
     return {
       kpis: {
         clicks: { value: 0, change: 0 },
         impressions: { value: 0, change: 0 },
         sessions: { value: 0, change: 0, aiTraffic: { value: 0, percentage: 0 } },
         totalUsers: { value: 0, change: 0 },
-        semrushKeywords: { value: 0, change: 0 },
-        semrushTraffic: { value: 0, change: 0 }
       },
       charts: {
         clicks: [],
@@ -253,6 +239,7 @@ async function getProjectDashboardData(user: Partial<ProjectUser>, dateRange: st
 /**
  * GET /api/projects/[id]
  * Hauptendpoint für Projekt-Dashboard-Daten
+ * Query-Parameter: dateRange (optional) - '30d' | '3m' | '6m' | '12m'
  */
 export async function GET(
   request: NextRequest,
@@ -260,14 +247,15 @@ export async function GET(
 ) {
   try {
     const session = await getServerSession(authOptions);
+
     if (!session?.user?.email) {
       return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
     }
 
     const { role, id: userId } = session.user;
-    const resolvedParams = await context.params;
-    const projectId = resolvedParams.id;
+    const { id: projectId } = await context.params;
 
+    // ✅ DateRange-Parameter aus URL extrahieren
     const { searchParams } = new URL(request.url);
     const dateRange = searchParams.get('dateRange') || '30d';
 
@@ -276,19 +264,20 @@ export async function GET(
     console.log('[/api/projects/[id]] Project ID:', projectId);
     console.log('[/api/projects/[id]] DateRange:', dateRange);
 
-    // --- Zugriffs-Logik (unverändert) ---
+    // Prüfe, ob der Benutzer Zugriff auf dieses Projekt hat
     let hasAccess = false;
+
     if (role === 'SUPERADMIN') {
       hasAccess = true;
     } else if (role === 'ADMIN') {
-      const { rows: assignmentCheck } = await sql`
+      const { rows } = await sql`
         SELECT 1
         FROM project_assignments
         WHERE user_id::text = ${userId}
         AND project_id::text = ${projectId}
         LIMIT 1;
       `;
-      hasAccess = assignmentCheck.length > 0;
+      hasAccess = rows.length > 0;
     } else if (role === 'BENUTZER') {
       hasAccess = userId === projectId;
     }
@@ -300,86 +289,19 @@ export async function GET(
       }, { status: 403 });
     }
 
-    // Lade Projekt-Daten (Basis-Typ 'User' aus der DB)
+    // Lade Projekt-Daten
     const { rows } = await sql<User>`
-      SELECT
-        id, email, role, domain,
-        gsc_site_url, ga4_property_id,
-        semrush_organic_keywords,
-        semrush_organic_traffic,
-        semrush_last_fetched
+      SELECT id, gsc_site_url, ga4_property_id, email, domain
       FROM users
       WHERE id::text = ${projectId}
     `;
 
-    // ✅ KORRIGIERT: Deklariere 'project' als unseren erweiterten Typ 'ProjectUser'
-    const project: ProjectUser = rows[0];
-
+    const project = rows[0];
     if (!project) {
       return NextResponse.json({ message: 'Projekt nicht gefunden.' }, { status: 404 });
     }
 
-    // --- SEMRUSH 14-TAGE CACHING LOGIK START ---
-    const lastFetched = project.semrush_last_fetched ? new Date(project.semrush_last_fetched) : null;
-    const fourteenDaysAgo = new Date();
-    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
-
-    const needsFetch = !lastFetched || lastFetched < fourteenDaysAgo;
-
-    if (project.domain && needsFetch) {
-      console.log(`[/api/projects/[id]] ♻️ Semrush-Daten für ${project.domain} sind veraltet. Führe Fetch aus...`);
-      try {
-        const newData = await getSemrushDomainOverview(project.domain, 'de');
-
-        if (newData.error) {
-          console.error(`[/api/projects/[id]] ❌ Semrush API Fehler:`, newData.error);
-          // ✅ KORRIGIERT: Typsicherer Zugriff (kein 'any' nötig)
-          project.semrushError = newData.error;
-          project.semrush_organic_keywords = null;
-          project.semrush_organic_traffic = null;
-        } else {
-          console.log(`[/api/projects/[id]] ✅ Semrush-Daten erfolgreich geholt.`);
-          project.semrush_organic_keywords = newData.organicKeywords;
-          project.semrush_organic_traffic = newData.organicTraffic;
-          project.semrush_last_fetched = new Date().toISOString();
-
-          // Asynchrones DB-Update
-          sql`
-            UPDATE users
-            SET
-              semrush_organic_keywords = ${newData.organicKeywords},
-              semrush_organic_traffic = ${newData.organicTraffic},
-              semrush_last_fetched = ${project.semrush_last_fetched}
-            WHERE id::text = ${projectId};
-          `.then(() => {
-            console.log(`[/api/projects/[id]] ✅ Semrush-Cache in DB aktualisiert für ${project.domain}.`);
-          }).catch((dbError) => {
-            console.error(`[/api/projects/[id]] ❌ Fehler beim DB-Update des Semrush-Cache:`, dbError);
-          });
-        }
-      } catch (fetchError) {
-        console.error(`[/api/projects/[id]] ❌ Schwerer Fehler bei Semrush-Fetch:`, fetchError);
-        // ✅ KORRIGIERT: Typsicherer Zugriff (kein 'any' nötig)
-        project.semrushError = (fetchError as Error).message;
-        project.semrush_organic_keywords = null;
-        project.semrush_organic_traffic = null;
-      }
-    } else if (project.domain) {
-      console.log(`[/api/projects/[id]] ✅ Semrush-Daten aus Cache geladen (Geholt am: ${lastFetched ? lastFetched.toISOString() : 'nie'}).`);
-      // ✅ KORRIGIERT: Typsicherer Zugriff (kein 'any' nötig)
-      project.semrushError = null;
-    } else {
-      console.log(`[/api/projects/[id]] ⚠️ Keine Domain für Semrush-Abruf konfiguriert.`);
-      // ✅ KORRIGIERT: Typsicherer Zugriff (kein 'any' nötig)
-      project.semrushError = null;
-      project.semrush_organic_keywords = null;
-      project.semrush_organic_traffic = null;
-    }
-    // --- SEMRUSH 14-TAGE CACHING LOGIK ENDE ---
-
-
-    // ✅ Rufe Dashboard-Daten auf (Google etc.)
-    // 'project' ist jetzt vom Typ 'ProjectUser' und kann sicher übergeben werden
+    // ✅ Rufe Dashboard-Daten auf
     const dashboardData = await getProjectDashboardData(project, dateRange);
 
     console.log('[/api/projects/[id]] ✅ Projekt-Daten erfolgreich verarbeitet');
@@ -387,7 +309,6 @@ export async function GET(
     return NextResponse.json(dashboardData);
 
   } catch (error) {
-    // --- Haupt-Fehlerbehandlung (unverändert) ---
     console.error('[/api/projects/[id]] Schwerwiegender Fehler im Handler:', error);
     const errorMessage = error instanceof Error ? error.message : 'Interner Serverfehler.';
     return NextResponse.json({
