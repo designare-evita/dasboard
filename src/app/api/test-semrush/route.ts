@@ -37,14 +37,24 @@ export async function GET() {
       data: data,
     });
 
-  } catch (error: any) {
-    // Fängt allgemeine Fehler ab (z.B. API-Key fehlt)
-    console.error('[TEST] Ein schwerwiegender Fehler ist aufgetreten:', error.message);
+  } catch (error: unknown) { // 'any' wurde durch 'unknown' ersetzt
+    
+    // Standard-Fehlermeldung
+    let errorMessage = 'Ein unbekannter schwerwiegender Fehler ist aufgetreten';
+
+    // Typprüfung: Ist das error-Objekt eine Instanz von Error?
+    // Nur dann können wir sicher auf 'error.message' zugreifen.
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+
+    console.error('[TEST] Ein schwerwiegender Fehler ist aufgetreten:', errorMessage);
+    
     return NextResponse.json(
       { 
         ok: false, 
         message: 'Schwerwiegender Fehler beim Abruf',
-        details: error.message 
+        details: errorMessage // Wir verwenden die sichere Fehlermeldung
       },
       { status: 500 }
     );
