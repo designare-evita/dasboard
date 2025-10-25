@@ -22,7 +22,7 @@ export async function getSemrushDomainOverview(domain: string, database: string 
   // 3. Zusammenstellen der Anfrage-URL
   const params = new URLSearchParams({
     key: apiKey,
-    type: 'domain_overview', // Der Typ des Berichts, den wir abfragen
+    type: 'domain_rank', // Der Typ des Berichts, den wir abfragen
     domain: domain,
     database: database,
     // Spalten, die wir anfordern (Beispiel: Organische Keywords, Organischer Traffic)
