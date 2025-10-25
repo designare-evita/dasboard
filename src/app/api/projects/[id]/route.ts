@@ -365,16 +365,16 @@ export async function GET(
         } else {
           console.log(`[/api/projects/[id]] ✅ Semrush-Daten erfolgreich geholt.`);
           // Aktualisiere das 'project'-Objekt für die aktuelle Anfrage
-          projectWithError.semrush_organic_keywords = newData.organicKeywords;
-          projectWithError.semrush_organic_traffic = newData.organicTraffic;
+          projectWithError.semrush_organic_keywords = newData.organicKeywords ?? undefined;
+          projectWithError.semrush_organic_traffic = newData.organicTraffic ?? undefined;
           projectWithError.semrush_last_fetched = new Date().toISOString(); // Aktualisiere Zeitstempel
 
           // Asynchrones Update der Datenbank (muss nicht blockieren)
           sql`
             UPDATE users
             SET
-              semrush_organic_keywords = ${newData.organicKeywords},
-              semrush_organic_traffic = ${newData.organicTraffic},
+              semrush_organic_keywords = ${newData.organicKeywords ?? undefined},
+              semrush_organic_traffic = ${newData.organicTraffic ?? undefined},
               semrush_last_fetched = ${projectWithError.semrush_last_fetched}
             WHERE id::text = ${projectId};
           `.then(() => {
