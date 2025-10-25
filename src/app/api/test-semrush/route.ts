@@ -16,6 +16,12 @@ export async function GET() {
 
  try {
     // 4. API-Anfrage mit axios senden
+    const apiKey = process.env.SEMRUSH_API_KEY;
+    if (!apiKey) {
+      throw new Error('SEMRUSH_API_KEY is not configured');
+    }
+
+    const url = `https://api.semrush.com/?type=domain_overview&key=${apiKey}&domain=${testDomain}&database=${testDatabase}`;
     const response = await axios.get(url);
 
     // Semrush gibt bei Erfolg Text/CSV zurück, kein JSON.
