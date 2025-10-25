@@ -16,7 +16,10 @@ export async function createTables() {
         gsc_site_url VARCHAR(255),
         ga4_property_id VARCHAR(255),
         "createdByAdminId" UUID REFERENCES users(id),
-        "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        semrush_organic_keywords INTEGER,
+        semrush_organic_traffic INTEGER,
+        semrush_last_fetched TIMESTAMP WITH TIME ZONE
       );
     `;
     console.log('Tabelle "users" erfolgreich geprüft/erstellt.');
