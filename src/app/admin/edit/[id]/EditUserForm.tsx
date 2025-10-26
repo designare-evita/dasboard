@@ -1,211 +1,183 @@
-// src/app/admin/edit/[id]/EditUserForm.tsx
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import type { User } from '@/types';
-// Icons hinzugefügt
-import { Check2, ArrowRepeat, ExclamationTriangleFill, InfoCircleFill } from 'react-bootstrap-icons';
+import { useState, FormEvent, useEffect } from 'react';
+import { User } from '@/types';
+import { Pencil, ArrowRepeat, CheckCircle } from 'react-bootstrap-icons';
 
-type Props = {
-  id: string;
-  user: Partial<User>;
-};
+export default function EditUserForm({ userData, onUserUpdated }: { userData: User, onUserUpdated: () => void }) {
+  const [email, setEmail] = useState(userData.email || '');
+  const [domain, setDomain] = useState(userData.domain || '');
+  const [gscSiteUrl, setGscSiteUrl] = useState(userData.gsc_site_url || '');
+  const [ga4PropertyId, setGa4PropertyId] = useState(userData.ga4_property_id || '');
+  
+  // --- NEUE STATES HINZUFÜGEN ---
+  const [semrushProjectId, setSemrushProjectId] = useState(userData.semrush_project_id || '');
+  const [trackingId, setTrackingId] = useState(userData.tracking_id || '');
+  // ------------------------------
 
-export default function EditUserForm({ id, user }: Props) {
-  const router = useRouter();
   const [message, setMessage] = useState('');
-  const [isSuccess, setIsSuccess] = useState(false);
-  const [isLoading, setIsLoading] = useState(false); // Ladezustand
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setMessage('Aktualisiere Benutzer...');
-    setIsSuccess(false);
-    setIsLoading(true); // Ladevorgang starten
-
-    const formData = new FormData(e.currentTarget);
-    const data = Object.fromEntries(formData);
-
-    // Entferne das Passwortfeld, wenn es leer ist
-    if (!data.password) {
-      delete data.password;
+  // Dieser useEffect ist wichtig, falls sich die `userData` ändert
+  useEffect(() => {
+    if (userData) {
+      setEmail(userData.email || '');
+      setDomain(userData.domain || '');
+      setGscSiteUrl(userData.gsc_site_url || '');
+      setGa4PropertyId(userData.ga4_property_id || '');
+      
+      // --- NEUE STATES FÜLLEN ---
+      setSemrushProjectId(userData.semrush_project_id || '');
+      setTrackingId(userData.tracking_id || '');
+      // --------------------------
     }
+  }, [userData]);
+
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setMessage('Speichere Änderungen...');
+    setIsSubmitting(true);
+
+    // --- PAYLOAD ERWEITERN ---
+    const payload = {
+      email,
+      domain: userData.role === 'BENUTZER' ? domain : null,
+      gsc_site_url: userData.role === 'BENUTZER' ? gscSiteUrl : null,
+      ga4_property_id: userData.role === 'BENUTZER' ? ga4PropertyId : null,
+      semrush_project_id: userData.role === 'BENUTZER' ? semrushProjectId : null, // NEU
+      tracking_id: userData.role === 'BENUTZER' ? trackingId : null,             // NEU
+    };
+    // -------------------------
 
     try {
-      const response = await fetch(`/api/users/${id}`, {
+      const response = await fetch(`/api/users/${userData.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       });
 
       const result = await response.json();
-      if (!response.ok) throw new Error(result?.message || 'Update fehlgeschlagen');
 
-      setMessage('Benutzer erfolgreich aktualisiert. Sie werden weitergeleitet...');
-      setIsSuccess(true);
-      setTimeout(() => router.push('/admin'), 1500); // Weiterleitung nach 1.5s
-    } catch (err: unknown) {
-      setMessage(
-        `Fehler: ${err instanceof Error ? err.message : 'Ein unbekannter Fehler ist aufgetreten.'}`
-      );
-      setIsSuccess(false);
+      if (!response.ok) {
+        throw new Error(result.message || 'Ein Fehler ist aufgetreten.');
+      }
+
+      setMessage('Benutzer erfolgreich aktualisiert!');
+      if (onUserUpdated) {
+        onUserUpdated(); // Daten auf der Hauptseite neu laden
+      }
+    } catch (error) {
+      setMessage(`Fehler: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`);
     } finally {
-      setIsLoading(false); // Ladevorgang beenden
+      setIsSubmitting(false);
     }
   };
 
-  // Prüfen, ob der Benutzer ein Admin oder Superadmin ist
-  const isAdmin = user.role === 'ADMIN' || user.role === 'SUPERADMIN';
-
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {/* --- Eingabefelder --- */}
-      {isAdmin ? (
-        // Felder für Admins
-        <>
-          <div>
-            <label htmlFor="email" className="block text-sm font-semibold text-gray-700">
-              E-Mail
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              defaultValue={user.email}
-              required
-              className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-              disabled={isLoading}
-            />
-          </div>
-          <div>
-            <label htmlFor="password" className="block text-sm font-semibold text-gray-700">
-              Neues Passwort (optional)
-            </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              placeholder="Leer lassen, um das Passwort nicht zu ändern"
-              className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-              disabled={isLoading}
-            />
-          </div>
-        </>
-      ) : (
-        // Felder für normale Benutzer (Kunden)
-        <>
-          <div>
-            <label htmlFor="email" className="block text-sm font-semibold text-gray-700">
-              Kunden E-Mail
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              defaultValue={user.email}
-              required
-              className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-              disabled={isLoading}
-            />
-          </div>
+    <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
+      <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+        <Pencil size={20} /> Benutzerinformationen bearbeiten
+      </h2>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* E-Mail */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700">E-Mail</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+            disabled={isSubmitting}
+          />
+        </div>
 
-          <div>
-            <label htmlFor="password" className="block text-sm font-semibold text-gray-700">
-              Neues Passwort (optional)
-            </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              placeholder="Leer lassen, um das Passwort nicht zu ändern"
-              className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-              disabled={isLoading}
-            />
-          </div>
+        {/* Spezifische Kunden-Felder */}
+        {userData.role === 'BENUTZER' && (
+          <>
+            {/* Domain */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Domain</label>
+              <input
+                type="text"
+                value={domain}
+                onChange={(e) => setDomain(e.target.value)}
+                placeholder="kundendomain.at"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
+                disabled={isSubmitting}
+              />
+            </div>
 
-          <div>
-            <label htmlFor="domain" className="block text-sm font-semibold text-gray-700">
-              Domain
-            </label>
-            <input
-              id="domain"
-              name="domain"
-              type="text"
-              defaultValue={user.domain}
-              required
-              className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-              disabled={isLoading}
-            />
-          </div>
+            {/* GSC Site URL */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700">GSC Site URL</label>
+              <input
+                type="text"
+                value={gscSiteUrl}
+                onChange={(e) => setGscSiteUrl(e.target.value)}
+                placeholder="Optional"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
+                disabled={isSubmitting}
+              />
+            </div>
 
-          <div>
-            <label htmlFor="gsc_site_url" className="block text-sm font-semibold text-gray-700">
-              GSC Site URL
-            </label>
-            <input
-              id="gsc_site_url"
-              name="gsc_site_url"
-              type="text"
-              defaultValue={user.gsc_site_url}
-              required
-              className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-              disabled={isLoading}
-            />
-          </div>
+            {/* GA4 Property ID */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700">GA4 Property ID (nur Nummer)</label>
+              <input
+                type="text"
+                value={ga4PropertyId}
+                onChange={(e) => setGa4PropertyId(e.target.value)}
+                placeholder="Optional"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
+                disabled={isSubmitting}
+              />
+            </div>
 
-          <div>
-            <label htmlFor="ga4_property_id" className="block text-sm font-semibold text-gray-700">
-              GA4 Property ID
-            </label>
-            <input
-              id="ga4_property_id"
-              name="ga4_property_id"
-              type="text"
-              defaultValue={user.ga4_property_id}
-              required
-              className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-              disabled={isLoading}
-            />
-          </div>
-        </>
-      )}
+            {/* --- NEUES FELD: Semrush Projekt ID --- */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Semrush Projekt ID</label>
+              <input
+                type="text"
+                value={semrushProjectId}
+                onChange={(e) => setSemrushProjectId(e.target.value)}
+                placeholder="Optional"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
+                disabled={isSubmitting}
+              />
+            </div>
 
-      {/* --- Button und Nachrichtenanzeige --- */}
-      <div className="pt-4 border-t border-gray-100 flex flex-col items-end gap-4">
-        {/* Angepasster Button "Änderungen speichern" */}
+            {/* --- NEUES FELD: Tracking-ID --- */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Tracking-ID</label>
+              <input
+                type="text"
+                value={trackingId}
+                onChange={(e) => setTrackingId(e.target.value)}
+                placeholder="Optional"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
+                disabled={isSubmitting}
+              />
+            </div>
+          </>
+        )}
+
+        {/* Button */}
         <button
           type="submit"
-          disabled={isLoading}
-          className="px-4 py-2 font-normal text-white bg-[#188bdb] border-[3px] border-[#188bdb] rounded-[3px] hover:shadow-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#188bdb] disabled:opacity-50 disabled:cursor-wait flex items-center justify-center gap-2"
+          disabled={isSubmitting}
+          className="w-full px-4 py-2 font-normal text-white bg-[#188bdb] border-[3px] border-[#188bdb] rounded-[3px] hover:shadow-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#188bdb] disabled:opacity-50 disabled:cursor-wait flex items-center justify-center gap-2"
         >
-          {isLoading ? (
-            <>
-              <ArrowRepeat className="animate-spin" size={18} />
-              <span>Wird gespeichert...</span>
-            </>
+          {isSubmitting ? (
+            <ArrowRepeat className="animate-spin" size={18} />
           ) : (
-            <>
-              <Check2 size={20} /> {/* Größeres Icon */}
-              Änderungen speichern
-            </>
+            <CheckCircle size={18} />
           )}
+          <span>{isSubmitting ? 'Wird gespeichert...' : 'Änderungen speichern'}</span>
         </button>
 
-        {/* Nachrichtenanzeige */}
-        {message && (
-          <p
-            className={`w-full text-center text-sm p-3 rounded-md flex items-center justify-center gap-2 ${
-              isSuccess 
-              ? 'bg-green-50 text-green-800 border border-green-200' 
-              : 'bg-red-50 text-red-800 border border-red-200'
-            }`}
-          >
-            {isSuccess ? <InfoCircleFill size={16} /> : <ExclamationTriangleFill size={16} />}
-            {message}
-          </p>
-        )}
-      </div>
-    </form>
+        {message && <p className="text-sm text-gray-600 mt-4">{message}</p>}
+      </form>
+    </div>
   );
 }
