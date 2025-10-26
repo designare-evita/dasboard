@@ -99,34 +99,46 @@ export async function PUT(
     
     console.log(`[PUT /api/users/${id}] Update-Anfrage...`);
 
-    // Dynamisches Update-Set
-    const updateFields = [
-      `email = ${normalizedEmail}`,
-      `domain = ${domain || null}`,
-      `gsc_site_url = ${gsc_site_url || null}`,
-      `ga4_property_id = ${ga4_property_id || null}`,
-      `semrush_project_id = ${semrush_project_id || null}`,
-      `semrush_tracking_id = ${semrush_tracking_id || null}`
-    ];
-
+    // Passwort hashen, falls vorhanden
+    let hashedPassword = null;
     if (password && password.trim().length > 0) {
-      const hashedPassword = await bcrypt.hash(password, 10);
-      updateFields.push(`password = ${hashedPassword}`);
+      hashedPassword = await bcrypt.hash(password, 10);
       console.log(`  - [PUT /api/users/${id}] Passwort wird aktualisiert.`);
     }
 
-    const setClause = updateFields.join(', ');
-    const updateQueryString = `
-      UPDATE users
-      SET ${setClause}
-      WHERE id = $1::uuid
-      RETURNING
-        id::text as id, email, role, domain, 
-        gsc_site_url, ga4_property_id, 
-        semrush_project_id, semrush_tracking_id;
-    `;
-
-    const { rows } = await sql.query<User>(updateQueryString, [id]);
+    // Update mit korrekter SQL-Syntax
+    const { rows } = hashedPassword
+      ? await sql<User>`
+          UPDATE users
+          SET 
+            email = ${normalizedEmail},
+            domain = ${domain || null},
+            gsc_site_url = ${gsc_site_url || null},
+            ga4_property_id = ${ga4_property_id || null},
+            semrush_project_id = ${semrush_project_id || null},
+            semrush_tracking_id = ${semrush_tracking_id || null},
+            password = ${hashedPassword}
+          WHERE id = ${id}::uuid
+          RETURNING
+            id::text as id, email, role, domain, 
+            gsc_site_url, ga4_property_id, 
+            semrush_project_id, semrush_tracking_id;
+        `
+      : await sql<User>`
+          UPDATE users
+          SET 
+            email = ${normalizedEmail},
+            domain = ${domain || null},
+            gsc_site_url = ${gsc_site_url || null},
+            ga4_property_id = ${ga4_property_id || null},
+            semrush_project_id = ${semrush_project_id || null},
+            semrush_tracking_id = ${semrush_tracking_id || null}
+          WHERE id = ${id}::uuid
+          RETURNING
+            id::text as id, email, role, domain, 
+            gsc_site_url, ga4_property_id, 
+            semrush_project_id, semrush_tracking_id;
+        `;
 
     if (rows.length === 0) {
       return NextResponse.json({ message: "Update fehlgeschlagen. Benutzer nicht gefunden." }, { status: 404 });
