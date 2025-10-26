@@ -9,7 +9,7 @@ import { User } from '@/types'; // User-Typ importieren
 
 // Typ für die Parameter aus dem Pfad
 type RouteHandlerParams = {
-  params: { id: string }; // params ist kein Promise mehr in aktuellen Next.js Versionen
+  params: { id: string };
 };
 
 // Handler zum Abrufen eines einzelnen Benutzers
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest, { params }: RouteHandlerParams) 
       return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
     }
 
-    const { id } = params; // ID direkt aus params holen
+    const { id } = params;
     console.log(`[GET /api/users/${id}] Benutzerdaten abrufen...`);
 
     // Alle relevanten Felder abrufen, einschließlich der neuen Semrush-Felder
@@ -60,7 +60,7 @@ export async function PUT(request: NextRequest, { params }: RouteHandlerParams) 
       return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
     }
 
-    const { id } = params; // ID direkt aus params holen
+    const { id } = params;
     const body = await request.json();
 
     // --- NEUE FELDER AUS DEM BODY LESEN ---
@@ -95,13 +95,11 @@ export async function PUT(request: NextRequest, { params }: RouteHandlerParams) 
     }
 
     // Hole die aktuelle Rolle, falls sie nicht im Body mitgesendet wird
-    // (Rollenänderung sollte idealerweise über eine separate Route/Logik erfolgen)
     const { rows: existingUsers } = await sql`SELECT role FROM users WHERE id = ${id}::uuid`;
     if (existingUsers.length === 0) {
       return NextResponse.json({ message: "Benutzer nicht gefunden" }, { status: 404 });
     }
-    // const currentRole = existingUsers[0].role; // Aktuelle Rolle des Benutzers
-
+    
     console.log(`[PUT /api/users/${id}] Update-Anfrage:`);
     console.log('  - E-Mail:', normalizedEmail);
     console.log('  - Domain:', domain);
@@ -111,8 +109,8 @@ export async function PUT(request: NextRequest, { params }: RouteHandlerParams) 
     console.log('  - Tracking ID:', tracking_id);       // NEU
     console.log('  - Passwort ändern:', !!password);
 
-    // SQL-Update-Befehl dynamisch aufbauen (Passwort nur bei Bedarf ändern)
-    let updateFields = [
+    // --- KORREKTUR: let zu const geändert ---
+    const updateFields = [
       `email = ${normalizedEmail}`,
       // Setze Felder auf NULL, wenn sie leer sind, sonst den Wert
       `domain = ${domain || null}`,
@@ -121,6 +119,7 @@ export async function PUT(request: NextRequest, { params }: RouteHandlerParams) 
       `semrush_project_id = ${semrush_project_id || null}`, // NEU
       `tracking_id = ${tracking_id || null}`                // NEU
     ];
+    // ----------------------------------------
 
     let hashedPassword = null;
     if (password && password.trim().length > 0) {
@@ -182,12 +181,8 @@ export async function DELETE(request: NextRequest, { params }: RouteHandlerParam
       return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
     }
 
-    const { id } = params; // ID direkt aus params holen
+    const { id } = params;
     console.log(`[DELETE /api/users/${id}] Lösche Benutzer...`);
-
-    // TODO: Verfeinerte Berechtigungsprüfung: Darf dieser Admin den Benutzer löschen?
-    // z.B.: Superadmin darf alle, Admin nur eigene BENUTZER.
-    // z.B.: Kein Löschen des eigenen Kontos über diese Route.
 
     const result = await sql`
       DELETE FROM users WHERE id = ${id}::uuid; -- ID als UUID casten
