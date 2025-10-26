@@ -1,4 +1,4 @@
-// src/components/ProjectDashboard.tsx
+// src/components/ProjectDashboard.tsx (Ihre 'ProjectDashboard(2).tsx')
 'use client';
 
 import { useState } from 'react';
@@ -14,9 +14,18 @@ import AiTrafficCard from '@/components/AiTrafficCard';
 import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector';
 import TopQueriesList from '@/components/TopQueriesList';
 
+// --- NEUER IMPORT ---
+import SemrushKpiCards, { SemrushData } from '@/components/SemrushKpiCards';
+
 interface ProjectDashboardProps {
-  /** Die vom API-Endpunkt geladenen Daten */
+  /** Die vom API-Endpunkt geladenen Daten (Google, AI, etc.) */
   data: ProjectDashboardData;
+
+  /** * NEUE PROP: Die separat geladenen Semrush-Daten.
+   * Siehe HINWEIS in Schritt 4.
+   */
+  semrushData: SemrushData | null;
+
   /** Zeigt an, ob die Daten noch geladen werden */
   isLoading: boolean;
   /** Aktuell ausgewählter Zeitraum */
@@ -25,12 +34,13 @@ interface ProjectDashboardProps {
   onDateRangeChange: (range: DateRangeOption) => void;
   /** Ob ein Hinweis auf fehlende Daten angezeigt werden soll */
   showNoDataHint?: boolean;
-  /** Alternativer Text für den "Keine Daten" Hinweis */
+  /** Alternativer Text für den \"Keine Daten\" Hinweis */
   noDataHintText?: string;
 }
 
 export default function ProjectDashboard({
   data,
+  semrushData, // Neue Prop hier empfangen
   isLoading,
   dateRange,
   onDateRangeChange,
@@ -40,70 +50,81 @@ export default function ProjectDashboard({
   
   const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
 
-  // Deutsche Labels für KPIs
-  const kpiLabels: Partial<Record<string, string>> = {
-    clicks: 'Klicks',
-    impressions: 'Impressionen',
-    sessions: 'Sitzungen',
-    users: 'Nutzer',
-    visitors: 'Nutzer', // Falls der Typ 'visitors' heißt
-  };
-
-  // Normalisierte KPIs für eine sichere Anzeige
+  // Normalisiert die KPIs (Clicks, Impressions, etc.)
   const kpis = normalizeFlatKpis(data.kpis);
 
-  // Aktive Chart-Serie basierend auf dem Tab
-  const chartSeries = (data.charts && data.charts[activeKpi]) ? data.charts[activeKpi]! : [];
+  // Leitet die Daten für das aktive Chart ab
+  const chartSeries = data.kpis[activeKpi]?.series || [];
+  const kpiLabels: Record<string, string> = {
+    clicks: 'Klicks',
+    impressions: 'Impressionen',
+    sessions: 'Sitzungen (GA4)',
+    users: 'Nutzer (GA4)',
+  };
 
   return (
-    <>
-      {/* Header mit DateRangeSelector */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-        <h2 className="text-3xl font-bold text-gray-900">Dashboard</h2>
-        <DateRangeSelector 
-          value={dateRange} 
-          onChange={onDateRangeChange}
-        />
+    <div className="space-y-8">
+      {/* --- 1. BLOCK: Google KPI-Karten --- */}
+      <div>
+        <div className="flex flex-col md:flex-row justify-between md:items-center mb-4 gap-4">
+          <h2 className="text-xl font-semibold text-gray-700">
+            Google Übersicht (Search Console & GA4)
+          </h2>
+          <DateRangeSelector
+            selectedRange={dateRange}
+            onRangeChange={onDateRangeChange}
+          />
+        </div>
+        <KpiCardsGrid kpis={kpis} isLoading={isLoading} />
       </div>
-        
-      {/* KPI-Karten Grid */}
-      <KpiCardsGrid kpis={kpis} isLoading={isLoading} />
-        
-      {/* Charts - volle Breite */}
-      <div className="mt-8">
-        <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
-          <div className="flex border-b border-gray-200">
-            {(Object.keys(KPI_TAB_META) as ActiveKpi[]).map((key) => (
+
+      {/* --- 2. BLOCK: Google KPI-Chart --- */}
+      <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 sm:mb-0">
+            Performance-Trend
+          </h3>
+          <div className="flex-shrink-0 flex flex-wrap gap-2">
+            {(Object.keys(KPI_TAB_META) as ActiveKpi[]).map((kpi) => (
               <button
-                key={key}
-                onClick={() => setActiveKpi(key)}
-                className={`py-2 px-4 text-sm font-medium transition-colors ${
-                  activeKpi === key
-                    ? 'border-b-2 border-indigo-500 text-indigo-600'
-                    : 'text-gray-500 hover:text-gray-700 hover:border-gray-300 border-b-2 border-transparent'
+                key={kpi}
+                onClick={() => setActiveKpi(kpi)}
+                className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
+                  activeKpi === kpi
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
-                {KPI_TAB_META[key].title}
+                {KPI_TAB_META[kpi].title}
               </button>
             ))}
           </div>
-          <div className="mt-4 h-72">
-            <KpiTrendChart 
-              data={chartSeries} 
-              color={KPI_TAB_META[activeKpi].color}
-              label={kpiLabels[activeKpi] || KPI_TAB_META[activeKpi].title}
-            />
-          </div>
-
-          {showNoDataHint && (
-            <p className="mt-6 text-sm text-gray-500">
-              {noDataHintText}
-            </p>
-          )}
         </div>
+        <div className="mt-4 h-72">
+          <KpiTrendChart 
+            data={chartSeries} 
+            color={KPI_TAB_META[activeKpi].color}
+            label={kpiLabels[activeKpi] || KPI_TAB_META[activeKpi].title}
+          />
+        </div>
+
+        {showNoDataHint && (
+          <p className="mt-6 text-sm text-gray-500">
+            {noDataHintText}
+          </p>
+        )}
       </div>
+
+      {/* --- 3. BLOCK: SEMRUSH (NEU) ---
+        Wie gewünscht NACH den Google-Daten.
+        Wir übergeben die 'semrushData'-Prop und den 'isLoading'-Status.
+      */}
+      <SemrushKpiCards 
+        data={semrushData} 
+        isLoading={isLoading} 
+      />
         
-      {/* KI-Traffic + Top Queries nebeneinander */}
+      {/* --- 4. BLOCK: KI-Traffic + Top Queries nebeneinander --- */}
       <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* KI-Traffic Card ZUERST (1 Spalte) */}
         {data.aiTraffic && (
@@ -124,11 +145,11 @@ export default function ProjectDashboard({
           <div className={`${data.aiTraffic ? 'lg:col-span-2' : 'lg:col-span-3'}`}>
             <TopQueriesList 
               queries={data.topQueries} 
-              isLoading={isLoading}
+              isLoading={isLoading} 
             />
           </div>
         )}
       </div>
-    </>
+    </div>
   );
 }
