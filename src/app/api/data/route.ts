@@ -2,9 +2,9 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { 
-  getSearchConsoleData, 
-  getAnalyticsData, 
+import {
+  getSearchConsoleData,
+  getAnalyticsData,
   getTopQueries,
   getAiTrafficData,
   type AiTrafficData
@@ -13,15 +13,22 @@ import { sql } from '@vercel/postgres';
 import { User } from '@/types';
 
 // Hilfsfunktionen
-function formatDate(date: Date): string { 
-  return date.toISOString().split('T')[0]; 
+function formatDate(date: Date): string {
+  return date.toISOString().split('T')[0];
 }
 
 function calculateChange(current: number, previous: number): number {
   if (previous === 0) return current > 0 ? 100 : 0;
-  const change = ((current - previous) / previous) * 100;
+  // Sicherstellen, dass wir Zahlen haben
+  const currentNum = typeof current === 'number' && !isNaN(current) ? current : 0;
+  const previousNum = typeof previous === 'number' && !isNaN(previous) ? previous : 0;
+  // Erneute Prüfung nach Konvertierung
+  if (previousNum === 0) return currentNum > 0 ? 100 : 0;
+
+  const change = ((currentNum - previousNum) / previousNum) * 100;
   return Math.round(change * 10) / 10;
 }
+
 
 /**
  * Lädt vollständige Dashboard-Daten für einen Benutzer inkl. KI-Traffic
@@ -35,27 +42,27 @@ async function getDashboardDataForUser(user: Partial<User>, dateRange: string = 
   // Berechne Zeitraum basierend auf dateRange Parameter
   const today = new Date();
   const endDateCurrent = new Date(today);
-  endDateCurrent.setDate(endDateCurrent.getDate() - 1);
-  
+  endDateCurrent.setDate(endDateCurrent.getDate() - 1); // Gestern als Enddatum
+
   const startDateCurrent = new Date(endDateCurrent);
   let daysBack: number;
-  
+
   switch (dateRange) {
     case '3m':
-      daysBack = 90;
+      daysBack = 90; // Korrekt für 3 Monate (ca.)
       break;
     case '6m':
-      daysBack = 180;
+      daysBack = 180; // Korrekt für 6 Monate (ca.)
       break;
     case '12m':
-      daysBack = 365;
+      daysBack = 365; // Korrekt für 12 Monate (ca.)
       break;
     case '30d':
     default:
-      daysBack = 29;
+      daysBack = 29; // Damit es 30 Tage sind (inkl. Start- und Endtag)
       break;
   }
-  
+
   startDateCurrent.setDate(startDateCurrent.getDate() - daysBack);
 
   // Vorheriger Zeitraum (für Vergleich)
@@ -65,8 +72,14 @@ async function getDashboardDataForUser(user: Partial<User>, dateRange: string = 
   startDatePrevious.setDate(startDatePrevious.getDate() - daysBack);
 
   try {
-    console.log(`[getDashboardDataForUser] Lade Daten für ${user.email}`);
-    
+    console.log(`[getDashboardDataForUser] Lade Daten für ${user.email} (${dateRange})`);
+    console.log(`[getDashboardDataForUser] Aktueller Zeitraum: ${formatDate(startDateCurrent)} bis ${formatDate(endDateCurrent)}`);
+    console.log(`[getDashboardDataForUser] Vorheriger Zeitraum: ${formatDate(startDatePrevious)} bis ${formatDate(endDatePrevious)}`);
+
+    // --- DEBUGGING LOG HINZUGEFÜGT ---
+    console.log(`[DEBUG] Versuche API-Calls mit GSC: ${user.gsc_site_url} und GA4-Property: ${user.ga4_property_id}`);
+    // ------------------------------------
+
     // Alle API-Calls parallel ausführen (inkl. KI-Traffic)
     const [gscCurrent, gscPrevious, gaCurrent, gaPrevious, topQueries, aiTraffic] = await Promise.all([
       getSearchConsoleData(user.gsc_site_url, formatDate(startDateCurrent), formatDate(endDateCurrent)),
@@ -76,38 +89,38 @@ async function getDashboardDataForUser(user: Partial<User>, dateRange: string = 
       getTopQueries(user.gsc_site_url, formatDate(startDateCurrent), formatDate(endDateCurrent)),
       getAiTrafficData(user.ga4_property_id, formatDate(startDateCurrent), formatDate(endDateCurrent))
     ]);
-    
+
     console.log(`[getDashboardDataForUser] ✅ Daten erfolgreich geladen`);
     console.log(`[getDashboardDataForUser] KI-Traffic: ${aiTraffic.totalSessions} Sitzungen`);
-    
+
     // KI-Traffic-Anteil berechnen
     const totalSessions = gaCurrent.sessions.total ?? 0;
-    const aiSessionsPercentage = totalSessions > 0 
-      ? (aiTraffic.totalSessions / totalSessions) * 100 
+    const aiSessionsPercentage = totalSessions > 0
+      ? (aiTraffic.totalSessions / totalSessions) * 100
       : 0;
 
     console.log(`[getDashboardDataForUser] KI-Traffic-Anteil: ${aiSessionsPercentage.toFixed(2)}%`);
 
     return {
       kpis: {
-        clicks: { 
-          value: gscCurrent.clicks.total ?? 0, 
+        clicks: {
+          value: gscCurrent.clicks.total ?? 0,
           change: calculateChange(gscCurrent.clicks.total ?? 0, gscPrevious.clicks.total ?? 0)
         },
-        impressions: { 
-          value: gscCurrent.impressions.total ?? 0, 
+        impressions: {
+          value: gscCurrent.impressions.total ?? 0,
           change: calculateChange(gscCurrent.impressions.total ?? 0, gscPrevious.impressions.total ?? 0)
         },
-        sessions: { 
-          value: gaCurrent.sessions.total ?? 0, 
+        sessions: {
+          value: gaCurrent.sessions.total ?? 0,
           change: calculateChange(gaCurrent.sessions.total ?? 0, gaPrevious.sessions.total ?? 0),
           aiTraffic: {
             value: aiTraffic.totalSessions,
             percentage: aiSessionsPercentage
           }
         },
-        totalUsers: { 
-          value: gaCurrent.totalUsers.total ?? 0, 
+        totalUsers: {
+          value: gaCurrent.totalUsers.total ?? 0,
           change: calculateChange(gaCurrent.totalUsers.total ?? 0, gaPrevious.totalUsers.total ?? 0)
         },
       },
@@ -122,6 +135,7 @@ async function getDashboardDataForUser(user: Partial<User>, dateRange: string = 
     };
   } catch (error) {
     console.error('[getDashboardDataForUser] Fehler beim Abrufen der Google-Daten:', error);
+    // Den Fehler weiterwerfen, damit der aufrufende Handler ihn fangen kann
     throw error;
   }
 }
@@ -129,9 +143,9 @@ async function getDashboardDataForUser(user: Partial<User>, dateRange: string = 
 /**
  * GET /api/data
  * Hauptendpoint für Dashboard-Daten - unterstützt alle Rollen
- * Query-Parameter: 
- *   - dateRange (optional): '30d' | '3m' | '6m' | '12m'
- *   - projectId (optional): Für Admins um spezifisches Projekt zu laden
+ * Query-Parameter:
+ * - dateRange (optional): '30d' | '3m' | '6m' | '12m'
+ * - projectId (optional): Für Admins um spezifisches Projekt zu laden
  */
 export async function GET(request: Request) {
   try {
@@ -156,18 +170,18 @@ export async function GET(request: Request) {
     // ADMIN/SUPERADMIN mit projectId: Lade Dashboard für spezifisches Projekt
     // ========================================
     if ((role === 'ADMIN' || role === 'SUPERADMIN') && projectId) {
-      console.log('[/api/data] Admin lädt Dashboard für Projekt:', projectId);
+      console.log('[/api/data] Admin/Superadmin lädt Dashboard für Projekt:', projectId);
 
       // Projekt-Daten laden
       const { rows } = await sql<User>`
-        SELECT id, email, domain, gsc_site_url, ga4_property_id 
-        FROM users 
+        SELECT id, email, domain, gsc_site_url, ga4_property_id
+        FROM users
         WHERE id::text = ${projectId}
         AND role = 'BENUTZER'
       `;
 
       if (rows.length === 0) {
-        return NextResponse.json({ message: 'Projekt nicht gefunden.' }, { status: 404 });
+        return NextResponse.json({ message: 'Projekt nicht gefunden oder kein BENUTZER.' }, { status: 404 });
       }
 
       const project = rows[0];
@@ -175,29 +189,29 @@ export async function GET(request: Request) {
       // Wenn ADMIN: Prüfe ob Zugriff erlaubt ist
       if (role === 'ADMIN') {
         const { rows: assignments } = await sql`
-          SELECT 1 
-          FROM project_assignments 
-          WHERE user_id::text = ${id} 
+          SELECT 1
+          FROM project_assignments
+          WHERE user_id::text = ${id}
           AND project_id::text = ${projectId}
         `;
 
         if (assignments.length === 0) {
           console.warn('[/api/data] ⚠️ Admin hat keinen Zugriff auf dieses Projekt');
-          return NextResponse.json({ message: 'Zugriff verweigert.' }, { status: 403 });
+          return NextResponse.json({ message: 'Zugriff verweigert. Sie haben keine Berechtigung für dieses Projekt.' }, { status: 403 });
         }
-      }
+      } // Superadmin braucht keine Prüfung
 
       // Dashboard-Daten für das Projekt laden
       const dashboardData = await getDashboardDataForUser(project, dateRange);
-      
+
       if (!dashboardData) {
-        return NextResponse.json({ 
-          message: 'Für dieses Projekt sind keine Google-Properties konfiguriert.' 
-        }, { status: 404 });
+        return NextResponse.json({
+          message: 'Für dieses Projekt sind keine Google Search Console oder Google Analytics Properties konfiguriert.'
+        }, { status: 404 }); // 404 ist hier passender als 500
       }
 
       console.log('[/api/data] ✅ Dashboard-Daten für Projekt erfolgreich geladen');
-      
+
       return NextResponse.json(dashboardData);
     }
 
@@ -205,86 +219,90 @@ export async function GET(request: Request) {
     // SUPERADMIN ohne projectId: Sieht alle Benutzer-Projekte (Übersicht)
     // ========================================
     if (role === 'SUPERADMIN' && !projectId) {
-      console.log('[/api/data] Loading projects for SUPERADMIN');
-      
+      console.log('[/api/data] Lade Projektliste für SUPERADMIN');
+
       const { rows: projects } = await sql<User>`
-        SELECT id, email, domain, gsc_site_url, ga4_property_id 
-        FROM users 
+        SELECT id::text AS id, email, domain, gsc_site_url, ga4_property_id
+        FROM users
         WHERE role = 'BENUTZER'
         ORDER BY email ASC;
       `;
-      
-      console.log('[/api/data] Found', projects.length, 'projects for SUPERADMIN');
-      
+
+      console.log('[/api/data] Gefunden:', projects.length, 'Projekte für SUPERADMIN');
+
       return NextResponse.json({ role, projects });
     }
-    
+
     // ========================================
     // ADMIN ohne projectId: Sieht nur zugewiesene Projekte (Übersicht)
     // ========================================
     if (role === 'ADMIN' && !projectId) {
-      console.log('[/api/data] Loading projects for ADMIN:', id);
-      
+      console.log('[/api/data] Lade zugewiesene Projekte für ADMIN:', id);
+
       const { rows: projects } = await sql<User>`
-        SELECT 
-          u.id, 
-          u.email, 
-          u.domain, 
-          u.gsc_site_url, 
-          u.ga4_property_id 
+        SELECT
+          u.id::text AS id,
+          u.email,
+          u.domain,
+          u.gsc_site_url,
+          u.ga4_property_id
         FROM users u
         INNER JOIN project_assignments pa ON u.id = pa.project_id
         WHERE pa.user_id::text = ${id}
         AND u.role = 'BENUTZER'
         ORDER BY u.email ASC;
       `;
-      
-      console.log('[/api/data] Found', projects.length, 'assigned projects for ADMIN');
-      
+
+      console.log('[/api/data] Gefunden:', projects.length, 'zugewiesene Projekte für ADMIN');
+
       if (projects.length === 0) {
         console.warn('[/api/data] ⚠️ ADMIN hat keine zugewiesenen Projekte');
       }
-      
+
       return NextResponse.json({ role, projects });
     }
-    
+
     // ========================================
     // BENUTZER: Sieht sein eigenes Dashboard
     // ========================================
     if (role === 'BENUTZER') {
-      console.log('[/api/data] Loading dashboard for BENUTZER');
-      
+      console.log('[/api/data] Lade Dashboard für BENUTZER');
+
       const { rows } = await sql<User>`
-        SELECT gsc_site_url, ga4_property_id, email 
-        FROM users 
+        SELECT gsc_site_url, ga4_property_id, email
+        FROM users
         WHERE id::text = ${id}
       `;
-      
+
       const user = rows[0];
       if (!user) {
         return NextResponse.json({ message: 'Benutzer nicht gefunden.' }, { status: 404 });
       }
-      
+
       const dashboardData = await getDashboardDataForUser(user, dateRange);
       if (!dashboardData) {
-        return NextResponse.json({ 
-          message: 'Für diesen Benutzer sind keine Google-Properties konfiguriert.' 
+        return NextResponse.json({
+          message: 'Für diesen Benutzer sind keine Google-Properties konfiguriert.'
         }, { status: 404 });
       }
-      
+
       console.log('[/api/data] ✅ Dashboard-Daten erfolgreich geladen');
-      
+
       return NextResponse.json(dashboardData);
     }
 
-    return NextResponse.json({ message: 'Unbekannte Benutzerrolle.' }, { status: 403 });
+    // Fallback für unerwartete Rollen oder Zustände
+    console.error('[/api/data] Unerwarteter Zustand - Unbekannte Benutzerrolle oder fehlender projectId:', role);
+    return NextResponse.json({ message: 'Unbekannte Benutzerrolle oder ungültige Anfrage.' }, { status: 403 });
 
   } catch (error) {
-    console.error('[/api/data] Fehler:', error);
+    console.error('[/api/data] Schwerwiegender Fehler im Handler:', error);
+    // Hier wird der Fehler von getDashboardDataForUser gefangen
     const errorMessage = error instanceof Error ? error.message : 'Interner Serverfehler.';
-    return NextResponse.json({ 
+    return NextResponse.json({
       message: `Fehler beim Abrufen der Dashboard-Daten: ${errorMessage}`,
-      error: error instanceof Error ? error.message : String(error)
+      // Optional: error.stack im Entwicklungsmodus hinzufügen
+      // stack: process.env.NODE_ENV === 'development' && error instanceof Error ? error.stack : undefined
     }, { status: 500 });
   }
 }
