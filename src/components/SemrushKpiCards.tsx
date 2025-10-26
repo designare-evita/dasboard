@@ -94,7 +94,7 @@ export default function SemrushKpiCards({ data, isLoading = false }: SemrushKpiC
             </div>
           ) : (
             <p className="text-2xl font-bold text-orange-900">
-              {data?.organicKeywords !== null 
+              {data?.organicKeywords !== null && data?.organicKeywords !== undefined
                 ? data.organicKeywords.toLocaleString('de-DE')
                 : '-'
               }
@@ -119,7 +119,7 @@ export default function SemrushKpiCards({ data, isLoading = false }: SemrushKpiC
             </div>
           ) : (
             <p className="text-2xl font-bold text-orange-900">
-              {data?.organicTraffic !== null 
+              {data?.organicTraffic !== null && data?.organicTraffic !== undefined
                 ? data.organicTraffic.toLocaleString('de-DE')
                 : '-'
               }
