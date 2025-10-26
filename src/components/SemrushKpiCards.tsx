@@ -4,7 +4,6 @@
 
 import useSWR from 'swr';
 import KpiCard from './kpi-card'; // Wiederverwenden der bestehenden KPI-Karte
-import { GraphUpArrow } from 'react-bootstrap-icons';
 import { format, parseISO } from 'date-fns';
 import { de } from 'date-fns/locale';
 
@@ -40,29 +39,11 @@ export default function SemrushKpiCards({ projectId }: { projectId: string }) {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Skeleton Loader */}
-        <div className="bg-white p-6 rounded-lg shadow-md animate-pulse">
-          <div className="h-4 bg-gray-200 rounded w-1/3 mb-2"></div>
-          <div className="h-8 bg-gray-300 rounded w-1/2 mb-2"></div>
-          <div className="h-3 bg-gray-200 rounded w-1/4"></div>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow-md animate-pulse">
-          <div className="h-4 bg-gray-200 rounded w-1/3 mb-2"></div>
-          <div className="h-8 bg-gray-300 rounded w-1/2 mb-2"></div>
-          <div className="h-3 bg-gray-200 rounded w-1/4"></div>
-        </div>
-      </div>
-    );
-  }
-
   if (error || data?.error) {
     return (
       <div className="bg-red-50 border-l-4 border-red-500 text-red-700 p-4 rounded-lg shadow-md" role="alert">
         <p className="font-bold">Semrush-Fehler</p>
-        <p>{data?.error || error.message}</p>
+        <p>{data?.error || (error as Error).message}</p>
       </div>
     );
   }
@@ -78,18 +59,20 @@ export default function SemrushKpiCards({ projectId }: { projectId: string }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <KpiCard
           title="Organische Keywords"
-          metric={data?.organicKeywords ?? 0}
-          icon={GraphUpArrow}
-          iconColor="text-purple-500"
-          // Semrush-Karten haben keine Trend-Daten
-          showTrend={false} 
+          // KORRIGIERT: 'metric' zu 'value' geändert
+          value={data?.organicKeywords ?? 0}
+          // KORRIGIERT: 'isLoading' Prop hinzugefügt
+          isLoading={isLoading}
+          // 'change' wird weggelassen (ist jetzt optional)
+          // 'icon', 'iconColor', 'showTrend' entfernt
         />
         <KpiCard
           title="Organischer Traffic"
-          metric={data?.organicTraffic ?? 0}
-          icon={GraphUpArrow}
-          iconColor="text-teal-500"
-          showTrend={false}
+          // KORRIGIERT: 'metric' zu 'value' geändert
+          value={data?.organicTraffic ?? 0}
+          // KORRIGIERT: 'isLoading' Prop hinzugefügt
+          isLoading={isLoading}
+          // 'change' wird weggelassen (ist jetzt optional)
         />
       </div>
     </div>
