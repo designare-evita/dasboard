@@ -32,8 +32,8 @@ export async function GET(
         domain,
         gsc_site_url,
         ga4_property_id,
-        semrush_project_id,
-        semrush_tracking_id
+        semrush_project_id::text as semrush_project_id,
+        semrush_tracking_id::text as semrush_tracking_id
       FROM users
       WHERE id = ${id}::uuid;
     `;
@@ -42,7 +42,11 @@ export async function GET(
       console.warn(`[GET /api/users/${id}] Benutzer nicht gefunden`);
       return NextResponse.json({ message: 'Benutzer nicht gefunden' }, { status: 404 });
     }
+    
     console.log(`[GET /api/users/${id}] Benutzer gefunden:`, rows[0].email);
+    console.log(`[GET /api/users/${id}] Semrush Project ID:`, rows[0].semrush_project_id);
+    console.log(`[GET /api/users/${id}] Semrush Tracking ID:`, rows[0].semrush_tracking_id);
+    
     return NextResponse.json(rows[0]);
   } catch (error) {
     console.error(`[GET /api/users/${id}] Fehler:`, error);
@@ -98,6 +102,8 @@ export async function PUT(
     }
     
     console.log(`[PUT /api/users/${id}] Update-Anfrage...`);
+    console.log(`[PUT /api/users/${id}] Semrush Project ID: ${semrush_project_id}`);
+    console.log(`[PUT /api/users/${id}] Semrush Tracking ID: ${semrush_tracking_id}`);
 
     // Passwort hashen, falls vorhanden
     let hashedPassword = null;
@@ -122,7 +128,8 @@ export async function PUT(
           RETURNING
             id::text as id, email, role, domain, 
             gsc_site_url, ga4_property_id, 
-            semrush_project_id, semrush_tracking_id;
+            semrush_project_id::text as semrush_project_id, 
+            semrush_tracking_id::text as semrush_tracking_id;
         `
       : await sql<User>`
           UPDATE users
@@ -137,7 +144,8 @@ export async function PUT(
           RETURNING
             id::text as id, email, role, domain, 
             gsc_site_url, ga4_property_id, 
-            semrush_project_id, semrush_tracking_id;
+            semrush_project_id::text as semrush_project_id, 
+            semrush_tracking_id::text as semrush_tracking_id;
         `;
 
     if (rows.length === 0) {
