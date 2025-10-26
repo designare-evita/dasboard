@@ -41,7 +41,10 @@ export default function ProjectDashboard({
 
   // Chart-Daten kommen aus dem separaten charts Objekt in der API-Response
   // data.charts enthält: { clicks: [...], impressions: [...], sessions: [...], totalUsers: [...] }
-  const chartSeries = (data as any).charts?.[activeKpi] || [];
+  type DataWithCharts = ProjectDashboardData & { 
+    charts?: Record<ActiveKpi, Array<{ date: string; value: number }>> 
+  };
+  const chartSeries = (data as DataWithCharts).charts?.[activeKpi] || [];
   
   const kpiLabels: Record<string, string> = {
     clicks: 'Klicks',
@@ -103,11 +106,6 @@ export default function ProjectDashboard({
         )}
       </div>
 
-      {/* Semrush KPI-Karten */}
-      <SemrushKpiCards 
-        data={semrushData} 
-        isLoading={isLoading} 
-      />
         
       {/* KI-Traffic + Top Queries */}
       <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -130,6 +128,12 @@ export default function ProjectDashboard({
               queries={data.topQueries} 
               isLoading={isLoading} 
             />
+
+             {/* Semrush KPI-Karten */}
+      <SemrushKpiCards 
+        data={semrushData} 
+        isLoading={isLoading} 
+      />
           </div>
         )}
       </div>
