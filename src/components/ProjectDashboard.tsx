@@ -41,7 +41,7 @@ export default function ProjectDashboard({
 
   // Type assertion für chartSeries da data.kpis eine komplexe Struktur hat
   type KpisWithSeries = Record<ActiveKpi, { series?: Array<{ date: string; value: number }> }>;
-  const chartSeries = ((data.kpis as unknown as KpisWithSeries)?.[activeKpi]?.series) || [];
+const chartSeries = data.charts?.[activeKpi] || [];
   
   const kpiLabels: Record<string, string> = {
     clicks: 'Klicks',
