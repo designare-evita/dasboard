@@ -7,6 +7,8 @@ export interface User {
   domain?: string;
   gsc_site_url?: string; // NEU: Feld für die GSC URL
   ga4_property_id?: string; // NEU: Feld für die GA4 ID
+  semrush_project_id?: string | null;
+  tracking_id?: string | null;
   createdByAdminId?: string;
   createdAt: Date;
   semrush_organic_keywords?: number;
