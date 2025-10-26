@@ -12,7 +12,7 @@ import { User } from '@/types';
 // Handler zum Abrufen eines einzelnen Benutzers
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } } // <-- KORREKTUR: Typ inline definiert
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -21,7 +21,7 @@ export async function GET(
       return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
     }
 
-    const { id } = params; // Funktioniert weiterhin
+    const { id } = await params;
     console.log(`[GET /api/users/${id}] Benutzerdaten abrufen...`);
 
     const { rows } = await sql<User>`
@@ -33,7 +33,7 @@ export async function GET(
         gsc_site_url,
         ga4_property_id,
         semrush_project_id,
-        tracking_id
+        semrush_tracking_id
       FROM users
       WHERE id = ${id}::uuid;
     `;
@@ -53,7 +53,7 @@ export async function GET(
 // Handler zum Aktualisieren eines Benutzers
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } } // <-- KORREKTUR: Typ inline definiert
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -62,7 +62,7 @@ export async function PUT(
       return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
     }
 
-    const { id } = params;
+    const { id } = await params;
     const body = await request.json();
 
     const {
@@ -71,7 +71,7 @@ export async function PUT(
         gsc_site_url,
         ga4_property_id,
         semrush_project_id,
-        tracking_id,
+        semrush_tracking_id,
         password
     } = body;
 
@@ -107,7 +107,7 @@ export async function PUT(
       `gsc_site_url = ${gsc_site_url || null}`,
       `ga4_property_id = ${ga4_property_id || null}`,
       `semrush_project_id = ${semrush_project_id || null}`,
-      `tracking_id = ${tracking_id || null}`
+      `semrush_tracking_id = ${semrush_tracking_id || null}`
     ];
 
     if (password && password.trim().length > 0) {
@@ -124,7 +124,7 @@ export async function PUT(
       RETURNING
         id::text as id, email, role, domain, 
         gsc_site_url, ga4_property_id, 
-        semrush_project_id, tracking_id;
+        semrush_project_id, semrush_tracking_id;
     `;
 
     const { rows } = await sql.query<User>(updateQueryString, [id]);
@@ -151,7 +151,7 @@ export async function PUT(
 // Handler zum Löschen eines Benutzers
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } } // <-- KORREKTUR: Typ inline definiert
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -160,7 +160,7 @@ export async function DELETE(
       return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
     }
 
-    const { id } = params;
+    const { id } = await params;
     console.log(`[DELETE /api/users/${id}] Lösche Benutzer...`);
 
     const result = await sql`
