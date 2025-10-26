@@ -38,7 +38,7 @@ export default function ProjektDetailPage() {
   // State für den Zeitraum
   const [dateRange, setDateRange] = useState<DateRangeOption>('30d');
 
-  // 1. SWR-Hook für Google-Daten
+  // 1. SWR-Hook für Google-Daten (kritisch)
   const { 
     data: googleData, 
     isLoading: isLoadingGoogle, 
@@ -48,7 +48,7 @@ export default function ProjektDetailPage() {
     fetcher
   );
 
-  // 2. SWR-Hook für Semrush-Daten
+  // 2. SWR-Hook für Semrush-Daten (nicht-kritisch)
   const { 
     data: semrushData, 
     isLoading: isLoadingSemrush, 
@@ -58,8 +58,8 @@ export default function ProjektDetailPage() {
     fetcher
   );
 
-  // Kombinierter Ladezustand
-  const isLoading = isLoadingGoogle || isLoadingSemrush || sessionStatus === 'loading';
+  // Kombinierter Ladezustand - nur Google-Daten sind kritisch
+  const isLoading = isLoadingGoogle || sessionStatus === 'loading';
 
   // --- Berechtigungsprüfung (wichtig für Admins) ---
   useEffect(() => {
@@ -67,10 +67,8 @@ export default function ProjektDetailPage() {
         session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN' &&
         session.user.id !== projectId) {
        console.error("Zugriffsversuch auf fremdes Projekt durch Benutzer:", session.user.id, "auf Projekt:", projectId);
-       // redirect('/'); // Zum Beispiel
+       // redirect('/'); // Optional: Redirect implementieren
     }
-     // TODO: Implementiere Prüfung, ob Admin Zugriff auf dieses projectId hat, 
-     // falls Admins nicht alle Projekte sehen sollen.
   }, [sessionStatus, session, projectId]);
 
 
@@ -85,8 +83,8 @@ export default function ProjektDetailPage() {
   }
 
   // --- Fehlerzustand ---
-  // Zeige den ersten aufgetretenen Fehler an
-  const error = (errorGoogle || errorSemrush) as FetchError | undefined;
+  // Nur Google-Fehler sind kritisch, Semrush-Fehler werden ignoriert
+  const error = errorGoogle as FetchError | undefined;
   if (error) {
     console.error("Fehler beim Laden der Projektdaten:", error);
     return (
@@ -110,6 +108,11 @@ export default function ProjektDetailPage() {
         </div>
       </div>
     );
+  }
+  
+  // Semrush-Fehler nur loggen, aber nicht die Seite blockieren
+  if (errorSemrush) {
+    console.warn("Fehler beim Laden der Semrush-Daten (nicht kritisch):", errorSemrush);
   }
 
   // --- Erfolgszustand ---
