@@ -1,16 +1,18 @@
-// src/app/api/semrush/route.ts
+// src/app/api/semrush/route.ts (vereinfacht - nutzt users Tabelle direkt)
 import { NextResponse, NextRequest } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { sql } from '@vercel/postgres';
 import { User } from '@/types';
-import { getSemrushData } from '@/lib/semrush-api';
+
+interface UserWithSemrush extends User {
+  semrush_organic_keywords?: number;
+  semrush_organic_traffic?: number;
+}
 
 /**
  * GET /api/semrush
- * Lädt Semrush-Daten für einen Benutzer
- * Query-Parameter: 
- *   - projectId (optional): Für Admins um spezifisches Projekt zu laden
+ * Lädt Semrush-Daten für einen Benutzer (direkt aus users Tabelle)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -59,13 +61,13 @@ export async function GET(request: NextRequest) {
 
     console.log('[/api/semrush] Lade Semrush-Daten für User:', targetUserId);
 
-    // Lade User-Konfiguration aus der Datenbank (inkl. Semrush IDs)
-    const { rows } = await sql<User>`
+    // Lade Semrush-Daten direkt aus der users Tabelle
+    const { rows } = await sql<UserWithSemrush>`
       SELECT 
-        domain,
         email,
-        semrush_project_id,
-        semrush_tracking_id
+        domain,
+        semrush_organic_keywords,
+        semrush_organic_traffic
       FROM users 
       WHERE id::text = ${targetUserId}
     `;
@@ -76,61 +78,16 @@ export async function GET(request: NextRequest) {
 
     const user = rows[0];
 
-    // Prüfe ob mindestens Domain oder Semrush Project ID konfiguriert ist
-    if (!user.domain && !user.semrush_project_id) {
-      console.log('[/api/semrush] Keine Domain oder Semrush Project ID für User:', user.email);
-      return NextResponse.json({
-        organicKeywords: null,
-        organicTraffic: null,
-        lastFetched: null
-      });
-    }
+    console.log('[/api/semrush] Gefundene Daten:');
+    console.log('[/api/semrush] - Keywords:', user.semrush_organic_keywords);
+    console.log('[/api/semrush] - Traffic:', user.semrush_organic_traffic);
 
-    // Bestimme Datenbank basierend auf Domain-Endung
-    let database = 'de'; // Standard: Deutschland
-    if (user.domain) {
-      if (user.domain.endsWith('.at')) {
-        database = 'at'; // Österreich
-      } else if (user.domain.endsWith('.ch')) {
-        database = 'ch'; // Schweiz
-      } else if (user.domain.endsWith('.com')) {
-        database = 'us'; // USA/International
-      }
-    }
-
-    console.log('[/api/semrush] Rufe Semrush-Daten ab mit:');
-    console.log('[/api/semrush] - Domain:', user.domain || 'keine');
-    console.log('[/api/semrush] - Project ID:', user.semrush_project_id || 'keine');
-    console.log('[/api/semrush] - Tracking ID:', user.semrush_tracking_id || 'keine');
-    console.log('[/api/semrush] - Database:', database);
-
-    // Abrufen der Semrush-Daten über die intelligente Funktion
-    // Priorität: 1. Project ID, 2. Domain
-    const semrushData = await getSemrushData({
-      domain: user.domain || undefined,
-      projectId: user.semrush_project_id || undefined,
-      trackingId: user.semrush_tracking_id || undefined,
-      database: database
-    });
-
-    // Prüfe ob ein Fehler aufgetreten ist
-    if ('error' in semrushData) {
-      console.warn('[/api/semrush] Fehler beim Abrufen der Semrush-Daten:', semrushData.error);
-      return NextResponse.json({
-        organicKeywords: null,
-        organicTraffic: null,
-        lastFetched: new Date().toISOString()
-      });
-    }
-
-    console.log('[/api/semrush] ✅ Semrush-Daten erfolgreich geladen');
-    console.log('[/api/semrush] Keywords:', semrushData.organicKeywords, 'Traffic:', semrushData.organicTraffic);
-
-    // Response mit lastFetched Timestamp
+    // Response zurückgeben
     return NextResponse.json({
-      organicKeywords: semrushData.organicKeywords,
-      organicTraffic: semrushData.organicTraffic,
-      lastFetched: new Date().toISOString()
+      organicKeywords: user.semrush_organic_keywords ?? null,
+      organicTraffic: user.semrush_organic_traffic ?? null,
+      lastFetched: null, // Kein Timestamp in alter Struktur
+      fromCache: false
     });
 
   } catch (error) {
