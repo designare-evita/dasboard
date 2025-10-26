@@ -1,4 +1,4 @@
-// src/components/ProjectDashboard.tsx (Ihre 'ProjectDashboard(2).tsx')
+// src/components/ProjectDashboard.tsx
 'use client';
 
 import { useState } from 'react';
@@ -13,34 +13,21 @@ import KpiTrendChart from '@/components/charts/KpiTrendChart';
 import AiTrafficCard from '@/components/AiTrafficCard';
 import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector';
 import TopQueriesList from '@/components/TopQueriesList';
-
-// --- NEUER IMPORT ---
 import SemrushKpiCards, { SemrushData } from '@/components/SemrushKpiCards';
 
 interface ProjectDashboardProps {
-  /** Die vom API-Endpunkt geladenen Daten (Google, AI, etc.) */
   data: ProjectDashboardData;
-
-  /** * NEUE PROP: Die separat geladenen Semrush-Daten.
-   * Siehe HINWEIS in Schritt 4.
-   */
   semrushData: SemrushData | null;
-
-  /** Zeigt an, ob die Daten noch geladen werden */
   isLoading: boolean;
-  /** Aktuell ausgewählter Zeitraum */
   dateRange: DateRangeOption;
-  /** Callback zum Ändern des Zeitraums */
   onDateRangeChange: (range: DateRangeOption) => void;
-  /** Ob ein Hinweis auf fehlende Daten angezeigt werden soll */
   showNoDataHint?: boolean;
-  /** Alternativer Text für den \"Keine Daten\" Hinweis */
   noDataHintText?: string;
 }
 
 export default function ProjectDashboard({
   data,
-  semrushData, // Neue Prop hier empfangen
+  semrushData,
   isLoading,
   dateRange,
   onDateRangeChange,
@@ -50,13 +37,12 @@ export default function ProjectDashboard({
   
   const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
 
-  // Normalisiert die KPIs (Clicks, Impressions, etc.)
   const kpis = normalizeFlatKpis(data.kpis);
 
-  // Leitet die Daten für das aktive Chart ab
-  // Type assertion da die genaue Struktur von data.kpis komplex ist
+  // Type assertion für chartSeries da data.kpis eine komplexe Struktur hat
   type KpisWithSeries = Record<ActiveKpi, { series?: Array<{ date: string; value: number }> }>;
   const chartSeries = ((data.kpis as unknown as KpisWithSeries)?.[activeKpi]?.series) || [];
+  
   const kpiLabels: Record<string, string> = {
     clicks: 'Klicks',
     impressions: 'Impressionen',
@@ -66,21 +52,21 @@ export default function ProjectDashboard({
 
   return (
     <div className="space-y-8">
-      {/* --- 1. BLOCK: Google KPI-Karten --- */}
+      {/* Google KPI-Karten */}
       <div>
         <div className="flex flex-col md:flex-row justify-between md:items-center mb-4 gap-4">
           <h2 className="text-xl font-semibold text-gray-700">
             Google Übersicht (Search Console & GA4)
           </h2>
           <DateRangeSelector
-            selectedRange={dateRange}
-            onRangeChange={onDateRangeChange}
+            value={dateRange}
+            onChange={onDateRangeChange}
           />
         </div>
         <KpiCardsGrid kpis={kpis} isLoading={isLoading} />
       </div>
 
-      {/* --- 2. BLOCK: Google KPI-Chart --- */}
+      {/* Google KPI-Chart */}
       <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
           <h3 className="text-lg font-semibold text-gray-900 mb-4 sm:mb-0">
@@ -117,18 +103,14 @@ export default function ProjectDashboard({
         )}
       </div>
 
-      {/* --- 3. BLOCK: SEMRUSH (NEU) ---
-        Wie gewünscht NACH den Google-Daten.
-        Wir übergeben die 'semrushData'-Prop und den 'isLoading'-Status.
-      */}
+      {/* Semrush KPI-Karten */}
       <SemrushKpiCards 
         data={semrushData} 
         isLoading={isLoading} 
       />
         
-      {/* --- 4. BLOCK: KI-Traffic + Top Queries nebeneinander --- */}
+      {/* KI-Traffic + Top Queries */}
       <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* KI-Traffic Card ZUERST (1 Spalte) */}
         {data.aiTraffic && (
           <div className="lg:col-span-1">
             <AiTrafficCard
@@ -142,7 +124,6 @@ export default function ProjectDashboard({
           </div>
         )}
           
-        {/* Top Queries mit extrahierter Komponente */}
         {data.topQueries && data.topQueries.length > 0 && (
           <div className={`${data.aiTraffic ? 'lg:col-span-2' : 'lg:col-span-3'}`}>
             <TopQueriesList 
