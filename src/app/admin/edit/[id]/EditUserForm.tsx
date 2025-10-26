@@ -9,14 +9,25 @@ export default function EditUserForm({ id, user, onUserUpdated }: { id?: string,
   const [domain, setDomain] = useState(user.domain || '');
   const [gscSiteUrl, setGscSiteUrl] = useState(user.gsc_site_url || '');
   const [ga4PropertyId, setGa4PropertyId] = useState(user.ga4_property_id || '');
-  
-  // --- NEUE STATES HINZUFÜGEN ---
   const [semrushProjectId, setSemrushProjectId] = useState(user.semrush_project_id || '');
   const [semrushTrackingId, setSemrushTrackingId] = useState(user.semrush_tracking_id || '');
-  // ------------------------------
-
+  
   const [message, setMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Debug: Zeige die empfangenen User-Daten
+  useEffect(() => {
+    console.log('📋 EditUserForm - Empfangene User-Daten:', {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      domain: user.domain,
+      gsc_site_url: user.gsc_site_url,
+      ga4_property_id: user.ga4_property_id,
+      semrush_project_id: user.semrush_project_id,
+      semrush_tracking_id: user.semrush_tracking_id
+    });
+  }, [user]);
 
   // Dieser useEffect ist wichtig, falls sich die `user` ändert
   useEffect(() => {
@@ -25,11 +36,13 @@ export default function EditUserForm({ id, user, onUserUpdated }: { id?: string,
       setDomain(user.domain || '');
       setGscSiteUrl(user.gsc_site_url || '');
       setGa4PropertyId(user.ga4_property_id || '');
-      
-      // --- NEUE STATES FÜLLEN ---
       setSemrushProjectId(user.semrush_project_id || '');
       setSemrushTrackingId(user.semrush_tracking_id || '');
-      // --------------------------
+      
+      console.log('🔄 EditUserForm - States aktualisiert:', {
+        semrushProjectId: user.semrush_project_id,
+        semrushTrackingId: user.semrush_tracking_id
+      });
     }
   }, [user]);
 
@@ -38,7 +51,6 @@ export default function EditUserForm({ id, user, onUserUpdated }: { id?: string,
     setMessage('Speichere Änderungen...');
     setIsSubmitting(true);
 
-    // --- PAYLOAD ERWEITERN ---
     const payload = {
       email,
       domain: user.role === 'BENUTZER' ? domain : null,
@@ -47,9 +59,8 @@ export default function EditUserForm({ id, user, onUserUpdated }: { id?: string,
       semrush_project_id: user.role === 'BENUTZER' ? semrushProjectId : null,
       semrush_tracking_id: user.role === 'BENUTZER' ? semrushTrackingId : null,
     };
-    // -------------------------
 
-    console.log('Sending payload:', payload); // Debug-Log
+    console.log('📤 Sending payload:', payload);
 
     try {
       const response = await fetch(`/api/users/${user.id}`, {
@@ -58,7 +69,6 @@ export default function EditUserForm({ id, user, onUserUpdated }: { id?: string,
         body: JSON.stringify(payload),
       });
 
-      // Versuche die Response zu parsen, auch wenn sie fehlschlägt
       let result;
       try {
         result = await response.json();
@@ -67,7 +77,7 @@ export default function EditUserForm({ id, user, onUserUpdated }: { id?: string,
         throw new Error('Serverfehler: Ungültige Antwort vom Server');
       }
 
-      console.log('Server response:', result); // Debug-Log
+      console.log('📥 Server response:', result);
 
       if (!response.ok) {
         throw new Error(result.message || result.error || `HTTP ${response.status}: Ein Fehler ist aufgetreten.`);
@@ -75,10 +85,10 @@ export default function EditUserForm({ id, user, onUserUpdated }: { id?: string,
 
       setMessage('Benutzer erfolgreich aktualisiert!');
       if (onUserUpdated) {
-        onUserUpdated(); // Daten auf der Hauptseite neu laden
+        onUserUpdated();
       }
     } catch (error) {
-      console.error('Update error:', error); // Debug-Log
+      console.error('❌ Update error:', error);
       setMessage(`Fehler: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`);
     } finally {
       setIsSubmitting(false);
@@ -146,9 +156,14 @@ export default function EditUserForm({ id, user, onUserUpdated }: { id?: string,
               />
             </div>
 
-            {/* --- NEUES FELD: Semrush Projekt ID --- */}
+            {/* Semrush Projekt ID */}
             <div>
-              <label className="block text-sm font-medium text-gray-700">Semrush Projekt ID</label>
+              <label className="block text-sm font-medium text-gray-700">
+                Semrush Projekt ID
+                {semrushProjectId && (
+                  <span className="ml-2 text-xs text-green-600">✓ Gesetzt</span>
+                )}
+              </label>
               <input
                 type="text"
                 value={semrushProjectId}
@@ -157,11 +172,19 @@ export default function EditUserForm({ id, user, onUserUpdated }: { id?: string,
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
                 disabled={isSubmitting}
               />
+              {semrushProjectId && (
+                <p className="mt-1 text-xs text-gray-500">Aktueller Wert: {semrushProjectId}</p>
+              )}
             </div>
 
-            {/* --- NEUES FELD: Semrush Tracking-ID --- */}
+            {/* Semrush Tracking-ID */}
             <div>
-              <label className="block text-sm font-medium text-gray-700">Semrush Tracking-ID</label>
+              <label className="block text-sm font-medium text-gray-700">
+                Semrush Tracking-ID
+                {semrushTrackingId && (
+                  <span className="ml-2 text-xs text-green-600">✓ Gesetzt</span>
+                )}
+              </label>
               <input
                 type="text"
                 value={semrushTrackingId}
@@ -170,6 +193,9 @@ export default function EditUserForm({ id, user, onUserUpdated }: { id?: string,
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
                 disabled={isSubmitting}
               />
+              {semrushTrackingId && (
+                <p className="mt-1 text-xs text-gray-500">Aktueller Wert: {semrushTrackingId}</p>
+              )}
             </div>
           </>
         )}
