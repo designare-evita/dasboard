@@ -1,35 +1,26 @@
 // src/components/SemrushKpiCards.tsx
-
 'use client';
 
-import useSWR from 'swr';
-import KpiCard from './kpi-card'; // Wiederverwenden der bestehenden KPI-Karte
+import KpiCard from './kpi-card';
 import { format, parseISO } from 'date-fns';
 import { de } from 'date-fns/locale';
 
-// SWR-Fetcher-Funktion
-const fetcher = (url: string) => fetch(url).then(res => {
-  if (!res.ok) {
-    throw new Error('Fehler beim Laden der Semrush-Daten');
-  }
-  return res.json();
-});
-
-// Typ für die API-Antwort
-interface SemrushData {
+// Typ für die Semrush-Daten (muss in ProjectDashboardData enthalten sein)
+// --- HIER DIE KORREKTUR: 'export' hinzugefügt ---
+export interface SemrushData {
   organicKeywords: number | null;
   organicTraffic: number | null;
   lastFetched: string | null;
-  isFromCache: boolean;
-  error?: string;
+}
+// ---------------------------------------------
+
+interface SemrushKpiCardsProps {
+  data: SemrushData | null | undefined;
+  isLoading: boolean;
 }
 
-export default function SemrushKpiCards({ projectId }: { projectId: string }) {
-  const { data, error, isLoading } = useSWR<SemrushData>(
-    `/api/semrush?projectId=${projectId}`, 
-    fetcher
-  );
-
+export default function SemrushKpiCards({ data, isLoading }: SemrushKpiCardsProps) {
+  
   const formatDate = (dateString: string | null | undefined) => {
     if (!dateString) return 'N/A';
     try {
@@ -39,13 +30,14 @@ export default function SemrushKpiCards({ projectId }: { projectId: string }) {
     }
   };
 
-  if (error || data?.error) {
-    return (
-      <div className="bg-red-50 border-l-4 border-red-500 text-red-700 p-4 rounded-lg shadow-md" role="alert">
-        <p className="font-bold">Semrush-Fehler</p>
-        <p>{data?.error || (error as Error).message}</p>
-      </div>
-    );
+  // Wenn keine Daten vorhanden sind (z.B. Domain nicht konfiguriert),
+  // rendern wir nichts (oder eine Hinweismeldung).
+  if (!data && !isLoading) {
+     return (
+        <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 text-center">
+            <p className="text-sm text-gray-500">Für dieses Projekt sind keine Semrush-Daten konfiguriert oder verfügbar.</p>
+        </div>
+     );
   }
 
   return (
@@ -59,20 +51,15 @@ export default function SemrushKpiCards({ projectId }: { projectId: string }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <KpiCard
           title="Organische Keywords"
-          // KORRIGIERT: 'metric' zu 'value' geändert
           value={data?.organicKeywords ?? 0}
-          // KORRIGIERT: 'isLoading' Prop hinzugefügt
           isLoading={isLoading}
-          // 'change' wird weggelassen (ist jetzt optional)
-          // 'icon', 'iconColor', 'showTrend' entfernt
+          // 'change' wird bewusst weggelassen
         />
         <KpiCard
           title="Organischer Traffic"
-          // KORRIGIERT: 'metric' zu 'value' geändert
           value={data?.organicTraffic ?? 0}
-          // KORRIGIERT: 'isLoading' Prop hinzugefügt
           isLoading={isLoading}
-          // 'change' wird weggelassen (ist jetzt optional)
+          // 'change' wird bewusst weggelassen
         />
       </div>
     </div>
