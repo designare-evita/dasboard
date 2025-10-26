@@ -4,34 +4,34 @@ import { useState, FormEvent, useEffect } from 'react';
 import { User } from '@/types';
 import { Pencil, ArrowRepeat, CheckCircle } from 'react-bootstrap-icons';
 
-export default function EditUserForm({ userData, onUserUpdated }: { userData: User, onUserUpdated: () => void }) {
-  const [email, setEmail] = useState(userData.email || '');
-  const [domain, setDomain] = useState(userData.domain || '');
-  const [gscSiteUrl, setGscSiteUrl] = useState(userData.gsc_site_url || '');
-  const [ga4PropertyId, setGa4PropertyId] = useState(userData.ga4_property_id || '');
+export default function EditUserForm({ user, onUserUpdated }: { user: User, onUserUpdated?: () => void }) {
+  const [email, setEmail] = useState(user.email || '');
+  const [domain, setDomain] = useState(user.domain || '');
+  const [gscSiteUrl, setGscSiteUrl] = useState(user.gsc_site_url || '');
+  const [ga4PropertyId, setGa4PropertyId] = useState(user.ga4_property_id || '');
   
   // --- NEUE STATES HINZUFÜGEN ---
-  const [semrushProjectId, setSemrushProjectId] = useState(userData.semrush_project_id || '');
-  const [trackingId, setTrackingId] = useState(userData.tracking_id || '');
+  const [semrushProjectId, setSemrushProjectId] = useState(user.semrush_project_id || '');
+  const [trackingId, setTrackingId] = useState(user.tracking_id || '');
   // ------------------------------
 
   const [message, setMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Dieser useEffect ist wichtig, falls sich die `userData` ändert
+  // Dieser useEffect ist wichtig, falls sich die `user` ändert
   useEffect(() => {
-    if (userData) {
-      setEmail(userData.email || '');
-      setDomain(userData.domain || '');
-      setGscSiteUrl(userData.gsc_site_url || '');
-      setGa4PropertyId(userData.ga4_property_id || '');
+    if (user) {
+      setEmail(user.email || '');
+      setDomain(user.domain || '');
+      setGscSiteUrl(user.gsc_site_url || '');
+      setGa4PropertyId(user.ga4_property_id || '');
       
       // --- NEUE STATES FÜLLEN ---
-      setSemrushProjectId(userData.semrush_project_id || '');
-      setTrackingId(userData.tracking_id || '');
+      setSemrushProjectId(user.semrush_project_id || '');
+      setTrackingId(user.tracking_id || '');
       // --------------------------
     }
-  }, [userData]);
+  }, [user]);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -41,16 +41,16 @@ export default function EditUserForm({ userData, onUserUpdated }: { userData: Us
     // --- PAYLOAD ERWEITERN ---
     const payload = {
       email,
-      domain: userData.role === 'BENUTZER' ? domain : null,
-      gsc_site_url: userData.role === 'BENUTZER' ? gscSiteUrl : null,
-      ga4_property_id: userData.role === 'BENUTZER' ? ga4PropertyId : null,
-      semrush_project_id: userData.role === 'BENUTZER' ? semrushProjectId : null, // NEU
-      tracking_id: userData.role === 'BENUTZER' ? trackingId : null,             // NEU
+      domain: user.role === 'BENUTZER' ? domain : null,
+      gsc_site_url: user.role === 'BENUTZER' ? gscSiteUrl : null,
+      ga4_property_id: user.role === 'BENUTZER' ? ga4PropertyId : null,
+      semrush_project_id: user.role === 'BENUTZER' ? semrushProjectId : null, // NEU
+      tracking_id: user.role === 'BENUTZER' ? trackingId : null,             // NEU
     };
     // -------------------------
 
     try {
-      const response = await fetch(`/api/users/${userData.id}`, {
+      const response = await fetch(`/api/users/${user.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -93,7 +93,7 @@ export default function EditUserForm({ userData, onUserUpdated }: { userData: Us
         </div>
 
         {/* Spezifische Kunden-Felder */}
-        {userData.role === 'BENUTZER' && (
+        {user.role === 'BENUTZER' && (
           <>
             {/* Domain */}
             <div>
