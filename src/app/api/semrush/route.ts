@@ -4,7 +4,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { sql } from '@vercel/postgres';
 import { User } from '@/types';
-import { getSemrushDomainOverview } from '@/lib/semrush-api';
+import { getSemrushData } from '@/lib/semrush-api';
 
 /**
  * GET /api/semrush
@@ -59,11 +59,13 @@ export async function GET(request: NextRequest) {
 
     console.log('[/api/semrush] Lade Semrush-Daten für User:', targetUserId);
 
-    // Lade User-Konfiguration aus der Datenbank
+    // Lade User-Konfiguration aus der Datenbank (inkl. Semrush IDs)
     const { rows } = await sql<User>`
       SELECT 
         domain,
-        email
+        email,
+        semrush_project_id,
+        semrush_tracking_id
       FROM users 
       WHERE id::text = ${targetUserId}
     `;
@@ -74,9 +76,9 @@ export async function GET(request: NextRequest) {
 
     const user = rows[0];
 
-    // Prüfe ob Domain konfiguriert ist
-    if (!user.domain) {
-      console.log('[/api/semrush] Keine Domain für User:', user.email);
+    // Prüfe ob mindestens Domain oder Semrush Project ID konfiguriert ist
+    if (!user.domain && !user.semrush_project_id) {
+      console.log('[/api/semrush] Keine Domain oder Semrush Project ID für User:', user.email);
       return NextResponse.json({
         organicKeywords: null,
         organicTraffic: null,
@@ -84,10 +86,32 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    console.log('[/api/semrush] Rufe Semrush-Daten für Domain:', user.domain);
+    // Bestimme Datenbank basierend auf Domain-Endung
+    let database = 'de'; // Standard: Deutschland
+    if (user.domain) {
+      if (user.domain.endsWith('.at')) {
+        database = 'at'; // Österreich
+      } else if (user.domain.endsWith('.ch')) {
+        database = 'ch'; // Schweiz
+      } else if (user.domain.endsWith('.com')) {
+        database = 'us'; // USA/International
+      }
+    }
 
-    // Abrufen der Semrush-Daten über die bestehende Funktion
-    const semrushData = await getSemrushDomainOverview(user.domain, 'de');
+    console.log('[/api/semrush] Rufe Semrush-Daten ab mit:');
+    console.log('[/api/semrush] - Domain:', user.domain || 'keine');
+    console.log('[/api/semrush] - Project ID:', user.semrush_project_id || 'keine');
+    console.log('[/api/semrush] - Tracking ID:', user.semrush_tracking_id || 'keine');
+    console.log('[/api/semrush] - Database:', database);
+
+    // Abrufen der Semrush-Daten über die intelligente Funktion
+    // Priorität: 1. Project ID, 2. Domain
+    const semrushData = await getSemrushData({
+      domain: user.domain || undefined,
+      projectId: user.semrush_project_id || undefined,
+      trackingId: user.semrush_tracking_id || undefined,
+      database: database
+    });
 
     // Prüfe ob ein Fehler aufgetreten ist
     if ('error' in semrushData) {
