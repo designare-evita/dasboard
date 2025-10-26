@@ -1,27 +1,29 @@
 // src/app/projekt/[id]/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react'; // useEffect hinzugefügt
+import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import useSWR from 'swr'; // Wir verwenden useSWR direkt für mehr Kontrolle
-// ENTFERNT: import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector';
-import { type DateRangeOption } from '@/components/DateRangeSelector'; // Nur der Typ wird noch gebraucht
+import useSWR from 'swr';
+import { type DateRangeOption } from '@/components/DateRangeSelector';
 import {
   ProjectDashboardData,
-  hasDashboardData // Nützliche Hilfsfunktion
+  hasDashboardData
 } from '@/lib/dashboard-shared';
 import ProjectDashboard from '@/components/ProjectDashboard';
-// Semrush-Typ importieren
 import { SemrushData } from '@/components/SemrushKpiCards'; 
 import { ArrowRepeat, ExclamationTriangleFill } from 'react-bootstrap-icons';
-import { useSession } from 'next-auth/react'; // Session für Berechtigungsprüfung
+import { useSession } from 'next-auth/react';
+
+// Fehler-Typ mit status-Property definieren
+interface FetchError extends Error {
+  status?: number;
+}
 
 // Einfache Fetcher-Funktion für useSWR
 const fetcher = (url: string) => fetch(url).then(async (res) => {
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({ message: res.statusText }));
-    const error = new Error(errorData.message || 'Fehler beim Laden der Daten');
-    // @ts-expect-error // KORRIGIERT: @ts-ignore ersetzt
+    const error: FetchError = new Error(errorData.message || 'Fehler beim Laden der Daten');
     error.status = res.status; 
     throw error;
   }
@@ -31,7 +33,7 @@ const fetcher = (url: string) => fetch(url).then(async (res) => {
 export default function ProjektDetailPage() {
   const params = useParams();
   const projectId = params.id as string;
-  const { data: session, status: sessionStatus } = useSession(); // Session holen
+  const { data: session, status: sessionStatus } = useSession();
 
   // State für den Zeitraum
   const [dateRange, setDateRange] = useState<DateRangeOption>('30d');
@@ -42,7 +44,6 @@ export default function ProjektDetailPage() {
     isLoading: isLoadingGoogle, 
     error: errorGoogle 
   } = useSWR<ProjectDashboardData>(
-    // Nur laden, wenn projectId vorhanden ist
     projectId ? `/api/data?projectId=${projectId}&dateRange=${dateRange}` : null, 
     fetcher
   );
@@ -53,7 +54,6 @@ export default function ProjektDetailPage() {
     isLoading: isLoadingSemrush, 
     error: errorSemrush 
   } = useSWR<SemrushData>(
-    // Nur laden, wenn projectId vorhanden ist
     projectId ? `/api/semrush?projectId=${projectId}` : null,
     fetcher
   );
@@ -62,13 +62,10 @@ export default function ProjektDetailPage() {
   const isLoading = isLoadingGoogle || isLoadingSemrush || sessionStatus === 'loading';
 
   // --- Berechtigungsprüfung (wichtig für Admins) ---
-  // (Diese Logik muss ggf. angepasst werden, je nachdem, wer Zugriff hat)
   useEffect(() => {
-    // Wenn Session geladen, aber User kein Admin/Superadmin ist UND die ID nicht die eigene ist
     if (sessionStatus === 'authenticated' && session?.user && 
         session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN' &&
         session.user.id !== projectId) {
-      // Redirect oder Fehlermeldung anzeigen
        console.error("Zugriffsversuch auf fremdes Projekt durch Benutzer:", session.user.id, "auf Projekt:", projectId);
        // redirect('/'); // Zum Beispiel
     }
@@ -89,7 +86,7 @@ export default function ProjektDetailPage() {
 
   // --- Fehlerzustand ---
   // Zeige den ersten aufgetretenen Fehler an
-  const error = errorGoogle || errorSemrush;
+  const error = (errorGoogle || errorSemrush) as FetchError | undefined;
   if (error) {
     console.error("Fehler beim Laden der Projektdaten:", error);
     return (
@@ -98,15 +95,13 @@ export default function ProjektDetailPage() {
            <ExclamationTriangleFill className="text-red-500 mx-auto mb-4" size={40} />
           <h2 className="text-xl font-bold text-gray-800 mb-2">Fehler beim Laden</h2>
           <p className="text-gray-600">
-             {/* @ts-expect-error // KORRIGIERT: @ts-ignore ersetzt */}
              {error.status === 404 
                 ? 'Das angeforderte Projekt wurde nicht gefunden.' 
-                : ((error as Error).message || 'Die Dashboard-Daten konnten nicht abgerufen werden.')} {/* Sicherer Zugriff auf message */}
+                : (error.message || 'Die Dashboard-Daten konnten nicht abgerufen werden.')}
           </p>
-           {/* @ts-expect-error // KORRIGIERT: @ts-ignore ersetzt */}
            {error.status !== 404 && (
              <button 
-               onClick={() => window.location.reload()} // Einfacher Reload-Button
+               onClick={() => window.location.reload()}
                className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
              >
                Erneut versuchen
@@ -118,16 +113,14 @@ export default function ProjektDetailPage() {
   }
 
   // --- Erfolgszustand ---
-  // Fallback für den Fall, dass googleData undefiniert ist (sollte nicht passieren, wenn kein Fehler auftritt)
   const finalGoogleData = googleData ?? { kpis: {}, aiTraffic: null, topQueries: [] }; 
   const showNoDataHint = !isLoadingGoogle && !hasDashboardData(finalGoogleData);
 
   return (
-    // Padding für die Seite
     <div className="p-4 sm:p-6 md:p-8">
       <ProjectDashboard
         data={finalGoogleData} 
-        semrushData={semrushData ?? null} // Semrush-Daten übergeben (oder null)
+        semrushData={semrushData ?? null}
         isLoading={isLoading} 
         dateRange={dateRange}
         onDateRangeChange={setDateRange}
@@ -137,4 +130,3 @@ export default function ProjektDetailPage() {
     </div>
   );
 }
-
