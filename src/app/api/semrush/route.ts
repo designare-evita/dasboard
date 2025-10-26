@@ -1,4 +1,4 @@
-// src/app/api/semrush/route.ts (Hybrid - liest aus Cache UND users Tabelle)
+// src/app/api/semrush/route.ts (Hybrid v2 - verbesserte Logik)
 import { NextResponse, NextRequest } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -13,7 +13,7 @@ interface UserWithSemrush extends User {
 /**
  * GET /api/semrush
  * Lädt Semrush-Daten für einen Benutzer
- * Priorität: 1. Cache-Tabelle, 2. users-Tabelle als Fallback
+ * Priorität: 1. Cache mit gültigen Werten, 2. users-Tabelle als Fallback
  */
 export async function GET(request: NextRequest) {
   try {
@@ -64,9 +64,9 @@ export async function GET(request: NextRequest) {
 
     // STRATEGIE: Lade aus BEIDEN Tabellen und kombiniere die Daten
     const { rows } = await sql<UserWithSemrush & {
-      cache_keywords?: number;
-      cache_traffic?: number;
-      cache_last_fetched?: string;
+      cache_keywords?: number | null;
+      cache_traffic?: number | null;
+      cache_last_fetched?: string | null;
     }>`
       SELECT 
         u.email,
@@ -87,15 +87,16 @@ export async function GET(request: NextRequest) {
 
     const user = rows[0];
 
-    console.log('[/api/semrush] Gefundene Daten:');
-    console.log('[/api/semrush] - users.semrush_organic_keywords:', user.semrush_organic_keywords);
-    console.log('[/api/semrush] - users.semrush_organic_traffic:', user.semrush_organic_traffic);
-    console.log('[/api/semrush] - cache.organic_keywords:', user.cache_keywords);
-    console.log('[/api/semrush] - cache.organic_traffic:', user.cache_traffic);
-    console.log('[/api/semrush] - cache.last_fetched:', user.cache_last_fetched);
+    console.log('[/api/semrush] ==================== DEBUG ====================');
+    console.log('[/api/semrush] users.semrush_organic_keywords:', user.semrush_organic_keywords, typeof user.semrush_organic_keywords);
+    console.log('[/api/semrush] users.semrush_organic_traffic:', user.semrush_organic_traffic, typeof user.semrush_organic_traffic);
+    console.log('[/api/semrush] cache.organic_keywords:', user.cache_keywords, typeof user.cache_keywords);
+    console.log('[/api/semrush] cache.organic_traffic:', user.cache_traffic, typeof user.cache_traffic);
+    console.log('[/api/semrush] cache.last_fetched:', user.cache_last_fetched);
+    console.log('[/api/semrush] ============================================');
 
-    // INTELLIGENTE AUSWAHL:
-    // Wenn Cache-Daten vorhanden UND nicht 0/null sind → verwende Cache
+    // INTELLIGENTE AUSWAHL mit verbesserter Logik:
+    // Bevorzuge Cache WENN vorhanden UND hat sinnvolle Werte (nicht 0)
     // Sonst → verwende users-Tabelle
     
     let organicKeywords: number | null = null;
@@ -103,26 +104,39 @@ export async function GET(request: NextRequest) {
     let lastFetched: string | null = null;
     let fromCache = false;
 
-    // Prüfe Cache zuerst
-    if (user.cache_keywords !== null && user.cache_keywords !== undefined) {
-      organicKeywords = user.cache_keywords;
+    // Prüfe ob Cache existiert und hat Werte > 0
+    const hasCacheData = user.cache_keywords !== null && 
+                        user.cache_keywords !== undefined;
+    
+    const hasUsersData = user.semrush_organic_keywords !== null && 
+                        user.semrush_organic_keywords !== undefined;
+
+    console.log('[/api/semrush] hasCacheData:', hasCacheData, 'hasUsersData:', hasUsersData);
+
+    // STRATEGIE: Verwende Cache WENN vorhanden, sonst users-Tabelle
+    // Zeige aber IMMER das cache_last_fetched Datum wenn vorhanden
+    if (hasCacheData) {
+      organicKeywords = user.cache_keywords ?? 0;
       organicTraffic = user.cache_traffic ?? null;
       lastFetched = user.cache_last_fetched ?? null;
       fromCache = true;
       console.log('[/api/semrush] ✅ Verwende Daten aus Cache');
-    } 
-    // Fallback auf users-Tabelle
-    else if (user.semrush_organic_keywords !== null && user.semrush_organic_keywords !== undefined) {
-      organicKeywords = user.semrush_organic_keywords;
+    } else if (hasUsersData) {
+      organicKeywords = user.semrush_organic_keywords ?? 0;
       organicTraffic = user.semrush_organic_traffic ?? null;
-      lastFetched = null; // users-Tabelle hat kein timestamp
+      // WICHTIG: Verwende cache_last_fetched auch wenn Daten aus users kommen
+      lastFetched = user.cache_last_fetched ?? null;
       fromCache = false;
       console.log('[/api/semrush] ✅ Verwende Daten aus users-Tabelle (Fallback)');
-    }
-    // Keine Daten vorhanden
-    else {
+    } else {
       console.log('[/api/semrush] ⚠️ Keine Semrush-Daten gefunden');
     }
+
+    console.log('[/api/semrush] FINAL RESPONSE:');
+    console.log('[/api/semrush] - organicKeywords:', organicKeywords);
+    console.log('[/api/semrush] - organicTraffic:', organicTraffic);
+    console.log('[/api/semrush] - lastFetched:', lastFetched);
+    console.log('[/api/semrush] - fromCache:', fromCache);
 
     // Response zurückgeben
     return NextResponse.json({
