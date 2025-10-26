@@ -12,44 +12,33 @@ import {
   GraphUp,
   ArrowRightSquare
 } from 'react-bootstrap-icons';
-// Importiere die geteilten Typen und Helfer
 import {
   ProjectDashboardData,
   hasDashboardData
 } from '@/lib/dashboard-shared';
-// Importiere die Dashboard-Komponente
 import ProjectDashboard from '@/components/ProjectDashboard';
 import LandingpageApproval from '@/components/LandingpageApproval';
 import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector';
+import { SemrushData } from '@/components/SemrushKpiCards';
 
-// --- NEUER IMPORT: Typ für Semrush-Daten ---
-// (Stellen Sie sicher, dass dieser Pfad zu Ihrer SemrushKpiCards-Komponente passt)
-import { SemrushData } from '@/components/SemrushKpiCards'; 
-
-// --- Hauptkomponente ---
 export default function HomePage() {
   const { data: session, status } = useSession();
   const router = useRouter();
 
-  // State für Google-Daten
   const [dashboardData, setDashboardData] = useState<ProjectDashboardData | null>(null);
-  
-  // --- NEUER STATE: State für Semrush-Daten ---
   const [semrushData, setSemrushData] = useState<SemrushData | null>(null);
-
   const [projects, setProjects] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<DateRangeOption>('30d');
 
-  // --- KORRIGIERTE DATEN-LADEFUNKTION ---
   const fetchData = useCallback(async (range: DateRangeOption = dateRange) => {
     setIsLoading(true);
     setError(null);
     try {
       // Beide API-Routen parallel anfragen
       const googleDataPromise = fetch(`/api/data?dateRange=${range}`);
-      const semrushDataPromise = fetch(`/api/semrush`); // Benötigt keine projectId, nutzt Session
+      const semrushDataPromise = fetch(`/api/semrush`);
 
       const [googleResponse, semrushResponse] = await Promise.all([
         googleDataPromise,
@@ -69,9 +58,8 @@ export default function HomePage() {
         const semrushResult = await semrushResponse.json();
         setSemrushData(semrushResult);
       } else {
-        // Fehler bei Semrush loggen, aber die Seite nicht blockieren
         console.error("Fehler beim Laden der Semrush-Daten:", await semrushResponse.text());
-        setSemrushData(null); // Sicherstellen, dass keine alten Daten angezeigt werden
+        setSemrushData(null);
       }
 
     } catch (err: unknown) {
@@ -79,15 +67,13 @@ export default function HomePage() {
     } finally {
       setIsLoading(false);
     }
-  }, [dateRange]); // Abhängigkeit von dateRange ist korrekt
+  }, [dateRange]);
 
-  // Daten basierend auf Session und Rolle laden
   useEffect(() => {
     if (status === 'authenticated') {
       if (session.user.role === 'ADMIN' || session.user.role === 'SUPERADMIN') {
-        // Admins/Superadmins: Projektliste laden
         setIsLoading(true);
-        fetch('/api/projects') // API-Endpunkt für Admin-Projekte
+        fetch('/api/projects')
           .then(res => res.json())
           .then(data => {
             setProjects(data.projects || []);
@@ -98,21 +84,16 @@ export default function HomePage() {
             setIsLoading(false);
           });
       } else if (session.user.role === 'BENUTZER') {
-        // Kunden: Dashboard-Daten laden
         fetchData(dateRange);
       }
     } else if (status === 'unauthenticated') {
       router.push('/login');
     }
-  }, [status, session, router, fetchData, dateRange]); // fetchData/dateRange hier für Kunden-Dashboard
+  }, [status, session, router, fetchData, dateRange]);
 
-  // Handler für Datumsbereich-Änderung (nur für Kunden relevant)
   const handleDateRangeChange = (range: DateRangeOption) => {
     setDateRange(range);
-    // fetchData wird durch den useEffect oben automatisch neu ausgelöst
   };
-
-  // --- Render-Logik ---
 
   if (status === 'loading' || (isLoading && !dashboardData && !error)) {
     return (
@@ -147,7 +128,7 @@ export default function HomePage() {
     return (
       <CustomerDashboard
         data={dashboardData}
-        semrushData={semrushData} // <-- KORRIGIERT: Semrush-Daten übergeben
+        semrushData={semrushData}
         isLoading={isLoading}
         dateRange={dateRange}
         onDateRangeChange={handleDateRangeChange}
@@ -162,8 +143,6 @@ export default function HomePage() {
   );
 }
 
-
-// --- Admin Dashboard Komponente (unverändert) ---
 function AdminDashboard({ projects, isLoading }: { projects: User[], isLoading: boolean }) {
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
@@ -201,32 +180,27 @@ function AdminDashboard({ projects, isLoading }: { projects: User[], isLoading: 
   );
 }
 
-
-// --- Kunden Dashboard Komponente ---
 function CustomerDashboard({
   data,
-  semrushData, // <-- KORRIGIERT: Semrush-Daten empfangen
+  semrushData,
   isLoading,
   dateRange,
   onDateRangeChange
 }: {
   data: ProjectDashboardData;
-  semrushData: SemrushData | null; // <-- KORRIGIERT: Typ hinzugefügt
+  semrushData: SemrushData | null;
   isLoading: boolean;
   dateRange: DateRangeOption;
   onDateRangeChange: (range: DateRangeOption) => void;
 }) {
-
-  // Verwende die Hilfsfunktion, um zu prüfen, ob Daten vorhanden sind
   const showNoDataHint = !isLoading && !hasDashboardData(data);
 
   return (
     <div className="p-4 md:p-8 bg-gray-50 min-h-screen">
       <main>
-        {/* Nutze die ProjectDashboard Komponente */}
         <ProjectDashboard
           data={data}
-          semrushData={semrushData} // <-- KORRIGIERT: Semrush-Daten weitergeben
+          semrushData={semrushData}
           isLoading={isLoading}
           dateRange={dateRange}
           onDateRangeChange={onDateRangeChange}
@@ -234,8 +208,7 @@ function CustomerDashboard({
           noDataHintText="Hinweis: Für Ihr Projekt wurden noch keine KPI-Daten geliefert. Es werden vorübergehend Platzhalter-Werte angezeigt."
         />
 
-        {/* Die Landingpage Approval Komponente bleibt spezifisch für diese Seite */}
-        <div className="mt-8"> {/* Fügt etwas Abstand hinzu */}
+        <div className="mt-8">
           <LandingpageApproval />
         </div>
       </main>
