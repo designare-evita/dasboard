@@ -54,7 +54,8 @@ export default function ProjectDashboard({
   const kpis = normalizeFlatKpis(data.kpis);
 
   // Leitet die Daten für das aktive Chart ab
-  const chartSeries = data.kpis?.[activeKpi]?.series || [];
+  // Nutze die normalisierten kpis statt data.kpis direkt
+  const chartSeries = kpis[activeKpi]?.series || [];
   const kpiLabels: Record<string, string> = {
     clicks: 'Klicks',
     impressions: 'Impressionen',
