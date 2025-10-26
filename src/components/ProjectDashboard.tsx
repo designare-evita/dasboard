@@ -40,7 +40,6 @@ export default function ProjectDashboard({
   const kpis = normalizeFlatKpis(data.kpis);
 
   // Chart-Daten kommen aus dem separaten charts Objekt in der API-Response
-  // data.charts enthält: { clicks: [...], impressions: [...], sessions: [...], totalUsers: [...] }
   type DataWithCharts = ProjectDashboardData & { 
     charts?: Record<ActiveKpi, Array<{ date: string; value: number }>> 
   };
@@ -55,7 +54,7 @@ export default function ProjectDashboard({
 
   return (
     <div className="space-y-8">
-      {/* Google KPI-Karten */}
+      {/* 1. BLOCK: Google KPI-Karten */}
       <div>
         <div className="flex flex-col md:flex-row justify-between md:items-center mb-4 gap-4">
           <h2 className="text-xl font-semibold text-gray-700">
@@ -69,7 +68,7 @@ export default function ProjectDashboard({
         <KpiCardsGrid kpis={kpis} isLoading={isLoading} />
       </div>
 
-      {/* Google KPI-Chart */}
+      {/* 2. BLOCK: Google KPI-Chart */}
       <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
           <h3 className="text-lg font-semibold text-gray-900 mb-4 sm:mb-0">
@@ -106,9 +105,8 @@ export default function ProjectDashboard({
         )}
       </div>
 
-        
-      {/* KI-Traffic + Top Queries */}
-      <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* 3. BLOCK: KI-Traffic + Top Queries */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {data.aiTraffic && (
           <div className="lg:col-span-1">
             <AiTrafficCard
@@ -128,15 +126,15 @@ export default function ProjectDashboard({
               queries={data.topQueries} 
               isLoading={isLoading} 
             />
+          </div>
+        )}
+      </div>
 
-             {/* Semrush KPI-Karten */}
+      {/* 4. BLOCK: Semrush KPI-Karten (ganz zum Schluss) */}
       <SemrushKpiCards 
         data={semrushData} 
         isLoading={isLoading} 
       />
-          </div>
-        )}
-      </div>
     </div>
   );
 }
