@@ -92,28 +92,30 @@ async function getDashboardDataForUser(user: Partial<User>, dateRange: string = 
       kpis: {
         clicks: { 
           value: gscCurrent.clicks.total ?? 0, 
-          change: calculateChange(gscCurrent.clicks.total ?? 0, gscPrevious.clicks.total ?? 0),
-          series: gscCurrent.clicks.daily
+          change: calculateChange(gscCurrent.clicks.total ?? 0, gscPrevious.clicks.total ?? 0)
         },
         impressions: { 
           value: gscCurrent.impressions.total ?? 0, 
-          change: calculateChange(gscCurrent.impressions.total ?? 0, gscPrevious.impressions.total ?? 0),
-          series: gscCurrent.impressions.daily
+          change: calculateChange(gscCurrent.impressions.total ?? 0, gscPrevious.impressions.total ?? 0)
         },
         sessions: { 
           value: gaCurrent.sessions.total ?? 0, 
           change: calculateChange(gaCurrent.sessions.total ?? 0, gaPrevious.sessions.total ?? 0),
-          series: gaCurrent.sessions.daily,
           aiTraffic: {
             value: aiTraffic.totalSessions,
             percentage: aiSessionsPercentage
           }
         },
-        users: { 
+        totalUsers: { 
           value: gaCurrent.totalUsers.total ?? 0, 
-          change: calculateChange(gaCurrent.totalUsers.total ?? 0, gaPrevious.totalUsers.total ?? 0),
-          series: gaCurrent.totalUsers.daily
+          change: calculateChange(gaCurrent.totalUsers.total ?? 0, gaPrevious.totalUsers.total ?? 0)
         },
+      },
+      charts: {
+        clicks: gscCurrent.clicks.daily,
+        impressions: gscCurrent.impressions.daily,
+        sessions: gaCurrent.sessions.daily,
+        totalUsers: gaCurrent.totalUsers.daily,
       },
       topQueries,
       aiTraffic
