@@ -23,7 +23,7 @@ export async function getSemrushDomainOverview(domain: string, database: string 
   }
 
   // Domain bereinigen (ohne https:// oder www.)
-  const cleanDomain = domain.replace(/^https?:\/\//i, '').replace(/^www\./i, '');
+  const cleanDomain = domain.replace(/^https?:\/\//i, '').replace(/^www\./i, '').replace(/\/.*$/, '');
 
   console.log('[Semrush] Fetching domain data for:', cleanDomain, 'database:', database);
 
@@ -48,6 +48,9 @@ export async function getSemrushDomainOverview(domain: string, database: string 
 
     const lines = response.data.trim().split('\n');
     
+    console.log('[Semrush] Raw response lines:', lines.length);
+    console.log('[Semrush] First 200 chars:', response.data.substring(0, 200));
+    
     if (lines.length < 2) {
       console.warn('[Semrush] No data returned for domain:', cleanDomain);
       return {
@@ -57,19 +60,51 @@ export async function getSemrushDomainOverview(domain: string, database: string 
       };
     }
 
-    const values = lines[1].split(';');
+    // Log header und data
+    console.log('[Semrush] Header:', lines[0]);
+    console.log('[Semrush] Data line:', lines[1]);
 
-    if (values.length < 3) {
-      console.warn('[Semrush] Invalid data format:', lines[1]);
+    const values = lines[1].split(';');
+    console.log('[Semrush] Parsed values:', values);
+    console.log('[Semrush] Values count:', values.length);
+
+    // Flexibleres Parsing - unterschiedliche Response-Formate
+    let organicKeywords = 0;
+    let organicTraffic = 0;
+
+    if (values.length >= 3) {
+      // Format: Domain;Keywords;Traffic
+      organicKeywords = parseInt(values[1], 10) || 0;
+      organicTraffic = parseInt(values[2], 10) || 0;
+      console.log('[Semrush] Using format: Domain;Keywords;Traffic');
+    } else if (values.length === 2) {
+      // Format: Keywords;Traffic (ohne Domain)
+      organicKeywords = parseInt(values[0], 10) || 0;
+      organicTraffic = parseInt(values[1], 10) || 0;
+      console.log('[Semrush] Using format: Keywords;Traffic');
+    } else if (values.length === 1) {
+      // Nur ein Wert - versuche als Zahl zu parsen
+      const parsed = parseInt(values[0], 10);
+      if (!isNaN(parsed)) {
+        organicKeywords = parsed;
+        organicTraffic = 0;
+        console.log('[Semrush] Using format: Single value as Keywords');
+      } else {
+        console.warn('[Semrush] Cannot parse single value:', values[0]);
+        return {
+          organicKeywords: null,
+          organicTraffic: null,
+          error: 'Invalid data format'
+        };
+      }
+    } else {
+      console.warn('[Semrush] Unexpected data format, values:', values);
       return {
         organicKeywords: null,
         organicTraffic: null,
         error: 'Invalid data format'
       };
     }
-
-    const organicKeywords = parseInt(values[1], 10) || 0;
-    const organicTraffic = parseInt(values[2], 10) || 0;
 
     console.log('[Semrush] ✅ Domain data fetched - Keywords:', organicKeywords, 'Traffic:', organicTraffic);
 
@@ -144,6 +179,9 @@ export async function getSemrushProjectData(projectId: string) {
 
     const lines = response.data.trim().split('\n');
     
+    console.log('[Semrush] Project response lines:', lines.length);
+    console.log('[Semrush] Project first 200 chars:', response.data.substring(0, 200));
+    
     if (lines.length < 2) {
       console.warn('[Semrush] No project data returned for ID:', projectId);
       return {
@@ -153,7 +191,11 @@ export async function getSemrushProjectData(projectId: string) {
       };
     }
 
+    console.log('[Semrush] Project header:', lines[0]);
+    console.log('[Semrush] Project data:', lines[1]);
+
     const values = lines[1].split(';');
+    console.log('[Semrush] Project values:', values);
 
     if (values.length < 2) {
       console.warn('[Semrush] Invalid project data format');
