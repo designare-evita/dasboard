@@ -113,7 +113,11 @@ export default function ProjektDetailPage() {
   }
 
   // --- Erfolgszustand ---
-  const finalGoogleData = googleData ?? { kpis: {}, aiTraffic: null, topQueries: [] }; 
+  const finalGoogleData: ProjectDashboardData = googleData ?? { 
+    kpis: {}, 
+    aiTraffic: undefined, 
+    topQueries: [] 
+  }; 
   const showNoDataHint = !isLoadingGoogle && !hasDashboardData(finalGoogleData);
 
   return (
