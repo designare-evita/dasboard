@@ -39,15 +39,15 @@ export default function ProjectDashboard({
 
   const kpis = normalizeFlatKpis(data.kpis);
 
-  // Type assertion für chartSeries da data.kpis eine komplexe Struktur hat
-  type KpisWithSeries = Record<ActiveKpi, { series?: Array<{ date: string; value: number }> }>;
-const chartSeries = data.charts?.[activeKpi] || [];
+  // Chart-Daten kommen aus dem separaten charts Objekt in der API-Response
+  // data.charts enthält: { clicks: [...], impressions: [...], sessions: [...], totalUsers: [...] }
+  const chartSeries = (data as any).charts?.[activeKpi] || [];
   
   const kpiLabels: Record<string, string> = {
     clicks: 'Klicks',
     impressions: 'Impressionen',
     sessions: 'Sitzungen (GA4)',
-    users: 'Nutzer (GA4)',
+    totalUsers: 'Nutzer (GA4)',
   };
 
   return (
