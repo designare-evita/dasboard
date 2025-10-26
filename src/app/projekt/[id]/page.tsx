@@ -1,10 +1,11 @@
 // src/app/projekt/[id]/page.tsx
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react'; // useEffect hinzugefügt
 import { useParams } from 'next/navigation';
 import useSWR from 'swr'; // Wir verwenden useSWR direkt für mehr Kontrolle
-import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector';
+// ENTFERNT: import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector';
+import { type DateRangeOption } from '@/components/DateRangeSelector'; // Nur der Typ wird noch gebraucht
 import {
   ProjectDashboardData,
   hasDashboardData // Nützliche Hilfsfunktion
@@ -20,7 +21,7 @@ const fetcher = (url: string) => fetch(url).then(async (res) => {
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({ message: res.statusText }));
     const error = new Error(errorData.message || 'Fehler beim Laden der Daten');
-    // @ts-ignore // Statuscode an den Fehler anhängen
+    // @ts-expect-error // KORRIGIERT: @ts-ignore ersetzt
     error.status = res.status; 
     throw error;
   }
@@ -97,12 +98,12 @@ export default function ProjektDetailPage() {
            <ExclamationTriangleFill className="text-red-500 mx-auto mb-4" size={40} />
           <h2 className="text-xl font-bold text-gray-800 mb-2">Fehler beim Laden</h2>
           <p className="text-gray-600">
-             {/* @ts-ignore */}
+             {/* @ts-expect-error // KORRIGIERT: @ts-ignore ersetzt */}
              {error.status === 404 
                 ? 'Das angeforderte Projekt wurde nicht gefunden.' 
-                : (error.message || 'Die Dashboard-Daten konnten nicht abgerufen werden.')}
+                : ((error as Error).message || 'Die Dashboard-Daten konnten nicht abgerufen werden.')} {/* Sicherer Zugriff auf message */}
           </p>
-           {/* @ts-ignore */}
+           {/* @ts-expect-error // KORRIGIERT: @ts-ignore ersetzt */}
            {error.status !== 404 && (
              <button 
                onClick={() => window.location.reload()} // Einfacher Reload-Button
@@ -136,3 +137,4 @@ export default function ProjektDetailPage() {
     </div>
   );
 }
+
