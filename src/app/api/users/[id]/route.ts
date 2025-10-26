@@ -14,6 +14,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
     const session = await getServerSession(authOptions);
     // Berechtigungsprüfung: Nur Admins oder Superadmins
@@ -21,7 +22,6 @@ export async function GET(
       return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
     }
 
-    const { id } = await params;
     console.log(`[GET /api/users/${id}] Benutzerdaten abrufen...`);
 
     const { rows } = await sql<User>`
@@ -55,14 +55,13 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
     const session = await getServerSession(authOptions);
     // Berechtigungsprüfung
     if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
       return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
     }
-
-    const { id } = await params;
     const body = await request.json();
 
     const {
@@ -153,14 +152,13 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
     const session = await getServerSession(authOptions);
     // Berechtigungsprüfung
     if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
       return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
     }
-
-    const { id } = await params;
     console.log(`[DELETE /api/users/${id}] Lösche Benutzer...`);
 
     const result = await sql`
