@@ -5,7 +5,7 @@ import KpiCard from './kpi-card';
 import { format, parseISO } from 'date-fns';
 import { de } from 'date-fns/locale';
 
-// Exportierter Typ für die Semrush-Daten
+// Typ für die Semrush-Daten (muss in ProjectDashboardData enthalten sein)
 export interface SemrushData {
   organicKeywords: number | null;
   organicTraffic: number | null;
