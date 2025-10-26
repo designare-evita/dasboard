@@ -55,7 +55,7 @@ export default function TopQueriesList({ queries, isLoading = false }: TopQuerie
           {queries.map((query, index) => (
             <li key={`${query.query}-${index}`} className="py-3 px-2 space-y-1.5 hover:bg-gray-50 transition-colors">
               <p className="text-base font-medium text-gray-900 leading-tight">{query.query}</p>
-              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-gray-500">
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-s text-gray-500">
                 <span title="Klicks">
                   Klicks: <span className="font-semibold text-gray-700">{query.clicks.toLocaleString('de-DE')}</span>
                 </span>
