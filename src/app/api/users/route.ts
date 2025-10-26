@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) { // Request-Typ zu NextRequest ge�
   try {
     const body = await req.json();
     const createdByAdminId = session.user.id;
-    const { email, password, role, domain, gsc_site_url, ga4_property_id } = body;
+    const { email, password, role, domain, gsc_site_url, ga4_property_id, semrush_project_id, semrush_tracking_id } = body;
 
     if (!email || !password || !role) {
       return NextResponse.json({ message: 'E-Mail, Passwort und Rolle sind erforderlich' }, { status: 400 });
@@ -132,8 +132,8 @@ export async function POST(req: NextRequest) { // Request-Typ zu NextRequest ge�
 
     // ✨ SQL-Query verwendet || null, um leere optionale Werte korrekt als NULL einzufügen ✨
     const { rows: newUsers } = await sql<User>`
-      INSERT INTO users (email, password, role, domain, gsc_site_url, ga4_property_id, "createdByAdminId")
-      VALUES (${email}, ${hashedPassword}, ${roleToCreate}, ${domain || null}, ${gsc_site_url || null}, ${ga4_property_id || null}, ${createdByAdminId})
+      INSERT INTO users (email, password, role, domain, gsc_site_url, ga4_property_id, semrush_project_id, semrush_tracking_id, "createdByAdminId")
+      VALUES (${email}, ${hashedPassword}, ${roleToCreate}, ${domain || null}, ${gsc_site_url || null}, ${ga4_property_id || null}, ${semrush_project_id || null}, ${semrush_tracking_id || null}, ${createdByAdminId})
       RETURNING id, email, role, domain`;
 
     // --- NEU: Automatische Zuweisung für ADMINS ---
