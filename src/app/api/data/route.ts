@@ -12,13 +12,24 @@ import {
 import { sql } from '@vercel/postgres';
 import { User } from '@/types';
 
+// ========================================================================
+// KORRIGIERTE TYPEN
+// ========================================================================
+
+// NEU: Definition für die täglichen Chart-Datenpunkte, um 'any' zu vermeiden
+interface DailyDataPoint {
+  date: string;
+  value: number;
+}
+
 // Typen für Standard-Daten (wichtig für optionale Ladung)
-type GscData = { clicks: { total: number, daily: any[] }, impressions: { total: number, daily: any[] } };
-type GaData = { sessions: { total: number, daily: any[] }, totalUsers: { total: number, daily: any[] } };
+type GscData = { clicks: { total: number, daily: DailyDataPoint[] }, impressions: { total: number, daily: DailyDataPoint[] } };
+type GaData = { sessions: { total: number, daily: DailyDataPoint[] }, totalUsers: { total: number, daily: DailyDataPoint[] } };
 type TopQueryData = Array<{ query: string; clicks: number; impressions: number; ctr: number; position: number; }>;
 
 // Standard/Fallback-Werte
 const DEFAULT_GSC_DATA: GscData = { clicks: { total: 0, daily: [] }, impressions: { total: 0, daily: [] } };
+// Der 'previous' Typ braucht nur 'total', da 'daily' nicht verwendet wird
 const DEFAULT_GSC_PREVIOUS = { clicks: { total: 0 }, impressions: { total: 0 } };
 const DEFAULT_GA_DATA: GaData = { sessions: { total: 0, daily: [] }, totalUsers: { total: 0, daily: [] } };
 const DEFAULT_GA_PREVIOUS = { sessions: { total: 0 }, totalUsers: { total: 0 } };
@@ -49,20 +60,17 @@ function calculateChange(current: number, previous: number): number {
 
 
 /**
- * ========================================================================
- * KORRIGIERTE FUNKTION: getDashboardDataForUser
  * Lädt GSC- und GA4-Daten unabhängig voneinander.
- * ========================================================================
  */
 async function getDashboardDataForUser(user: Partial<User>, dateRange: string = '30d') {
   
-  // NEUE PRÜFUNG: Nur abbrechen, wenn BEIDE IDs fehlen
+  // Nur abbrechen, wenn BEIDE IDs fehlen
   if (!user.gsc_site_url && !user.ga4_property_id) {
     console.warn(`[getDashboardDataForUser] Benutzer ${user.email} hat WEDER GSC noch GA4-Daten konfiguriert.`);
     return null; // Hier ist der Abbruch korrekt
   }
 
-  // --- Datumsberechnungen (unverändert) ---
+  // --- Datumsberechnungen ---
   const today = new Date();
   const endDateCurrent = new Date(today);
   endDateCurrent.setDate(endDateCurrent.getDate() - 1); 
@@ -142,7 +150,7 @@ async function getDashboardDataForUser(user: Partial<User>, dateRange: string = 
     
     console.log(`[getDashboardDataForUser] ✅ Daten erfolgreich geladen (GSC: ${gscResults.length > 0}, GA4: ${ga4Results.length > 0})`);
 
-    // --- Aufbereitung (unverändert, funktioniert jetzt mit 0-Werten) ---
+    // --- Aufbereitung ---
     const totalSessions = gaCurrent.sessions.total ?? 0;
     const aiSessionsPercentage = totalSessions > 0
       ? (aiTraffic.totalSessions / totalSessions) * 100
@@ -194,8 +202,6 @@ async function getDashboardDataForUser(user: Partial<User>, dateRange: string = 
 /**
  * ========================================================================
  * GET /api/data (Rest der Datei)
- * Die Logik hier bleibt gleich, aber sie erhält jetzt keine `null`
- * mehr von `getDashboardDataForUser` (außer BEIDE IDs fehlen).
  * ========================================================================
  */
 export async function GET(request: Request) {
