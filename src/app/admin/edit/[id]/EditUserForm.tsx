@@ -3,14 +3,16 @@
 import { useState, FormEvent, useEffect } from 'react';
 import { User } from '@/types';
 import { Pencil, ArrowRepeat, CheckCircle } from 'react-bootstrap-icons';
-export default function EditUserForm({ id, user, onUserUpdated }: { id?: string, user: User, onUserUpdated?: () => void }) {  const [email, setEmail] = useState(user.email || '');
+
+export default function EditUserForm({ id, user, onUserUpdated }: { id?: string, user: User, onUserUpdated?: () => void }) {
+  const [email, setEmail] = useState(user.email || '');
   const [domain, setDomain] = useState(user.domain || '');
   const [gscSiteUrl, setGscSiteUrl] = useState(user.gsc_site_url || '');
   const [ga4PropertyId, setGa4PropertyId] = useState(user.ga4_property_id || '');
   
   // --- NEUE STATES HINZUFÜGEN ---
   const [semrushProjectId, setSemrushProjectId] = useState(user.semrush_project_id || '');
-  const [trackingId, setTrackingId] = useState(user.tracking_id || '');
+  const [semrushTrackingId, setSemrushTrackingId] = useState(user.semrush_tracking_id || '');
   // ------------------------------
 
   const [message, setMessage] = useState('');
@@ -26,7 +28,7 @@ export default function EditUserForm({ id, user, onUserUpdated }: { id?: string,
       
       // --- NEUE STATES FÜLLEN ---
       setSemrushProjectId(user.semrush_project_id || '');
-      setTrackingId(user.tracking_id || '');
+      setSemrushTrackingId(user.semrush_tracking_id || '');
       // --------------------------
     }
   }, [user]);
@@ -42,10 +44,12 @@ export default function EditUserForm({ id, user, onUserUpdated }: { id?: string,
       domain: user.role === 'BENUTZER' ? domain : null,
       gsc_site_url: user.role === 'BENUTZER' ? gscSiteUrl : null,
       ga4_property_id: user.role === 'BENUTZER' ? ga4PropertyId : null,
-      semrush_project_id: user.role === 'BENUTZER' ? semrushProjectId : null, // NEU
-      tracking_id: user.role === 'BENUTZER' ? trackingId : null,             // NEU
+      semrush_project_id: user.role === 'BENUTZER' ? semrushProjectId : null,
+      semrush_tracking_id: user.role === 'BENUTZER' ? semrushTrackingId : null,
     };
     // -------------------------
+
+    console.log('Sending payload:', payload); // Debug-Log
 
     try {
       const response = await fetch(`/api/users/${user.id}`, {
@@ -54,10 +58,19 @@ export default function EditUserForm({ id, user, onUserUpdated }: { id?: string,
         body: JSON.stringify(payload),
       });
 
-      const result = await response.json();
+      // Versuche die Response zu parsen, auch wenn sie fehlschlägt
+      let result;
+      try {
+        result = await response.json();
+      } catch (parseError) {
+        console.error('JSON Parse Error:', parseError);
+        throw new Error('Serverfehler: Ungültige Antwort vom Server');
+      }
+
+      console.log('Server response:', result); // Debug-Log
 
       if (!response.ok) {
-        throw new Error(result.message || 'Ein Fehler ist aufgetreten.');
+        throw new Error(result.message || result.error || `HTTP ${response.status}: Ein Fehler ist aufgetreten.`);
       }
 
       setMessage('Benutzer erfolgreich aktualisiert!');
@@ -65,6 +78,7 @@ export default function EditUserForm({ id, user, onUserUpdated }: { id?: string,
         onUserUpdated(); // Daten auf der Hauptseite neu laden
       }
     } catch (error) {
+      console.error('Update error:', error); // Debug-Log
       setMessage(`Fehler: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`);
     } finally {
       setIsSubmitting(false);
@@ -145,13 +159,13 @@ export default function EditUserForm({ id, user, onUserUpdated }: { id?: string,
               />
             </div>
 
-            {/* --- NEUES FELD: Tracking-ID --- */}
+            {/* --- NEUES FELD: Semrush Tracking-ID --- */}
             <div>
-              <label className="block text-sm font-medium text-gray-700">Tracking-ID</label>
+              <label className="block text-sm font-medium text-gray-700">Semrush Tracking-ID</label>
               <input
                 type="text"
-                value={trackingId}
-                onChange={(e) => setTrackingId(e.target.value)}
+                value={semrushTrackingId}
+                onChange={(e) => setSemrushTrackingId(e.target.value)}
                 placeholder="Optional"
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
                 disabled={isSubmitting}
