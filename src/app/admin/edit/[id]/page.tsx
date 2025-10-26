@@ -35,7 +35,9 @@ async function getUserData(id: string): Promise<UserWithAssignments | null> {
         role,
         COALESCE(domain, '') as domain,
         COALESCE(gsc_site_url, '') as gsc_site_url,
-        COALESCE(ga4_property_id, '') as ga4_property_id
+        COALESCE(ga4_property_id, '') as ga4_property_id,
+        COALESCE(semrush_project_id, '') as semrush_project_id,
+        COALESCE(semrush_tracking_id, '') as semrush_tracking_id
       FROM users
       WHERE id::text = ${id}`;
       
