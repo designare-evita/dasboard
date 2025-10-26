@@ -3,9 +3,7 @@
 import { useState, FormEvent, useEffect } from 'react';
 import { User } from '@/types';
 import { Pencil, ArrowRepeat, CheckCircle } from 'react-bootstrap-icons';
-
-export default function EditUserForm({ user, onUserUpdated }: { user: User, onUserUpdated?: () => void }) {
-  const [email, setEmail] = useState(user.email || '');
+export default function EditUserForm({ id, user, onUserUpdated }: { id?: string, user: User, onUserUpdated?: () => void }) {  const [email, setEmail] = useState(user.email || '');
   const [domain, setDomain] = useState(user.domain || '');
   const [gscSiteUrl, setGscSiteUrl] = useState(user.gsc_site_url || '');
   const [ga4PropertyId, setGa4PropertyId] = useState(user.ga4_property_id || '');
