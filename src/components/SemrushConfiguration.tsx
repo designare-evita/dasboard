@@ -28,29 +28,29 @@ export default function SemrushConfiguration({ projectId, isAdmin = false }: Sem
 
   // Lade aktuelle Konfiguration
   useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        setIsLoading(true);
+        const url = projectId 
+          ? `/api/semrush/config?projectId=${projectId}`
+          : '/api/semrush/config';
+        
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        setConfig(data);
+        setTempProjectId(data.semrushProjectId || '');
+        setTempTrackingId(data.semrushTrackingId || '');
+      } catch (err) {
+        console.error('Error fetching Semrush config:', err);
+        setError('Fehler beim Laden der Konfiguration');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
     fetchConfig();
   }, [projectId]);
-
-  const fetchConfig = async () => {
-    try {
-      setIsLoading(true);
-      const url = projectId 
-        ? `/api/semrush/config?projectId=${projectId}`
-        : '/api/semrush/config';
-      
-      const response = await fetch(url);
-      const data = await response.json();
-      
-      setConfig(data);
-      setTempProjectId(data.semrushProjectId || '');
-      setTempTrackingId(data.semrushTrackingId || '');
-    } catch (err) {
-      console.error('Error fetching Semrush config:', err);
-      setError('Fehler beim Laden der Konfiguration');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleSave = async () => {
     try {
@@ -193,7 +193,7 @@ export default function SemrushConfiguration({ projectId, isAdmin = false }: Sem
             </div>
           )}
           <p className="mt-1 text-xs text-gray-500">
-            Die Project ID finden Sie in Semrush unter "Position Tracking" → Projekt auswählen → URL enthält die ID
+            Die Project ID finden Sie in Semrush unter &ldquo;Position Tracking&rdquo; → Projekt auswählen → URL enthält die ID
           </p>
         </div>
 
