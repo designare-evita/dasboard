@@ -14,6 +14,7 @@ import AiTrafficCard from '@/components/AiTrafficCard';
 import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector';
 import TopQueriesList from '@/components/TopQueriesList';
 import SemrushKpiCards, { SemrushData } from '@/components/SemrushKpiCards';
+import SemrushTopKeywords from '@/components/SemrushTopKeywords';
 
 interface ProjectDashboardProps {
   data: ProjectDashboardData;
@@ -136,5 +137,6 @@ export default function ProjectDashboard({
         isLoading={isLoading} 
       />
     </div>
+     </div> <SemrushTopKeywords projectId={currentProjectId} /></div>
   );
 }
