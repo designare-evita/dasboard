@@ -22,7 +22,39 @@ export default function SemrushTopKeywords({ projectId }: SemrushTopKeywordsProp
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastFetched, setLastFetched] = useState<string | null>(null);
+  const [fromCache, setFromCache] = useState<boolean>(false);
   const [currentProjectId, setCurrentProjectId] = useState<string | undefined>(projectId);
+
+  // Funktion um relatives Datum zu formatieren (wie bei SemrushKpiCards)
+  const formatLastFetched = (dateString: string | null): string => {
+    if (!dateString) return 'Nie';
+    
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    
+    if (diffDays === 0) {
+      // Zeige auch Stunden wenn "heute"
+      if (diffHours === 0) {
+        return 'Gerade eben';
+      } else {
+        return `Heute (vor ${diffHours}h)`;
+      }
+    } else if (diffDays === 1) {
+      return 'Gestern';
+    } else if (diffDays < 14) {
+      return `vor ${diffDays} Tagen`;
+    } else {
+      // Formatiere als deutsches Datum
+      return date.toLocaleDateString('de-DE', { 
+        day: '2-digit', 
+        month: '2-digit', 
+        year: 'numeric' 
+      });
+    }
+  };
 
   useEffect(() => {
     // WICHTIG: Reset State wenn projectId sich ändert
@@ -57,6 +89,7 @@ export default function SemrushTopKeywords({ projectId }: SemrushTopKeywordsProp
         if (data.keywords) {
           setKeywords(data.keywords);
           setLastFetched(data.lastFetched);
+          setFromCache(data.fromCache || false);
           setError(null);
         } else {
           setKeywords([]);
@@ -130,9 +163,24 @@ export default function SemrushTopKeywords({ projectId }: SemrushTopKeywordsProp
           Top 20 Organische Keywords
         </h3>
         {lastFetched && (
-          <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-            Cache
-          </span>
+          <div className="text-xs text-gray-500 flex flex-col items-end gap-1">
+            <div className="flex items-center gap-1">
+              <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                fromCache 
+                  ? 'bg-gray-100 text-gray-600' 
+                  : 'bg-green-100 text-green-700'
+              }`}>
+                {fromCache ? 'Cache' : 'Live'}
+              </span>
+              <span>
+                {formatLastFetched(lastFetched)}
+              </span>
+            </div>
+            {/* Exakter Timestamp */}
+            <span className="text-[10px] text-gray-400" title={lastFetched}>
+              {new Date(lastFetched).toLocaleString('de-DE')}
+            </span>
+          </div>
         )}
       </div>
 
