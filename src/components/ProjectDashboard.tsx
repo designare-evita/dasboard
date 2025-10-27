@@ -1,7 +1,7 @@
-// src/components/ProjectDashboard.tsx
+// src/components/ProjectDashboard.tsx (Debug-Version)
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   ProjectDashboardData, 
   ActiveKpi, 
@@ -24,7 +24,7 @@ interface ProjectDashboardProps {
   onDateRangeChange: (range: DateRangeOption) => void;
   showNoDataHint?: boolean;
   noDataHintText?: string;
-  projectId?: string; // NEU: für SemrushTopKeywords
+  projectId?: string;
 }
 
 export default function ProjectDashboard({
@@ -35,14 +35,18 @@ export default function ProjectDashboard({
   onDateRangeChange,
   showNoDataHint = false,
   noDataHintText = "Für dieses Projekt wurden noch keine KPI-Daten geliefert.",
-  projectId // NEU
+  projectId
 }: ProjectDashboardProps) {
   
   const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
 
+  // DEBUG: Log bei jedem Render
+  useEffect(() => {
+    console.log('[ProjectDashboard] Rendered with projectId:', projectId);
+  }, [projectId]);
+
   const kpis = normalizeFlatKpis(data.kpis);
 
-  // Chart-Daten kommen aus dem separaten charts Objekt in der API-Response
   type DataWithCharts = ProjectDashboardData & { 
     charts?: Record<ActiveKpi, Array<{ date: string; value: number }>> 
   };
@@ -57,6 +61,18 @@ export default function ProjectDashboard({
 
   return (
     <div className="space-y-8">
+      {/* DEBUG INFO - NUR IN DEVELOPMENT */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg p-4">
+          <h3 className="font-bold text-yellow-900 mb-2">🔍 DEBUG INFO (nur in Development sichtbar)</h3>
+          <div className="text-sm space-y-1">
+            <div><strong>Current ProjectId:</strong> {projectId || 'NICHT GESETZT!'}</div>
+            <div><strong>Semrush Data:</strong> {semrushData ? 'Vorhanden' : 'Null'}</div>
+            <div><strong>Keywords werden geladen für ProjectId:</strong> {projectId || 'FEHLT!'}</div>
+          </div>
+        </div>
+      )}
+
       {/* 1. BLOCK: Google KPI-Karten */}
       <div>
         <div className="flex flex-col md:flex-row justify-between md:items-center mb-4 gap-4">
@@ -145,7 +161,11 @@ export default function ProjectDashboard({
 
         {/* Semrush Top Keywords */}
         <div>
-          <SemrushTopKeywords projectId={projectId} />
+          {/* Key-Prop hinzugefügt um Force-Remount bei projectId-Änderung */}
+          <SemrushTopKeywords 
+            key={projectId} 
+            projectId={projectId} 
+          />
         </div>
       </div>
     </div>
