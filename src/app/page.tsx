@@ -132,7 +132,7 @@ export default function HomePage() {
         isLoading={isLoading}
         dateRange={dateRange}
         onDateRangeChange={handleDateRangeChange}
-        projectId={session.user.id}  {/* ← NEU: User-ID als projectId */}
+        projectId={session.user.id}
       />
     );
   }
@@ -209,7 +209,7 @@ function CustomerDashboard({
           onDateRangeChange={onDateRangeChange}
           showNoDataHint={showNoDataHint}
           noDataHintText="Hinweis: Für Ihr Projekt wurden noch keine KPI-Daten geliefert. Es werden vorübergehend Platzhalter-Werte angezeigt."
-          projectId={projectId}  {/* ← NEU */}
+          projectId={projectId}
         />
 
         <div className="mt-8">
