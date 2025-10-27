@@ -1,4 +1,4 @@
-// src/app/projekt/[id]/page.tsx
+// src/app/projekt/[id]/page.tsx (KORRIGIERT)
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -133,6 +133,7 @@ export default function ProjektDetailPage() {
         onDateRangeChange={setDateRange}
         showNoDataHint={showNoDataHint}
         noDataHintText="Hinweis: Für dieses Projekt wurden noch keine KPI-/Zeitreihen-Daten von Google geliefert. Es werden vorübergehend Platzhalter-Werte angezeigt."
+        projectId={projectId}
       />
     </div>
   );
