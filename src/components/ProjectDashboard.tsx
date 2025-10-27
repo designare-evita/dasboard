@@ -14,7 +14,7 @@ import AiTrafficCard from '@/components/AiTrafficCard';
 import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector';
 import TopQueriesList from '@/components/TopQueriesList';
 import SemrushKpiCards, { SemrushData } from '@/components/SemrushKpiCards';
-import SemrushTopKeywords from '@/components/SemrushTopKeywords';
+import SemrushKeywordTable from '@/components/SemrushKeywordTable';
 import SemrushConfigDisplay from '@/components/SemrushConfigDisplay';
 
 interface ProjectDashboardProps {
@@ -160,19 +160,18 @@ export default function ProjectDashboard({
           />
         </div>
 
-        {/* Semrush Top Keywords */}
+        {/* Semrush Konfiguration */}
         <div className="lg:col-span-2">
-          {/* Key-Prop hinzugefügt um Force-Remount bei projectId-Änderung */}
-          <SemrushTopKeywords 
-            key={projectId} 
-            projectId={projectId} 
-          />
+          <SemrushConfigDisplay projectId={projectId} />
         </div>
       </div>
 
-      {/* 5. BLOCK: Semrush Konfiguration (kompakt) */}
+      {/* 5. BLOCK: Keyword Rankings Tabelle (volle Breite) */}
       <div>
-        <SemrushConfigDisplay projectId={projectId} />
+        <SemrushKeywordTable 
+          key={projectId} 
+          projectId={projectId} 
+        />
       </div>
     </div>
   );
