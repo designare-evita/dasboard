@@ -273,3 +273,131 @@ export async function getSemrushData(params: {
     error: 'No domain or project ID provided'
   };
 }
+
+// Ergänzung für src/lib/semrush-api.ts
+// Diese Funktionen zu der bestehenden Datei hinzufügen
+
+/**
+ * Typ-Definition für Semrush Keyword-Daten
+ */
+export interface SemrushKeyword {
+  keyword: string;
+  position: number;
+  previousPosition: number | null;
+  searchVolume: number;
+  cpc: number;
+  url: string;
+  trafficPercent: number;
+  costs: number;
+  numberOfResults: number;
+  trends: number[];
+}
+
+/**
+ * Funktion zum Abrufen von Top Keywords
+ */
+export async function getSemrushKeywords(params: {
+  domain?: string;
+  projectId?: string;
+  database?: string;
+  limit?: number;
+}) {
+  const { domain, projectId, database = 'de', limit = 20 } = params;
+
+  if (!apiKey) {
+    console.error('[Semrush Keywords] SEMRUSH_API_KEY nicht gesetzt');
+    return {
+      keywords: [],
+      error: 'Semrush API key is missing'
+    };
+  }
+
+  // Strategie 1: Domain-basiert (empfohlen für Keywords)
+  if (domain) {
+    const cleanDomain = domain.replace(/^https?:\/\//i, '').replace(/^www\./i, '');
+    
+    console.log('[Semrush Keywords] Fetching top keywords for:', cleanDomain);
+
+    const params = new URLSearchParams({
+      key: apiKey,
+      type: 'domain_organic', // Organic search keywords
+      domain: cleanDomain,
+      database: database,
+      display_limit: String(limit),
+      export_columns: 'Ph,Po,Pp,Nq,Cp,Ur,Tr,Tc,Co,Nr,Td', // Alle relevanten Spalten
+    });
+
+    const url = `${SEMRUSH_API_URL}?${params.toString()}`;
+
+    try {
+      const response = await axios.get(url, {
+        timeout: 15000 // 15 Sekunden für Keywords
+      });
+
+      if (typeof response.data !== 'string') {
+        throw new Error('Unexpected response format from Semrush');
+      }
+
+      const lines = response.data.trim().split('\n');
+      
+      if (lines.length < 2) {
+        console.warn('[Semrush Keywords] Keine Keywords gefunden für:', cleanDomain);
+        return {
+          keywords: [],
+          error: 'No keywords available'
+        };
+      }
+
+      // Parse CSV-Daten
+      const keywords: SemrushKeyword[] = [];
+      
+      // Skip Header (erste Zeile)
+      for (let i = 1; i < lines.length; i++) {
+        const values = lines[i].split(';');
+        
+        if (values.length < 11) continue;
+
+        keywords.push({
+          keyword: values[0] || '',
+          position: parseFloat(values[1]) || 0,
+          previousPosition: values[2] ? parseFloat(values[2]) : null,
+          searchVolume: parseInt(values[3]) || 0,
+          cpc: parseFloat(values[4]) || 0,
+          url: values[5] || '',
+          trafficPercent: parseFloat(values[6]) || 0,
+          costs: parseFloat(values[7]) || 0,
+          numberOfResults: parseInt(values[8]) || 0,
+          trends: values[9] ? values[9].split(',').map(t => parseFloat(t) || 0) : [],
+        });
+      }
+
+      console.log('[Semrush Keywords] ✅ Fetched', keywords.length, 'keywords');
+
+      return {
+        keywords: keywords
+      };
+
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        console.error(`[Semrush Keywords] Axios error:`, error.message);
+        if (error.response) {
+          console.error('[Semrush Keywords] Response:', error.response.status, error.response.data);
+        }
+      } else {
+        console.error(`[Semrush Keywords] Error:`, error);
+      }
+      
+      return {
+        keywords: [],
+        error: 'Could not fetch Semrush keywords',
+      };
+    }
+  }
+
+  // Keine Domain verfügbar
+  console.warn('[Semrush Keywords] Keine Domain angegeben');
+  return {
+    keywords: [],
+    error: 'No domain provided'
+  };
+}
