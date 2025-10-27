@@ -1,4 +1,4 @@
-// src/components/SemrushKpiCards.tsx
+// src/components/SemrushKpiCards.tsx (mit Debug-Timestamp)
 'use client';
 
 import { ArrowUp, ArrowDown, Database } from 'react-bootstrap-icons';
@@ -17,7 +17,7 @@ interface SemrushKpiCardsProps {
 
 export default function SemrushKpiCards({ data, isLoading = false }: SemrushKpiCardsProps) {
   
-  // Funktion um relatives Datum zu formatieren
+  // Funktion um relatives Datum zu formatieren (MIT DETAILLIERTEM DEBUG)
   const formatLastFetched = (dateString: string | null): string => {
     if (!dateString) return 'Nie';
     
@@ -25,9 +25,19 @@ export default function SemrushKpiCards({ data, isLoading = false }: SemrushKpiC
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    
+    // DEBUG: Log zum Überprüfen
+    console.log('[SemrushKpiCards] lastFetched:', dateString);
+    console.log('[SemrushKpiCards] diffDays:', diffDays, 'diffHours:', diffHours);
     
     if (diffDays === 0) {
-      return 'Heute';
+      // Zeige auch Stunden wenn "heute"
+      if (diffHours === 0) {
+        return 'Gerade eben';
+      } else {
+        return `Heute (vor ${diffHours}h)`;
+      }
     } else if (diffDays === 1) {
       return 'Gestern';
     } else if (diffDays < 14) {
@@ -66,13 +76,23 @@ export default function SemrushKpiCards({ data, isLoading = false }: SemrushKpiC
           Semrush Übersicht
         </h3>
         {data?.lastFetched && (
-          <div className="text-xs text-gray-500 flex items-center gap-1">
-            {/* DEBUG: Immer zeigen */}
-            <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-xs">
-              {data.fromCache ? 'Cache' : 'Live'}
-            </span>
-            <span>
-              Zuletzt aktualisiert: {formatLastFetched(data.lastFetched)}
+          <div className="text-xs text-gray-500 flex flex-col items-end gap-1">
+            <div className="flex items-center gap-1">
+              {/* DEBUG: Immer zeigen */}
+              <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                data.fromCache 
+                  ? 'bg-gray-100 text-gray-600' 
+                  : 'bg-green-100 text-green-700'
+              }`}>
+                {data.fromCache ? 'Cache' : 'Live'}
+              </span>
+              <span>
+                {formatLastFetched(data.lastFetched)}
+              </span>
+            </div>
+            {/* DEBUG: Zeige exakten Timestamp */}
+            <span className="text-[10px] text-gray-400" title={data.lastFetched}>
+              {new Date(data.lastFetched).toLocaleString('de-DE')}
             </span>
           </div>
         )}
@@ -84,7 +104,7 @@ export default function SemrushKpiCards({ data, isLoading = false }: SemrushKpiC
         <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg p-4 border border-orange-200">
           <div className="flex items-center justify-between mb-2">
             <h4 className="text-sm font-medium text-orange-900">Organische Keywords</h4>
-            {!isLoading && data?.organicKeywords !== null && (
+            {!isLoading && data?.organicKeywords !== null && data?.organicKeywords !== undefined && (
               <ArrowUp className="text-orange-600" size={16} />
             )}
           </div>
@@ -109,7 +129,7 @@ export default function SemrushKpiCards({ data, isLoading = false }: SemrushKpiC
         <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg p-4 border border-orange-200">
           <div className="flex items-center justify-between mb-2">
             <h4 className="text-sm font-medium text-orange-900">Organischer Traffic</h4>
-            {!isLoading && data?.organicTraffic !== null && (
+            {!isLoading && data?.organicTraffic !== null && data?.organicTraffic !== undefined && (
               <ArrowUp className="text-orange-600" size={16} />
             )}
           </div>
@@ -135,7 +155,7 @@ export default function SemrushKpiCards({ data, isLoading = false }: SemrushKpiC
       {!isLoading && (
         <div className="mt-4 pt-4 border-t border-gray-100">
           <p className="text-xs text-gray-500">
-            💡 Semrush-Daten werden alle 14 Tage automatisch aktualisiert.
+            💡 Semrush-Daten werden alle 14 Tage automatisch aktualisiert, um API-Limits zu schonen.
           </p>
         </div>
       )}
