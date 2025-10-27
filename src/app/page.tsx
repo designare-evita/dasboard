@@ -1,4 +1,4 @@
-// src/app/page.tsx
+// src/app/page.tsx (KORRIGIERT - mit projectId)
 'use client';
 
 import { useSession } from 'next-auth/react';
@@ -132,6 +132,7 @@ export default function HomePage() {
         isLoading={isLoading}
         dateRange={dateRange}
         onDateRangeChange={handleDateRangeChange}
+        projectId={session.user.id}  {/* ← NEU: User-ID als projectId */}
       />
     );
   }
@@ -185,13 +186,15 @@ function CustomerDashboard({
   semrushData,
   isLoading,
   dateRange,
-  onDateRangeChange
+  onDateRangeChange,
+  projectId  // ← NEU
 }: {
   data: ProjectDashboardData;
   semrushData: SemrushData | null;
   isLoading: boolean;
   dateRange: DateRangeOption;
   onDateRangeChange: (range: DateRangeOption) => void;
+  projectId?: string;  // ← NEU
 }) {
   const showNoDataHint = !isLoading && !hasDashboardData(data);
 
@@ -206,6 +209,7 @@ function CustomerDashboard({
           onDateRangeChange={onDateRangeChange}
           showNoDataHint={showNoDataHint}
           noDataHintText="Hinweis: Für Ihr Projekt wurden noch keine KPI-Daten geliefert. Es werden vorübergehend Platzhalter-Werte angezeigt."
+          projectId={projectId}  {/* ← NEU */}
         />
 
         <div className="mt-8">
