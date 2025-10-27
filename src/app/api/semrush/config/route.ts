@@ -52,9 +52,9 @@ export async function GET(request: NextRequest) {
     // Lade Config aus DB
     const { rows } = await sql`
       SELECT 
-        semrush_project_id,
-        semrush_tracking_id,
-        updated_at
+        semrush_project_id as "semrushProjectId",
+        semrush_tracking_id as "semrushTrackingId",
+        updated_at as "lastUpdated"
       FROM users 
       WHERE id::text = ${targetUserId}
     `;
@@ -66,9 +66,9 @@ export async function GET(request: NextRequest) {
     const user = rows[0];
 
     return NextResponse.json({
-      semrushProjectId: user.semrush_project_id,
-      semrushTrackingId: user.semrush_tracking_id,
-      lastUpdated: user.updated_at
+      semrushProjectId: user.semrushProjectId,
+      semrushTrackingId: user.semrushTrackingId,
+      lastUpdated: user.lastUpdated
     });
 
   } catch (error) {
@@ -140,7 +140,10 @@ export async function PUT(request: NextRequest) {
         semrush_tracking_id = ${semrushTrackingId || null},
         updated_at = NOW()
       WHERE id::text = ${targetUserId}
-      RETURNING semrush_project_id, semrush_tracking_id, updated_at
+      RETURNING 
+        semrush_project_id as "semrushProjectId", 
+        semrush_tracking_id as "semrushTrackingId", 
+        updated_at as "lastUpdated"
     `;
 
     if (rows.length === 0) {
@@ -171,9 +174,9 @@ export async function PUT(request: NextRequest) {
     console.log('[/api/semrush/config] ✅ Config gespeichert');
 
     return NextResponse.json({
-      semrushProjectId: updatedUser.semrush_project_id,
-      semrushTrackingId: updatedUser.semrush_tracking_id,
-      lastUpdated: updatedUser.updated_at
+      semrushProjectId: updatedUser.semrushProjectId,
+      semrushTrackingId: updatedUser.semrushTrackingId,
+      lastUpdated: updatedUser.lastUpdated
     });
 
   } catch (error) {
