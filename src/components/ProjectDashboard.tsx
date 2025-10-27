@@ -24,6 +24,7 @@ interface ProjectDashboardProps {
   onDateRangeChange: (range: DateRangeOption) => void;
   showNoDataHint?: boolean;
   noDataHintText?: string;
+  projectId?: string; // NEU: für SemrushTopKeywords
 }
 
 export default function ProjectDashboard({
@@ -33,7 +34,8 @@ export default function ProjectDashboard({
   dateRange,
   onDateRangeChange,
   showNoDataHint = false,
-  noDataHintText = "Für dieses Projekt wurden noch keine KPI-Daten geliefert."
+  noDataHintText = "Für dieses Projekt wurden noch keine KPI-Daten geliefert.",
+  projectId // NEU
 }: ProjectDashboardProps) {
   
   const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
@@ -131,12 +133,21 @@ export default function ProjectDashboard({
         )}
       </div>
 
-      {/* 4. BLOCK: Semrush KPI-Karten (ganz zum Schluss) */}
-      <SemrushKpiCards 
-        data={semrushData} 
-        isLoading={isLoading} 
-      />
+      {/* 4. BLOCK: Semrush Übersicht */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Semrush KPI-Karten */}
+        <div>
+          <SemrushKpiCards 
+            data={semrushData} 
+            isLoading={isLoading} 
+          />
+        </div>
+
+        {/* Semrush Top Keywords */}
+        <div>
+          <SemrushTopKeywords projectId={projectId} />
+        </div>
+      </div>
     </div>
-     </div> <SemrushTopKeywords projectId={currentProjectId} /></div>
   );
 }
