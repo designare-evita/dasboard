@@ -15,7 +15,7 @@ import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeS
 import TopQueriesList from '@/components/TopQueriesList';
 import SemrushKpiCards, { SemrushData } from '@/components/SemrushKpiCards';
 import SemrushTopKeywords from '@/components/SemrushTopKeywords';
-import SemrushConfiguration from '@/components/SemrushConfiguration';
+import SemrushConfigDisplay from '@/components/SemrushConfigDisplay';
 
 interface ProjectDashboardProps {
   data: ProjectDashboardData;
@@ -151,7 +151,7 @@ export default function ProjectDashboard({
       </div>
 
       {/* 4. BLOCK: Semrush Übersicht */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Semrush KPI-Karten */}
         <div>
           <SemrushKpiCards 
@@ -161,7 +161,7 @@ export default function ProjectDashboard({
         </div>
 
         {/* Semrush Top Keywords */}
-        <div>
+        <div className="lg:col-span-2">
           {/* Key-Prop hinzugefügt um Force-Remount bei projectId-Änderung */}
           <SemrushTopKeywords 
             key={projectId} 
@@ -170,12 +170,9 @@ export default function ProjectDashboard({
         </div>
       </div>
 
-      {/* 5. BLOCK: Semrush Konfiguration */}
+      {/* 5. BLOCK: Semrush Konfiguration (kompakt) */}
       <div>
-        <SemrushConfiguration 
-          projectId={projectId}
-          isAdmin={true}
-        />
+        <SemrushConfigDisplay projectId={projectId} />
       </div>
     </div>
   );
