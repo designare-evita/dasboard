@@ -16,6 +16,7 @@ import TopQueriesList from '@/components/TopQueriesList';
 import SemrushKpiCards, { SemrushData } from '@/components/SemrushKpiCards';
 import SemrushKeywordTable from '@/components/SemrushKeywordTable';
 import SemrushConfigDisplay from '@/components/SemrushConfigDisplay';
+import { Download } from 'react-bootstrap-icons';
 
 interface ProjectDashboardProps {
   data: ProjectDashboardData;
@@ -26,6 +27,7 @@ interface ProjectDashboardProps {
   showNoDataHint?: boolean;
   noDataHintText?: string;
   projectId?: string;
+  domain?: string;
 }
 
 export default function ProjectDashboard({
@@ -36,15 +38,58 @@ export default function ProjectDashboard({
   onDateRangeChange,
   showNoDataHint = false,
   noDataHintText = "Für dieses Projekt wurden noch keine KPI-Daten geliefert.",
-  projectId
+  projectId,
+  domain
 }: ProjectDashboardProps) {
   
   const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+
+  // PDF Export Handler
+  const handleExportPdf = async () => {
+    setIsExportingPdf(true);
+    
+    try {
+      // Dynamically import html2pdf
+      const html2pdf = (await import('html2pdf.js')).default;
+      
+      const element = document.getElementById('dashboard-content');
+      
+      if (!element) {
+        throw new Error('Dashboard content not found');
+      }
+
+      const opt = {
+        margin: [10, 10],
+        filename: `dashboard-${domain || 'report'}-${new Date().toISOString().split('T')[0]}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { 
+          scale: 2,
+          useCORS: true,
+          logging: false
+        },
+        jsPDF: { 
+          unit: 'mm', 
+          format: 'a4', 
+          orientation: 'portrait' 
+        }
+      };
+
+      await html2pdf().set(opt).from(element).save();
+      
+    } catch (error) {
+      console.error('PDF Export Error:', error);
+      alert('Fehler beim Erstellen des PDFs. Bitte versuchen Sie es erneut.');
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
 
   // DEBUG: Log bei jedem Render
   useEffect(() => {
     console.log('[ProjectDashboard] Rendered with projectId:', projectId);
-  }, [projectId]);
+    console.log('[ProjectDashboard] Domain:', domain);
+  }, [projectId, domain]);
 
   const kpis = normalizeFlatKpis(data.kpis);
 
@@ -62,12 +107,52 @@ export default function ProjectDashboard({
 
   return (
     <div className="space-y-8">
+      {/* Dashboard Header mit Domain und PDF-Export */}
+      {domain && (
+        <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 mb-1">
+                Dashboard: {domain}
+              </h1>
+              <p className="text-sm text-gray-500">
+                Zeitraum: {dateRange === '7d' ? 'Letzte 7 Tage' : 
+                          dateRange === '30d' ? 'Letzte 30 Tage' : 
+                          dateRange === '90d' ? 'Letzte 90 Tage' : 'Letztes Jahr'}
+              </p>
+            </div>
+            
+            <button
+              onClick={handleExportPdf}
+              disabled={isExportingPdf}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {isExportingPdf ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                  <span>Erstelle PDF...</span>
+                </>
+              ) : (
+                <>
+                  <Download size={18} />
+                  <span>Als PDF exportieren</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Wrapper für PDF-Export */}
+      <div id="dashboard-content">
+        
       {/* DEBUG INFO - NUR IN DEVELOPMENT */}
       {process.env.NODE_ENV === 'development' && (
-        <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg p-4">
+        <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg p-4 mb-8">
           <h3 className="font-bold text-yellow-900 mb-2">🔍 DEBUG INFO (nur in Development sichtbar)</h3>
           <div className="text-sm space-y-1">
             <div><strong>Current ProjectId:</strong> {projectId || 'NICHT GESETZT!'}</div>
+            <div><strong>Domain:</strong> {domain || 'NICHT GESETZT!'}</div>
             <div><strong>Semrush Data:</strong> {semrushData ? 'Vorhanden' : 'Null'}</div>
             <div><strong>Keywords werden geladen für ProjectId:</strong> {projectId || 'FEHLT!'}</div>
           </div>
@@ -150,6 +235,21 @@ export default function ProjectDashboard({
         )}
       </div>
 
+      {/* 4. BLOCK: Semrush Übersicht */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Semrush KPI-Karten */}
+        <div>
+          <SemrushKpiCards 
+            data={semrushData} 
+            isLoading={isLoading} 
+          />
+        </div>
+
+        {/* Semrush Konfiguration */}
+        <div className="lg:col-span-2">
+          <SemrushConfigDisplay projectId={projectId} />
+        </div>
+      </div>
 
       {/* 5. BLOCK: Keyword Rankings Tabelle (volle Breite) */}
       <div>
@@ -158,6 +258,8 @@ export default function ProjectDashboard({
           projectId={projectId} 
         />
       </div>
+
+      </div> {/* Ende dashboard-content */}
     </div>
   );
 }
