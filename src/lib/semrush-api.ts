@@ -221,3 +221,111 @@ export async function getSemrushData(params: {
     error: 'No Semrush Project ID configured'
   };
 }
+
+/**
+ * Funktion zum Abrufen von Keywords mit Rankings aus Semrush Position Tracking
+ * @param projectId Die Semrush Project ID
+ */
+export async function getSemrushKeywords(projectId: string) {
+  if (!apiKey) {
+    console.error('[Semrush] SEMRUSH_API_KEY is not set in environment variables.');
+    return {
+      keywords: [],
+      error: 'Semrush API key is missing'
+    };
+  }
+
+  if (!projectId) {
+    console.warn('[Semrush] No project ID provided for keywords');
+    return {
+      keywords: [],
+      error: 'No project ID'
+    };
+  }
+
+  console.log('[Semrush] Fetching keywords for project ID:', projectId);
+
+  // Semrush Position Tracking API
+  const params = new URLSearchParams({
+    key: apiKey,
+    type: 'position_tracking',
+    project_id: projectId,
+    export_columns: 'Ph,Po,Pp,Nq,Cp,Ur,Tr,Tc,Co,Nr,Td',
+    // Ph = Keyword (phrase)
+    // Po = Position
+    // Pp = Previous Position
+    // Nq = Search Volume
+    // Cp = CPC
+    // Ur = URL
+    // Tr = Traffic %
+    // Tc = Traffic Cost
+    // Co = Competition
+    // Nr = Number of Results
+    // Td = Trends
+    display_limit: 100, // Top 100 Keywords
+    display_sort: 'po_asc' // Sortiert nach Position (beste zuerst)
+  });
+
+  const url = `${SEMRUSH_API_URL}?${params.toString()}`;
+
+  try {
+    const response = await axios.get(url, {
+      timeout: 15000 // 15 Sekunden Timeout für Keywords
+    });
+
+    if (typeof response.data !== 'string') {
+      throw new Error('Unexpected response format from Semrush');
+    }
+
+    const lines = response.data.trim().split('\n');
+    
+    if (lines.length < 2) {
+      console.warn('[Semrush] No keywords returned for project:', projectId);
+      return {
+        keywords: [],
+        error: 'No keywords found'
+      };
+    }
+
+    // Parse CSV-ähnliche Daten (erste Zeile = Header, Rest = Daten)
+    const keywords = lines.slice(1).map(line => {
+      const values = line.split(';');
+      return {
+        keyword: values[0] || '',
+        position: parseFloat(values[1]) || 0,
+        previousPosition: values[2] ? parseFloat(values[2]) : null,
+        searchVolume: parseInt(values[3]) || 0,
+        cpc: parseFloat(values[4]) || 0,
+        url: values[5] || '',
+        trafficPercent: parseFloat(values[6]) || 0,
+        costs: parseFloat(values[7]) || 0,
+        competition: parseFloat(values[8]) || 0,
+        numberOfResults: parseInt(values[9]) || 0,
+        trends: values[10] ? values[10].split(',').map(t => parseFloat(t)) : []
+      };
+    }).filter(kw => kw.keyword); // Filtere leere Keywords
+
+    console.log('[Semrush] Successfully fetched', keywords.length, 'keywords');
+
+    return {
+      keywords,
+      error: null
+    };
+
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      console.error(`[Semrush] Axios error fetching keywords for project ${projectId}:`, error.message);
+      if (error.response) {
+        console.error('[Semrush] Response status:', error.response.status);
+        console.error('[Semrush] Response data:', error.response.data);
+      }
+    } else {
+      console.error(`[Semrush] Error fetching keywords:`, error);
+    }
+    
+    return {
+      keywords: [],
+      error: 'Could not fetch Semrush keywords',
+    };
+  }
+}
