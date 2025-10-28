@@ -58,6 +58,14 @@ export default function ProjektDetailPage() {
     fetcher
   );
 
+  // 3. SWR-Hook für User/Domain-Daten
+  const { 
+    data: userData 
+  } = useSWR<{ domain?: string; email?: string }>(
+    projectId ? `/api/users/${projectId}` : null,
+    fetcher
+  );
+
   // Kombinierter Ladezustand - nur Google-Daten sind kritisch
   const isLoading = isLoadingGoogle || sessionStatus === 'loading';
 
@@ -134,6 +142,7 @@ export default function ProjektDetailPage() {
         showNoDataHint={showNoDataHint}
         noDataHintText="Hinweis: Für dieses Projekt wurden noch keine KPI-/Zeitreihen-Daten von Google geliefert. Es werden vorübergehend Platzhalter-Werte angezeigt."
         projectId={projectId}
+        domain={userData?.domain}
       />
     </div>
   );
