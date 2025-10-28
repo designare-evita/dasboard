@@ -59,6 +59,7 @@ export default function ProjectDashboard({
         throw new Error('Dashboard content not found');
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const opt: any = {
         margin: [10, 10, 10, 10],
         filename: `dashboard-${domain || 'report'}-${new Date().toISOString().split('T')[0]}.pdf`,
