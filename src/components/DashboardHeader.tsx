@@ -1,20 +1,20 @@
-// src/components/DashboardHeader.tsx
+// src/components/DashboardHeader.tsx (AKTUALISIERT)
 'use client';
 
 import React from 'react';
 import { Download } from 'react-bootstrap-icons';
 import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector';
+// 1. ShadCN Button importieren
+import { Button } from "@/components/ui/button";
 
-// 1. Wir definieren die Props, die der Header benötigt
 interface DashboardHeaderProps {
   domain?: string;
   projectId?: string;
   dateRange: DateRangeOption;
   onDateRangeChange: (range: DateRangeOption) => void;
-  onPdfExport: () => void; // Eine Funktion für den PDF-Export
+  onPdfExport: () => void;
 }
 
-// 2. Wir erstellen die Komponente
 export default function DashboardHeader({
   domain,
   projectId,
@@ -23,39 +23,42 @@ export default function DashboardHeader({
   onPdfExport
 }: DashboardHeaderProps) {
 
-  // 3. Hier ist der komplette JSX-Code für den Header
   return (
     <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6">
-      <div className="flex flex-col gap-4">
-        {/* Erste Zeile: Domain und PDF Button */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              Dashboard: {domain}
-            </h1>
-            {projectId && (
-              <p className="text-xs text-gray-400 mt-1">
-                ID: {projectId}
-              </p>
-            )}
-          </div>
-          
-          <button
-            onClick={onPdfExport} // Wir verwenden die 'onPdfExport' Prop
-            className="px-3 py-1 text-sm font-medium rounded-md transition-colors bg-indigo-600 text-white hover:bg-indigo-700 print:hidden flex items-center gap-2"
-            title="Als PDF exportieren"
-          >
-            <Download size={16} />
-            <span>PDF</span>
-          </button>
-        </div>
-
-        {/* Zweite Zeile: Zeitraum-Buttons */}
+      {/* 2. Responsive Layout: unter sm: 2 Zeilen, ab sm: 1 Zeile */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        
+        {/* Linke Seite: Titel und ID */}
         <div>
+          <h1 className="text-2xl font-bold text-gray-900">
+            Dashboard: {domain}
+          </h1>
+          {projectId && (
+            <p className="text-xs text-gray-400 mt-1">
+              ID: {projectId}
+            </p>
+          )}
+        </div>
+        
+        {/* 3. Rechte Seite: Wrapper für Buttons */}
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          {/* Zeitraum-Buttons */}
           <DateRangeSelector
             value={dateRange}
             onChange={onDateRangeChange}
+            className="w-full sm:w-auto" // Styling für Responsivität
           />
+          
+          {/* Angepasster PDF Button */}
+          <Button
+            onClick={onPdfExport}
+            title="Als PDF exportieren"
+            variant="outline" // Optische Anpassung (grauer Button)
+            className="print:hidden gap-2 w-full sm:w-auto" // Responsiv
+          >
+            <Download size={16} />
+            <span>PDF</span>
+          </Button>
         </div>
       </div>
     </div>
