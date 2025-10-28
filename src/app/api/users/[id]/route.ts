@@ -1,4 +1,4 @@
-// src/app/api/users/[id]/route.ts (KORRIGIERT)
+// src/app/api/users/[id]/route.ts (FINAL KORRIGIERT)
 
 import { NextResponse, NextRequest } from 'next/server';
 import { sql } from '@vercel/postgres';
@@ -10,14 +10,17 @@ import { User } from '@/types';
 // Handler zum Abrufen eines einzelnen Benutzers
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  // --- START KORREKTUR 2 ---
+  // params ist kein Promise.
+  { params }: { params: { id: string } } 
 ) {
-  const { id } = await params; // Dies ist die projectId/userId aus der URL
+  const id = params.id; // Die 'id' direkt aus params holen.
+  // --- ENDE KORREKTUR 2 ---
+
   try {
     const session = await getServerSession(authOptions);
 
-    // --- START KORREKTUR ---
-    // Berechtigungsprüfung:
+    // --- KORREKTUR 1 (Berechtigungsprüfung) ---
     // 1. Ist der Benutzer überhaupt angemeldet?
     if (!session?.user) {
       return NextResponse.json({ message: 'Nicht authentifiziert' }, { status: 401 });
@@ -29,9 +32,10 @@ export async function GET(
 
     // Wenn der Benutzer weder Admin noch der Eigentümer ist, Zugriff verweigern.
     if (!isOwner && !isAdmin) {
+      console.warn(`[GET /api/users/${id}] Zugriff verweigert. User ${session.user.id} ist nicht Eigentümer und kein Admin.`);
       return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
     }
-    // --- ENDE KORREKTUR ---
+    // --- ENDE KORREKTUR 1 ---
 
     // Wenn wir hier sind, ist der Benutzer berechtigt.
     console.log(`[GET /api/users/${id}] Benutzerdaten abrufen... (Berechtigt als ${isAdmin ? 'Admin' : 'Eigentümer'})`);
@@ -70,9 +74,9 @@ export async function GET(
 // Handler zum Aktualisieren eines Benutzers (PUT)
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } } // <-- Auch hier korrigiert
 ) {
-  const { id } = await params;
+  const id = params.id; // <-- Auch hier korrigiert
   try {
     const session = await getServerSession(authOptions);
     // Berechtigungsprüfung: Nur Admins oder Superadmins
@@ -149,10 +153,6 @@ export async function PUT(
       RETURNING id::text as id, email, role, domain, gsc_site_url, ga4_property_id, semrush_project_id, semrush_tracking_id;
     `;
 
-    // DEBUG: Logge die finale Query (ohne Werte)
-    // console.log(`[PUT /api/users/${id}] Query: ${query}`);
-    // console.log(`[PUT /api/users/${id}] Values:`, values);
-
     const { rows } = await sql.query(query, values);
 
     if (rows.length === 0) {
@@ -178,9 +178,9 @@ export async function PUT(
 // Handler zum Löschen eines Benutzers
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } } // <-- Auch hier korrigiert
 ) {
-  const { id } = await params;
+  const id = params.id; // <-- Auch hier korrigiert
   try {
     const session = await getServerSession(authOptions);
     // Berechtigungsprüfung
