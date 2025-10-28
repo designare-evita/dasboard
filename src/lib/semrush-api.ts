@@ -262,7 +262,7 @@ export async function getSemrushKeywords(projectId: string) {
     // Co = Competition
     // Nr = Number of Results
     // Td = Trends
-    display_limit: 100, // Top 100 Keywords
+    display_limit: '100', // Top 100 Keywords
     display_sort: 'po_asc' // Sortiert nach Position (beste zuerst)
   });
 
