@@ -44,22 +44,7 @@ export default function ProjectDashboard({
   
   const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
 
-  // Helper für Zeitraum-Labels
-  const getDateRangeLabel = (range: DateRangeOption): string => {
-    const labels: Record<string, string> = {
-      'last7Days': 'Letzte 7 Tage',
-      'last30Days': 'Letzte 30 Tage',
-      'last90Days': 'Letzte 90 Tage',
-      'lastYear': 'Letztes Jahr',
-      '7d': 'Letzte 7 Tage',
-      '30d': 'Letzte 30 Tage',
-      '90d': 'Letzte 90 Tage',
-      '1y': 'Letztes Jahr'
-    };
-    return labels[range] || range;
-  };
-
-  // PDF Export Handler - verwendet Browser Print
+  // PDF Export Handler
   const handleExportPdf = () => {
     window.print();
   };
@@ -80,44 +65,49 @@ export default function ProjectDashboard({
 
   return (
     <div className="space-y-8">
-      {/* NEU: Dashboard Header mit Domain und PDF-Export */}
+      {/* Dashboard Header mit Domain, ID, Zeitraum-Buttons und PDF */}
       {domain && (
         <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 mb-1">
-                Dashboard: {domain}
-              </h1>
-              <p className="text-sm text-gray-500">
-                Zeitraum: {getDateRangeLabel(dateRange)}
-              </p>
+          <div className="flex flex-col gap-4">
+            {/* Erste Zeile: Domain und PDF Button */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">
+                  Dashboard: {domain}
+                </h1>
+                {projectId && (
+                  <p className="text-xs text-gray-400 mt-1">
+                    ID: {projectId}
+                  </p>
+                )}
+              </div>
+              
+              <button
+                onClick={handleExportPdf}
+                className="px-3 py-1 text-sm font-medium rounded-md transition-colors bg-indigo-600 text-white hover:bg-indigo-700 print:hidden flex items-center gap-2"
+                title="Als PDF exportieren"
+              >
+                <Download size={16} />
+                <span>PDF</span>
+              </button>
             </div>
-            
-            <button
-              onClick={handleExportPdf}
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors print:hidden"
-              title="Öffnet den Browser-Druckdialog zum Speichern als PDF"
-            >
-              <Download size={18} />
-              <span>Als PDF exportieren</span>
-            </button>
+
+            {/* Zweite Zeile: Zeitraum-Buttons */}
+            <div>
+              <DateRangeSelector
+                value={dateRange}
+                onChange={onDateRangeChange}
+              />
+            </div>
           </div>
         </div>
       )}
 
-      {/* ORIGINAL DESIGN AB HIER */}
-      
       {/* 1. BLOCK: Google KPI-Karten */}
       <div>
-        <div className="flex flex-col md:flex-row justify-between md:items-center mb-4 gap-4">
-          <h2 className="text-xl font-semibold text-gray-700">
-            Google Übersicht (Search Console & GA4)
-          </h2>
-          <DateRangeSelector
-            value={dateRange}
-            onChange={onDateRangeChange}
-          />
-        </div>
+        <h2 className="text-xl font-semibold text-gray-700 mb-4">
+          Google Übersicht (Search Console & GA4)
+        </h2>
         <KpiCardsGrid kpis={kpis} isLoading={isLoading} />
       </div>
 
@@ -158,10 +148,10 @@ export default function ProjectDashboard({
         )}
       </div>
 
-      {/* 3. BLOCK: KI-Traffic + Top Queries */}
+      {/* 3. BLOCK: KI-Traffic + Top Queries - GLEICHE HÖHE */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {data.aiTraffic && (
-          <div className="lg:col-span-1">
+          <div className="lg:col-span-1 h-full">
             <AiTrafficCard
               totalSessions={data.aiTraffic.totalSessions}
               totalUsers={data.aiTraffic.totalUsers}
@@ -174,7 +164,7 @@ export default function ProjectDashboard({
         )}
           
         {data.topQueries && data.topQueries.length > 0 && (
-          <div className={`${data.aiTraffic ? 'lg:col-span-2' : 'lg:col-span-3'}`}>
+          <div className={`${data.aiTraffic ? 'lg:col-span-2' : 'lg:col-span-3'} h-full`}>
             <TopQueriesList 
               queries={data.topQueries} 
               isLoading={isLoading} 
@@ -183,8 +173,23 @@ export default function ProjectDashboard({
         )}
       </div>
 
+      {/* 4. BLOCK: Semrush Übersicht */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Semrush KPI-Karten */}
+        <div>
+          <SemrushKpiCards 
+            data={semrushData} 
+            isLoading={isLoading} 
+          />
+        </div>
 
-      {/* 5. BLOCK: Keyword Rankings Tabelle (volle Breite) */}
+        {/* Semrush Konfiguration */}
+        <div className="lg:col-span-2">
+          <SemrushConfigDisplay projectId={projectId} />
+        </div>
+      </div>
+
+      {/* 5. BLOCK: Keyword Rankings Tabelle */}
       <div>
         <SemrushKeywordTable 
           key={projectId} 
