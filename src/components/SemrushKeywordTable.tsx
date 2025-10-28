@@ -121,10 +121,10 @@ export default function SemrushKeywordTable({ projectId }: SemrushKeywordTablePr
     return (
       <div className="bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden">
         <div className="p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
             <Search size={20} className="text-orange-600" />
             SEMRUSH Keyword Rankings
-          </h3>
+          </h2>
           <div className="animate-pulse space-y-3">
             {[...Array(10)].map((_, i) => (
               <div key={i} className="h-12 bg-gray-100 rounded"></div>
@@ -138,10 +138,10 @@ export default function SemrushKeywordTable({ projectId }: SemrushKeywordTablePr
   if (error || keywords.length === 0) {
     return (
       <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
           <Search size={20} className="text-orange-600" />
           SEMRUSH Keyword Rankings
-        </h3>
+        </h2>
         <p className="text-sm text-gray-500 italic">
           {error || 'Keine Keywords verfügbar. Bitte konfigurieren Sie Semrush oder warten Sie auf den ersten Datenabruf.'}
         </p>
@@ -154,10 +154,10 @@ export default function SemrushKeywordTable({ projectId }: SemrushKeywordTablePr
       {/* Header */}
       <div className="p-6 pb-4 border-b border-gray-200">
         <div className="flex justify-between items-start mb-2">
-          <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+          <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
             <Search size={20} className="text-orange-600" />
             SEMRUSH Keyword Rankings
-          </h3>
+          </h2>
           {lastFetched && (
             <div className="text-xs text-gray-500 flex flex-col items-end gap-1">
               <div className="flex items-center gap-1">
