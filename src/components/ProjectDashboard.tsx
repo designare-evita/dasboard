@@ -198,6 +198,7 @@ export default function ProjectDashboard({
                 topSources={data.aiTraffic.topAiSources}
                 isLoading={isLoading}
                 dateRange={dateRange}
+                className="h-full"
               />
             </div>
           )}
@@ -207,6 +208,7 @@ export default function ProjectDashboard({
               <TopQueriesList
                 queries={data.topQueries}
                 isLoading={isLoading}
+                className="h-full"
               />
             </div>
           )}
