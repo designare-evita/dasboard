@@ -82,9 +82,7 @@ export default function ProjectDashboard({
   };
 
   return (
-    // 👇 WIR ENTFERNEN space-y-8 VON HIER
-    <div>
-
+   <div className="space-y-8">
       {/* Dashboard Header mit Domain und PDF-Export */}
       {domain && (
         <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6">
