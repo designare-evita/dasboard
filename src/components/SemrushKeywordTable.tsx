@@ -140,7 +140,7 @@ export default function SemrushKeywordTable({ projectId }: SemrushKeywordTablePr
       <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
         <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
           <Search size={20} className="text-orange-600" />
-          Keyword Rankings
+          Semrush Keyword Rankings
         </h3>
         <p className="text-sm text-gray-500 italic">
           {error || 'Keine Keywords verfügbar. Bitte konfigurieren Sie Semrush oder warten Sie auf den ersten Datenabruf.'}
