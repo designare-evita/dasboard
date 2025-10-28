@@ -31,6 +31,7 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<DateRangeOption>('30d');
+  const [userDomain, setUserDomain] = useState<string | undefined>(undefined);
 
   const fetchData = useCallback(async (range: DateRangeOption = dateRange) => {
     setIsLoading(true);
@@ -85,6 +86,16 @@ export default function HomePage() {
             setIsLoading(false);
           });
       } else if (session.user.role === 'BENUTZER') {
+        // Lade Domain für Kunde
+        fetch(`/api/users/${session.user.id}`)
+          .then(res => res.json())
+          .then(userData => {
+            setUserDomain(userData.domain);
+          })
+          .catch(err => {
+            console.error('Fehler beim Laden der User-Daten:', err);
+          });
+        
         fetchData(dateRange);
       }
     } else if (status === 'unauthenticated') {
@@ -133,6 +144,7 @@ export default function HomePage() {
         isLoading={isLoading}
         dateRange={dateRange}
         onDateRangeChange={handleDateRangeChange}
+        domain={userDomain}
       />
     );
   }
@@ -186,13 +198,15 @@ function CustomerDashboard({
   semrushData,
   isLoading,
   dateRange,
-  onDateRangeChange
+  onDateRangeChange,
+  domain
 }: {
   data: ProjectDashboardData;
   semrushData: SemrushData | null;
   isLoading: boolean;
   dateRange: DateRangeOption;
   onDateRangeChange: (range: DateRangeOption) => void;
+  domain?: string;
 }) {
   const showNoDataHint = !isLoading && !hasDashboardData(data);
 
@@ -207,6 +221,7 @@ function CustomerDashboard({
           onDateRangeChange={onDateRangeChange}
           showNoDataHint={showNoDataHint}
           noDataHintText="Hinweis: Für Ihr Projekt wurden noch keine KPI-Daten geliefert. Es werden vorübergehend Platzhalter-Werte angezeigt."
+          domain={domain}
         />
 
         <div className="mt-8">
