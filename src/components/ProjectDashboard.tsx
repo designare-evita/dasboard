@@ -45,6 +45,21 @@ export default function ProjectDashboard({
   const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
   const [isExportingPdf, setIsExportingPdf] = useState(false);
 
+  // Helper für Zeitraum-Labels
+  const getDateRangeLabel = (range: DateRangeOption): string => {
+    const labels: Record<string, string> = {
+      'last7Days': 'Letzte 7 Tage',
+      'last30Days': 'Letzte 30 Tage',
+      'last90Days': 'Letzte 90 Tage',
+      'lastYear': 'Letztes Jahr',
+      '7d': 'Letzte 7 Tage',
+      '30d': 'Letzte 30 Tage',
+      '90d': 'Letzte 90 Tage',
+      '1y': 'Letztes Jahr'
+    };
+    return labels[range] || range;
+  };
+
   // PDF Export Handler
   const handleExportPdf = async () => {
     setIsExportingPdf(true);
@@ -120,9 +135,7 @@ export default function ProjectDashboard({
                 Dashboard: {domain}
               </h1>
               <p className="text-sm text-gray-500">
-                Zeitraum: {dateRange === '7d' ? 'Letzte 7 Tage' : 
-                          dateRange === '30d' ? 'Letzte 30 Tage' : 
-                          dateRange === '90d' ? 'Letzte 90 Tage' : 'Letztes Jahr'}
+                Zeitraum: {getDateRangeLabel(dateRange)}
               </p>
             </div>
             
