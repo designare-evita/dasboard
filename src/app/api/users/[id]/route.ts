@@ -1,4 +1,4 @@
-// src/app/api/users/[id]/route.ts (FINAL KORRIGIERT)
+// src/app/api/users/[id]/route.ts
 
 import { NextResponse, NextRequest } from 'next/server';
 import { sql } from '@vercel/postgres';
@@ -10,35 +10,25 @@ import { User } from '@/types';
 // Handler zum Abrufen eines einzelnen Benutzers
 export async function GET(
   request: NextRequest,
-  // --- START KORREKTUR 2 ---
-  // params ist kein Promise.
-  { params }: { params: { id: string } } 
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const id = params.id; // Die 'id' direkt aus params holen.
-  // --- ENDE KORREKTUR 2 ---
-
+  const { id } = await params;
   try {
     const session = await getServerSession(authOptions);
-
-    // --- KORREKTUR 1 (Berechtigungsprüfung) ---
-    // 1. Ist der Benutzer überhaupt angemeldet?
+    
+    // Berechtigungsprüfung: Admins ODER der Benutzer selbst
     if (!session?.user) {
-      return NextResponse.json({ message: 'Nicht authentifiziert' }, { status: 401 });
+      return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
     }
 
-    // 2. Ist der Benutzer Admin ODER der Eigentümer des angeforderten Profils?
-    const isOwner = session.user.id === id;
     const isAdmin = session.user.role === 'ADMIN' || session.user.role === 'SUPERADMIN';
+    const isOwnProfile = session.user.id === id;
 
-    // Wenn der Benutzer weder Admin noch der Eigentümer ist, Zugriff verweigern.
-    if (!isOwner && !isAdmin) {
-      console.warn(`[GET /api/users/${id}] Zugriff verweigert. User ${session.user.id} ist nicht Eigentümer und kein Admin.`);
+    if (!isAdmin && !isOwnProfile) {
       return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
     }
-    // --- ENDE KORREKTUR 1 ---
 
-    // Wenn wir hier sind, ist der Benutzer berechtigt.
-    console.log(`[GET /api/users/${id}] Benutzerdaten abrufen... (Berechtigt als ${isAdmin ? 'Admin' : 'Eigentümer'})`);
+    console.log(`[GET /api/users/${id}] Benutzerdaten abrufen... (angefragt von: ${session.user.email})`);
 
     const { rows } = await sql<User>`
       SELECT
@@ -56,111 +46,117 @@ export async function GET(
 
     if (rows.length === 0) {
       console.warn(`[GET /api/users/${id}] Benutzer nicht gefunden`);
-      return NextResponse.json({ message: "Benutzer nicht gefunden" }, { status: 404 });
+      return NextResponse.json({ message: 'Benutzer nicht gefunden' }, { status: 404 });
     }
-
-    console.log(`✅ [GET /api/users/${id}] Benutzerdaten erfolgreich abgerufen`);
+    
+    console.log(`[GET /api/users/${id}] ✅ Benutzer gefunden:`, rows[0].email);
+    
     return NextResponse.json(rows[0]);
-
   } catch (error) {
     console.error(`[GET /api/users/${id}] Fehler:`, error);
-    return NextResponse.json({
-      message: 'Interner Serverfehler',
-      error: error instanceof Error ? error.message : 'Unbekannter Fehler'
-    }, { status: 500 });
+    return NextResponse.json({ message: 'Interner Serverfehler' }, { status: 500 });
   }
 }
 
-// Handler zum Aktualisieren eines Benutzers (PUT)
+// Handler zum Aktualisieren eines Benutzers
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } } // <-- Auch hier korrigiert
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const id = params.id; // <-- Auch hier korrigiert
+  const { id } = await params;
   try {
     const session = await getServerSession(authOptions);
-    // Berechtigungsprüfung: Nur Admins oder Superadmins
+    // Berechtigungsprüfung: Nur Admins dürfen Updates durchführen
     if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
       return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
     }
-
-    console.log(`[PUT /api/users/${id}] Benutzer aktualisieren...`);
     const body = await request.json();
-    const { 
-      email, 
-      password, 
-      role, 
-      domain, 
-      gsc_site_url, 
-      ga4_property_id, 
-      semrush_project_id, 
-      semrush_tracking_id 
+
+    const {
+        email,
+        domain,
+        gsc_site_url,
+        ga4_property_id,
+        semrush_project_id,
+        semrush_tracking_id,
+        password
     } = body;
 
-    // Dynamische Query-Erstellung
-    const updateFields: string[] = [];
-    const values: (string | number | null)[] = [];
-    let valueIndex = 1;
-
-    // Nur Felder hinzufügen, die auch im Body übergeben wurden
-    if (email !== undefined) {
-      updateFields.push(`email = $${valueIndex++}`);
-      values.push(email);
-    }
-    if (password) {
-      const hashedPassword = await bcrypt.hash(password, 10);
-      updateFields.push(`password_hash = $${valueIndex++}`);
-      values.push(hashedPassword);
-    }
-    if (role !== undefined) {
-      updateFields.push(`role = $${valueIndex++}`);
-      values.push(role);
-    }
-    if (domain !== undefined) {
-      updateFields.push(`domain = $${valueIndex++}`);
-      values.push(domain);
-    }
-    if (gsc_site_url !== undefined) {
-      updateFields.push(`gsc_site_url = $${valueIndex++}`);
-      values.push(gsc_site_url);
-    }
-    if (ga4_property_id !== undefined) {
-      updateFields.push(`ga4_property_id = $${valueIndex++}`);
-      values.push(ga4_property_id);
-    }
-    if (semrush_project_id !== undefined) {
-      updateFields.push(`semrush_project_id = $${valueIndex++}::integer`);
-      values.push(semrush_project_id || null); // Erlaube Null/Leer
-    }
-    if (semrush_tracking_id !== undefined) {
-      updateFields.push(`semrush_tracking_id = $${valueIndex++}::integer`);
-      values.push(semrush_tracking_id || null); // Erlaube Null/Leer
+    if (!email) {
+      return NextResponse.json({ message: 'E-Mail ist erforderlich' }, { status: 400 });
     }
 
-    if (updateFields.length === 0) {
-      console.warn(`[PUT /api/users/${id}] Keine Felder zum Aktualisieren angegeben`);
-      return NextResponse.json({ message: 'Keine Felder zum Aktualisieren angegeben' }, { status: 400 });
-    }
+    const normalizedEmail = email.toLowerCase().trim();
 
-    // ID als letzten Parameter hinzufügen
-    values.push(id);
-    const idIndex = valueIndex;
-
-    const query = `
-      UPDATE users
-      SET ${updateFields.join(', ')}
-      WHERE id = $${idIndex}::uuid
-      RETURNING id::text as id, email, role, domain, gsc_site_url, ga4_property_id, semrush_project_id, semrush_tracking_id;
+    // E-Mail-Konfliktprüfung
+    const { rows: emailCheck } = await sql`
+      SELECT id FROM users
+      WHERE email = ${normalizedEmail} AND id::text != ${id};
     `;
+    if (emailCheck.length > 0) {
+      return NextResponse.json({
+        message: 'Diese E-Mail-Adresse wird bereits von einem anderen Benutzer verwendet'
+      }, { status: 409 });
+    }
 
-    const { rows } = await sql.query(query, values);
-
-    if (rows.length === 0) {
-      console.warn(`[PUT /api/users/${id}] Benutzer nicht gefunden`);
+    // Benutzer-Existenzprüfung
+    const { rows: existingUsers } = await sql`SELECT role FROM users WHERE id = ${id}::uuid`;
+    if (existingUsers.length === 0) {
       return NextResponse.json({ message: "Benutzer nicht gefunden" }, { status: 404 });
     }
+    
+    console.log(`[PUT /api/users/${id}] Update-Anfrage...`);
+    console.log(`[PUT /api/users/${id}] Semrush Project ID: ${semrush_project_id}`);
+    console.log(`[PUT /api/users/${id}] Semrush Tracking ID: ${semrush_tracking_id}`);
 
-    console.log(`✅ [PUT /api/users/${id}] Benutzer erfolgreich aktualisiert`);
+    // Passwort hashen, falls vorhanden
+    let hashedPassword = null;
+    if (password && password.trim().length > 0) {
+      hashedPassword = await bcrypt.hash(password, 10);
+      console.log(`  - [PUT /api/users/${id}] Passwort wird aktualisiert.`);
+    }
+
+    // Update mit korrekter SQL-Syntax
+    const { rows } = hashedPassword
+      ? await sql<User>`
+          UPDATE users
+          SET 
+            email = ${normalizedEmail},
+            domain = ${domain || null},
+            gsc_site_url = ${gsc_site_url || null},
+            ga4_property_id = ${ga4_property_id || null},
+            semrush_project_id = ${semrush_project_id || null},
+            semrush_tracking_id = ${semrush_tracking_id || null},
+            password = ${hashedPassword}
+          WHERE id = ${id}::uuid
+          RETURNING
+            id::text as id, email, role, domain, 
+            gsc_site_url, ga4_property_id, 
+            semrush_project_id::text as semrush_project_id, 
+            semrush_tracking_id::text as semrush_tracking_id;
+        `
+      : await sql<User>`
+          UPDATE users
+          SET 
+            email = ${normalizedEmail},
+            domain = ${domain || null},
+            gsc_site_url = ${gsc_site_url || null},
+            ga4_property_id = ${ga4_property_id || null},
+            semrush_project_id = ${semrush_project_id || null},
+            semrush_tracking_id = ${semrush_tracking_id || null}
+          WHERE id = ${id}::uuid
+          RETURNING
+            id::text as id, email, role, domain, 
+            gsc_site_url, ga4_property_id, 
+            semrush_project_id::text as semrush_project_id, 
+            semrush_tracking_id::text as semrush_tracking_id;
+        `;
+
+    if (rows.length === 0) {
+      return NextResponse.json({ message: "Update fehlgeschlagen. Benutzer nicht gefunden." }, { status: 404 });
+    }
+
+    console.log(`✅ [PUT /api/users/${id}] Benutzer erfolgreich aktualisiert:`, rows[0].email);
     return NextResponse.json({
       ...rows[0],
       message: 'Benutzer erfolgreich aktualisiert'
@@ -178,12 +174,12 @@ export async function PUT(
 // Handler zum Löschen eines Benutzers
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } } // <-- Auch hier korrigiert
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const id = params.id; // <-- Auch hier korrigiert
+  const { id } = await params;
   try {
     const session = await getServerSession(authOptions);
-    // Berechtigungsprüfung
+    // Berechtigungsprüfung: Nur Admins
     if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
       return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
     }
@@ -202,9 +198,6 @@ export async function DELETE(
     return NextResponse.json({ message: 'Benutzer erfolgreich gelöscht' });
   } catch (error) {
     console.error(`[DELETE /api/users/${id}] Fehler:`, error);
-    return NextResponse.json({
-      message: 'Interner Serverfehler',
-      error: error instanceof Error ? error.message : 'Unbekannter Fehler'
-    }, { status: 500 });
+    return NextResponse.json({ message: 'Interner Serverfehler' }, { status: 500 });
   }
 }
