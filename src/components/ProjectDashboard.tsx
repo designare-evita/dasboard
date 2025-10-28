@@ -1,34 +1,34 @@
-// src/components/ProjectDashboard.tsx (Debug-Version)
+// src/components/ProjectDashboard.tsx (KORRIGIERTE STRUKTUR)
 'use client';
 
 import { useState, useEffect } from 'react';
-import { 
-  ProjectDashboardData, 
-  ActiveKpi, 
-  KPI_TAB_META, 
-  normalizeFlatKpis 
+import {
+  ProjectDashboardData,
+  ActiveKpi,
+  KPI_TAB_META,
+  normalizeFlatKpis
 } from '@/lib/dashboard-shared';
 import KpiCardsGrid from '@/components/KpiCardsGrid';
 import KpiTrendChart from '@/components/charts/KpiTrendChart';
 import AiTrafficCard from '@/components/AiTrafficCard';
 import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector';
 import TopQueriesList from '@/components/TopQueriesList';
-import SemrushKpiCards, { SemrushData } from '@/components/SemrushKpiCards';
+import SemrushKpiCards, { SemrushData } from '@/components/SemrushKpiCards'; // Import SemrushKpiCards
 import SemrushKeywordTable from '@/components/SemrushKeywordTable';
-import SemrushConfigDisplay from '@/components/SemrushConfigDisplay';
+import SemrushConfigDisplay from '@/components/SemrushConfigDisplay'; // Import SemrushConfigDisplay
 import { Download } from 'react-bootstrap-icons';
 import { Button } from "@/components/ui/button";
 
 interface ProjectDashboardProps {
   data: ProjectDashboardData;
-  semrushData: SemrushData | null;
+  semrushData: SemrushData | null; // Verwende SemrushData hier
   isLoading: boolean;
   dateRange: DateRangeOption;
   onDateRangeChange: (range: DateRangeOption) => void;
   showNoDataHint?: boolean;
   noDataHintText?: string;
-  projectId?: string;
-  domain?: string;
+  projectId?: string; // Optional projectId hinzugefügt
+  domain?: string; // Optional domain hinzugefügt
 }
 
 export default function ProjectDashboard({
@@ -39,23 +39,19 @@ export default function ProjectDashboard({
   onDateRangeChange,
   showNoDataHint = false,
   noDataHintText = "Für dieses Projekt wurden noch keine KPI-Daten geliefert.",
-  projectId,
-  domain
+  projectId, // projectId hier verwenden
+  domain // domain hier verwenden
 }: ProjectDashboardProps) {
-  
+
   const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
 
   // Helper für Zeitraum-Labels
   const getDateRangeLabel = (range: DateRangeOption): string => {
     const labels: Record<string, string> = {
-      'last7Days': 'Letzte 7 Tage',
-      'last30Days': 'Letzte 30 Tage',
-      'last90Days': 'Letzte 90 Tage',
-      'lastYear': 'Letztes Jahr',
-      '7d': 'Letzte 7 Tage',
       '30d': 'Letzte 30 Tage',
-      '90d': 'Letzte 90 Tage',
-      '1y': 'Letztes Jahr'
+      '3m': 'Letzte 3 Monate',
+      '6m': 'Letzte 6 Monate',
+      '12m': 'Letzte 12 Monate',
     };
     return labels[range] || range;
   };
@@ -73,11 +69,11 @@ export default function ProjectDashboard({
 
   const kpis = normalizeFlatKpis(data.kpis);
 
-  type DataWithCharts = ProjectDashboardData & { 
-    charts?: Record<ActiveKpi, Array<{ date: string; value: number }>> 
+  type DataWithCharts = ProjectDashboardData & {
+    charts?: Record<ActiveKpi, Array<{ date: string; value: number }>>
   };
   const chartSeries = (data as DataWithCharts).charts?.[activeKpi] || [];
-  
+
   const kpiLabels: Record<string, string> = {
     clicks: 'Klicks',
     impressions: 'Impressionen',
@@ -86,11 +82,13 @@ export default function ProjectDashboard({
   };
 
   return (
-    <div className="space-y-8">
+    // 👇 WIR ENTFERNEN space-y-8 VON HIER
+    <div>
+
       {/* Dashboard Header mit Domain und PDF-Export */}
       {domain && (
         <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
               <h1 className="text-2xl font-bold text-gray-900 mb-1">
                 Dashboard: {domain}
@@ -98,124 +96,138 @@ export default function ProjectDashboard({
               <p className="text-sm text-gray-500">
                 Zeitraum: {getDateRangeLabel(dateRange)}
               </p>
+              {projectId && (
+                <p className="text-xs text-gray-400 mt-1">
+                  Projekt ID: {projectId}
+                </p>
+              )}
             </div>
-            
-<Button
-  onClick={handleExportPdf}
-  title="Öffnet den Browser-Druckdialog zum Speichern als PDF"
-  variant="default" // 1. Dies ist der blaue Stil (#188BDB)
-  className="print:hidden gap-2" // 2. Klassen hinzugefügt, die nicht vom Variant kommen
->
-  <Download size={18} />
-  <span>Als PDF exportieren</span>
-</Button>
-          </div>
-        </div>
-      )}
-
-      {/* Wrapper für PDF-Export */}
-      <div id="dashboard-content">
-        
-      {/* DEBUG INFO - NUR IN DEVELOPMENT */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg p-4 mb-8">
-          <h3 className="font-bold text-yellow-900 mb-2">🔍 DEBUG INFO (nur in Development sichtbar)</h3>
-          <div className="text-sm space-y-1">
-            <div><strong>Current ProjectId:</strong> {projectId || 'NICHT GESETZT!'}</div>
-            <div><strong>Domain:</strong> {domain || 'NICHT GESETZT!'}</div>
-            <div><strong>Semrush Data:</strong> {semrushData ? 'Vorhanden' : 'Null'}</div>
-            <div><strong>Keywords werden geladen für ProjectId:</strong> {projectId || 'FEHLT!'}</div>
-          </div>
-        </div>
-      )}
-
-      {/* 1. BLOCK: Google KPI-Karten */}
-      <div>
-        <div className="flex flex-col md:flex-row justify-between md:items-center mb-4 gap-4">
-          <h2 className="text-xl font-semibold text-gray-700">
-            Google Übersicht (Search Console & GA4)
-          </h2>
-          <DateRangeSelector
-            value={dateRange}
-            onChange={onDateRangeChange}
-          />
-        </div>
-        <KpiCardsGrid kpis={kpis} isLoading={isLoading} />
-      </div>
-
-      {/* 2. BLOCK: Google KPI-Chart */}
-      <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4 sm:mb-0">
-            Performance-Trend
-          </h3>
-          <div className="flex-shrink-0 flex flex-wrap gap-2">
-            {(Object.keys(KPI_TAB_META) as ActiveKpi[]).map((kpi) => (
-              <button
-                key={kpi}
-                onClick={() => setActiveKpi(kpi)}
-                className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
-                  activeKpi === kpi
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              <DateRangeSelector
+                value={dateRange}
+                onChange={onDateRangeChange}
+                className="w-full sm:w-auto" // Styling für Responsivität
+              />
+              <Button
+                onClick={handleExportPdf}
+                title="Öffnet den Browser-Druckdialog zum Speichern als PDF"
+                variant="outline" // Geändert zu 'outline' für grauen Stil
+                className="print:hidden gap-2 w-full sm:w-auto"
               >
-                {KPI_TAB_META[kpi].title}
-              </button>
-            ))}
+                <Download size={18} />
+                <span>Als PDF exportieren</span>
+              </Button>
+            </div>
           </div>
         </div>
-        <div className="mt-4 h-72">
-          <KpiTrendChart 
-            data={chartSeries} 
-            color={KPI_TAB_META[activeKpi].color}
-            label={kpiLabels[activeKpi] || KPI_TAB_META[activeKpi].title}
+      )}
+
+      {/* Wrapper für PDF-Export und ABSTAND */}
+      {/* 👇 WIR FÜGEN space-y-8 HIER HINZU */}
+      <div id="dashboard-content" className="space-y-8">
+
+        {/* DEBUG INFO - NUR IN DEVELOPMENT */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg p-4">
+            <h3 className="font-bold text-yellow-900 mb-2">🔍 DEBUG INFO (nur in Development sichtbar)</h3>
+            <div className="text-sm space-y-1">
+              <div><strong>isLoading:</strong> {isLoading ? 'true' : 'false'}</div>
+              <div><strong>Current ProjectId:</strong> {projectId || 'NICHT GESETZT!'}</div>
+              <div><strong>Domain:</strong> {domain || 'NICHT GESETZT!'}</div>
+              <div><strong>Semrush Data (Keywords):</strong> {semrushData?.organicKeywords ?? 'N/A'}</div>
+              <div><strong>Semrush Data (Traffic):</strong> {semrushData?.organicTraffic ?? 'N/A'}</div>
+              <div><strong>Semrush Data (LastFetched):</strong> {semrushData?.lastFetched ? new Date(semrushData.lastFetched).toLocaleString('de-DE') : 'N/A'}</div>
+            </div>
+          </div>
+        )}
+
+        {/* 1. BLOCK: Google KPI-Karten */}
+        <div>
+          <div className="flex flex-col md:flex-row justify-between md:items-center mb-4 gap-4">
+            <h2 className="text-xl font-semibold text-gray-700">
+              Google Übersicht (Search Console & GA4)
+            </h2>
+            {/* DateRangeSelector hier nicht mehr nötig, da im Header */}
+          </div>
+          <KpiCardsGrid kpis={kpis} isLoading={isLoading} />
+        </div>
+
+        {/* 2. BLOCK: Google KPI-Chart */}
+        <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 sm:mb-0">
+              Performance-Trend
+            </h3>
+            <div className="flex-shrink-0 flex flex-wrap gap-2">
+              {(Object.keys(KPI_TAB_META) as ActiveKpi[]).map((kpi) => (
+                <button
+                  key={kpi}
+                  onClick={() => setActiveKpi(kpi)}
+                  className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
+                    activeKpi === kpi
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {KPI_TAB_META[kpi].title}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="mt-4 h-72">
+            <KpiTrendChart
+              data={chartSeries}
+              color={KPI_TAB_META[activeKpi].color}
+              label={kpiLabels[activeKpi] || KPI_TAB_META[activeKpi].title}
+            />
+          </div>
+
+          {showNoDataHint && (
+            <p className="mt-6 text-sm text-gray-500">
+              {noDataHintText}
+            </p>
+          )}
+        </div>
+
+        {/* 3. BLOCK: KI-Traffic + Top Queries */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {data.aiTraffic && (
+            <div className="lg:col-span-1">
+              <AiTrafficCard
+                totalSessions={data.aiTraffic.totalSessions}
+                totalUsers={data.aiTraffic.totalUsers}
+                percentage={kpis.sessions.aiTraffic?.percentage || 0}
+                topSources={data.aiTraffic.topAiSources}
+                isLoading={isLoading}
+                dateRange={dateRange}
+              />
+            </div>
+          )}
+
+          {data.topQueries && data.topQueries.length > 0 && (
+            <div className={`${data.aiTraffic ? 'lg:col-span-2' : 'lg:col-span-3'}`}>
+              <TopQueriesList
+                queries={data.topQueries}
+                isLoading={isLoading}
+              />
+            </div>
+          )}
+        </div>
+
+     
+        {/* 4. BLOCK: Keyword Rankings Tabelle (volle Breite) */}
+        <div>
+          {/* Das 'key' Prop sorgt dafür, dass die Tabelle neu lädt, wenn sich projectId ändert */}
+          <SemrushKeywordTable
+            key={projectId}
+            projectId={projectId}
           />
         </div>
-
-        {showNoDataHint && (
-          <p className="mt-6 text-sm text-gray-500">
-            {noDataHintText}
-          </p>
-        )}
-      </div>
-
-      {/* 3. BLOCK: KI-Traffic + Top Queries */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {data.aiTraffic && (
-          <div className="lg:col-span-1">
-            <AiTrafficCard
-              totalSessions={data.aiTraffic.totalSessions}
-              totalUsers={data.aiTraffic.totalUsers}
-              percentage={kpis.sessions.aiTraffic?.percentage || 0}
-              topSources={data.aiTraffic.topAiSources}
-              isLoading={isLoading}
-              dateRange={dateRange}
-            />
-          </div>
-        )}
-          
-        {data.topQueries && data.topQueries.length > 0 && (
-          <div className={`${data.aiTraffic ? 'lg:col-span-2' : 'lg:col-span-3'}`}>
-            <TopQueriesList 
-              queries={data.topQueries} 
-              isLoading={isLoading} 
-            />
-          </div>
-        )}
-      </div>
 
      
 
-      {/* 4. BLOCK: Keyword Rankings Tabelle (volle Breite) */}
-      <div>
-        <SemrushKeywordTable 
-          key={projectId} 
-          projectId={projectId} 
-        />
-      </div>
 
       </div> {/* Ende dashboard-content */}
-    </div>
+    </div> // Ende Haupt-Div
   );
 }
