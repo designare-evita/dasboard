@@ -60,18 +60,21 @@ export default function ProjectDashboard({
       }
 
       const opt = {
-        margin: [10, 10, 10, 10] as [number, number, number, number], // top, right, bottom, left
+        margin: [10, 10, 10, 10] as [number, number, number, number],
         filename: `dashboard-${domain || 'report'}-${new Date().toISOString().split('T')[0]}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
+        image: { 
+          type: 'jpeg' as 'jpeg',
+          quality: 0.98 
+        },
         html2canvas: { 
           scale: 2,
           useCORS: true,
           logging: false
         },
         jsPDF: { 
-          unit: 'mm', 
-          format: 'a4', 
-          orientation: 'portrait' 
+          unit: 'mm' as 'mm',
+          format: 'a4' as 'a4',
+          orientation: 'portrait' as 'portrait'
         }
       };
 
