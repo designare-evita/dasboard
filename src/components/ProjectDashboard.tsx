@@ -60,10 +60,10 @@ export default function ProjectDashboard({
       }
 
       const opt = {
-        margin: [10, 10, 10, 10] as [number, number, number, number],
+        margin: [10, 10, 10, 10] as const,
         filename: `dashboard-${domain || 'report'}-${new Date().toISOString().split('T')[0]}.pdf`,
         image: { 
-          type: 'jpeg' as 'jpeg',
+          type: 'jpeg' as const,
           quality: 0.98 
         },
         html2canvas: { 
@@ -72,9 +72,9 @@ export default function ProjectDashboard({
           logging: false
         },
         jsPDF: { 
-          unit: 'mm' as 'mm',
-          format: 'a4' as 'a4',
-          orientation: 'portrait' as 'portrait'
+          unit: 'mm' as const,
+          format: 'a4' as const,
+          orientation: 'portrait' as const
         }
       };
 
