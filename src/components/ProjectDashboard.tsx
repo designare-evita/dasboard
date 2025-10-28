@@ -60,7 +60,7 @@ export default function ProjectDashboard({
       }
 
       const opt = {
-        margin: [10, 10],
+        margin: [10, 10, 10, 10] as [number, number, number, number], // top, right, bottom, left
         filename: `dashboard-${domain || 'report'}-${new Date().toISOString().split('T')[0]}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { 
