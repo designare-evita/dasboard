@@ -59,11 +59,11 @@ export default function ProjectDashboard({
         throw new Error('Dashboard content not found');
       }
 
-      const opt = {
-        margin: [10, 10, 10, 10] as const,
+      const opt: any = {
+        margin: [10, 10, 10, 10],
         filename: `dashboard-${domain || 'report'}-${new Date().toISOString().split('T')[0]}.pdf`,
         image: { 
-          type: 'jpeg' as const,
+          type: 'jpeg',
           quality: 0.98 
         },
         html2canvas: { 
@@ -72,9 +72,9 @@ export default function ProjectDashboard({
           logging: false
         },
         jsPDF: { 
-          unit: 'mm' as const,
-          format: 'a4' as const,
-          orientation: 'portrait' as const
+          unit: 'mm',
+          format: 'a4',
+          orientation: 'portrait'
         }
       };
 
