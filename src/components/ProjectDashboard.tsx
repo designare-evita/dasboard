@@ -43,7 +43,6 @@ export default function ProjectDashboard({
 }: ProjectDashboardProps) {
   
   const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
-  const [isExportingPdf, setIsExportingPdf] = useState(false);
 
   // Helper für Zeitraum-Labels
   const getDateRangeLabel = (range: DateRangeOption): string => {
@@ -60,48 +59,9 @@ export default function ProjectDashboard({
     return labels[range] || range;
   };
 
-  // PDF Export Handler
-  const handleExportPdf = async () => {
-    setIsExportingPdf(true);
-    
-    try {
-      // Dynamically import html2pdf
-      const html2pdf = (await import('html2pdf.js')).default;
-      
-      const element = document.getElementById('dashboard-content');
-      
-      if (!element) {
-        throw new Error('Dashboard content not found');
-      }
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const opt: any = {
-        margin: [10, 10, 10, 10],
-        filename: `dashboard-${domain || 'report'}-${new Date().toISOString().split('T')[0]}.pdf`,
-        image: { 
-          type: 'jpeg',
-          quality: 0.98 
-        },
-        html2canvas: { 
-          scale: 2,
-          useCORS: true,
-          logging: false
-        },
-        jsPDF: { 
-          unit: 'mm',
-          format: 'a4',
-          orientation: 'portrait'
-        }
-      };
-
-      await html2pdf().set(opt).from(element).save();
-      
-    } catch (error) {
-      console.error('PDF Export Error:', error);
-      alert('Fehler beim Erstellen des PDFs. Bitte versuchen Sie es erneut.');
-    } finally {
-      setIsExportingPdf(false);
-    }
+  // PDF Export Handler - verwendet Browser Print
+  const handleExportPdf = () => {
+    window.print();
   };
 
   // DEBUG: Log bei jedem Render
@@ -141,20 +101,11 @@ export default function ProjectDashboard({
             
             <button
               onClick={handleExportPdf}
-              disabled={isExportingPdf}
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors print:hidden"
+              title="Öffnet den Browser-Druckdialog zum Speichern als PDF"
             >
-              {isExportingPdf ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                  <span>Erstelle PDF...</span>
-                </>
-              ) : (
-                <>
-                  <Download size={18} />
-                  <span>Als PDF exportieren</span>
-                </>
-              )}
+              <Download size={18} />
+              <span>Als PDF exportieren</span>
             </button>
           </div>
         </div>
