@@ -17,6 +17,7 @@ import SemrushKpiCards, { SemrushData } from '@/components/SemrushKpiCards';
 import SemrushKeywordTable from '@/components/SemrushKeywordTable';
 import SemrushConfigDisplay from '@/components/SemrushConfigDisplay';
 import { Download } from 'react-bootstrap-icons';
+import { Button } from "@/components/ui/button";
 
 interface ProjectDashboardProps {
   data: ProjectDashboardData;
@@ -99,14 +100,15 @@ export default function ProjectDashboard({
               </p>
             </div>
             
-            <button
-              onClick={handleExportPdf}
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors print:hidden"
-              title="Öffnet den Browser-Druckdialog zum Speichern als PDF"
-            >
-              <Download size={18} />
-              <span>Als PDF exportieren</span>
-            </button>
+<Button
+  onClick={handleExportPdf}
+  title="Öffnet den Browser-Druckdialog zum Speichern als PDF"
+  variant="default" // 1. Dies ist der blaue Stil (#188BDB)
+  className="print:hidden gap-2" // 2. Klassen hinzugefügt, die nicht vom Variant kommen
+>
+  <Download size={18} />
+  <span>Als PDF exportieren</span>
+</Button>
           </div>
         </div>
       )}
