@@ -150,21 +150,6 @@ export default function ProjectDashboard({
         )}
       </div>
 
-      {/* 4. BLOCK: Semrush Übersicht */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Semrush KPI-Karten */}
-        <div>
-          <SemrushKpiCards 
-            data={semrushData} 
-            isLoading={isLoading} 
-          />
-        </div>
-
-        {/* Semrush Konfiguration */}
-        <div className="lg:col-span-2">
-          <SemrushConfigDisplay projectId={projectId} />
-        </div>
-      </div>
 
       {/* 5. BLOCK: Keyword Rankings Tabelle (volle Breite) */}
       <div>
