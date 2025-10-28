@@ -3,6 +3,7 @@
 
 import React from 'react';
 import { Cpu, GraphUp, People } from 'react-bootstrap-icons';
+import { cn } from '@/lib/utils'; // Importiere das cn-Hilfsprogramm
 
 interface AiTrafficCardProps {
   totalSessions: number;
@@ -16,6 +17,7 @@ interface AiTrafficCardProps {
   }>;
   isLoading?: boolean;
   dateRange?: string;
+  className?: string; // <-- 1. HINZUGEFÜGT
 }
 
 export default function AiTrafficCard({ 
@@ -24,15 +26,15 @@ export default function AiTrafficCard({
   percentage = 0, 
   topSources = [],
   isLoading = false,
-  dateRange = '30d'
+  dateRange = '30d',
+  className // <-- 2. HINZUGEFÜGT
 }: AiTrafficCardProps) {
-  // Sichere Werte mit Fallbacks
+  // ... (Sichere Werte und rangeLabel bleiben gleich) ...
   const safePercentage = typeof percentage === 'number' && !isNaN(percentage) ? percentage : 0;
   const safeTotalSessions = typeof totalSessions === 'number' && !isNaN(totalSessions) ? totalSessions : 0;
   const safeTotalUsers = typeof totalUsers === 'number' && !isNaN(totalUsers) ? totalUsers : 0;
   const safeTopSources = Array.isArray(topSources) ? topSources : [];
 
-  // Zeitraum-Label generieren
   const rangeLabels: Record<string, string> = {
     '30d': 'Letzte 30 Tage',
     '3m': 'Letzte 3 Monate',
@@ -41,9 +43,11 @@ export default function AiTrafficCard({
   };
   const rangeLabel = rangeLabels[dateRange] || 'Letzte 30 Tage';
 
+
   if (isLoading) {
     return (
-      <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+      // 👇 3. ANGEPASST (um className anzuwenden)
+      <div className={cn("bg-white rounded-lg shadow-md border border-gray-200 p-6", className)}>
         <div className="animate-pulse">
           <div className="h-6 bg-gray-200 rounded w-1/3 mb-4"></div>
           <div className="h-16 bg-gray-200 rounded mb-4"></div>
@@ -58,10 +62,12 @@ export default function AiTrafficCard({
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+    // 👇 3. ANGEPASST (flex flex-col und className)
+    <div className={cn("bg-white rounded-lg shadow-md border border-gray-200 p-6 flex flex-col", className)}>
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
+        {/* ... (Inhalt bleibt gleich) ... */}
+         <div className="flex items-center gap-2">
           <Cpu className="text-purple-600" size={24} />
           <h3 className="text-lg font-semibold text-gray-900">KI-Traffic</h3>
         </div>
@@ -75,6 +81,7 @@ export default function AiTrafficCard({
 
       {/* Haupt-Metriken */}
       <div className="grid grid-cols-2 gap-4 mb-6">
+        {/* ... (Inhalt bleibt gleich) ... */}
         <div className="bg-purple-50 rounded-lg p-4">
           <div className="flex items-center gap-2 mb-1">
             <GraphUp size={16} className="text-purple-600" />
@@ -96,12 +103,13 @@ export default function AiTrafficCard({
         </div>
       </div>
 
-      {/* Top KI-Quellen */}
-      <div>
+      {/* Top KI-Quellen (flex-1, damit dieser Block wächst) */}
+      <div className="flex-1"> {/* <-- 3. ANGEPASST (flex-1) */}
         <h4 className="text-sm font-semibold text-gray-700 mb-3">Top KI-Quellen</h4>
         <div className="space-y-2">
           {safeTopSources.length > 0 ? (
             safeTopSources.map((source, index) => {
+              // ... (Inhalt bleibt gleich) ...
               const sourcePercentage = typeof source.percentage === 'number' && !isNaN(source.percentage) 
                 ? source.percentage 
                 : 0;
