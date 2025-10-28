@@ -3,6 +3,8 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  /* ✅ NEU: Globale Highlight-Farbe hinzugefügt */
+  --primary-highlight: #188BDB; 
 }
 
 @theme inline {
@@ -16,6 +18,8 @@
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+    /* Du könntest hier auch eine dunkle Version der Highlight-Farbe definieren */
+    /* --primary-highlight: #SOME_DARKER_BLUE; */
   }
 }
 
