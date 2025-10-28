@@ -1,4 +1,4 @@
-// src/components/ProjectDashboard.tsx
+// src/components/ProjectDashboard.tsx (Vollständig & Korrigiert)
 'use client';
 
 import { useState } from 'react';
@@ -15,7 +15,9 @@ import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeS
 import TopQueriesList from '@/components/TopQueriesList';
 import SemrushKpiCards, { SemrushData } from '@/components/SemrushKpiCards';
 import SemrushKeywordTable from '@/components/SemrushKeywordTable';
-import SemrushConfigDisplay from '@/components/SemrushConfigDisplay';
+import SemrushConfigDisplay from '@/components/SemrushConfigDisplay'; // Import war in (13) vorhanden
+
+// Importiere die neue Header-Komponente
 import DashboardHeader from '@/components/DashboardHeader';
 
 interface ProjectDashboardProps {
@@ -44,7 +46,7 @@ export default function ProjectDashboard({
   
   const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
 
-  // PDF Export Handler
+  // PDF Export Handler (muss hier definiert bleiben)
   const handleExportPdf = () => {
     window.print();
   };
@@ -65,12 +67,15 @@ export default function ProjectDashboard({
 
   return (
     <div className="space-y-8">
-    <DashboardHeader
+      
+      {/* Dashboard Header (Refactored) */}
+      {domain && (
+        <DashboardHeader
           domain={domain}
           projectId={projectId}
           dateRange={dateRange}
           onDateRangeChange={onDateRangeChange}
-          onPdfExport={handleExportPdf}
+          onPdfExport={handleExportPdf} // Wird an die Komponente übergeben
         />
       )}
 
@@ -130,7 +135,6 @@ export default function ProjectDashboard({
               topSources={data.aiTraffic.topAiSources}
               isLoading={isLoading}
               dateRange={dateRange}
-              // 👇 KORREKTUR: h-full hinzugefügt
               className="h-full"
             />
           </div>
@@ -141,7 +145,6 @@ export default function ProjectDashboard({
             <TopQueriesList
               queries={data.topQueries}
               isLoading={isLoading}
-              // 👇 KORREKTUR: h-full hinzugefügt
               className="h-full"
             />
           </div>
@@ -156,6 +159,7 @@ export default function ProjectDashboard({
           projectId={projectId} 
         />
       </div>
-    </div>
+
+    </div> // <-- Dies ist die schließende Klammer, die in (14) gefehlt hat
   );
 }
