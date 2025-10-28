@@ -148,10 +148,10 @@ export default function ProjectDashboard({
         )}
       </div>
 
-      {/* 3. BLOCK: KI-Traffic + Top Queries - GLEICHE HÖHE */}
+     {/* 3. BLOCK: KI-Traffic + Top Queries */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {data.aiTraffic && (
-          <div className="lg:col-span-1 h-full">
+          <div className="lg:col-span-1">
             <AiTrafficCard
               totalSessions={data.aiTraffic.totalSessions}
               totalUsers={data.aiTraffic.totalUsers}
@@ -159,37 +159,26 @@ export default function ProjectDashboard({
               topSources={data.aiTraffic.topAiSources}
               isLoading={isLoading}
               dateRange={dateRange}
+              // 👇 KORREKTUR: h-full hinzugefügt
+              className="h-full"
             />
           </div>
         )}
-          
+
         {data.topQueries && data.topQueries.length > 0 && (
-          <div className={`${data.aiTraffic ? 'lg:col-span-2' : 'lg:col-span-3'} h-full`}>
-            <TopQueriesList 
-              queries={data.topQueries} 
-              isLoading={isLoading} 
+          <div className={`${data.aiTraffic ? 'lg:col-span-2' : 'lg:col-span-3'}`}>
+            <TopQueriesList
+              queries={data.topQueries}
+              isLoading={isLoading}
+              // 👇 KORREKTUR: h-full hinzugefügt
+              className="h-full"
             />
           </div>
         )}
       </div>
 
-      {/* 4. BLOCK: Semrush Übersicht */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Semrush KPI-Karten */}
-        <div>
-          <SemrushKpiCards 
-            data={semrushData} 
-            isLoading={isLoading} 
-          />
-        </div>
 
-        {/* Semrush Konfiguration */}
-        <div className="lg:col-span-2">
-          <SemrushConfigDisplay projectId={projectId} />
-        </div>
-      </div>
-
-      {/* 5. BLOCK: Keyword Rankings Tabelle */}
+      {/* 4. BLOCK: Keyword Rankings Tabelle */}
       <div>
         <SemrushKeywordTable 
           key={projectId} 
