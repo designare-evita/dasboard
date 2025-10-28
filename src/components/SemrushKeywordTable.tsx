@@ -123,7 +123,7 @@ export default function SemrushKeywordTable({ projectId }: SemrushKeywordTablePr
         <div className="p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
             <Search size={20} className="text-orange-600" />
-            Keyword Rankings
+            SEMRUSH Keyword Rankings
           </h3>
           <div className="animate-pulse space-y-3">
             {[...Array(10)].map((_, i) => (
