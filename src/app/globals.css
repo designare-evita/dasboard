@@ -24,3 +24,70 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+
+/* Print Styles für PDF-Export */
+@media print {
+  /* Verstecke Navigation, Header, Footer etc. */
+  header, nav, footer, .print\\:hidden {
+    display: none !important;
+  }
+
+  /* Optimiere für Druck */
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  /* Verhindere Page Breaks in wichtigen Elementen */
+  .dashboard-card {
+    page-break-inside: avoid;
+  }
+
+  /* Entferne Schatten und Borders für besseren Druck */
+  .shadow-md, .shadow-lg {
+    box-shadow: none !important;
+  }
+
+  /* Optimiere Schriftgröße */
+  body {
+    font-size: 12pt;
+  }
+
+  h1 {
+    font-size: 20pt;
+  }
+
+  h2 {
+    font-size: 16pt;
+  }
+
+  h3 {
+    font-size: 14pt;
+  }
+
+  /* Zeige URLs bei Links */
+  a[href]:after {
+    content: " (" attr(href) ")";
+    font-size: 0.8em;
+    color: #666;
+  }
+
+  /* Optimiere Tabellen */
+  table {
+    page-break-inside: auto;
+  }
+
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tfoot {
+    display: table-footer-group;
+  }
+}
