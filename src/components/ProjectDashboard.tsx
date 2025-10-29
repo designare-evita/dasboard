@@ -92,10 +92,7 @@ export default function ProjectDashboard({
           />
         </div>
         <div className="xl:col-span-1">
-          <AiTrafficCard 
-            data={data.aiTraffic} 
-            isLoading={isLoading}
-          />
+          <AiTrafficCard />
         </div>
       </div>
 
