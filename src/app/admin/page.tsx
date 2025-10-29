@@ -244,6 +244,16 @@ export default function AdminPage() {
                     disabled={isSubmitting}
                   />
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Semrush Tracking ID 02</label>
+                  <input
+                    name="semrush_tracking_id_02" // Name der zweiten ID
+                    type="text"
+                    placeholder="Optional (z.B. für USA)"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
+                    disabled={isSubmitting}
+                  />
+                </div>
               </>
             )}
 
