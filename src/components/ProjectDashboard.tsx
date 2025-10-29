@@ -62,7 +62,7 @@ export default function ProjectDashboard({
           console.warn('PDF Export functionality not implemented');
         })}
       />
-
+<div className="mt-6">
       {/* KPI-Karten */}
       <KpiCardsGrid
         kpis={normalizedKpis}
@@ -70,7 +70,7 @@ export default function ProjectDashboard({
         // ⬇️⬇️⬇️ KORREKTUR: showNoDataHint und noDataHintText entfernt ⬇️⬇️⬇️
         // showNoDataHint={showNoDataHint} // ❌ ENTFERNT: Existiert nicht in KpiCardsGridProps
         // noDataHintText={noDataHintText} // ❌ ENTFERNT: Existiert nicht in KpiCardsGridProps
-      />
+      /> </div>
 
       {/* KPI-Trendchart */}
       <div className="mt-6">
