@@ -1,4 +1,4 @@
-// src/components/ProjectDashboard.tsx (Korrigiert)
+// src/components/ProjectDashboard.tsx (Vollständig & Korrigiert)
 'use client';
 
 import { useState } from 'react';
@@ -11,17 +11,18 @@ import {
 import KpiCardsGrid from '@/components/KpiCardsGrid';
 import KpiTrendChart from '@/components/charts/KpiTrendChart';
 import AiTrafficCard from '@/components/AiTrafficCard';
-import { type DateRangeOption } from '@/components/DateRangeSelector';
+import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector';
 import TopQueriesList from '@/components/TopQueriesList';
-import SemrushTopKeywords from '@/components/SemrushTopKeywords';
-import SemrushTopKeywords02 from '@/components/SemrushTopKeywords02';
-import useSWR from 'swr';
-import { User } from '@/types';
+import SemrushKpiCards, { SemrushData } from '@/components/SemrushKpiCards';
+import SemrushKeywordTable from '@/components/SemrushKeywordTable';
+import SemrushConfigDisplay from '@/components/SemrushConfigDisplay'; // Import war in (13) vorhanden
+
+// Importiere die neue Header-Komponente
 import DashboardHeader from '@/components/DashboardHeader';
 
 interface ProjectDashboardProps {
   data: ProjectDashboardData;
-  semrushData: SemrushData | null; // Statt any - spezifischen Typ verwenden oder null
+  semrushData: SemrushData | null;
   isLoading: boolean;
   dateRange: DateRangeOption;
   onDateRangeChange: (range: DateRangeOption) => void;
@@ -31,26 +32,9 @@ interface ProjectDashboardProps {
   domain?: string;
 }
 
-// Falls SemrushData nicht definiert ist, hier definieren oder importieren
-interface SemrushData {
-  // Definiere die tatsächliche Struktur hier basierend auf deiner Anwendung
-  keywords?: Array<{
-    keyword: string;
-    position: number;
-    url: string;
-  }>;
-  metrics?: {
-    traffic: number;
-    keywords: number;
-    // ... andere Metriken
-  };
-}
-
-const fetcher = (url: string) => fetch(url).then(res => res.json());
-
 export default function ProjectDashboard({
   data,
-  semrushData, // Jetzt korrekt typisiert
+  semrushData,
   isLoading,
   dateRange,
   onDateRangeChange,
@@ -62,12 +46,7 @@ export default function ProjectDashboard({
   
   const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
 
-  // User-Daten für Semrush Tracking-IDs laden
-  const { data: userData } = useSWR<User>(
-    projectId ? `/api/users/${projectId}` : null,
-    fetcher
-  );
-
+  // PDF Export Handler (muss hier definiert bleiben)
   const handleExportPdf = () => {
     window.print();
   };
@@ -89,14 +68,14 @@ export default function ProjectDashboard({
   return (
     <div className="space-y-8">
       
-      {/* Dashboard Header */}
+      {/* Dashboard Header (Refactored) */}
       {domain && (
         <DashboardHeader
           domain={domain}
           projectId={projectId}
           dateRange={dateRange}
           onDateRangeChange={onDateRangeChange}
-          onPdfExport={handleExportPdf}
+          onPdfExport={handleExportPdf} // Wird an die Komponente übergeben
         />
       )}
 
@@ -134,7 +113,7 @@ export default function ProjectDashboard({
           <KpiTrendChart 
             data={chartSeries} 
             color={KPI_TAB_META[activeKpi].color}
-            label={kpiLabels[kpi] || KPI_TAB_META[activeKpi].title}
+            label={kpiLabels[activeKpi] || KPI_TAB_META[activeKpi].title}
           />
         </div>
 
@@ -145,7 +124,7 @@ export default function ProjectDashboard({
         )}
       </div>
 
-      {/* 3. BLOCK: KI-Traffic + Top Queries */}
+     {/* 3. BLOCK: KI-Traffic + Top Queries */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {data.aiTraffic && (
           <div className="lg:col-span-1">
@@ -172,16 +151,15 @@ export default function ProjectDashboard({
         )}
       </div>
 
-      {/* 4. BLOCK: Keyword Rankings für erste Tracking-ID */}
+
+      {/* 4. BLOCK: Keyword Rankings Tabelle */}
       <div>
-        <SemrushTopKeywords trackingId={userData?.semrush_tracking_id} />
+        <SemrushKeywordTable 
+          key={projectId} 
+          projectId={projectId} 
+        />
       </div>
 
-      {/* 5. BLOCK: Keyword Rankings für zweite Tracking-ID */}
-      <div>
-        <SemrushTopKeywords02 trackingId={userData?.semrush_tracking_id_02} />
-      </div>
-
-    </div>
+    </div> // <-- Dies ist die schließende Klammer, die in (14) gefehlt hat
   );
 }
