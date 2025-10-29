@@ -1,12 +1,13 @@
-// src/components/ProjectDashboard.tsx (Vollständig & Korrigiert)
+// src/components/ProjectDashboard.tsx (Vollständig & Aktualisiert mit beiden Keyword-Komponenten)
 'use client';
 
 import { useState } from 'react';
-import { 
-  ProjectDashboardData, 
-  ActiveKpi, 
-  KPI_TAB_META, 
-  normalizeFlatKpis 
+import useSWR from 'swr'; // NEU: useSWR importieren
+import {
+  ProjectDashboardData,
+  ActiveKpi,
+  KPI_TAB_META,
+  normalizeFlatKpis
 } from '@/lib/dashboard-shared';
 import KpiCardsGrid from '@/components/KpiCardsGrid';
 import KpiTrendChart from '@/components/charts/KpiTrendChart';
@@ -14,28 +15,34 @@ import AiTrafficCard from '@/components/AiTrafficCard';
 import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector';
 import TopQueriesList from '@/components/TopQueriesList';
 import SemrushKpiCards, { SemrushData } from '@/components/SemrushKpiCards';
-import SemrushKeywordTable from '@/components/SemrushKeywordTable';
-import SemrushConfigDisplay from '@/components/SemrushConfigDisplay'; // Import war in (13) vorhanden
+// NEU: Alte Tabelle entfernen, neue Komponenten importieren
+// import SemrushKeywordTable from '@/components/SemrushKeywordTable';
+import SemrushTopKeywords from '@/components/SemrushTopKeywords';
+import SemrushTopKeywords02 from '@/components/SemrushTopKeywords02';
+import SemrushConfigDisplay from '@/components/SemrushConfigDisplay';
 
-// Importiere die neue Header-Komponente
 import DashboardHeader from '@/components/DashboardHeader';
+import { User } from '@/types'; // NEU: User-Typ importieren
 
 interface ProjectDashboardProps {
   data: ProjectDashboardData;
   semrushData: SemrushData | null;
-  isLoading: boolean;
+  isLoading: boolean; // Haupt-Ladezustand (Google-Daten)
   dateRange: DateRangeOption;
   onDateRangeChange: (range: DateRangeOption) => void;
   showNoDataHint?: boolean;
   noDataHintText?: string;
-  projectId?: string;
+  projectId?: string; // ID des Projekts/Benutzers
   domain?: string;
 }
+
+// NEU: Einfacher Fetcher für useSWR
+const fetcher = (url: string) => fetch(url).then(res => res.json());
 
 export default function ProjectDashboard({
   data,
   semrushData,
-  isLoading,
+  isLoading: isLoadingMain, // Umbenannt, um Konflikte zu vermeiden
   dateRange,
   onDateRangeChange,
   showNoDataHint = false,
@@ -43,21 +50,28 @@ export default function ProjectDashboard({
   projectId,
   domain
 }: ProjectDashboardProps) {
-  
+
   const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
 
-  // PDF Export Handler (muss hier definiert bleiben)
+  // NEU: useSWR-Hook zum Laden der Benutzerdaten (inkl. Tracking IDs)
+  // Wir verwenden projectId, um den spezifischen Benutzer abzurufen
+  const { data: userData, isLoading: isLoadingUserData } = useSWR<User>(
+    projectId ? `/api/users/${projectId}` : null, // Nur laden, wenn projectId vorhanden ist
+    fetcher
+  );
+
+  // PDF Export Handler
   const handleExportPdf = () => {
     window.print();
   };
 
   const kpis = normalizeFlatKpis(data.kpis);
 
-  type DataWithCharts = ProjectDashboardData & { 
-    charts?: Record<ActiveKpi, Array<{ date: string; value: number }>> 
+  type DataWithCharts = ProjectDashboardData & {
+    charts?: Record<ActiveKpi, Array<{ date: string; value: number }>>
   };
   const chartSeries = (data as DataWithCharts).charts?.[activeKpi] || [];
-  
+
   const kpiLabels: Record<string, string> = {
     clicks: 'Klicks',
     impressions: 'Impressionen',
@@ -65,17 +79,20 @@ export default function ProjectDashboard({
     totalUsers: 'Nutzer (GA4)',
   };
 
+  // Kombinierter Ladezustand (Hauptdaten oder Userdaten laden noch)
+  const isLoading = isLoadingMain || (projectId && isLoadingUserData);
+
   return (
     <div className="space-y-8">
-      
-      {/* Dashboard Header (Refactored) */}
+
+      {/* Dashboard Header */}
       {domain && (
         <DashboardHeader
           domain={domain}
           projectId={projectId}
           dateRange={dateRange}
           onDateRangeChange={onDateRangeChange}
-          onPdfExport={handleExportPdf} // Wird an die Komponente übergeben
+          onPdfExport={handleExportPdf}
         />
       )}
 
@@ -110,8 +127,8 @@ export default function ProjectDashboard({
           </div>
         </div>
         <div className="mt-4 h-72">
-          <KpiTrendChart 
-            data={chartSeries} 
+          <KpiTrendChart
+            data={chartSeries}
             color={KPI_TAB_META[activeKpi].color}
             label={kpiLabels[activeKpi] || KPI_TAB_META[activeKpi].title}
           />
@@ -124,7 +141,7 @@ export default function ProjectDashboard({
         )}
       </div>
 
-     {/* 3. BLOCK: KI-Traffic + Top Queries */}
+      {/* 3. BLOCK: KI-Traffic + Top Queries */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {data.aiTraffic && (
           <div className="lg:col-span-1">
@@ -151,15 +168,25 @@ export default function ProjectDashboard({
         )}
       </div>
 
+      {/* NEU: 4. BLOCK: Semrush Keyword Rankings (zwei Spalten) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Kampagne 1 (z.B. AT) */}
+          <SemrushTopKeywords trackingId={userData?.semrush_tracking_id} />
 
-      {/* 4. BLOCK: Keyword Rankings Tabelle */}
-      <div>
-        <SemrushKeywordTable 
-          key={projectId} 
-          projectId={projectId} 
-        />
+          {/* Kampagne 2 (z.B. USA, DE, etc.) */}
+          <SemrushTopKeywords02 trackingId={userData?.semrush_tracking_id_02} />
       </div>
 
-    </div> // <-- Dies ist die schließende Klammer, die in (14) gefehlt hat
+      {/* ALT: SemrushKeywordTable entfernt */}
+      {/*
+      <div>
+        <SemrushKeywordTable
+          key={projectId}
+          projectId={projectId}
+        />
+      </div>
+      */}
+
+    </div>
   );
 }
