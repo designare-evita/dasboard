@@ -5,7 +5,6 @@ import { User } from '@/types';
 import { Pencil, ArrowRepeat, CheckCircle } from 'react-bootstrap-icons';
 
 interface EditUserFormProps {
-  id?: string;
   user: User;
   onUserUpdated?: () => void;
 }
@@ -19,7 +18,7 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
     ga4PropertyId: '',
     semrushProjectId: '',
     semrushTrackingId: '',
-    semrushTrackingId02: '', // ✅ WICHTIG: Separat initialisiert!
+    semrushTrackingId02: '',
   });
 
   const [password, setPassword] = useState('');
@@ -36,7 +35,7 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
         domain: user.domain,
         semrush_project_id: user.semrush_project_id,
         semrush_tracking_id: user.semrush_tracking_id,
-        semrush_tracking_id_02: user.semrush_tracking_id_02, // ✅ snake_case vom API
+        semrush_tracking_id_02: user.semrush_tracking_id_02,
       });
 
       // ✅ Alle Felder mit Fallback auf leeren String
@@ -47,7 +46,7 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
         ga4PropertyId: user.ga4_property_id || '',
         semrushProjectId: user.semrush_project_id || '',
         semrushTrackingId: user.semrush_tracking_id || '',
-        semrushTrackingId02: user.semrush_tracking_id_02 || '', // ✅ Fallback auf ''
+        semrushTrackingId02: user.semrush_tracking_id_02 || '',
       });
 
       console.log('✅ Form States aktualisiert:');
@@ -55,7 +54,7 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
       console.log('  Domain:', user.domain);
       console.log('  Semrush Project ID:', user.semrush_project_id);
       console.log('  Semrush Tracking ID:', user.semrush_tracking_id);
-      console.log('  Semrush Tracking ID 02:', user.semrush_tracking_id_02); // ✅ Logging
+      console.log('  Semrush Tracking ID 02:', user.semrush_tracking_id_02);
       
       setPassword('');
       setMessage('');
@@ -99,7 +98,7 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
         payload.ga4_property_id = formData.ga4PropertyId || null;
         payload.semrush_project_id = formData.semrushProjectId || null;
         payload.semrush_tracking_id = formData.semrushTrackingId || null;
-        payload.semrush_tracking_id_02 = formData.semrushTrackingId02 || null; // ✅ WICHTIG!
+        payload.semrush_tracking_id_02 = formData.semrushTrackingId02 || null;
       }
 
       // ✅ Passwort nur wenn gefüllt
@@ -136,6 +135,7 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
       }
 
       // ✅ Success: Update lokale States mit Response
+      // 🔴 WICHTIG: Die formData mit Response aktualisieren, bevor onUserUpdated aufgerufen wird
       setFormData({
         email: result.email || '',
         domain: result.domain || '',
@@ -143,7 +143,7 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
         ga4PropertyId: result.ga4_property_id || '',
         semrushProjectId: result.semrush_project_id || '',
         semrushTrackingId: result.semrush_tracking_id || '',
-        semrushTrackingId02: result.semrush_tracking_id_02 || '', // ✅ Mit Response aktualisieren!
+        semrushTrackingId02: result.semrush_tracking_id_02 || '',
       });
 
       setPassword('');
@@ -151,9 +151,14 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
       setSuccessMessage('✅ Benutzer erfolgreich aktualisiert!');
 
       console.log('✅ Success! Form States mit Response aktualisiert');
+      console.log('✅ Lokale formData nach Update:', {
+        semrushTrackingId02: result.semrush_tracking_id_02
+      });
 
-      // ✅ Callback nach Erfolg
+      // ⏱️ WICHTIG: Callback NACH formData Update, damit die lokal gespeicherten Daten erhalten bleiben
       if (onUserUpdated) {
+        console.log('📞 Rufe onUserUpdated Callback auf...');
+        // Gib dem Callback den aktualisierten User zurück, falls nötig
         onUserUpdated();
       }
 
@@ -233,8 +238,6 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
             </div>
 
             {/* ========== SEMRUSH SECTION ========== */}
-            <fieldset className="border-t pt-4 mt-4">
-             
 
               {/* Semrush Projekt ID */}
               <div>
@@ -278,7 +281,7 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
                 )}
               </div>
 
-              {/* ✅ Semrush Tracking-ID 02 (Kampagne 2) - NEUES FELD */}
+              {/* ✅ Semrush Tracking-ID 02 (Kampagne 2) */}
               <div>
                 <label className="block text-sm font-medium text-gray-700">
                   Semrush Tracking-ID (Kampagne 2)
