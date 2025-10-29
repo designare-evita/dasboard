@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils'; // Importiere das cn-Hilfsprogramm
 interface AiTrafficCardProps {
   totalSessions: number;
   totalUsers: number;
-  percentage?: number; 
+  percentage?: number;
   topAiSources: Array<{
     source: string;
     sessions: number;
@@ -17,24 +17,25 @@ interface AiTrafficCardProps {
   }>;
   isLoading?: boolean;
   dateRange?: string;
-  className?: string;
+  className?: string; // className prop für Styling von außen
 }
 
-export default function AiTrafficCard({ 
-  totalSessions = 0, 
-  totalUsers = 0, 
-  percentage = 0, 
+export default function AiTrafficCard({
+  totalSessions = 0,
+  totalUsers = 0,
+  percentage = 0,
   topAiSources = [],
   isLoading = false,
   dateRange = '30d',
-  className
+  className // className prop verwenden
 }: AiTrafficCardProps) {
-  // ... (Sichere Werte und rangeLabel bleiben gleich) ...
+  // Sicherstellen, dass Werte Zahlen sind
   const safePercentage = typeof percentage === 'number' && !isNaN(percentage) ? percentage : 0;
   const safeTotalSessions = typeof totalSessions === 'number' && !isNaN(totalSessions) ? totalSessions : 0;
   const safeTotalUsers = typeof totalUsers === 'number' && !isNaN(totalUsers) ? totalUsers : 0;
   const safeTopAiSources = Array.isArray(topAiSources) ? topAiSources : [];
 
+  // Label für den Zeitraum
   const rangeLabels: Record<string, string> = {
     '30d': 'Letzte 30 Tage',
     '3m': 'Letzte 3 Monate',
@@ -43,10 +44,10 @@ export default function AiTrafficCard({
   };
   const rangeLabel = rangeLabels[dateRange] || 'Letzte 30 Tage';
 
-
+  // Ladezustand anzeigen
   if (isLoading) {
     return (
-      // 👇 3. ANGEPASST (um className anzuwenden)
+      // className anwenden, auch im Ladezustand
       <div className={cn("bg-white rounded-lg shadow-md border border-gray-200 p-6", className)}>
         <div className="animate-pulse">
           <div className="h-6 bg-gray-200 rounded w-1/3 mb-4"></div>
@@ -61,13 +62,15 @@ export default function AiTrafficCard({
     );
   }
 
+  // Komponente rendern
   return (
-    // 👇 3. ANGEPASST (flex flex-col und className)
+    // Hier die Änderungen für Flexbox und Höhe:
+    // 1. `flex flex-col` hinzufügen, damit die Karte intern vertikal flexibel ist
+    // 2. `cn` verwenden, um die übergebene `className` (die 'h-full' enthalten kann) anzuwenden
     <div className={cn("bg-white rounded-lg shadow-md border border-gray-200 p-6 flex flex-col", className)}>
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        {/* ... (Inhalt bleibt gleich) ... */}
-         <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2">
           <Cpu className="text-purple-600" size={24} />
           <h3 className="text-lg font-semibold text-gray-900">KI-Traffic</h3>
         </div>
@@ -81,7 +84,6 @@ export default function AiTrafficCard({
 
       {/* Haupt-Metriken */}
       <div className="grid grid-cols-2 gap-4 mb-6">
-        {/* ... (Inhalt bleibt gleich) ... */}
         <div className="bg-purple-50 rounded-lg p-4">
           <div className="flex items-center gap-2 mb-1">
             <GraphUp size={16} className="text-purple-600" />
@@ -91,7 +93,6 @@ export default function AiTrafficCard({
             {safeTotalSessions.toLocaleString('de-DE')}
           </p>
         </div>
-        
         <div className="bg-purple-50 rounded-lg p-4">
           <div className="flex items-center gap-2 mb-1">
             <People size={16} className="text-purple-600" />
@@ -103,33 +104,29 @@ export default function AiTrafficCard({
         </div>
       </div>
 
-      {/* Top KI-Quellen (flex-1, damit dieser Block wächst) */}
-      <div className="flex-1"> {/* <-- 3. ANGEPASST (flex-1) */}
+      {/* Top KI-Quellen */}
+      {/* 3. `flex-1` hinzufügen, damit dieser Bereich den verfügbaren Platz ausfüllt */}
+      <div className="flex-1">
         <h4 className="text-sm font-semibold text-gray-700 mb-3">Top KI-Quellen</h4>
         <div className="space-y-2">
           {safeTopAiSources.length > 0 ? (
             safeTopAiSources.map((source, index) => {
-              // ... (Inhalt bleibt gleich) ...
-              const sourcePercentage = typeof source.percentage === 'number' && !isNaN(source.percentage) 
-                ? source.percentage 
-                : 0;
-              const sourceSessions = typeof source.sessions === 'number' && !isNaN(source.sessions)
-                ? source.sessions
-                : 0;
-              
+              const sourcePercentage = typeof source.percentage === 'number' && !isNaN(source.percentage) ? source.percentage : 0;
+              const sourceSessions = typeof source.sessions === 'number' && !isNaN(source.sessions) ? source.sessions : 0;
+
               return (
                 <div key={index} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 flex-1">
-                    <div className={`w-2 h-2 rounded-full ${
+                  <div className="flex items-center gap-2 flex-1 min-w-0"> {/* min-w-0 für besseren Umbruch */}
+                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
                       index === 0 ? 'bg-purple-600' :
                       index === 1 ? 'bg-purple-500' :
                       index === 2 ? 'bg-purple-400' :
-                  index === 3 ? 'bg-purple-300' :
+                      index === 3 ? 'bg-purple-300' :
                       'bg-purple-300'
                     }`}></div>
                     <span className="text-sm text-gray-700 truncate">{source.source || 'Unbekannt'}</span>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 flex-shrink-0">
                     <span className="text-sm font-medium text-gray-900">
                       {sourceSessions.toLocaleString('de-DE')}
                     </span>
