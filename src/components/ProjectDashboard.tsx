@@ -116,7 +116,6 @@ export default function ProjectDashboard({
         {semrushTrackingId02 ? (
           <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-gray-200">
             <SemrushTopKeywords02 
-              projectId={projectId} 
               trackingId={semrushTrackingId02} 
             />
           </div>
