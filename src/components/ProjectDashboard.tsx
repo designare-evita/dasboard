@@ -19,6 +19,7 @@ import SemrushConfigDisplay from '@/components/SemrushConfigDisplay'; // Import 
 
 // Importiere die neue Header-Komponente
 import DashboardHeader from '@/components/DashboardHeader';
+import { User } from '@/types';
 
 interface ProjectDashboardProps {
   data: ProjectDashboardData;
@@ -31,7 +32,7 @@ interface ProjectDashboardProps {
   projectId?: string;
   domain?: string;
 }
-
+const fetcher = (url: string) => fetch(url).then(res => res.json());
 export default function ProjectDashboard({
   data,
   semrushData,
@@ -45,6 +46,10 @@ export default function ProjectDashboard({
 }: ProjectDashboardProps) {
   
   const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
+  const { data: userData, isLoading: isLoadingUserData } = useSWR<User>(
+    projectId ? `/api/users/${projectId}` : null, // Nur laden, wenn projectId vorhanden ist
+    fetcher
+  );
 
   // PDF Export Handler (muss hier definiert bleiben)
   const handleExportPdf = () => {
