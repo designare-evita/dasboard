@@ -1,4 +1,4 @@
-// src/components/ProjectDashboard.tsx (KORRIGIERT: Überflüssiges Argument in Zeile 54 entfernt)
+// src/components/ProjectDashboard.tsx (KORRIGIERT: isLoading-Prop aus DashboardHeader entfernt)
 'use client';
 
 import { useState } from 'react';
@@ -47,15 +47,11 @@ export default function ProjectDashboard({
   const { data: session } = useSession();
   const userRole = session?.user?.role;
 
-  // ⬇️⬇️⬇️ HIER IST DIE KORREKTUR (Versuch 6) ⬇️⬇️⬇️
-
   // 1. normalizeFlatKpis akzeptiert nur EIN Argument (data.kpis).
-  const normalizedKpis = normalizeFlatKpis(data.kpis); // ❌ 'dateRange' entfernt
+  const normalizedKpis = normalizeFlatKpis(data.kpis);
   
   // 2. chartData wird aus data.charts basierend auf dem activeKpi-State ausgewählt.
   const chartData = data.charts?.[activeKpi] ?? [];
-
-  // ⬆️⬆️⬆️ HIER IST DIE KORREKTUR ⬆️⬆️⬆️
 
 
   return (
@@ -64,7 +60,9 @@ export default function ProjectDashboard({
         domain={domain}
         dateRange={dateRange}
         onDateRangeChange={onDateRangeChange}
-        isLoading={isLoading}
+        // ⬇️⬇️⬇️ HIER IST DIE KORREKTUR (Versuch 7) ⬇️⬇️⬇️
+        // isLoading={isLoading} // ❌ ENTFERNT: Diese Prop existiert hier nicht
+        // ⬆️⬆️⬆️ HIER IST DIE KORREKTUR ⬆️⬆️⬆️
       />
 
       {/* KPI-Karten */}
@@ -72,7 +70,7 @@ export default function ProjectDashboard({
         kpis={normalizedKpis}
         activeKpi={activeKpi}
         onKpiCardClick={setActiveKpi}
-        isLoading={isLoading}
+        isLoading={isLoading} // (Hier wird es korrekterweise verwendet)
         showNoDataHint={showNoDataHint}
         noDataHintText={noDataHintText}
       />
@@ -83,7 +81,7 @@ export default function ProjectDashboard({
           data={chartData}
           kpi={activeKpi}
           meta={KPI_TAB_META[activeKpi]} 
-          isLoading={isLoading}
+          isLoading={isLoading} // (Hier wird es korrekterweise verwendet)
         />
       </div>
 
@@ -94,13 +92,13 @@ export default function ProjectDashboard({
         <div className="xl:col-span-2">
           <TopQueriesList 
             queries={data.topQueries} 
-            isLoading={isLoading} 
+            isLoading={isLoading} // (Hier wird es korrekterweise verwendet)
           />
         </div>
         <div className="xl:col-span-1">
           <AiTrafficCard 
             data={data.aiTraffic} 
-            isLoading={isLoading} 
+            isLoading={isLoading} // (Hier wird es korrekterweise verwendet)
           />
         </div>
       </div>
