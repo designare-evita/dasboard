@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils'; // Importiere das cn-Hilfsprogramm
 interface AiTrafficCardProps {
   totalSessions: number;
   totalUsers: number;
-  percentage: number;
+  percentage?: number; 
   topSources: Array<{
     source: string;
     sessions: number;
