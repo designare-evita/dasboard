@@ -1,4 +1,4 @@
-// src/components/ProjectDashboard.tsx (KORRIGIERT: Unnötige Props aus KpiCardsGrid entfernt)
+// src/components/ProjectDashboard.tsx
 'use client';
 
 import { useState } from 'react';
@@ -62,15 +62,17 @@ export default function ProjectDashboard({
           console.warn('PDF Export functionality not implemented');
         })}
       />
-<div className="mt-6">
-      {/* KPI-Karten */}
-      <KpiCardsGrid
-        kpis={normalizedKpis}
-        isLoading={isLoading}
-        // ⬇️⬇️⬇️ KORREKTUR: showNoDataHint und noDataHintText entfernt ⬇️⬇️⬇️
-        // showNoDataHint={showNoDataHint} // ❌ ENTFERNT: Existiert nicht in KpiCardsGridProps
-        // noDataHintText={noDataHintText} // ❌ ENTFERNT: Existiert nicht in KpiCardsGridProps
-      /> </div>
+
+      {/* ÄNDERUNG 1: Außenabstand zwischen Header und KPI-Karten
+        Hier wurde ein <div> mit "mt-6" (margin-top: 6) hinzugefügt
+      */}
+      <div className="mt-6">
+        <KpiCardsGrid
+          kpis={normalizedKpis}
+          isLoading={isLoading}
+          // (Die fehlerhaften Props 'showNoDataHint' und 'noDataHintText' sind hier korrekterweise entfernt)
+        />
+      </div>
 
       {/* KPI-Trendchart */}
       <div className="mt-6">
@@ -81,33 +83,30 @@ export default function ProjectDashboard({
         />
       </div>
 
-      {/* ---------------------------------------------------------------------- */}
-      {/* Spalte 1: AI Traffic & Top Queries (GSC) */}
-      {/* ---------------------------------------------------------------------- */}
-   <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mt-6">
-
-        {/* SPALTE 1 (breiter): AiTrafficCard */}
+      {/* ÄNDERUNG 2 & 3: Reihenfolge getauscht und gleiche Höhe
+      */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mt-6">
+        
+        {/* SPALTE 1 (breiter): AiTrafficCard (NEUE POSITION) */}
         <div className="xl:col-span-2">
-           {/* HÖHE: h-full hinzufügen */}
-          <AiTrafficCard
+          <AiTrafficCard 
             totalSessions={data.aiTraffic?.totalSessions ?? 0}
             totalUsers={data.aiTraffic?.totalUsers ?? 0}
             topAiSources={data.aiTraffic?.topAiSources ?? []}
-            className="h-full" {/* <--- HÖHE HINZUFÜGEN */}
+            className="h-full" {/* <--- HÖHE HINZUGEFÜGT */}
           />
         </div>
-
-        {/* SPALTE 2 (schmaler): TopQueriesList */}
+        
+        {/* SPALTE 2 (schmaler): TopQueriesList (NEUE POSITION) */}
         <div className="xl:col-span-1">
-          {/* HÖHE: h-full hinzufügen */}
-          <TopQueriesList
-            queries={data.topQueries ?? []}
+          <TopQueriesList 
+            queries={data.topQueries ?? []} 
             isLoading={isLoading}
-            className="h-full" {/* <--- HÖHE HINZUFÜGEN */}
+            className="h-full" {/* <--- HÖHE HINZUGEFÜGT */}
           />
         </div>
       </div>
-      
+
       {/* ---------------------------------------------------------------------- */}
       {/* SEMRUSH KEYWORDS (KAMPAGNE 1 & 2) */}
       {/* ---------------------------------------------------------------------- */}
