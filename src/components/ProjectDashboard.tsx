@@ -87,7 +87,7 @@ export default function ProjectDashboard({
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mt-6">
         <div className="xl:col-span-2">
           <TopQueriesList 
-            queries={data.topQueries} 
+            queries={data.topQueries ?? []} 
             isLoading={isLoading}
           />
         </div>
