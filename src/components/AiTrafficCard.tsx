@@ -9,7 +9,7 @@ interface AiTrafficCardProps {
   totalSessions: number;
   totalUsers: number;
   percentage?: number; 
-  topSources: Array<{
+  topAiSources: Array<{
     source: string;
     sessions: number;
     users: number;
@@ -17,23 +17,23 @@ interface AiTrafficCardProps {
   }>;
   isLoading?: boolean;
   dateRange?: string;
-  className?: string; // <-- 1. HINZUGEFÜGT
+  className?: string;
 }
 
 export default function AiTrafficCard({ 
   totalSessions = 0, 
   totalUsers = 0, 
   percentage = 0, 
-  topSources = [],
+  topAiSources = [],
   isLoading = false,
   dateRange = '30d',
-  className // <-- 2. HINZUGEFÜGT
+  className
 }: AiTrafficCardProps) {
   // ... (Sichere Werte und rangeLabel bleiben gleich) ...
   const safePercentage = typeof percentage === 'number' && !isNaN(percentage) ? percentage : 0;
   const safeTotalSessions = typeof totalSessions === 'number' && !isNaN(totalSessions) ? totalSessions : 0;
   const safeTotalUsers = typeof totalUsers === 'number' && !isNaN(totalUsers) ? totalUsers : 0;
-  const safeTopSources = Array.isArray(topSources) ? topSources : [];
+  const safeTopAiSources = Array.isArray(topAiSources) ? topAiSources : [];
 
   const rangeLabels: Record<string, string> = {
     '30d': 'Letzte 30 Tage',
@@ -107,8 +107,8 @@ export default function AiTrafficCard({
       <div className="flex-1"> {/* <-- 3. ANGEPASST (flex-1) */}
         <h4 className="text-sm font-semibold text-gray-700 mb-3">Top KI-Quellen</h4>
         <div className="space-y-2">
-          {safeTopSources.length > 0 ? (
-            safeTopSources.map((source, index) => {
+          {safeTopAiSources.length > 0 ? (
+            safeTopAiSources.map((source, index) => {
               // ... (Inhalt bleibt gleich) ...
               const sourcePercentage = typeof source.percentage === 'number' && !isNaN(source.percentage) 
                 ? source.percentage 
