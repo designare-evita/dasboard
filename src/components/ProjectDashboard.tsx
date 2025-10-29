@@ -76,6 +76,8 @@ export default function ProjectDashboard({
       <div className="mt-6">
         <KpiTrendChart 
           data={chartData}
+          color={KPI_TAB_META[activeKpi].color}
+          label={KPI_TAB_META[activeKpi].title}
         />
       </div>
 
