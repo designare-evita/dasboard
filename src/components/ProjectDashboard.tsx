@@ -76,7 +76,6 @@ export default function ProjectDashboard({
       <div className="mt-6">
         <KpiTrendChart 
           data={chartData}
-          isLoading={isLoading}
         />
       </div>
 
