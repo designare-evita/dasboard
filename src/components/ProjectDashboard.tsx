@@ -1,4 +1,4 @@
-// src/components/ProjectDashboard.tsx (KORRIGIERT: Fallback für onPdfExport)
+// src/components/ProjectDashboard.tsx (KORRIGIERT: Unnötige Props aus KpiCardsGrid entfernt)
 'use client';
 
 import { useState } from 'react';
@@ -58,10 +58,8 @@ export default function ProjectDashboard({
         domain={domain}
         dateRange={dateRange}
         onDateRangeChange={onDateRangeChange}
-        // ⬇️⬇️⬇️ KORREKTUR: Fallback-Funktion für onPdfExport ⬇️⬇️⬇️
         onPdfExport={onPdfExport || (() => {
           console.warn('PDF Export functionality not implemented');
-          // Optional: Hier können Sie einen Toast oder eine Benachrichtigung anzeigen
         })}
       />
 
@@ -69,8 +67,9 @@ export default function ProjectDashboard({
       <KpiCardsGrid
         kpis={normalizedKpis}
         isLoading={isLoading}
-        showNoDataHint={showNoDataHint}
-        noDataHintText={noDataHintText}
+        // ⬇️⬇️⬇️ KORREKTUR: showNoDataHint und noDataHintText entfernt ⬇️⬇️⬇️
+        // showNoDataHint={showNoDataHint} // ❌ ENTFERNT: Existiert nicht in KpiCardsGridProps
+        // noDataHintText={noDataHintText} // ❌ ENTFERNT: Existiert nicht in KpiCardsGridProps
       />
 
       {/* KPI-Trendchart */}
