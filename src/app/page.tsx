@@ -213,7 +213,7 @@ function CustomerDashboard({
           showNoDataHint={showNoDataHint}
           noDataHintText="Hinweis: Für Ihr Projekt wurden noch keine KPI-Daten geliefert. Es werden vorübergehend Platzhalter-Werte angezeigt."
           projectId={userId}
-          domain={user?.domain || domain}  // ✅ Nutzt domain aus dem user State
+          domain={user?.domain || domain}
           semrushTrackingId02={user?.semrush_tracking_id_02}
         />
 
