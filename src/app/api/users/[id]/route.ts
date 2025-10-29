@@ -1,4 +1,4 @@
-// src/app/api/users/[id]/route.ts
+// src/app/api/users/[id]/route.ts - KORRIGIERT für semrush_tracking_id_02
 
 import { NextResponse, NextRequest } from 'next/server';
 import { sql } from '@vercel/postgres';
@@ -30,6 +30,7 @@ export async function GET(
 
     console.log(`[GET /api/users/${id}] Benutzerdaten abrufen... (angefragt von: ${session.user.email})`);
 
+    // ✅ KORRIGIERT: Keine ::text Casts bei VARCHAR/Text-Feldern
     const { rows } = await sql<User>`
       SELECT
         id::text as id,
@@ -38,9 +39,9 @@ export async function GET(
         domain,
         gsc_site_url,
         ga4_property_id,
-        semrush_project_id::text as semrush_project_id,
-        semrush_tracking_id::text as semrush_tracking_id,
-        semrush_tracking_id_02::text as semrush_tracking_id_02
+        semrush_project_id,
+        semrush_tracking_id,
+        semrush_tracking_id_02
       FROM users
       WHERE id = ${id}::uuid;
     `;
@@ -51,6 +52,7 @@ export async function GET(
     }
     
     console.log(`[GET /api/users/${id}] ✅ Benutzer gefunden:`, rows[0].email);
+    console.log(`[GET /api/users/${id}] Semrush Tracking ID 02:`, rows[0].semrush_tracking_id_02);
     
     return NextResponse.json(rows[0]);
   } catch (error) {
@@ -119,51 +121,38 @@ export async function PUT(
       console.log(`  - [PUT /api/users/${id}] Passwort wird aktualisiert.`);
     }
 
-    // Update mit korrekter SQL-Syntax
-    const { rows } = hashedPassword
-      ? await sql<User>`
-          UPDATE users
-          SET 
-            email = ${normalizedEmail},
-            domain = ${domain || null},
-            gsc_site_url = ${gsc_site_url || null},
-            ga4_property_id = ${ga4_property_id || null},
-            semrush_project_id = ${semrush_project_id || null},
-            semrush_tracking_id = ${semrush_tracking_id || null},
-            semrush_tracking_id_02 = ${semrush_tracking_id_02 || null},
-            password = ${hashedPassword}
-          WHERE id = ${id}::uuid
-          RETURNING
-            id::text as id, email, role, domain, 
-            gsc_site_url, ga4_property_id, 
-            semrush_project_id::text as semrush_project_id, 
-            semrush_tracking_id::text as semrush_tracking_id,
-            semrush_tracking_id_02::text as semrush_tracking_id_02;
-        `
-      : await sql<User>`
-          UPDATE users
-          SET 
-            email = ${normalizedEmail},
-            domain = ${domain || null},
-            gsc_site_url = ${gsc_site_url || null},
-            ga4_property_id = ${ga4_property_id || null},
-            semrush_project_id = ${semrush_project_id || null},
-            semrush_tracking_id = ${semrush_tracking_id || null},
-            semrush_tracking_id_02 = ${semrush_tracking_id_02 || null}
-          WHERE id = ${id}::uuid
-          RETURNING
-            id::text as id, email, role, domain, 
-            gsc_site_url, ga4_property_id, 
-            semrush_project_id::text as semrush_project_id, 
-            semrush_tracking_id::text as semrush_tracking_id,
-            semrush_tracking_id_02::text as semrush_tracking_id_02;
-        `;
+    // ✅ KORRIGIERT: Unified UPDATE Query für alle Szenarien
+    const { rows } = await sql<User>`
+      UPDATE users
+      SET 
+        email = ${normalizedEmail},
+        domain = ${domain || null},
+        gsc_site_url = ${gsc_site_url || null},
+        ga4_property_id = ${ga4_property_id || null},
+        semrush_project_id = ${semrush_project_id || null},
+        semrush_tracking_id = ${semrush_tracking_id || null},
+        semrush_tracking_id_02 = ${semrush_tracking_id_02 || null},
+        password = ${hashedPassword || null}
+      WHERE id = ${id}::uuid
+      RETURNING
+        id::text as id, 
+        email, 
+        role, 
+        domain, 
+        gsc_site_url, 
+        ga4_property_id, 
+        semrush_project_id, 
+        semrush_tracking_id,
+        semrush_tracking_id_02;
+    `;
 
     if (rows.length === 0) {
       return NextResponse.json({ message: "Update fehlgeschlagen. Benutzer nicht gefunden." }, { status: 404 });
     }
 
     console.log(`✅ [PUT /api/users/${id}] Benutzer erfolgreich aktualisiert:`, rows[0].email);
+    console.log(`✅ [PUT /api/users/${id}] Semrush Tracking ID 02 nach Update:`, rows[0].semrush_tracking_id_02);
+    
     return NextResponse.json({
       ...rows[0],
       message: 'Benutzer erfolgreich aktualisiert'
