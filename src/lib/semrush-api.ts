@@ -222,11 +222,15 @@ export async function getSemrushData(params: {
   };
 }
 
+// ========================================================================
+// KORRIGIERTE FUNKTION
+// ========================================================================
+
 /**
  * Funktion zum Abrufen von Keywords mit Rankings aus Semrush Position Tracking
- * @param projectId Die Semrush Project ID
+ * @param trackingId Die Semrush Position Tracking ID (z.B. 1209491 aus der 'users' Tabelle)
  */
-export async function getSemrushKeywords(projectId: string) {
+export async function getSemrushKeywords(trackingId: string) {
   if (!apiKey) {
     console.error('[Semrush] SEMRUSH_API_KEY is not set in environment variables.');
     return {
@@ -235,22 +239,31 @@ export async function getSemrushKeywords(projectId: string) {
     };
   }
 
-  if (!projectId) {
-    console.warn('[Semrush] No project ID provided for keywords');
+  // KORREKTUR: Prüft auf trackingId statt projectId
+  if (!trackingId) {
+    console.warn('[Semrush] No tracking ID provided for keywords');
     return {
       keywords: [],
-      error: 'No project ID'
+      error: 'No tracking ID'
     };
   }
 
-  console.log('[Semrush] Fetching keywords for project ID:', projectId);
+  // KORREKTUR: Loggt die trackingId
+  console.log('[Semrush] Fetching keywords for tracking ID:', trackingId);
 
   // Semrush Position Tracking Keywords API
   // Dokumentation: https://developer.semrush.com/api/v3/analytics/keyword-reports/
   const params = new URLSearchParams({
     key: apiKey,
-    type: 'project_tracking_keywords', // ✅ KORRIGIERT: Der richtige Type!
-    project_id: projectId,
+    
+    // KORREKTUR: Der Typ 'project_tracking_keywords' war FALSCH und verursachte Fehler 400.
+    // 'tracking_report' ist der korrekte Typ für den Position Tracking Report.
+    type: 'tracking_report', 
+    
+    // KORREKTUR: Der API-Parameter heißt 'project_id', erwartet aber bei type='tracking_report'
+    // die Tracking ID (z.B. 1209491), nicht die Projekt ID (z.B. 12920575).
+    project_id: trackingId, 
+
     export_columns: 'Ph,Po,Pp,Nq,Ur,Tr',
     // Ph = Keyword (phrase)
     // Po = Position
@@ -276,7 +289,8 @@ export async function getSemrushKeywords(projectId: string) {
     const lines = response.data.trim().split('\n');
     
     if (lines.length < 2) {
-      console.warn('[Semrush] No keywords returned for project:', projectId);
+      // KORREKTUR: Log-Meldung
+      console.warn('[Semrush] No keywords returned for tracking ID:', trackingId);
       return {
         keywords: [],
         error: 'No keywords found'
@@ -286,6 +300,9 @@ export async function getSemrushKeywords(projectId: string) {
     // Parse CSV-ähnliche Daten (erste Zeile = Header, Rest = Daten)
     const keywords = lines.slice(1).map(line => {
       const values = line.split(';');
+      // Sicherstellen, dass genügend Spalten vorhanden sind
+      if (values.length < 6) return null; 
+      
       return {
         keyword: values[0] || '',
         position: parseFloat(values[1]) || 0,
@@ -294,9 +311,9 @@ export async function getSemrushKeywords(projectId: string) {
         url: values[4] || '',
         trafficPercent: parseFloat(values[5]) || 0
       };
-    }).filter(kw => kw.keyword); // Filtere leere Keywords
+    }).filter(kw => kw && kw.keyword); // Filtere ungültige Zeilen und leere Keywords
 
-    console.log('[Semrush] Successfully fetched', keywords.length, 'keywords');
+    console.log('[Semrush] Successfully fetched', keywords.length, 'keywords for tracking ID:', trackingId);
 
     return {
       keywords,
@@ -305,10 +322,11 @@ export async function getSemrushKeywords(projectId: string) {
 
   } catch (error) {
     if (axios.isAxiosError(error)) {
-      console.error(`[Semrush] Axios error fetching keywords for project ${projectId}:`, error.message);
+      // KORREKTUR: Log-Meldung
+      console.error(`[Semrush] Axios error fetching keywords for tracking ID ${trackingId}:`, error.message);
       if (error.response) {
         console.error('[Semrush] Response status:', error.response.status);
-        console.error('[Semrush] Response data:', error.response.data);
+        console.error('[Semrush] Response data:', error.response.data); // Sehr wichtig für Debugging!
       }
     } else {
       console.error(`[Semrush] Error fetching keywords:`, error);
