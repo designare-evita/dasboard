@@ -13,17 +13,15 @@ import KpiTrendChart from '@/components/charts/KpiTrendChart';
 import AiTrafficCard from '@/components/AiTrafficCard';
 import { type DateRangeOption } from '@/components/DateRangeSelector';
 import TopQueriesList from '@/components/TopQueriesList';
-import SemrushTopKeywords from '@/components/SemrushTopKeywords'; // Import für die erste Tracking-ID
-import SemrushTopKeywords02 from '@/components/SemrushTopKeywords02'; // Import für die zweite Tracking-ID
+import SemrushTopKeywords from '@/components/SemrushTopKeywords';
+import SemrushTopKeywords02 from '@/components/SemrushTopKeywords02';
 import useSWR from 'swr';
 import { User } from '@/types';
-
-// Importiere die neue Header-Komponente
 import DashboardHeader from '@/components/DashboardHeader';
 
 interface ProjectDashboardProps {
   data: ProjectDashboardData;
-  semrushData: any; // Unused, aber für Kompatibilität behalten
+  semrushData: SemrushData | null; // Statt any - spezifischen Typ verwenden oder null
   isLoading: boolean;
   dateRange: DateRangeOption;
   onDateRangeChange: (range: DateRangeOption) => void;
@@ -33,10 +31,26 @@ interface ProjectDashboardProps {
   domain?: string;
 }
 
+// Falls SemrushData nicht definiert ist, hier definieren oder importieren
+interface SemrushData {
+  // Definiere die tatsächliche Struktur hier basierend auf deiner Anwendung
+  keywords?: Array<{
+    keyword: string;
+    position: number;
+    url: string;
+  }>;
+  metrics?: {
+    traffic: number;
+    keywords: number;
+    // ... andere Metriken
+  };
+}
+
 const fetcher = (url: string) => fetch(url).then(res => res.json());
 
 export default function ProjectDashboard({
   data,
+  semrushData, // Jetzt korrekt typisiert
   isLoading,
   dateRange,
   onDateRangeChange,
@@ -54,7 +68,6 @@ export default function ProjectDashboard({
     fetcher
   );
 
-  // PDF Export Handler
   const handleExportPdf = () => {
     window.print();
   };
