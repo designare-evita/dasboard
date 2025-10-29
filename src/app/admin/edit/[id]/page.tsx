@@ -179,7 +179,7 @@ export default async function EditUserPage({ params }: PageProps) {
               </span>
             </div>
           </div>
-          <EditUserForm id={id} user={user} />
+         <EditUserForm user={user} />
         </div>
 
         {/* Landingpage Manager UND Logbuch (Nur für Kunden) */}
