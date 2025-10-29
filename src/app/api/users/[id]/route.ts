@@ -39,8 +39,8 @@ export async function GET(
         gsc_site_url,
         ga4_property_id,
         semrush_project_id::text as semrush_project_id,
-        semrush_tracking_id::text as semrush_tracking_id
-        semrush_tracking_id_02::text as semrush_tracking_id_02 -- NEU
+        semrush_tracking_id::text as semrush_tracking_id,
+        semrush_tracking_id_02::text as semrush_tracking_id_02
       FROM users
       WHERE id = ${id}::uuid;
     `;
@@ -80,7 +80,7 @@ export async function PUT(
         ga4_property_id,
         semrush_project_id,
         semrush_tracking_id,
-        semrush_tracking_id_02, // NEU
+        semrush_tracking_id_02,
         password
     } = body;
 
@@ -110,6 +110,7 @@ export async function PUT(
     console.log(`[PUT /api/users/${id}] Update-Anfrage...`);
     console.log(`[PUT /api/users/${id}] Semrush Project ID: ${semrush_project_id}`);
     console.log(`[PUT /api/users/${id}] Semrush Tracking ID: ${semrush_tracking_id}`);
+    console.log(`[PUT /api/users/${id}] Semrush Tracking ID 02: ${semrush_tracking_id_02}`);
 
     // Passwort hashen, falls vorhanden
     let hashedPassword = null;
@@ -129,15 +130,15 @@ export async function PUT(
             ga4_property_id = ${ga4_property_id || null},
             semrush_project_id = ${semrush_project_id || null},
             semrush_tracking_id = ${semrush_tracking_id || null},
-            semrush_tracking_id_02 = ${semrush_tracking_id_02 || null}, -- NEU
+            semrush_tracking_id_02 = ${semrush_tracking_id_02 || null},
             password = ${hashedPassword}
           WHERE id = ${id}::uuid
           RETURNING
             id::text as id, email, role, domain, 
             gsc_site_url, ga4_property_id, 
             semrush_project_id::text as semrush_project_id, 
-            semrush_tracking_id::text as semrush_tracking_id;
-            emrush_tracking_id_02::text as semrush_tracking_id_02; -- NEU
+            semrush_tracking_id::text as semrush_tracking_id,
+            semrush_tracking_id_02::text as semrush_tracking_id_02;
         `
       : await sql<User>`
           UPDATE users
@@ -147,15 +148,15 @@ export async function PUT(
             gsc_site_url = ${gsc_site_url || null},
             ga4_property_id = ${ga4_property_id || null},
             semrush_project_id = ${semrush_project_id || null},
-            semrush_tracking_id = ${semrush_tracking_id || null}
-            emrush_tracking_id_02 = ${semrush_tracking_id_02 || null}, -- NEU
+            semrush_tracking_id = ${semrush_tracking_id || null},
+            semrush_tracking_id_02 = ${semrush_tracking_id_02 || null}
           WHERE id = ${id}::uuid
           RETURNING
             id::text as id, email, role, domain, 
             gsc_site_url, ga4_property_id, 
             semrush_project_id::text as semrush_project_id, 
-            semrush_tracking_id::text as semrush_tracking_id;
-            semrush_tracking_id_02::text as semrush_tracking_id_02; -- NEU
+            semrush_tracking_id::text as semrush_tracking_id,
+            semrush_tracking_id_02::text as semrush_tracking_id_02;
         `;
 
     if (rows.length === 0) {
