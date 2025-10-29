@@ -83,8 +83,8 @@ export default function ProjectDashboard({
       {/* ÄNDERUNG 2 & 3: Reihenfolge und Höhe */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mt-6">
         
-        {/* SPALTE 1 (breiter): AiTrafficCard */}
-        <div className="xl:col-span-2">
+        {/* SPALTE 1 AiTrafficCard */}
+        <div className="xl:col-span-1">
           <AiTrafficCard 
             totalSessions={data.aiTraffic?.totalSessions ?? 0}
             totalUsers={data.aiTraffic?.totalUsers ?? 0}
@@ -93,8 +93,8 @@ export default function ProjectDashboard({
           />
         </div>
         
-        {/* SPALTE 2 (schmaler): TopQueriesList */}
-        <div className="xl:col-span-1">
+        {/* SPALTE 2  TopQueriesList */}
+        <div className="xl:col-span-2">
           <TopQueriesList 
             queries={data.topQueries ?? []} 
             isLoading={isLoading}
