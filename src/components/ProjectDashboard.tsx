@@ -95,7 +95,7 @@ export default function ProjectDashboard({
           <AiTrafficCard 
             totalSessions={data.aiTraffic?.totalSessions ?? 0}
             totalUsers={data.aiTraffic?.totalUsers ?? 0}
-            topSources={data.aiTraffic?.topSources ?? []}
+            topAiSources={data.aiTraffic?.topAiSources ?? []}
           />
         </div>
       </div>
