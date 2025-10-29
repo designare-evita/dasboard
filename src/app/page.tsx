@@ -213,16 +213,17 @@ function CustomerDashboard({
   return (
     <div className="p-4 md:p-8 bg-gray-50 min-h-screen">
       <main>
-        <ProjectDashboard
-          data={data}
-          semrushData={semrushData}
-          isLoading={isLoading}
-          dateRange={dateRange}
-          onDateRangeChange={onDateRangeChange}
-          showNoDataHint={showNoDataHint}
-          noDataHintText="Hinweis: Für Ihr Projekt wurden noch keine KPI-Daten geliefert. Es werden vorübergehend Platzhalter-Werte angezeigt."
-          domain={domain}
-        />
+       <ProjectDashboard
+  data={data}
+  isLoading={isLoading}
+  dateRange={dateRange}
+  onDateRangeChange={onDateRangeChange}
+  showNoDataHint={showNoDataHint}
+  noDataHintText={noDataHintText}
+  projectId={projectId}
+  domain={domain}
+  semrushTrackingId02={user?.semrush_tracking_id_02}  // ✅ NEU
+/>
 
         <div className="mt-8">
           <LandingpageApproval />
