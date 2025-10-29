@@ -63,14 +63,11 @@ export default function ProjectDashboard({
         })}
       />
 
-      {/* ÄNDERUNG 1: Außenabstand zwischen Header und KPI-Karten
-        Hier wurde ein <div> mit "mt-6" (margin-top: 6) hinzugefügt
-      */}
+      {/* ÄNDERUNG 1: Außenabstand */}
       <div className="mt-6">
         <KpiCardsGrid
           kpis={normalizedKpis}
           isLoading={isLoading}
-          // (Die fehlerhaften Props 'showNoDataHint' und 'noDataHintText' sind hier korrekterweise entfernt)
         />
       </div>
 
@@ -83,26 +80,25 @@ export default function ProjectDashboard({
         />
       </div>
 
-      {/* ÄNDERUNG 2 & 3: Reihenfolge getauscht und gleiche Höhe
-      */}
+      {/* ÄNDERUNG 2 & 3: Reihenfolge und Höhe */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mt-6">
         
-        {/* SPALTE 1 (breiter): AiTrafficCard (NEUE POSITION) */}
+        {/* SPALTE 1 (breiter): AiTrafficCard */}
         <div className="xl:col-span-2">
           <AiTrafficCard 
             totalSessions={data.aiTraffic?.totalSessions ?? 0}
             totalUsers={data.aiTraffic?.totalUsers ?? 0}
             topAiSources={data.aiTraffic?.topAiSources ?? []}
-            className="h-full" {/* <--- HÖHE HINZUGEFÜGT */}
+            className="h-full" // KORREKTUR: Ungültiger Kommentar entfernt
           />
         </div>
         
-        {/* SPALTE 2 (schmaler): TopQueriesList (NEUE POSITION) */}
+        {/* SPALTE 2 (schmaler): TopQueriesList */}
         <div className="xl:col-span-1">
           <TopQueriesList 
             queries={data.topQueries ?? []} 
             isLoading={isLoading}
-            className="h-full" {/* <--- HÖHE HINZUGEFÜGT */}
+            className="h-full" // KORREKTUR: Ungültiger Kommentar entfernt
           />
         </div>
       </div>
@@ -112,14 +108,14 @@ export default function ProjectDashboard({
       {/* ---------------------------------------------------------------------- */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
         
-        {/* Kampagne 1: Standard Tracking ID (jetzt für alle Rollen sichtbar) */}
+        {/* Kampagne 1: Standard Tracking ID */}
         <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-gray-200">
           <SemrushTopKeywords 
             projectId={projectId} 
           />
         </div>
 
-        {/* Kampagne 2: Explizite Tracking ID (semrush_tracking_id_02) */}
+        {/* Kampagne 2: Explizite Tracking ID */}
         {semrushTrackingId02 ? (
           <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-gray-200">
             <SemrushTopKeywords02 
@@ -127,7 +123,7 @@ export default function ProjectDashboard({
             />
           </div>
         ) : (
-          // Platzhalter, wenn Kampagne 2 nicht konfiguriert ist
+          // Platzhalter
           <div className="bg-gray-50 rounded-lg border border-gray-200 border-dashed">
             <div className="flex flex-col items-center justify-center h-full text-center py-12">
               <div className="text-gray-400 mb-3">
