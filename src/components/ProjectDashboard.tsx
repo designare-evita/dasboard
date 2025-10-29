@@ -65,16 +65,14 @@ export default function ProjectDashboard({
   return (
     <div className="space-y-8">
       
-      {/* Dashboard Header (Refactored) */}
-      {domain && (
-        <DashboardHeader
-          domain={domain}
-          projectId={projectId}
-          dateRange={dateRange}
-          onDateRangeChange={onDateRangeChange}
-          onPdfExport={handleExportPdf}
-        />
-      )}
+      {/* Dashboard Header - Immer anzeigen */}
+      <DashboardHeader
+        domain={domain || 'Unbekannte Domain'}
+        projectId={projectId}
+        dateRange={dateRange}
+        onDateRangeChange={onDateRangeChange}
+        onPdfExport={handleExportPdf}
+      />
 
       {/* 1. BLOCK: Google KPI-Karten */}
       <div>
