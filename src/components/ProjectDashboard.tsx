@@ -92,7 +92,12 @@ export default function ProjectDashboard({
           />
         </div>
         <div className="xl:col-span-1">
-          <AiTrafficCard />
+          <AiTrafficCard 
+            totalSessions={data.aiTraffic?.totalSessions ?? 0}
+            totalUsers={data.aiTraffic?.totalUsers ?? 0}
+            percentage={data.aiTraffic?.percentage ?? 0}
+            topSources={data.aiTraffic?.topSources ?? []}
+          />
         </div>
       </div>
 
