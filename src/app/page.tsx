@@ -19,14 +19,12 @@ import {
 import ProjectDashboard from '@/components/ProjectDashboard';
 import LandingpageApproval from '@/components/LandingpageApproval';
 import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector';
-import { SemrushData } from '@/components/SemrushKpiCards';
 
 export default function HomePage() {
   const { data: session, status } = useSession();
   const router = useRouter();
 
   const [dashboardData, setDashboardData] = useState<ProjectDashboardData | null>(null);
-  const [semrushData, setSemrushData] = useState<SemrushData | null>(null);
   const [projects, setProjects] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -37,32 +35,16 @@ export default function HomePage() {
     setIsLoading(true);
     setError(null);
     try {
-      // Beide API-Routen parallel anfragen
-      // WICHTIG: Für Kunden OHNE projectId (nutzt automatisch Session)
-      const googleDataPromise = fetch(`/api/data?dateRange=${range}`);
-      const semrushDataPromise = fetch(`/api/semrush`);
+      // Nur Google-Daten laden - Semrush lädt jede Komponente selbst
+      const googleResponse = await fetch(`/api/data?dateRange=${range}`);
 
-      const [googleResponse, semrushResponse] = await Promise.all([
-        googleDataPromise,
-        semrushDataPromise
-      ]);
-
-      // Google-Daten verarbeiten (kritisch)
       if (!googleResponse.ok) {
         const errorResult = await googleResponse.json();
         throw new Error(errorResult.message || 'Fehler beim Laden der Google-Daten');
       }
+      
       const googleResult = await googleResponse.json();
       setDashboardData(googleResult);
-
-      // Semrush-Daten verarbeiten (nicht-kritisch)
-      if (semrushResponse.ok) {
-        const semrushResult = await semrushResponse.json();
-        setSemrushData(semrushResult);
-      } else {
-        console.error("Fehler beim Laden der Semrush-Daten:", await semrushResponse.text());
-        setSemrushData(null);
-      }
 
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Ein unbekannter Fehler ist aufgetreten');
@@ -140,11 +122,11 @@ export default function HomePage() {
     return (
       <CustomerDashboard
         data={dashboardData}
-        semrushData={semrushData}
         isLoading={isLoading}
         dateRange={dateRange}
         onDateRangeChange={handleDateRangeChange}
         domain={userDomain}
+        userId={session.user.id}
       />
     );
   }
@@ -195,35 +177,45 @@ function AdminDashboard({ projects, isLoading }: { projects: User[], isLoading: 
 
 function CustomerDashboard({
   data,
-  semrushData,
   isLoading,
   dateRange,
   onDateRangeChange,
-  domain
+  domain,
+  userId
 }: {
   data: ProjectDashboardData;
-  semrushData: SemrushData | null;
   isLoading: boolean;
   dateRange: DateRangeOption;
   onDateRangeChange: (range: DateRangeOption) => void;
   domain?: string;
+  userId?: string;
 }) {
   const showNoDataHint = !isLoading && !hasDashboardData(data);
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    if (userId) {
+      fetch(`/api/users/${userId}`)
+        .then(res => res.json())
+        .then(userData => setUser(userData))
+        .catch(err => console.error('Fehler beim Laden der User-Daten:', err));
+    }
+  }, [userId]);
 
   return (
     <div className="p-4 md:p-8 bg-gray-50 min-h-screen">
       <main>
-       <ProjectDashboard
-  data={data}
-  isLoading={isLoading}
-  dateRange={dateRange}
-  onDateRangeChange={onDateRangeChange}
-  showNoDataHint={showNoDataHint}
-  noDataHintText={noDataHintText}
-  projectId={projectId}
-  domain={domain}
-  semrushTrackingId02={user?.semrush_tracking_id_02}  // ✅ NEU
-/>
+        <ProjectDashboard
+          data={data}
+          isLoading={isLoading}
+          dateRange={dateRange}
+          onDateRangeChange={onDateRangeChange}
+          showNoDataHint={showNoDataHint}
+          noDataHintText="Hinweis: Für Ihr Projekt wurden noch keine KPI-Daten geliefert. Es werden vorübergehend Platzhalter-Werte angezeigt."
+          projectId={userId}
+          domain={domain}
+          semrushTrackingId02={user?.semrush_tracking_id_02}
+        />
 
         <div className="mt-8">
           <LandingpageApproval />
