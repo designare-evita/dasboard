@@ -1,4 +1,4 @@
-// src/components/ProjectDashboard.tsx (Aktualisiert mit Keyword-Tabellen)
+// src/components/ProjectDashboard.tsx (KORRIGIERT: Rollenprüfung für Kampagne 1 entfernt)
 'use client';
 
 import { useState } from 'react';
@@ -16,6 +16,8 @@ import TopQueriesList from '@/components/TopQueriesList';
 import SemrushTopKeywords from '@/components/SemrushTopKeywords';
 import SemrushTopKeywords02 from '@/components/SemrushTopKeywords02';
 import DashboardHeader from '@/components/DashboardHeader';
+// NEU: useSession importiert, um die (jetzt unnötige) userRole-Variable zu entfernen
+import { useSession } from 'next-auth/react'; 
 
 interface ProjectDashboardProps {
   data: ProjectDashboardData;
@@ -42,176 +44,124 @@ export default function ProjectDashboard({
 }: ProjectDashboardProps) {
   
   const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
-
-  // PDF Export Handler (muss hier definiert bleiben)
-  const handleExportPdf = () => {
-    window.print();
-  };
-
-  const kpis = normalizeFlatKpis(data.kpis);
-
-  type DataWithCharts = ProjectDashboardData & { 
-    charts?: Record<ActiveKpi, Array<{ date: string; value: number }>> 
-  };
-  const chartSeries = (data as DataWithCharts).charts?.[activeKpi] || [];
   
-  const kpiLabels: Record<string, string> = {
-    clicks: 'Klicks',
-    impressions: 'Impressionen',
-    sessions: 'Sitzungen (GA4)',
-    totalUsers: 'Nutzer (GA4)',
-  };
+  // Diese Zeilen sind für die Anzeige nicht mehr notwendig, 
+  // aber wir lassen sie drin, falls sie an anderer Stelle benötigt werden.
+  const { data: session } = useSession();
+  const userRole = session?.user?.role;
+
+  // KPIs für Chart und Karten normalisieren
+  const { normalizedKpis, chartData } = normalizeFlatKpis(data.kpis, dateRange);
 
   return (
-    <div className="space-y-8">
-      
-      {/* Dashboard Header - Zeige nur wenn Domain vorhanden */}
-      {domain && (
-        <DashboardHeader
-          domain={domain}
-          projectId={projectId}
-          dateRange={dateRange}
-          onDateRangeChange={onDateRangeChange}
-          onPdfExport={handleExportPdf}
-        />
-      )}
+    <>
+      <DashboardHeader 
+        domain={domain}
+        dateRange={dateRange}
+        onDateRangeChange={onDateRangeChange}
+        isLoading={isLoading}
+      />
 
-      {/* 1. BLOCK: Google KPI-Karten */}
-      <div>
-        <h2 className="text-xl font-semibold text-gray-700 mb-4">
-          Google Übersicht (Search Console & GA4)
-        </h2>
-        <KpiCardsGrid kpis={kpis} isLoading={isLoading} />
+      {/* KPI-Karten */}
+      <KpiCardsGrid
+        kpis={normalizedKpis}
+        activeKpi={activeKpi}
+        onKpiCardClick={setActiveKpi}
+        isLoading={isLoading}
+        showNoDataHint={showNoDataHint}
+        noDataHintText={noDataHintText}
+      />
+
+      {/* KPI-Trendchart */}
+      <div className="mt-6">
+        <KpiTrendChart 
+          data={chartData} 
+          kpi={activeKpi}
+          meta={KPI_TAB_META[activeKpi]} 
+          isLoading={isLoading}
+        />
       </div>
 
-      {/* 2. BLOCK: Google KPI-Chart */}
-      <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4 sm:mb-0">
-            Performance-Trend
-          </h3>
-          <div className="flex-shrink-0 flex flex-wrap gap-2">
-            {(Object.keys(KPI_TAB_META) as ActiveKpi[]).map((kpi) => (
-              <button
-                key={kpi}
-                onClick={() => setActiveKpi(kpi)}
-                className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
-                  activeKpi === kpi
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {KPI_TAB_META[kpi].title}
-              </button>
-            ))}
-          </div>
+      {/* ---------------------------------------------------------------------- */}
+      {/* Spalte 1: Top Queries (GSC) & AI Traffic */}
+      {/* ---------------------------------------------------------------------- */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mt-6">
+        <div className="xl:col-span-2">
+          <TopQueriesList 
+            queries={data.topQueries} 
+            isLoading={isLoading} 
+          />
         </div>
-        <div className="mt-4 h-72">
-          <KpiTrendChart 
-            data={chartSeries} 
-            color={KPI_TAB_META[activeKpi].color}
-            label={kpiLabels[activeKpi] || KPI_TAB_META[activeKpi].title}
+        <div className="xl:col-span-1">
+          <AiTrafficCard 
+            data={data.aiTraffic} 
+            isLoading={isLoading} 
+          />
+        </div>
+      </div>
+
+      {/* ---------------------------------------------------------------------- */}
+      {/* SEMRUSH KEYWORDS (KAMPAGNE 1 & 2) */}
+      {/* ---------------------------------------------------------------------- */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+        
+        {/* Kampagne 1: Standard Tracking ID */}
+        {/* ⬇️⬇️⬇️ KORREKTUR ⬇️⬇️⬇️
+          Die Rollenprüfung (userRole === 'ADMIN'...) wurde entfernt.
+          Diese Komponente wird jetzt für ALLE Rollen angezeigt.
+        */}
+        <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-gray-200">
+          <SemrushTopKeywords 
+            projectId={projectId} 
+            domain={domain} 
           />
         </div>
 
-        {showNoDataHint && (
-          <p className="mt-6 text-sm text-gray-500">
-            {noDataHintText}
-          </p>
-        )}
-      </div>
-
-      {/* 3. BLOCK: KI-Traffic + Top Queries */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {data.aiTraffic && (
-          <div className="lg:col-span-1">
-            <AiTrafficCard
-              totalSessions={data.aiTraffic.totalSessions}
-              totalUsers={data.aiTraffic.totalUsers}
-              percentage={kpis.sessions.aiTraffic?.percentage || 0}
-              topSources={data.aiTraffic.topAiSources}
-              isLoading={isLoading}
-              dateRange={dateRange}
-              className="h-full"
+        {/* Kampagne 2: Explizite Tracking ID (semrush_tracking_id_02) */}
+        {semrushTrackingId02 ? (
+          <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-gray-200">
+            <SemrushTopKeywords02 
+              projectId={projectId} 
+              trackingId={semrushTrackingId02} 
             />
           </div>
-        )}
-
-        {data.topQueries && data.topQueries.length > 0 && (
-          <div className={`${data.aiTraffic ? 'lg:col-span-2' : 'lg:col-span-3'}`}>
-            <TopQueriesList
-              queries={data.topQueries}
-              isLoading={isLoading}
-              className="h-full"
-            />
-          </div>
-        )}
-      </div>
-
-      {/* 4. BLOCK: Semrush Keyword Rankings */}
-      <div>
-        <h2 className="text-xl font-semibold text-gray-700 mb-4">
-          Semrush Keyword Rankings
-        </h2>
-        
-        {/* Grid Layout für beide Keyword-Tabellen */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          
-          {/* Kampagne 1 - Zeige immer (mit projectId) */}
-          <div>
-            <SemrushTopKeywords 
-              projectId={projectId}
-            />
-          </div>
-
-          {/* Kampagne 2 - Zeige nur wenn trackingId02 vorhanden */}
-          {semrushTrackingId02 && (
-            <div>
-              <SemrushTopKeywords02 
-                trackingId={semrushTrackingId02}
-              />
-            </div>
-          )}
-          
-          {/* Wenn keine zweite Kampagne, zeige Platzhalter */}
-          {!semrushTrackingId02 && (
-            <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200 border-dashed">
-              <div className="flex flex-col items-center justify-center h-full text-center py-12">
-                <div className="text-gray-400 mb-3">
-                  <svg 
-                    className="w-16 h-16 mx-auto" 
-                    fill="none" 
-                    stroke="currentColor" 
-                    viewBox="0 0 24 24"
-                  >
-                    <path 
-                      strokeLinecap="round" 
-                      strokeLinejoin="round" 
-                      strokeWidth={1.5} 
-                      d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                    />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-medium text-gray-700 mb-2">
-                  Zweite Kampagne nicht konfiguriert
-                </h3>
-                <p className="text-sm text-gray-500 max-w-sm">
-                  Fügen Sie eine zweite Semrush Tracking-ID hinzu, um hier weitere Keywords zu verfolgen.
-                </p>
+        ) : (
+          // Platzhalter, wenn Kampagne 2 nicht konfiguriert ist
+          <div className="bg-gray-50 rounded-lg border border-gray-200 border-dashed">
+            <div className="flex flex-col items-center justify-center h-full text-center py-12">
+              <div className="text-gray-400 mb-3">
+                <svg 
+                  className="w-16 h-16 mx-auto" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round" 
+                    strokeWidth={1.5} 
+                    d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                  />
+                </svg>
               </div>
+              <h3 className="text-lg font-medium text-gray-700 mb-2">
+                Zweite Kampagne nicht konfiguriert
+              </h3>
+              <p className="text-sm text-gray-500 max-w-sm">
+                Fügen Sie eine zweite Semrush Tracking-ID hinzu, um hier weitere Keywords zu verfolgen.
+              </p>
             </div>
-          )}
-        </div>
-        
-        {/* Info-Box */}
-        <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <p className="text-sm text-blue-800">
-            💡 <strong>Hinweis:</strong> Die Keyword-Daten werden alle 14 Tage automatisch aktualisiert. 
-            Sie zeigen die Top 20 organischen Keywords mit den besten Rankings aus Ihren Semrush Position Tracking Kampagnen.
-          </p>
-        </div>
+          </div>
+        )}
       </div>
-
-    </div>
+      
+      {/* Info-Box */}
+      <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <p className="text-sm text-blue-800">
+          💡 <strong>Hinweis:</strong> Die Keyword-Daten werden alle 14 Tage automatisch aktualisiert. 
+          Sie zeigen die Top 20 organischen Keywords mit den besten Rankings aus Ihren Semrush Position Tracking Kampagnen.
+        </p>
+      </div>
+    </>
   );
 }
