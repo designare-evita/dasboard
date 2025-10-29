@@ -1,4 +1,4 @@
-// src/components/ProjectDashboard.tsx (KORRIGIERT: activeKpi aus KpiCardsGrid entfernt)
+// src/components/ProjectDashboard.tsx (KORRIGIERT: Fallback für onPdfExport)
 'use client';
 
 import { useState } from 'react';
@@ -58,15 +58,16 @@ export default function ProjectDashboard({
         domain={domain}
         dateRange={dateRange}
         onDateRangeChange={onDateRangeChange}
-        onPdfExport={onPdfExport}
+        // ⬇️⬇️⬇️ KORREKTUR: Fallback-Funktion für onPdfExport ⬇️⬇️⬇️
+        onPdfExport={onPdfExport || (() => {
+          console.warn('PDF Export functionality not implemented');
+          // Optional: Hier können Sie einen Toast oder eine Benachrichtigung anzeigen
+        })}
       />
 
       {/* KPI-Karten */}
       <KpiCardsGrid
         kpis={normalizedKpis}
-        // ⬇️⬇️⬇️ KORREKTUR: activeKpi und onKpiCardClick entfernt ⬇️⬇️⬇️
-        // activeKpi={activeKpi} // ❌ ENTFERNT: Existiert nicht in KpiCardsGridProps
-        // onKpiCardClick={setActiveKpi} // ❌ ENTFERNT: Existiert nicht in KpiCardsGridProps
         isLoading={isLoading}
         showNoDataHint={showNoDataHint}
         noDataHintText={noDataHintText}
