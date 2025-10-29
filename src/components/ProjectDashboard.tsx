@@ -1,4 +1,4 @@
-// src/components/ProjectDashboard.tsx (KORRIGIERT: onPdfExport hinzugefügt)
+// src/components/ProjectDashboard.tsx (KORRIGIERT: activeKpi aus KpiCardsGrid entfernt)
 'use client';
 
 import { useState } from 'react';
@@ -28,7 +28,6 @@ interface ProjectDashboardProps {
   projectId?: string;
   domain?: string;
   semrushTrackingId02?: string | null;
-  // ⬇️⬇️⬇️ NEUE PROP HINZUGEFÜGT ⬇️⬇️⬇️
   onPdfExport?: () => void;
 }
 
@@ -42,7 +41,6 @@ export default function ProjectDashboard({
   projectId,
   domain,
   semrushTrackingId02,
-  // ⬇️⬇️⬇️ NEUE PROP HINZUGEFÜGT ⬇️⬇️⬇️
   onPdfExport
 }: ProjectDashboardProps) {
   
@@ -57,22 +55,19 @@ export default function ProjectDashboard({
   return (
     <>
       <DashboardHeader 
-  domain={domain}
-  dateRange={dateRange}
-  onDateRangeChange={onDateRangeChange}
-  // ⬇️⬇️⬇️ KORREKTUR: Fallback-Funktion bereitstellen ⬇️⬇️⬇️
-  onPdfExport={onPdfExport || (() => {
-    console.warn('PDF Export functionality not implemented');
-    // Optional: Hier könnten Sie einen Toast oder eine Benachrichtigung anzeigen
-  })}
-/>
+        domain={domain}
+        dateRange={dateRange}
+        onDateRangeChange={onDateRangeChange}
+        onPdfExport={onPdfExport}
+      />
 
       {/* KPI-Karten */}
       <KpiCardsGrid
         kpis={normalizedKpis}
-        activeKpi={activeKpi}
-        onKpiCardClick={setActiveKpi}
-        isLoading={isLoading} // (Hier wird es korrekterweise verwendet)
+        // ⬇️⬇️⬇️ KORREKTUR: activeKpi und onKpiCardClick entfernt ⬇️⬇️⬇️
+        // activeKpi={activeKpi} // ❌ ENTFERNT: Existiert nicht in KpiCardsGridProps
+        // onKpiCardClick={setActiveKpi} // ❌ ENTFERNT: Existiert nicht in KpiCardsGridProps
+        isLoading={isLoading}
         showNoDataHint={showNoDataHint}
         noDataHintText={noDataHintText}
       />
@@ -83,7 +78,7 @@ export default function ProjectDashboard({
           data={chartData}
           kpi={activeKpi}
           meta={KPI_TAB_META[activeKpi]} 
-          isLoading={isLoading} // (Hier wird es korrekterweise verwendet)
+          isLoading={isLoading}
         />
       </div>
 
@@ -94,13 +89,13 @@ export default function ProjectDashboard({
         <div className="xl:col-span-2">
           <TopQueriesList 
             queries={data.topQueries} 
-            isLoading={isLoading} // (Hier wird es korrekterweise verwendet)
+            isLoading={isLoading}
           />
         </div>
         <div className="xl:col-span-1">
           <AiTrafficCard 
             data={data.aiTraffic} 
-            isLoading={isLoading} // (Hier wird es korrekterweise verwendet)
+            isLoading={isLoading}
           />
         </div>
       </div>
