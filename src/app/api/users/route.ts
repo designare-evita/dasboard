@@ -1,6 +1,6 @@
 // src/app/api/users/route.ts - KOMPLETT (mit automatischer Zuweisung)
 
-import { NextResponse, NextRequest } from 'next/server'; // NextRequest hinzugefügt
+import { NextResponse, NextRequest } from 'next/server';
 import { sql } from '@vercel/postgres';
 import bcrypt from 'bcryptjs';
 import { User } from '@/types';
@@ -8,7 +8,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
 // GET: Benutzer abrufen (mit optionalem onlyCustomers Parameter)
-export async function GET(request: NextRequest) { // Request-Typ zu NextRequest geändert
+export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
 
   console.log('[/api/users] GET Request');
@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) { // Request-Typ zu NextRequest 
 }
 
 // POST: Neuen Benutzer erstellen
-export async function POST(req: NextRequest) { // Request-Typ zu NextRequest geändert
+export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
 
   // Prüfen, ob der Benutzer eingeloggt ist UND Admin oder Superadmin ist
@@ -95,7 +95,17 @@ export async function POST(req: NextRequest) { // Request-Typ zu NextRequest ge�
   try {
     const body = await req.json();
     const createdByAdminId = session.user.id;
-    const { email, password, role, domain, gsc_site_url, ga4_property_id, semrush_project_id, semrush_tracking_id, semrush_tracking_id_02 } = body;
+    const { 
+      email, 
+      password, 
+      role, 
+      domain, 
+      gsc_site_url, 
+      ga4_property_id, 
+      semrush_project_id, 
+      semrush_tracking_id, 
+      semrush_tracking_id_02 
+    } = body;
 
     if (!email || !password || !role) {
       return NextResponse.json({ message: 'E-Mail, Passwort und Rolle sind erforderlich' }, { status: 400 });
@@ -134,12 +144,12 @@ export async function POST(req: NextRequest) { // Request-Typ zu NextRequest ge�
     const { rows: newUsers } = await sql<User>`
       INSERT INTO users (
         email, password, role, domain, gsc_site_url, ga4_property_id,
-        semrush_project_id, semrush_tracking_id, semrush_tracking_id_02, -- NEU
+        semrush_project_id, semrush_tracking_id, semrush_tracking_id_02,
         "createdByAdminId"
       )
       VALUES (
         ${email}, ${hashedPassword}, ${roleToCreate}, ${domain || null}, ${gsc_site_url || null}, ${ga4_property_id || null},
-        ${semrush_project_id || null}, ${semrush_tracking_id || null}, ${semrush_tracking_id_02 || null}, -- NEU
+        ${semrush_project_id || null}, ${semrush_tracking_id || null}, ${semrush_tracking_id_02 || null},
         ${createdByAdminId}
       )
       RETURNING id, email, role, domain`;
