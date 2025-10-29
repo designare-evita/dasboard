@@ -109,7 +109,6 @@ export default function ProjectDashboard({
         <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-gray-200">
           <SemrushTopKeywords 
             projectId={projectId} 
-            domain={domain} 
           />
         </div>
 
