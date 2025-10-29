@@ -7,7 +7,7 @@ import { User } from '@/types';
 import { getSemrushKeywords } from '@/lib/semrush-api';
 
 interface UserWithSemrush extends User {
-  semrush_project_id?: string;
+  semrush_tracking_id?: string;
 }
 
 /**
@@ -25,11 +25,13 @@ export async function GET(request: NextRequest) {
     const { role, id } = session.user;
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get('projectId');
+    const trackingId = searchParams.get('trackingId'); // NEU: Support für explizite trackingId
     const forceRefresh = searchParams.get('forceRefresh') === 'true';
 
     console.log('[/api/semrush/keywords] ==================== START ====================');
     console.log('[/api/semrush/keywords] User:', session.user.email);
-    console.log('[/api/semrush/keywords] ProjectId:', projectId || 'none (using session)');
+    console.log('[/api/semrush/keywords] ProjectId:', projectId || 'none');
+    console.log('[/api/semrush/keywords] TrackingId:', trackingId || 'none');
     console.log('[/api/semrush/keywords] Force Refresh:', forceRefresh);
 
     // Bestimme welcher User geladen werden soll
@@ -63,12 +65,103 @@ export async function GET(request: NextRequest) {
 
     console.log('[/api/semrush/keywords] Target User ID:', targetUserId);
 
-    // Lade User-Daten mit Semrush Config
+    // NEU: Wenn explizite trackingId übergeben wurde (für Kampagne 2)
+    if (trackingId) {
+      console.log('[/api/semrush/keywords] Nutze explizite trackingId:', trackingId);
+      
+      // Lade Cache für diese spezifische trackingId
+      const cacheKey = `tracking_${trackingId}`;
+      const { rows: cachedData } = await sql`
+        SELECT keywords_data, last_fetched 
+        FROM semrush_keywords_cache 
+        WHERE user_id::text = ${cacheKey}
+      `;
+
+      // Prüfe Cache-Gültigkeit
+      const cacheValidDays = 14;
+      let cacheIsValid = false;
+
+      if (cachedData.length > 0 && cachedData[0].last_fetched) {
+        const lastFetched = new Date(cachedData[0].last_fetched);
+        const now = new Date();
+        const diffMs = now.getTime() - lastFetched.getTime();
+        const diffDays = diffMs / (1000 * 60 * 60 * 24);
+        cacheIsValid = diffDays < cacheValidDays;
+        console.log('[/api/semrush/keywords] Cache ist', Math.floor(diffDays), 'Tage alt, gültig:', cacheIsValid);
+      } else {
+        console.log('[/api/semrush/keywords] Kein Cache vorhanden');
+      }
+
+      // Nutze Cache wenn gültig
+      if (cacheIsValid && !forceRefresh && cachedData.length > 0) {
+        console.log('[/api/semrush/keywords] ✅ Nutze Cache (trackingId)');
+        return NextResponse.json({
+          keywords: cachedData[0].keywords_data || [],
+          lastFetched: new Date(cachedData[0].last_fetched).toISOString(),
+          fromCache: true
+        });
+      }
+
+      // Refresh: Lade von Semrush API
+      console.log('[/api/semrush/keywords] 🔄 Fetching from Semrush API (trackingId)...');
+      const keywordsData = await getSemrushKeywords(trackingId);
+
+      if ('error' in keywordsData && keywordsData.keywords.length === 0) {
+        console.error('[/api/semrush/keywords] ❌ API-Fehler:', keywordsData.error);
+        
+        // Fallback auf alten Cache
+        if (cachedData.length > 0) {
+          console.log('[/api/semrush/keywords] 💾 Verwende alten Cache als Fallback');
+          return NextResponse.json({
+            keywords: cachedData[0].keywords_data || [],
+            lastFetched: new Date(cachedData[0].last_fetched).toISOString(),
+            fromCache: true,
+            error: 'Konnte nicht aktualisiert werden'
+          });
+        }
+
+        return NextResponse.json({
+          keywords: [],
+          lastFetched: null,
+          fromCache: false,
+          error: keywordsData.error
+        });
+      }
+
+      // API-Daten erfolgreich geladen
+      const keywords = keywordsData.keywords || [];
+      console.log('[/api/semrush/keywords] ✅ Fetched', keywords.length, 'keywords (trackingId)');
+
+      // Speichere im Cache
+      const now = new Date().toISOString();
+      
+      try {
+        await sql`
+          INSERT INTO semrush_keywords_cache (user_id, keywords_data, last_fetched)
+          VALUES (${cacheKey}, ${JSON.stringify(keywords)}::jsonb, ${now})
+          ON CONFLICT (user_id) 
+          DO UPDATE SET 
+            keywords_data = ${JSON.stringify(keywords)}::jsonb,
+            last_fetched = ${now}
+        `;
+        console.log('[/api/semrush/keywords] 💾 Cache gespeichert (trackingId)');
+      } catch (cacheError) {
+        console.error('[/api/semrush/keywords] Cache-Fehler:', cacheError);
+      }
+
+      return NextResponse.json({
+        keywords: keywords,
+        lastFetched: now,
+        fromCache: false
+      });
+    }
+
+    // Standard-Flow: Lade User-Daten mit Semrush Config (für Kampagne 1)
     const { rows } = await sql<UserWithSemrush>`
       SELECT 
         email,
         domain,
-        semrush_project_id
+        semrush_tracking_id
       FROM users 
       WHERE id::text = ${targetUserId}
     `;
@@ -80,16 +173,16 @@ export async function GET(request: NextRequest) {
     const user = rows[0];
 
     console.log('[/api/semrush/keywords] Domain:', user.domain);
-    console.log('[/api/semrush/keywords] Project ID:', user.semrush_project_id);
+    console.log('[/api/semrush/keywords] Tracking ID:', user.semrush_tracking_id);
 
-    // Prüfe ob Project ID konfiguriert ist
-    if (!user.semrush_project_id) {
-      console.warn('[/api/semrush/keywords] ⚠️ Keine Semrush Project ID konfiguriert');
+    // Prüfe ob Tracking ID konfiguriert ist
+    if (!user.semrush_tracking_id) {
+      console.warn('[/api/semrush/keywords] ⚠️ Keine Semrush Tracking ID konfiguriert');
       return NextResponse.json({
         keywords: [],
         lastFetched: null,
         fromCache: false,
-        error: 'Keine Semrush Project ID konfiguriert'
+        error: 'Keine Semrush Tracking ID konfiguriert'
       });
     }
 
@@ -129,7 +222,7 @@ export async function GET(request: NextRequest) {
     // Refresh: Lade von Semrush API
     console.log('[/api/semrush/keywords] 🔄 Fetching from Semrush API...');
 
-    const keywordsData = await getSemrushKeywords(user.semrush_project_id);
+    const keywordsData = await getSemrushKeywords(user.semrush_tracking_id);
 
     if ('error' in keywordsData && keywordsData.keywords.length === 0) {
       console.error('[/api/semrush/keywords] ❌ API-Fehler:', keywordsData.error);
