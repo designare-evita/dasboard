@@ -1,4 +1,4 @@
-// src/components/ProjectDashboard.tsx (Vollständig & Korrigiert)
+// src/components/ProjectDashboard.tsx (Aktualisiert mit Keyword-Tabellen)
 'use client';
 
 import { useState } from 'react';
@@ -11,7 +11,7 @@ import {
 import KpiCardsGrid from '@/components/KpiCardsGrid';
 import KpiTrendChart from '@/components/charts/KpiTrendChart';
 import AiTrafficCard from '@/components/AiTrafficCard';
-import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector';
+import { type DateRangeOption } from '@/components/DateRangeSelector';
 import TopQueriesList from '@/components/TopQueriesList';
 import SemrushTopKeywords from '@/components/SemrushTopKeywords';
 import SemrushTopKeywords02 from '@/components/SemrushTopKeywords02';
@@ -19,7 +19,6 @@ import DashboardHeader from '@/components/DashboardHeader';
 
 interface ProjectDashboardProps {
   data: ProjectDashboardData;
-  semrushData: any | null; // Behalten für Kompatibilität, wird aber nicht mehr verwendet
   isLoading: boolean;
   dateRange: DateRangeOption;
   onDateRangeChange: (range: DateRangeOption) => void;
@@ -27,13 +26,11 @@ interface ProjectDashboardProps {
   noDataHintText?: string;
   projectId?: string;
   domain?: string;
-  semrushTrackingId?: string | null; // Für Kampagne 1
-  semrushTrackingId02?: string | null; // Für Kampagne 2
+  semrushTrackingId02?: string | null; // Nur für Kampagne 2 benötigt
 }
 
 export default function ProjectDashboard({
   data,
-  semrushData,
   isLoading,
   dateRange,
   onDateRangeChange,
@@ -41,7 +38,6 @@ export default function ProjectDashboard({
   noDataHintText = "Für dieses Projekt wurden noch keine KPI-Daten geliefert.",
   projectId,
   domain,
-  semrushTrackingId,
   semrushTrackingId02
 }: ProjectDashboardProps) {
   
@@ -76,7 +72,7 @@ export default function ProjectDashboard({
           projectId={projectId}
           dateRange={dateRange}
           onDateRangeChange={onDateRangeChange}
-          onPdfExport={handleExportPdf} // Wird an die Komponente übergeben
+          onPdfExport={handleExportPdf}
         />
       )}
 
@@ -125,7 +121,7 @@ export default function ProjectDashboard({
         )}
       </div>
 
-     {/* 3. BLOCK: KI-Traffic + Top Queries */}
+      {/* 3. BLOCK: KI-Traffic + Top Queries */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {data.aiTraffic && (
           <div className="lg:col-span-1">
@@ -152,8 +148,7 @@ export default function ProjectDashboard({
         )}
       </div>
 
-
-    {/* 4. BLOCK: Semrush Keyword Rankings */}
+      {/* 4. BLOCK: Semrush Keyword Rankings */}
       <div>
         <h2 className="text-xl font-semibold text-gray-700 mb-4">
           Semrush Keyword Rankings
