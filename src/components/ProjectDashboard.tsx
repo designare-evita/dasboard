@@ -82,24 +82,32 @@ export default function ProjectDashboard({
       </div>
 
       {/* ---------------------------------------------------------------------- */}
-      {/* Spalte 1: Top Queries (GSC) & AI Traffic */}
+      {/* Spalte 1: AI Traffic & Top Queries (GSC) */}
       {/* ---------------------------------------------------------------------- */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mt-6">
+   <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mt-6">
+
+        {/* SPALTE 1 (breiter): AiTrafficCard */}
         <div className="xl:col-span-2">
-          <TopQueriesList 
-            queries={data.topQueries ?? []} 
-            isLoading={isLoading}
-          />
-        </div>
-        <div className="xl:col-span-1">
-          <AiTrafficCard 
+           {/* HÖHE: h-full hinzufügen */}
+          <AiTrafficCard
             totalSessions={data.aiTraffic?.totalSessions ?? 0}
             totalUsers={data.aiTraffic?.totalUsers ?? 0}
             topAiSources={data.aiTraffic?.topAiSources ?? []}
+            className="h-full" {/* <--- HÖHE HINZUFÜGEN */}
+          />
+        </div>
+
+        {/* SPALTE 2 (schmaler): TopQueriesList */}
+        <div className="xl:col-span-1">
+          {/* HÖHE: h-full hinzufügen */}
+          <TopQueriesList
+            queries={data.topQueries ?? []}
+            isLoading={isLoading}
+            className="h-full" {/* <--- HÖHE HINZUFÜGEN */}
           />
         </div>
       </div>
-
+      
       {/* ---------------------------------------------------------------------- */}
       {/* SEMRUSH KEYWORDS (KAMPAGNE 1 & 2) */}
       {/* ---------------------------------------------------------------------- */}
