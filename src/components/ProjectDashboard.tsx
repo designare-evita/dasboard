@@ -57,12 +57,15 @@ export default function ProjectDashboard({
   return (
     <>
       <DashboardHeader 
-        domain={domain}
-        dateRange={dateRange}
-        onDateRangeChange={onDateRangeChange}
-        // ⬇️⬇️⬇️ KORREKTUR: onPdfExport hinzugefügt ⬇️⬇️⬇️
-        onPdfExport={onPdfExport}
-      />
+  domain={domain}
+  dateRange={dateRange}
+  onDateRangeChange={onDateRangeChange}
+  // ⬇️⬇️⬇️ KORREKTUR: Fallback-Funktion bereitstellen ⬇️⬇️⬇️
+  onPdfExport={onPdfExport || (() => {
+    console.warn('PDF Export functionality not implemented');
+    // Optional: Hier könnten Sie einen Toast oder eine Benachrichtigung anzeigen
+  })}
+/>
 
       {/* KPI-Karten */}
       <KpiCardsGrid
