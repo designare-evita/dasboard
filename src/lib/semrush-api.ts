@@ -245,24 +245,20 @@ export async function getSemrushKeywords(projectId: string) {
 
   console.log('[Semrush] Fetching keywords for project ID:', projectId);
 
-  // Semrush Position Tracking API
+  // Semrush Position Tracking Keywords API
+  // Dokumentation: https://developer.semrush.com/api/v3/analytics/keyword-reports/
   const params = new URLSearchParams({
     key: apiKey,
-    type: 'position_tracking',
+    type: 'project_tracking_keywords', // ✅ KORRIGIERT: Der richtige Type!
     project_id: projectId,
-    export_columns: 'Ph,Po,Pp,Nq,Cp,Ur,Tr,Tc,Co,Nr,Td',
+    export_columns: 'Ph,Po,Pp,Nq,Ur,Tr',
     // Ph = Keyword (phrase)
     // Po = Position
     // Pp = Previous Position
     // Nq = Search Volume
-    // Cp = CPC
     // Ur = URL
     // Tr = Traffic %
-    // Tc = Traffic Cost
-    // Co = Competition
-    // Nr = Number of Results
-    // Td = Trends
-    display_limit: '100', // Top 100 Keywords
+    display_limit: '20', // Top 20 Keywords
     display_sort: 'po_asc' // Sortiert nach Position (beste zuerst)
   });
 
@@ -295,13 +291,8 @@ export async function getSemrushKeywords(projectId: string) {
         position: parseFloat(values[1]) || 0,
         previousPosition: values[2] ? parseFloat(values[2]) : null,
         searchVolume: parseInt(values[3]) || 0,
-        cpc: parseFloat(values[4]) || 0,
-        url: values[5] || '',
-        trafficPercent: parseFloat(values[6]) || 0,
-        costs: parseFloat(values[7]) || 0,
-        competition: parseFloat(values[8]) || 0,
-        numberOfResults: parseInt(values[9]) || 0,
-        trends: values[10] ? values[10].split(',').map(t => parseFloat(t)) : []
+        url: values[4] || '',
+        trafficPercent: parseFloat(values[5]) || 0
       };
     }).filter(kw => kw.keyword); // Filtere leere Keywords
 
