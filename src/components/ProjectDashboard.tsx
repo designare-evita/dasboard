@@ -1,4 +1,4 @@
-// src/components/ProjectDashboard.tsx (KORRIGIERT: Rollenprüfung für Kampagne 1 entfernt)
+// src/components/ProjectDashboard.tsx (KORRIGIERT: Build-Fehler in Zeile 54 behoben)
 'use client';
 
 import { useState } from 'react';
@@ -16,7 +16,6 @@ import TopQueriesList from '@/components/TopQueriesList';
 import SemrushTopKeywords from '@/components/SemrushTopKeywords';
 import SemrushTopKeywords02 from '@/components/SemrushTopKeywords02';
 import DashboardHeader from '@/components/DashboardHeader';
-// NEU: useSession importiert, um die (jetzt unnötige) userRole-Variable zu entfernen
 import { useSession } from 'next-auth/react'; 
 
 interface ProjectDashboardProps {
@@ -45,13 +44,15 @@ export default function ProjectDashboard({
   
   const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
   
-  // Diese Zeilen sind für die Anzeige nicht mehr notwendig, 
-  // aber wir lassen sie drin, falls sie an anderer Stelle benötigt werden.
   const { data: session } = useSession();
   const userRole = session?.user?.role;
 
   // KPIs für Chart und Karten normalisieren
-  const { normalizedKpis, chartData } = normalizeFlatKpis(data.kpis, dateRange);
+  
+  // ⬇️⬇️⬇️ HIER IST DIE KORREKTUR ⬇️⬇️⬇️
+  // Die Funktion gibt 'kpis' zurück, wir benennen es in 'normalizedKpis' um.
+  const { kpis: normalizedKpis, chartData } = normalizeFlatKpis(data.kpis, dateRange);
+  // ⬆️⬆️⬆️ HIER IST DIE KORREKTUR ⬆️⬆️⬆️
 
   return (
     <>
@@ -106,10 +107,7 @@ export default function ProjectDashboard({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
         
         {/* Kampagne 1: Standard Tracking ID */}
-        {/* ⬇️⬇️⬇️ KORREKTUR ⬇️⬇️⬇️
-          Die Rollenprüfung (userRole === 'ADMIN'...) wurde entfernt.
-          Diese Komponente wird jetzt für ALLE Rollen angezeigt.
-        */}
+        {/* Die Rollenprüfung (userRole === 'ADMIN'...) wurde entfernt. */}
         <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-gray-200">
           <SemrushTopKeywords 
             projectId={projectId} 
