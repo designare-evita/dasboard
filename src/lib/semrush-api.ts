@@ -223,7 +223,7 @@ export async function getSemrushData(params: {
 }
 
 // ========================================================================
-// KORRIGIERTE FUNKTION
+// KORRIGIERTE FUNKTION (VERSUCH 3)
 // ========================================================================
 
 /**
@@ -239,7 +239,6 @@ export async function getSemrushKeywords(trackingId: string) {
     };
   }
 
-  // KORREKTUR: Prüft auf trackingId statt projectId
   if (!trackingId) {
     console.warn('[Semrush] No tracking ID provided for keywords');
     return {
@@ -248,7 +247,6 @@ export async function getSemrushKeywords(trackingId: string) {
     };
   }
 
-  // KORREKTUR: Loggt die trackingId
   console.log('[Semrush] Fetching keywords for tracking ID:', trackingId);
 
   // Semrush Position Tracking Keywords API
@@ -256,13 +254,13 @@ export async function getSemrushKeywords(trackingId: string) {
   const params = new URLSearchParams({
     key: apiKey,
     
-    // KORREKTUR: Der Typ 'project_tracking_keywords' war FALSCH und verursachte Fehler 400.
-    // 'tracking_report' ist der korrekte Typ für den Position Tracking Report.
+    // Wir bleiben bei 'tracking_report'
     type: 'tracking_report', 
     
-    // KORREKTUR: Der API-Parameter heißt 'project_id', erwartet aber bei type='tracking_report'
-    // die Tracking ID (z.B. 1209491), nicht die Projekt ID (z.B. 12920575).
-    project_id: trackingId, 
+    // ⬇️ HIER IST DIE NEUE KORREKTUR ⬇️
+    // Der Parametername für die Tracking ID (1209491) ist 
+    // bei diesem Report-Typ wahrscheinlich 'campaign_id'.
+    campaign_id: trackingId, // ❌ WAR: project_id: trackingId
 
     export_columns: 'Ph,Po,Pp,Nq,Ur,Tr',
     // Ph = Keyword (phrase)
@@ -289,7 +287,6 @@ export async function getSemrushKeywords(trackingId: string) {
     const lines = response.data.trim().split('\n');
     
     if (lines.length < 2) {
-      // KORREKTUR: Log-Meldung
       console.warn('[Semrush] No keywords returned for tracking ID:', trackingId);
       return {
         keywords: [],
@@ -322,7 +319,6 @@ export async function getSemrushKeywords(trackingId: string) {
 
   } catch (error) {
     if (axios.isAxiosError(error)) {
-      // KORREKTUR: Log-Meldung
       console.error(`[Semrush] Axios error fetching keywords for tracking ID ${trackingId}:`, error.message);
       if (error.response) {
         console.error('[Semrush] Response status:', error.response.status);
