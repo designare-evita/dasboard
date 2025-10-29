@@ -9,6 +9,7 @@ export interface User {
   ga4_property_id?: string; // NEU: Feld für die GA4 ID
   semrush_project_id?: string | null;
   semrush_tracking_id?: string | null;
+  semrush_tracking_id_02?: string | null;
   createdByAdminId?: string;
   createdAt: Date;
   semrush_organic_keywords?: number;
