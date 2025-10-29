@@ -10,7 +10,7 @@ interface EditUserFormProps {
   onUserUpdated?: () => void;
 }
 
-export default function EditUserForm({ id, user, onUserUpdated }: EditUserFormProps) {
+export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps) {
   // ✅ Form States - Alle Felder explizit
   const [formData, setFormData] = useState({
     email: '',
@@ -88,7 +88,7 @@ export default function EditUserForm({ id, user, onUserUpdated }: EditUserFormPr
       // Wichtig: Benutzer hat Rolle BENUTZER oder andere
       const isCustomer = user.role === 'BENUTZER';
 
-      const payload: Record<string, any> = {
+      const payload: Record<string, string | number | null> = {
         email: formData.email,
       };
 
