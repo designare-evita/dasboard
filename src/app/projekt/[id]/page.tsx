@@ -10,7 +10,6 @@ import {
   hasDashboardData
 } from '@/lib/dashboard-shared';
 import ProjectDashboard from '@/components/ProjectDashboard';
-import { SemrushData } from '@/components/SemrushKpiCards'; 
 import { ArrowRepeat, ExclamationTriangleFill } from 'react-bootstrap-icons';
 import { useSession } from 'next-auth/react';
 
@@ -48,20 +47,14 @@ export default function ProjektDetailPage() {
     fetcher
   );
 
-  // 2. SWR-Hook für Semrush-Daten (nicht-kritisch)
-  const { 
-    data: semrushData, 
-    isLoading: isLoadingSemrush, 
-    error: errorSemrush 
-  } = useSWR<SemrushData>(
-    projectId ? `/api/semrush?projectId=${projectId}` : null,
-    fetcher
-  );
-
-  // 3. SWR-Hook für User/Domain-Daten
+  // 2. SWR-Hook für User/Domain-Daten (inkl. semrush_tracking_id_02)
   const { 
     data: userData 
-  } = useSWR<{ domain?: string; email?: string }>(
+  } = useSWR<{ 
+    domain?: string; 
+    email?: string;
+    semrush_tracking_id_02?: string | null;
+  }>(
     projectId ? `/api/users/${projectId}` : null,
     fetcher
   );
@@ -118,11 +111,6 @@ export default function ProjektDetailPage() {
     );
   }
   
-  // Semrush-Fehler nur loggen, aber nicht die Seite blockieren
-  if (errorSemrush) {
-    console.warn("Fehler beim Laden der Semrush-Daten (nicht kritisch):", errorSemrush);
-  }
-
   // --- Erfolgszustand ---
   const finalGoogleData: ProjectDashboardData = googleData ?? { 
     kpis: {}, 
@@ -135,7 +123,6 @@ export default function ProjektDetailPage() {
     <div className="p-4 sm:p-6 md:p-8">
       <ProjectDashboard
         data={finalGoogleData} 
-        semrushData={semrushData ?? null}
         isLoading={isLoading} 
         dateRange={dateRange}
         onDateRangeChange={setDateRange}
@@ -143,6 +130,7 @@ export default function ProjektDetailPage() {
         noDataHintText="Hinweis: Für dieses Projekt wurden noch keine KPI-/Zeitreihen-Daten von Google geliefert. Es werden vorübergehend Platzhalter-Werte angezeigt."
         projectId={projectId}
         domain={userData?.domain}
+        semrushTrackingId02={userData?.semrush_tracking_id_02}
       />
     </div>
   );
