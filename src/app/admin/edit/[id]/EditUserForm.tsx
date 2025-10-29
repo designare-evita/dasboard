@@ -238,6 +238,8 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
             </div>
 
             {/* ========== SEMRUSH SECTION ========== */}
+            <fieldset className="border-t pt-4 mt-4">
+              <legend className="text-sm font-bold text-gray-900 mb-3">📊 Semrush Einstellungen</legend>
 
               {/* Semrush Projekt ID */}
               <div>
