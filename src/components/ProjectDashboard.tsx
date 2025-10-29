@@ -1,4 +1,4 @@
-// src/components/ProjectDashboard.tsx (KORRIGIERT: Build-Fehler in Zeile 54 behoben)
+// src/components/ProjectDashboard.tsx (KORRIGIERT: Zuweisung von kpis und chartData)
 'use client';
 
 import { useState } from 'react';
@@ -7,6 +7,7 @@ import {
   ActiveKpi, 
   KPI_TAB_META, 
   normalizeFlatKpis 
+  // KEIN getChartData Import, da nicht existent
 } from '@/lib/dashboard-shared';
 import KpiCardsGrid from '@/components/KpiCardsGrid';
 import KpiTrendChart from '@/components/charts/KpiTrendChart';
@@ -47,12 +48,16 @@ export default function ProjectDashboard({
   const { data: session } = useSession();
   const userRole = session?.user?.role;
 
-  // KPIs für Chart und Karten normalisieren
+  // ⬇️⬇️⬇️ HIER IST DIE KORREKTUR (Versuch 5) ⬇️⬇️⬇️
+
+  // 1. normalizeFlatKpis gibt NUR das Objekt mit den KPIs zurück.
+  const normalizedKpis = normalizeFlatKpis(data.kpis, dateRange);
   
-  // ⬇️⬇️⬇️ HIER IST DIE KORREKTUR ⬇️⬇️⬇️
-  // Die Funktion gibt 'kpis' zurück, wir benennen es in 'normalizedKpis' um.
-  const { kpis: normalizedKpis, chartData } = normalizeFlatKpis(data.kpis, dateRange);
+  // 2. chartData wird aus data.charts basierend auf dem activeKpi-State ausgewählt.
+  const chartData = data.charts?.[activeKpi] ?? [];
+
   // ⬆️⬆️⬆️ HIER IST DIE KORREKTUR ⬆️⬆️⬆️
+
 
   return (
     <>
@@ -65,7 +70,7 @@ export default function ProjectDashboard({
 
       {/* KPI-Karten */}
       <KpiCardsGrid
-        kpis={normalizedKpis}
+        kpis={normalizedKpis} // ⬅️ Passt jetzt
         activeKpi={activeKpi}
         onKpiCardClick={setActiveKpi}
         isLoading={isLoading}
@@ -76,7 +81,7 @@ export default function ProjectDashboard({
       {/* KPI-Trendchart */}
       <div className="mt-6">
         <KpiTrendChart 
-          data={chartData} 
+          data={chartData} // ⬅️ Passt jetzt
           kpi={activeKpi}
           meta={KPI_TAB_META[activeKpi]} 
           isLoading={isLoading}
@@ -106,8 +111,7 @@ export default function ProjectDashboard({
       {/* ---------------------------------------------------------------------- */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
         
-        {/* Kampagne 1: Standard Tracking ID */}
-        {/* Die Rollenprüfung (userRole === 'ADMIN'...) wurde entfernt. */}
+        {/* Kampagne 1: Standard Tracking ID (jetzt für alle Rollen sichtbar) */}
         <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-gray-200">
           <SemrushTopKeywords 
             projectId={projectId} 
