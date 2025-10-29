@@ -1,4 +1,4 @@
-// src/components/ProjectDashboard.tsx (KORRIGIERT: Zuweisung von kpis und chartData)
+// src/components/ProjectDashboard.tsx (KORRIGIERT: Überflüssiges Argument in Zeile 54 entfernt)
 'use client';
 
 import { useState } from 'react';
@@ -7,7 +7,6 @@ import {
   ActiveKpi, 
   KPI_TAB_META, 
   normalizeFlatKpis 
-  // KEIN getChartData Import, da nicht existent
 } from '@/lib/dashboard-shared';
 import KpiCardsGrid from '@/components/KpiCardsGrid';
 import KpiTrendChart from '@/components/charts/KpiTrendChart';
@@ -48,10 +47,10 @@ export default function ProjectDashboard({
   const { data: session } = useSession();
   const userRole = session?.user?.role;
 
-  // ⬇️⬇️⬇️ HIER IST DIE KORREKTUR (Versuch 5) ⬇️⬇️⬇️
+  // ⬇️⬇️⬇️ HIER IST DIE KORREKTUR (Versuch 6) ⬇️⬇️⬇️
 
-  // 1. normalizeFlatKpis gibt NUR das Objekt mit den KPIs zurück.
-  const normalizedKpis = normalizeFlatKpis(data.kpis, dateRange);
+  // 1. normalizeFlatKpis akzeptiert nur EIN Argument (data.kpis).
+  const normalizedKpis = normalizeFlatKpis(data.kpis); // ❌ 'dateRange' entfernt
   
   // 2. chartData wird aus data.charts basierend auf dem activeKpi-State ausgewählt.
   const chartData = data.charts?.[activeKpi] ?? [];
@@ -70,7 +69,7 @@ export default function ProjectDashboard({
 
       {/* KPI-Karten */}
       <KpiCardsGrid
-        kpis={normalizedKpis} // ⬅️ Passt jetzt
+        kpis={normalizedKpis}
         activeKpi={activeKpi}
         onKpiCardClick={setActiveKpi}
         isLoading={isLoading}
@@ -81,7 +80,7 @@ export default function ProjectDashboard({
       {/* KPI-Trendchart */}
       <div className="mt-6">
         <KpiTrendChart 
-          data={chartData} // ⬅️ Passt jetzt
+          data={chartData}
           kpi={activeKpi}
           meta={KPI_TAB_META[activeKpi]} 
           isLoading={isLoading}
