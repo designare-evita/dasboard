@@ -1,4 +1,4 @@
-// src/app/api/users/[id]/route.ts - KORRIGIERT für semrush_tracking_id_02
+// src/app/api/users/[id]/route.ts - KORRIGIERT v2: Passwort NOT NULL Problem gelöst
 
 import { NextResponse, NextRequest } from 'next/server';
 import { sql } from '@vercel/postgres';
@@ -113,38 +113,57 @@ export async function PUT(
     console.log(`[PUT /api/users/${id}] Semrush Project ID: ${semrush_project_id}`);
     console.log(`[PUT /api/users/${id}] Semrush Tracking ID: ${semrush_tracking_id}`);
     console.log(`[PUT /api/users/${id}] Semrush Tracking ID 02: ${semrush_tracking_id_02}`);
+    console.log(`[PUT /api/users/${id}] Passwort vorhanden: ${!!password && password.trim().length > 0}`);
 
-    // Passwort hashen, falls vorhanden
-    let hashedPassword = null;
-    if (password && password.trim().length > 0) {
-      hashedPassword = await bcrypt.hash(password, 10);
-      console.log(`  - [PUT /api/users/${id}] Passwort wird aktualisiert.`);
-    }
-
-    // ✅ KORRIGIERT: Unified UPDATE Query für alle Szenarien
-    const { rows } = await sql<User>`
-      UPDATE users
-      SET 
-        email = ${normalizedEmail},
-        domain = ${domain || null},
-        gsc_site_url = ${gsc_site_url || null},
-        ga4_property_id = ${ga4_property_id || null},
-        semrush_project_id = ${semrush_project_id || null},
-        semrush_tracking_id = ${semrush_tracking_id || null},
-        semrush_tracking_id_02 = ${semrush_tracking_id_02 || null},
-        password = ${hashedPassword || null}
-      WHERE id = ${id}::uuid
-      RETURNING
-        id::text as id, 
-        email, 
-        role, 
-        domain, 
-        gsc_site_url, 
-        ga4_property_id, 
-        semrush_project_id, 
-        semrush_tracking_id,
-        semrush_tracking_id_02;
-    `;
+    // ✅ KORRIGIERT: Nur UPDATE mit Passwort wenn eines vorhanden ist
+    const { rows } = password && password.trim().length > 0
+      ? // Query MIT Passwort
+        await sql<User>`
+          UPDATE users
+          SET 
+            email = ${normalizedEmail},
+            domain = ${domain || null},
+            gsc_site_url = ${gsc_site_url || null},
+            ga4_property_id = ${ga4_property_id || null},
+            semrush_project_id = ${semrush_project_id || null},
+            semrush_tracking_id = ${semrush_tracking_id || null},
+            semrush_tracking_id_02 = ${semrush_tracking_id_02 || null},
+            password = ${await bcrypt.hash(password, 10)}
+          WHERE id = ${id}::uuid
+          RETURNING
+            id::text as id, 
+            email, 
+            role, 
+            domain, 
+            gsc_site_url, 
+            ga4_property_id, 
+            semrush_project_id, 
+            semrush_tracking_id,
+            semrush_tracking_id_02;
+        `
+      : // Query OHNE Passwort (password bleibt unverändert!)
+        await sql<User>`
+          UPDATE users
+          SET 
+            email = ${normalizedEmail},
+            domain = ${domain || null},
+            gsc_site_url = ${gsc_site_url || null},
+            ga4_property_id = ${ga4_property_id || null},
+            semrush_project_id = ${semrush_project_id || null},
+            semrush_tracking_id = ${semrush_tracking_id || null},
+            semrush_tracking_id_02 = ${semrush_tracking_id_02 || null}
+          WHERE id = ${id}::uuid
+          RETURNING
+            id::text as id, 
+            email, 
+            role, 
+            domain, 
+            gsc_site_url, 
+            ga4_property_id, 
+            semrush_project_id, 
+            semrush_tracking_id,
+            semrush_tracking_id_02;
+        `;
 
     if (rows.length === 0) {
       return NextResponse.json({ message: "Update fehlgeschlagen. Benutzer nicht gefunden." }, { status: 404 });
