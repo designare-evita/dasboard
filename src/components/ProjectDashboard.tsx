@@ -1,4 +1,4 @@
-// src/components/ProjectDashboard.tsx (KORRIGIERT: isLoading-Prop aus DashboardHeader entfernt)
+// src/components/ProjectDashboard.tsx (KORRIGIERT: onPdfExport hinzugefügt)
 'use client';
 
 import { useState } from 'react';
@@ -27,7 +27,9 @@ interface ProjectDashboardProps {
   noDataHintText?: string;
   projectId?: string;
   domain?: string;
-  semrushTrackingId02?: string | null; // Nur für Kampagne 2 benötigt
+  semrushTrackingId02?: string | null;
+  // ⬇️⬇️⬇️ NEUE PROP HINZUGEFÜGT ⬇️⬇️⬇️
+  onPdfExport?: () => void;
 }
 
 export default function ProjectDashboard({
@@ -39,7 +41,9 @@ export default function ProjectDashboard({
   noDataHintText = "Für dieses Projekt wurden noch keine KPI-Daten geliefert.",
   projectId,
   domain,
-  semrushTrackingId02
+  semrushTrackingId02,
+  // ⬇️⬇️⬇️ NEUE PROP HINZUGEFÜGT ⬇️⬇️⬇️
+  onPdfExport
 }: ProjectDashboardProps) {
   
   const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
@@ -47,12 +51,8 @@ export default function ProjectDashboard({
   const { data: session } = useSession();
   const userRole = session?.user?.role;
 
-  // 1. normalizeFlatKpis akzeptiert nur EIN Argument (data.kpis).
   const normalizedKpis = normalizeFlatKpis(data.kpis);
-  
-  // 2. chartData wird aus data.charts basierend auf dem activeKpi-State ausgewählt.
   const chartData = data.charts?.[activeKpi] ?? [];
-
 
   return (
     <>
@@ -60,9 +60,8 @@ export default function ProjectDashboard({
         domain={domain}
         dateRange={dateRange}
         onDateRangeChange={onDateRangeChange}
-        // ⬇️⬇️⬇️ HIER IST DIE KORREKTUR (Versuch 7) ⬇️⬇️⬇️
-        // isLoading={isLoading} // ❌ ENTFERNT: Diese Prop existiert hier nicht
-        // ⬆️⬆️⬆️ HIER IST DIE KORREKTUR ⬆️⬆️⬆️
+        // ⬇️⬇️⬇️ KORREKTUR: onPdfExport hinzugefügt ⬇️⬇️⬇️
+        onPdfExport={onPdfExport}
       />
 
       {/* KPI-Karten */}
