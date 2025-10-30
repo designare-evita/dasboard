@@ -1,4 +1,4 @@
-// src/app/api/semrush/keywords/route.ts (KORRIGIERT - Version 3.0)
+// src/app/api/semrush/keywords/route.ts (KORRIGIERT - Version 4.0)
 import { NextResponse, NextRequest } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -14,15 +14,7 @@ interface UserWithSemrush extends User {
 
 /**
  * GET /api/semrush/keywords
- * Lädt die Top Keywords aus Semrush Position Tracking
- * 
- * WICHTIG: Beide Kampagnen nutzen dieselbe semrush_project_id,
- * aber unterschiedliche tracking_ids!
- * 
- * Query-Parameter:
- * - projectId: User-ID (lädt tracking_id aus DB)
- * - trackingId: Explizite Tracking-ID für Kampagne 2 (lädt tracking_id_02 aus DB)
- * - forceRefresh: true = Cache ignorieren
+ * (Logik bleibt gleich)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -105,7 +97,6 @@ export async function GET(request: NextRequest) {
     if (explicitTrackingId) {
       console.log('[/api/semrush/keywords] 📌 Flow: Kampagne 2 (trackingId Parameter)');
       
-      // Wenn trackingId übergeben wurde, nutze tracking_id_02 aus DB
       if (!user.semrush_tracking_id_02) {
         console.warn('[/api/semrush/keywords] ⚠️ Keine tracking_id_02 konfiguriert');
         return NextResponse.json({
@@ -116,11 +107,10 @@ export async function GET(request: NextRequest) {
         });
       }
 
-      // Nutze die tracking_id_02 aus der Datenbank (nicht die aus dem Parameter!)
       return await handleTrackingId(
-        targetUserId,
+        targetUserId, // Die UUID
         user.semrush_tracking_id_02,
-        'kampagne_2',
+        'kampagne_2', // Der Campaign-Name
         forceRefresh
       );
     }
@@ -128,7 +118,6 @@ export async function GET(request: NextRequest) {
     // ========== FALL 2: projectId → Kampagne 1 (Standard) ==========
     console.log('[/api/semrush/keywords] 📌 Flow: Kampagne 1 (Standard)');
 
-    // Prüfe ob Tracking ID konfiguriert ist
     if (!user.semrush_tracking_id) {
       console.warn('[/api/semrush/keywords] ⚠️ Keine Semrush Tracking ID (Kampagne 1) konfiguriert');
       return NextResponse.json({
@@ -139,11 +128,10 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Verwende die Standard-Tracking-ID
     return await handleTrackingId(
-      targetUserId,
+      targetUserId, // Die UUID
       user.semrush_tracking_id,
-      'kampagne_1',
+      'kampagne_1', // Der Campaign-Name
       forceRefresh
     );
 
@@ -158,27 +146,26 @@ export async function GET(request: NextRequest) {
 
 /**
  * Hilfsfunktion: Lädt Keywords für eine bestimmte trackingId
- * Verwendet campaign-spezifischen Cache-Key
+ * Verwendet jetzt 'userId' (UUID) und 'campaign' (TEXT) getrennt.
  */
 async function handleTrackingId(
-  userId: string,
+  userId: string, // Ist die UUID
   trackingId: string,
-  campaign: 'kampagne_1' | 'kampagne_2',
+  campaign: 'kampagne_1' | 'kampagne_2', // Ist der Text-Bezeichner
   forceRefresh: boolean
 ): Promise<NextResponse> {
-  // Cache-Key basiert auf userId + campaign
-  const cacheKey = `${userId}_${campaign}`;
   
-  console.log('[handleTrackingId] UserId:', userId);
+  // HINWEIS: Der fehlerhafte 'cacheKey' wurde entfernt.
+  
+  console.log('[handleTrackingId] UserId (UUID):', userId);
   console.log('[handleTrackingId] TrackingId:', trackingId);
   console.log('[handleTrackingId] Campaign:', campaign);
-  console.log('[handleTrackingId] Cache-Key:', cacheKey);
 
   // Lade Cache
   const { rows: cachedData } = await sql`
     SELECT keywords_data, last_fetched 
     FROM semrush_keywords_cache 
-    WHERE user_id = ${cacheKey}
+    WHERE user_id = ${userId} AND campaign = ${campaign}
   `;
 
   // Prüfe Cache-Gültigkeit (14 Tage)
@@ -243,9 +230,9 @@ async function handleTrackingId(
   
   try {
     await sql`
-      INSERT INTO semrush_keywords_cache (user_id, keywords_data, last_fetched)
-      VALUES (${cacheKey}, ${JSON.stringify(keywords)}::jsonb, ${now})
-      ON CONFLICT (user_id) 
+      INSERT INTO semrush_keywords_cache (user_id, campaign, keywords_data, last_fetched)
+      VALUES (${userId}, ${campaign}, ${JSON.stringify(keywords)}::jsonb, ${now})
+      ON CONFLICT (user_id, campaign) -- Verwendet den zusammengesetzten PK
       DO UPDATE SET 
         keywords_data = ${JSON.stringify(keywords)}::jsonb,
         last_fetched = ${now}
