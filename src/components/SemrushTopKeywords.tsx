@@ -1,4 +1,4 @@
-// src/components/SemrushTopKeywords.tsx (Verbessert - zeigt nur Keywords des aktuellen Projekts)
+// src/components/SemrushTopKeywords.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -34,95 +34,87 @@ export default function SemrushTopKeywords({ projectId }: SemrushTopKeywordsProp
     const diffMs = now.getTime() - date.getTime();
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    
-    if (diffDays === 0) {
-      // Zeige auch Stunden wenn "heute"
-      if (diffHours === 0) {
-        return 'Gerade eben';
-      } else {
-        return `Heute (vor ${diffHours}h)`;
-      }
-    } else if (diffDays === 1) {
-      return 'Gestern';
-    } else if (diffDays < 14) {
-      return `vor ${diffDays} Tagen`;
-    } else {
-      // Formatiere als deutsches Datum
-      return date.toLocaleDateString('de-DE', { 
-        day: '2-digit', 
-        month: '2-digit', 
-        year: 'numeric' 
-      });
-    }
+
+    if (diffDays > 0) return `vor ${diffDays} Tag(en)`;
+    if (diffHours > 0) return `vor ${diffHours} Stunde(n)`;
+    return 'Gerade eben';
   };
 
   useEffect(() => {
-    // WICHTIG: Reset State wenn projectId sich ändert
-    if (projectId !== currentProjectId) {
-      console.log('[SemrushTopKeywords] ProjectId changed from', currentProjectId, 'to', projectId);
-      setKeywords([]);
-      setError(null);
-      setLastFetched(null);
-      setCurrentProjectId(projectId);
+    setCurrentProjectId(projectId);
+  }, [projectId]);
+
+  useEffect(() => {
+    if (!currentProjectId) {
+      setIsLoading(false);
+      return;
     }
 
-    const fetchKeywords = async () => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      setError(null);
+      console.log('[SemrushTopKeywords] Fetching keywords, projectId:', currentProjectId);
+
+      const url = `/api/semrush/keywords?projectId=${currentProjectId}`;
+      
       try {
-        setIsLoading(true);
-        
-        // URL mit oder ohne projectId
-        const url = projectId 
-          ? `/api/semrush/keywords?projectId=${projectId}`
-          : '/api/semrush/keywords';
-        
-        console.log('[SemrushTopKeywords] Fetching keywords, projectId:', projectId || 'none (using session)');
-        
         const response = await fetch(url);
-        const data = await response.json();
 
-        console.log('[SemrushTopKeywords] Received data:', {
-          keywordsCount: data.keywords?.length || 0,
-          projectId: projectId,
-          fromCache: data.fromCache
-        });
-
-        if (data.keywords) {
-          setKeywords(data.keywords);
-          setLastFetched(data.lastFetched);
-          setFromCache(data.fromCache || false);
-          setError(null);
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('[SemrushTopKeywords] API Error:', errorData);
+          setError(errorData.message || `Fehler: ${response.status}`);
         } else {
-          setKeywords([]);
+          const data = await response.json();
+          console.log('[SemrushTopKeywords] Received data (raw):', data); // Zeigt die rohe Server-Antwort
+
+          // KORREKTUR HIER: Prüfe, ob Keywords vorhanden UND mehr als 0 sind
+          if (data.keywords && data.keywords.length > 0) {
+            // Erfolgreich Keywords geladen
+            const sortedKeywords = [...data.keywords]
+              .sort((a, b) => a.position - b.position)
+              .slice(0, 20);
+            
+            setKeywords(sortedKeywords);
+            setError(data.error || null); // Zeigt Fehler an, falls alte Cache-Daten verwendet wurden
+            setLastFetched(data.lastFetched || null);
+            setFromCache(data.fromCache || false);
+          } else {
+            // Keine Keywords gefunden ODER ein Fehler ist aufgetreten
+            console.log('[SemrushTopKeywords] No keywords or error received:', { 
+              keywordsCount: 0, 
+              projectId: currentProjectId, 
+              fromCache: data.fromCache || false, 
+              ...(data.error && { error: data.error }) 
+            });
+            setKeywords([]);
+            setError(data.error || "Keine Keywords für diese Kampagne gefunden.");
+            setLastFetched(data.lastFetched || null);
+            setFromCache(data.fromCache || false);
+          }
         }
       } catch (err) {
-        console.error('[SemrushTopKeywords] Error fetching keywords:', err);
-        setError('Fehler beim Laden der Keywords');
-        setKeywords([]);
+        console.error('[SemrushTopKeywords] Fetch Error:', err);
+        setError('Daten konnten nicht geladen werden.');
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchKeywords();
-  }, [projectId, currentProjectId]);
+    fetchData();
+  }, [currentProjectId]);
 
-  // Berechne Positions-Änderung
-  const getPositionChange = (current: number, previous: number | null) => {
-    if (previous === null) return null;
-    return previous - current; // Positive = Verbesserung
-  };
+  // Rest des Renderings (JSX) bleibt unverändert...
+  // ... (Stelle sicher, dass das error-State im JSX angezeigt wird, falls ein Fehler auftritt)
 
   if (isLoading) {
     return (
-      <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-          <Search size={20} className="text-orange-600" />
-          Top 20 Organische Keywords
-        </h2>
-        <div className="animate-pulse space-y-3">
-          {[...Array(5)].map((_, i) => (
-            <div key={i} className="h-16 bg-gray-100 rounded"></div>
-          ))}
+      <div className="p-4 rounded-lg bg-white shadow-sm animate-pulse h-64">
+        <div className="h-4 bg-gray-200 rounded w-1/3 mb-4"></div>
+        <div className="space-y-3">
+          <div className="h-8 bg-gray-200 rounded w-full"></div>
+          <div className="h-8 bg-gray-200 rounded w-full"></div>
+          <div className="h-8 bg-gray-200 rounded w-full"></div>
         </div>
       </div>
     );
@@ -130,140 +122,116 @@ export default function SemrushTopKeywords({ projectId }: SemrushTopKeywordsProp
 
   if (error) {
     return (
-      <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-          <Search size={20} className="text-orange-600" />
-          Top 20 Organische Keywords
-        </h3>
-        <p className="text-sm text-red-600">{error}</p>
+      <div className="p-4 rounded-lg bg-white shadow-sm text-center">
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">Top Keywords (Kampagne 1)</h3>
+        <div className="p-4 rounded-md bg-red-50 text-red-700">
+          <p className="font-medium">Fehler beim Laden der Keywords</p>
+          <p className="text-sm">{error}</p>
+        </div>
       </div>
     );
   }
 
   if (keywords.length === 0) {
     return (
-      <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-          <Search size={20} className="text-orange-600" />
-          Top 20 Organische Keywords
-        </h3>
-        <p className="text-sm text-gray-500 italic">
-          Keine Keywords verfügbar. Bitte konfigurieren Sie Semrush oder warten Sie auf den ersten Datenabruf.
-        </p>
+      <div className="p-4 rounded-lg bg-white shadow-sm text-center">
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">Top Keywords (Kampagne 1)</h3>
+        <div className="p-4 rounded-md bg-gray-50 text-gray-600">
+          <Search size={24} className="mx-auto mb-2 text-gray-400" />
+          <p className="font-medium">Keine Keywords gefunden</p>
+          <p className="text-sm">Für diese Kampagne sind keine Keyword-Daten vorhanden.</p>
+        </div>
       </div>
     );
   }
 
+  // (Der Rest der JSX-Logik zum Anzeigen der Keywords bleibt gleich)
+  // ...
+
   return (
-    <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
-      {/* Header */}
-      <div className="flex justify-between items-start mb-4">
-        <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <Search size={20} className="text-orange-600" />
-          Top 20 Organische Keywords
-        </h3>
-        {lastFetched && (
-          <div className="text-xs text-gray-500 flex flex-col items-end gap-1">
-            <div className="flex items-center gap-1">
-              <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                fromCache 
-                  ? 'bg-gray-100 text-gray-600' 
-                  : 'bg-green-100 text-green-700'
-              }`}>
-                {fromCache ? 'Cache' : 'Live'}
-              </span>
-              <span>
-                {formatLastFetched(lastFetched)}
-              </span>
-            </div>
-            {/* Exakter Timestamp */}
-            <span className="text-[10px] text-gray-400" title={lastFetched}>
-              {new Date(lastFetched).toLocaleString('de-DE')}
-            </span>
-          </div>
-        )}
+    <div className="p-4 rounded-lg bg-white shadow-sm">
+      <div className="flex justify-between items-center mb-3">
+        <h3 className="text-lg font-semibold text-gray-900">Top Keywords (Kampagne 1)</h3>
+        <span className={`text-xs ${fromCache ? 'text-blue-600' : 'text-gray-500'}`}>
+          {formatLastFetched(lastFetched)} {fromCache ? '(Cache)' : ''}
+        </span>
       </div>
+      
+      <div className="space-y-2">
+        {keywords.map((kw) => {
+          // ... (Restlicher JSX-Code für die Keyword-Liste) ...
+          const posChange = kw.previousPosition ? kw.previousPosition - kw.position : 0;
 
-      {/* DEBUG INFO (optional - können Sie entfernen nach dem Test) */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
-          <strong>Debug:</strong> ProjectId: {projectId}, Keywords: {keywords.length}
-        </div>
-      )}
-
-      {/* Keywords Liste */}
-      <div className="max-h-[600px] overflow-y-auto">
-        <div className="space-y-2">
-          {keywords.map((kw, index) => {
-            const positionChange = getPositionChange(kw.position, kw.previousPosition);
-            
-            return (
-              <div 
-                key={`${projectId}-${kw.keyword}-${index}`}
-                className="border border-gray-100 rounded-lg p-3 hover:bg-orange-50 transition-colors"
-              >
-                {/* Keyword & Position */}
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex-1 min-w-0">
-                    <h4 className="text-sm font-medium text-gray-900 truncate">
+          return (
+            <div key={kw.keyword} className="p-3 rounded-md border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
+              <div className="flex justify-between items-start mb-2">
+                {/* Keyword & URL */}
+                <div className="flex-1 overflow-hidden pr-4">
+                  <div className="flex items-center gap-2">
+                    <a 
+                      href={kw.url} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="text-sm font-medium text-gray-900 truncate hover:text-blue-600 hover:underline"
+                      title={kw.keyword}
+                    >
                       {kw.keyword}
-                    </h4>
-                    {kw.url && (
-                      <a 
-                        href={kw.url} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="text-xs text-blue-600 hover:underline truncate block"
-                      >
-                        {kw.url.length > 50 ? kw.url.substring(0, 50) + '...' : kw.url}
-                      </a>
-                    )}
+                    </a>
                   </div>
+                  <a 
+                    href={kw.url} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="text-xs text-gray-500 truncate block hover:underline"
+                    title={kw.url}
+                  >
+                    {kw.url.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+                  </a>
+                </div>
+
+                {/* Position & Änderung */}
+                <div className="flex-shrink-0 flex items-center gap-2">
+                  {posChange !== 0 && (
+                    <span className={`flex items-center text-xs font-medium ${
+                      posChange > 0 ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {posChange > 0 ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
+                      {Math.abs(posChange)}
+                    </span>
+                  )}
+                  {posChange === 0 && kw.previousPosition !== null && (
+                    <span className="text-xs text-gray-400 font-medium">-</span>
+                  )}
                   
-                  {/* Position Badge */}
-                  <div className="flex items-center gap-2 ml-3">
-                    {positionChange !== null && positionChange !== 0 && (
-                      <span className={`flex items-center gap-0.5 text-xs font-medium ${
-                        positionChange > 0 ? 'text-green-600' : 'text-red-600'
-                      }`}>
-                        {positionChange > 0 ? (
-                          <ArrowUp size={12} />
-                        ) : (
-                          <ArrowDown size={12} />
-                        )}
-                        {Math.abs(positionChange)}
-                      </span>
-                    )}
+                  <div className="relative">
                     <span className={`px-2 py-1 rounded text-xs font-bold ${
                       kw.position <= 3 ? 'bg-green-100 text-green-800' :
                       kw.position <= 10 ? 'bg-blue-100 text-blue-800' :
                       kw.position <= 20 ? 'bg-orange-100 text-orange-800' :
                       'bg-gray-100 text-gray-800'
-                    }`}>
-                      #{Math.round(kw.position)}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Metriken */}
-                <div className="flex items-center gap-4 text-xs text-gray-600">
-                  <div className="flex items-center gap-1">
-                    <span className="text-gray-500">Suchvolumen:</span>
-                    <span className="font-medium text-gray-900">
-                      {kw.searchVolume.toLocaleString('de-DE')}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-gray-500">Traffic:</span>
-                    <span className="font-medium text-gray-900">
-                      {kw.trafficPercent.toFixed(1)}%
-                    </span>
+                    }`}>\n                      #{Math.round(kw.position)}\n                    </span>
                   </div>
                 </div>
               </div>
-            );
-          })}
-        </div>
+
+              {/* Metriken */}
+              <div className="flex items-center gap-4 text-xs text-gray-600">
+                <div className="flex items-center gap-1">
+                  <span className="text-gray-500">Suchvolumen:</span>
+                  <span className="font-medium text-gray-900">
+                    {kw.searchVolume.toLocaleString('de-DE')}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-gray-500">Traffic:</span>
+                  <span className="font-medium text-gray-900">
+                    {kw.trafficPercent.toFixed(1)}%
+                  </span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* Info */}
