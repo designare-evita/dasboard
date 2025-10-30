@@ -1,4 +1,4 @@
-// src/components/SemrushTopKeywords02.tsx
+// src/components/SemrushTopKeywords02.tsx (Version 4 - Korrigiert auf projectId)
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -14,20 +14,20 @@ interface KeywordData {
   url: string;
 }
 
-// Props angepasst: Erwartet trackingId
+// GEÄNDERT: Props auf projectId umgestellt
 interface SemrushTopKeywords02Props {
-  trackingId?: string | null; // ID für die zweite Kampagne
+  projectId?: string | null; // ID des Projekts (wie bei Komponente 1)
 }
 
-export default function SemrushTopKeywords02({ trackingId }: SemrushTopKeywords02Props) {
+export default function SemrushTopKeywords02({ projectId }: SemrushTopKeywords02Props) { // GEÄNDERT
   const [keywords, setKeywords] = useState<KeywordData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastFetched, setLastFetched] = useState<string | null>(null);
   const [fromCache, setFromCache] = useState<boolean>(false);
-  const [currentTrackingId, setCurrentTrackingId] = useState<string | null | undefined>(trackingId);
+  // HINWEIS: currentTrackingId entfernt
 
-  // formatLastFetched bleibt gleich
+  // formatLastFetched bleibt gleich...
   const formatLastFetched = (dateString: string | null): string => {
     if (!dateString) return 'Nie';
     const date = new Date(dateString);
@@ -41,41 +41,43 @@ export default function SemrushTopKeywords02({ trackingId }: SemrushTopKeywords0
     return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
   };
 
+  // GEÄNDERT: useEffect komplett überarbeitet (analog zu Komponente 1)
   useEffect(() => {
-    // Reset State bei trackingId-Änderung
-    if (trackingId !== currentTrackingId) {
-      console.log('[SemrushTopKeywords02] TrackingId changed from', currentTrackingId, 'to', trackingId);
-      setKeywords([]);
-      setError(null);
-      setLastFetched(null);
-      setCurrentTrackingId(trackingId);
-      setIsLoading(!!trackingId); // Ladezustand nur starten, wenn eine ID vorhanden ist
-    }
-
-    // Funktion zum Abrufen der Keywords
     const fetchKeywords = async () => {
-      // Nur fetchen, wenn eine trackingId vorhanden ist
-      if (!trackingId) {
-          console.log('[SemrushTopKeywords02] No trackingId provided, skipping fetch.');
-          setIsLoading(false);
-          setKeywords([]);
-          setError('Keine Tracking-ID (Kampagne 2) konfiguriert.');
-          return;
-      }
-
-      setIsLoading(true); // Sicherstellen, dass der Ladezustand aktiv ist
+      setIsLoading(true);
+      setError(null);
+      setKeywords([]);
+      setLastFetched(null);
+      setFromCache(false);
 
       try {
-        // API-URL angepasst: Verwendet trackingId
-        const url = `/api/semrush/keywords?trackingId=${trackingId}`;
-        console.log('[SemrushTopKeywords02] Fetching keywords, trackingId:', trackingId);
+        // WICHTIG:
+        // Wir müssen der API mitteilen, dass wir Kampagne 2 wollen.
+        // Die API-Route erkennt dies am Vorhandensein des 'trackingId'-Parameters.
+        // Zusätzlich senden wir 'projectId' für den Admin-Kontext.
+        
+        const urlParams = new URLSearchParams();
+        
+        // 1. Marker für Kampagne 2 setzen (Wert ist egal, Hauptsache vorhanden)
+        urlParams.set('trackingId', 'true'); 
+
+        // 2. Projekt-Kontext (falls vorhanden)
+        if (projectId) {
+          urlParams.set('projectId', projectId);
+        }
+
+        // Wenn projectId vorhanden: /api/semrush/keywords?trackingId=true&projectId=...
+        // Sonst (für User): /api/semrush/keywords?trackingId=true
+        const url = `/api/semrush/keywords?${urlParams.toString()}`;
+        
+        console.log('[SemrushTopKeywords02] Fetching keywords (Kampagne 2), URL:', url);
 
         const response = await fetch(url);
         const data = await response.json();
 
         console.log('[SemrushTopKeywords02] Received data:', {
           keywordsCount: data.keywords?.length || 0,
-          trackingId: trackingId,
+          projectId: projectId, // GEÄNDERT
           fromCache: data.fromCache,
           error: data.error
         });
@@ -101,16 +103,11 @@ export default function SemrushTopKeywords02({ trackingId }: SemrushTopKeywords0
       }
     };
     
-    // Fetch auslösen, wenn sich ID ändert oder initial geladen wird
-    if (trackingId !== currentTrackingId || (trackingId && keywords.length === 0 && !error && isLoading)) {
-        fetchKeywords();
-    } else if (!trackingId && currentTrackingId) {
-        fetchKeywords(); // ID wurde entfernt -> State clearen
-    }
+    fetchKeywords();
 
-  }, [trackingId, currentTrackingId, keywords.length, error, isLoading]); // Abhängigkeiten angepasst
+  }, [projectId]); // GEÄNDERT: Nur von projectId abhängig
 
-  // getPositionChange bleibt gleich
+  // getPositionChange bleibt gleich...
   const getPositionChange = (current: number, previous: number | null) => {
     if (previous === null) return null;
     return previous - current; // Positive = Verbesserung
@@ -118,13 +115,13 @@ export default function SemrushTopKeywords02({ trackingId }: SemrushTopKeywords0
 
   // --- Rendering Logik ---
 
-  // Ladezustand
-  if (isLoading && keywords.length === 0) {
+  // Ladezustand (Titel angepasst)
+  if (isLoading) {
     return (
       <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
         <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
           <Search size={20} className="text-orange-600" />
-          Top 20 Keywords (Kampagne 2) {/* Titel angepasst */}
+          Top 20 Keywords (Kampagne 2)
         </h2>
         <div className="animate-pulse space-y-3">
           {[...Array(5)].map((_, i) => (
@@ -137,14 +134,19 @@ export default function SemrushTopKeywords02({ trackingId }: SemrushTopKeywords0
 
   // Fehler oder keine Keywords
   if (error || keywords.length === 0) {
+    // GEÄNDERT: Logik für Fehlermeldung/Text angepasst (nicht mehr von trackingId abhängig)
+    const defaultError = projectId
+      ? 'Keine Keywords verfügbar. Bitte warten Sie auf den ersten Datenabruf.'
+      : 'Keine Semrush Tracking ID (Kampagne 2) konfiguriert oder keine Keywords gefunden.';
+
     return (
       <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
         <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
           <Search size={20} className="text-orange-600" />
-          Top 20 Keywords (Kampagne 2) {/* Titel angepasst */}
+          Top 20 Keywords (Kampagne 2)
         </h3>
         <p className="text-sm text-gray-500 italic">
-          {error || (trackingId ? 'Keine Keywords verfügbar. Bitte warten Sie auf den ersten Datenabruf.' : 'Keine Tracking-ID (Kampagne 2) konfiguriert.')}
+          {error || defaultError}
         </p>
          {lastFetched && !isLoading && (
             <div className="mt-4 pt-4 border-t border-gray-100 text-xs text-gray-500 flex flex-col items-start gap-1">
@@ -161,11 +163,11 @@ export default function SemrushTopKeywords02({ trackingId }: SemrushTopKeywords0
   // Erfolgreiche Anzeige der Keywords
   return (
     <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
-      {/* Header */}
+      {/* Header (unverändert) ... */}
       <div className="flex justify-between items-start mb-4">
         <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
           <Search size={20} className="text-orange-600" />
-          Top 20 Keywords (Kampagne 2) {/* Titel angepasst */}
+          Top 20 Keywords (Kampagne 2)
         </h3>
         {lastFetched && (
           <div className="text-xs text-gray-500 flex flex-col items-end gap-1">
@@ -184,13 +186,25 @@ export default function SemrushTopKeywords02({ trackingId }: SemrushTopKeywords0
         )}
       </div>
 
-      {/* Keywords Liste (unverändert) */}
+      {/* DEBUG INFO (optional) */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="mb-3 p-2 bg-indigo-50 border border-indigo-200 rounded text-xs">
+          <strong>Debug (K2):</strong> ProjectId: {projectId || 'none'}, Keywords: {keywords.length}
+        </div>
+      )}
+
+      {/* Keywords Liste */}
       <div className="max-h-[600px] overflow-y-auto">
         <div className="space-y-2">
           {keywords.map((kw, index) => {
             const positionChange = getPositionChange(kw.position, kw.previousPosition);
             return (
-              <div key={`${trackingId}-${kw.keyword}-${index}`} className="border border-gray-100 rounded-lg p-3 hover:bg-orange-50 transition-colors">
+              <div 
+                // GEÄNDERT: Key angepasst
+                key={`${projectId || 'user'}-${kw.keyword}-${index}`} 
+                className="border border-gray-100 rounded-lg p-3 hover:bg-orange-50 transition-colors"
+              >
+                {/* ... Restliches Mapping (unverändert) ... */}
                 {/* Keyword & Position */}
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex-1 min-w-0">
@@ -234,7 +248,8 @@ export default function SemrushTopKeywords02({ trackingId }: SemrushTopKeywords0
           })}
         </div>
       </div>
-      {/* Info (unverändert) */}
+      
+      {/* Info (unverändert) ... */}
       <div className="mt-4 pt-4 border-t border-gray-100">
         <p className="text-xs text-gray-500">
           💡 Zeigt die Top 20 Keywords mit den besten Rankings. Daten werden alle 14 Tage aktualisiert.
