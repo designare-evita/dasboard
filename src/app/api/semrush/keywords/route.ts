@@ -144,10 +144,6 @@ export async function GET(request: NextRequest) {
   }
 }
 
-/**
- * Hilfsfunktion: Lädt Keywords für eine bestimmte trackingId
- * Verwendet jetzt 'userId' (UUID) und 'campaign' (TEXT) getrennt.
- */
 async function handleTrackingId(
   userId: string, // Ist die UUID
   trackingId: string,
@@ -155,13 +151,12 @@ async function handleTrackingId(
   forceRefresh: boolean
 ): Promise<NextResponse> {
   
-  // HINWEIS: Der fehlerhafte 'cacheKey' wurde entfernt.
-  
   console.log('[handleTrackingId] UserId (UUID):', userId);
   console.log('[handleTrackingId] TrackingId:', trackingId);
   console.log('[handleTrackingId] Campaign:', campaign);
 
   // Lade Cache
+  // KORREKTUR: Frägt 'user_id' UND 'campaign' ab
   const { rows: cachedData } = await sql`
     SELECT keywords_data, last_fetched 
     FROM semrush_keywords_cache 
@@ -229,6 +224,9 @@ async function handleTrackingId(
   const now = new Date().toISOString();
   
   try {
+    // KORRIGIERTE ABFRAGE:
+    // Fügt 'userId' und 'campaign' in getrennte Spalten ein
+    // Nutzt 'ON CONFLICT (user_id, campaign)'
     await sql`
       INSERT INTO semrush_keywords_cache (user_id, campaign, keywords_data, last_fetched)
       VALUES (${userId}, ${campaign}, ${JSON.stringify(keywords)}::jsonb, ${now})
@@ -248,3 +246,4 @@ async function handleTrackingId(
     fromCache: false
   });
 }
+ 
