@@ -206,10 +206,22 @@ export async function getSemrushKeywords(campaignId: string) {
   try {
     // 3. 'url' (die Basis-URL) verwenden und 'params' als Option übergeben
     const response = await axios.get<SemrushApiResponse>(url, {
-      params: params, // <-- AXIOS ÜBERNIMMT DIE FORMATIERUNG
+      params: params,
       timeout: 15000, 
       headers: {
         'Accept': 'application/json'
+      },
+      // ✅ WICHTIG: paramsSerializer für korrekte Array-Formatierung
+      paramsSerializer: (params) => {
+        const searchParams = new URLSearchParams();
+        for (const [key, value] of Object.entries(params)) {
+          if (Array.isArray(value)) {
+            value.forEach(v => searchParams.append(`${key}[]`, String(v)));
+          } else {
+            searchParams.set(key, String(value));
+          }
+        }
+        return searchParams.toString();
       }
     });
     const data = response.data;
