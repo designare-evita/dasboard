@@ -134,7 +134,7 @@ export async function getSemrushKeywords(
   console.log('[Semrush] Testing strategies for domain:', normalizedDomain);
   console.log('[Semrush] Tracking ID:', trackingId);
 
-  let lastError: string | Record<string, unknown> | null = null;
+  let lastError: string | null = null;
 
   for (let attemptIndex = 0; attemptIndex < strategies.length; attemptIndex++) {
     const strategy = strategies[attemptIndex];
@@ -266,7 +266,7 @@ export async function getSemrushKeywords(
         if (error.response?.data) {
           const errorData = error.response.data as Record<string, unknown>;
           console.error('[Semrush] Error Data:', JSON.stringify(errorData));
-          lastError = errorData.error || errorData;
+          lastError = (errorData.error as string) || JSON.stringify(errorData);
         } else if (error.message) {
           console.error('[Semrush] Error Message:', error.message);
           lastError = error.message;
