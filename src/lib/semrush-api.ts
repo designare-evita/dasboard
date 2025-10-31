@@ -194,8 +194,8 @@ export async function getSemrushKeywords(campaignId: string) {
   const projectId = parts[0];
   const trackingCampaignId = parts[1];
   
-  // ✅ WICHTIG: Der Endpoint verwendet CAMPAIGN ID, NICHT project_campaign
-  const url = `https://api.semrush.com/reports/v1/projects/${trackingCampaignId}/tracking/`;
+  // ✅ WICHTIG: Der Endpoint verwendet PROJECT ID in der URL, nicht die Tracking ID!
+  const url = `https://api.semrush.com/reports/v1/projects/${projectId}/tracking/`;
   
   // 1. Parameter als einfaches JavaScript-Objekt definieren
   // ⚠️ KRITISCH: url ist ein erforderlicher Parameter! Format: *.domain.com/*
