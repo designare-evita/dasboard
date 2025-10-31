@@ -189,27 +189,29 @@ export async function getSemrushKeywords(campaignId: string) {
   
   const url = `https://api.semrush.com/reports/v1/projects/${fullCampaignId}/tracking/`;
   
-  const params = new URLSearchParams({
+  // 1. Parameter als einfaches JavaScript-Objekt definieren
+  const params = {
     key: apiKey,
     type: 'tracking_position_organic',
     action: 'report',
-    'competitors[]': 'root_domain', 
-    display_limit: '50', // Top 50 Keywords
-    display_sort: 'po_asc' // Sortiert nach Position (beste zuerst)
-  });
+    // ✅ HIER DIE WICHTIGE ÄNDERUNG: 
+    // "competitors" als Array übergeben. axios macht daraus "competitors[]"
+    competitors: ['root_domain'], 
+    display_limit: '50',
+    display_sort: 'po_asc'
+  };
 
-  const fullUrl = `${url}?${params.toString()}`;
-  
-  console.log('[Semrush] API URL:', fullUrl);
+  // 2. Die 'fullUrl'-Logik wird nicht mehr benötigt
 
   try {
-    const response = await axios.get<SemrushApiResponse>(fullUrl, {
+    // 3. 'url' (die Basis-URL) verwenden und 'params' als Option übergeben
+    const response = await axios.get<SemrushApiResponse>(url, {
+      params: params, // <-- AXIOS ÜBERNIMMT DIE FORMATIERUNG
       timeout: 15000, 
       headers: {
         'Accept': 'application/json'
       }
     });
-
     const data = response.data;
 
     // Validiere Response-Struktur
