@@ -1,4 +1,4 @@
-// src/app/api/semrush/keywords/route.ts (KORRIGIERT - Version 4.0)
+// src/app/api/semrush/keywords/route.ts (KORRIGIERT - Version 5.0 - Explizite Kampagnen)
 import { NextResponse, NextRequest } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -14,7 +14,12 @@ interface UserWithSemrush extends User {
 
 /**
  * GET /api/semrush/keywords
- * (Logik bleibt gleich)
+ * Lädt Semrush Keywords für Kampagne 1 oder Kampagne 2
+ * 
+ * Parameter:
+ * - projectId: Optional - Projekt-ID für Admin-Zugriff
+ * - campaign: Optional - 'kampagne_1' (default) oder 'kampagne_2'
+ * - forceRefresh: Optional - true um Cache zu umgehen
  */
 export async function GET(request: NextRequest) {
   try {
@@ -27,13 +32,20 @@ export async function GET(request: NextRequest) {
     const { role, id } = session.user;
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get('projectId');
-    const explicitTrackingId = searchParams.get('trackingId'); // Für Kampagne 2
+    const campaign = searchParams.get('campaign') || 'kampagne_1'; // Default: Kampagne 1
     const forceRefresh = searchParams.get('forceRefresh') === 'true';
+
+    // Validiere Kampagnen-Parameter
+    if (campaign !== 'kampagne_1' && campaign !== 'kampagne_2') {
+      return NextResponse.json({ 
+        message: 'Ungültiger Kampagnen-Parameter. Erwartet: kampagne_1 oder kampagne_2' 
+      }, { status: 400 });
+    }
 
     console.log('[/api/semrush/keywords] ==================== START ====================');
     console.log('[/api/semrush/keywords] User:', session.user.email, 'Role:', role);
     console.log('[/api/semrush/keywords] ProjectId:', projectId || 'none');
-    console.log('[/api/semrush/keywords] Explicit TrackingId Param:', explicitTrackingId || 'none');
+    console.log('[/api/semrush/keywords] Campaign:', campaign);
     console.log('[/api/semrush/keywords] Force Refresh:', forceRefresh);
 
     // Bestimme welcher User geladen werden soll
@@ -93,9 +105,9 @@ export async function GET(request: NextRequest) {
     console.log('[/api/semrush/keywords] - Tracking ID (Kampagne 1):', user.semrush_tracking_id);
     console.log('[/api/semrush/keywords] - Tracking ID 02 (Kampagne 2):', user.semrush_tracking_id_02);
 
-    // ========== FALL 1: Explizite trackingId → Kampagne 2 ==========
-    if (explicitTrackingId) {
-      console.log('[/api/semrush/keywords] 📌 Flow: Kampagne 2 (trackingId Parameter)');
+    // ========== KAMPAGNEN-ROUTING ==========
+    if (campaign === 'kampagne_2') {
+      console.log('[/api/semrush/keywords] 📌 Flow: Kampagne 2');
       
       if (!user.semrush_tracking_id_02) {
         console.warn('[/api/semrush/keywords] ⚠️ Keine tracking_id_02 konfiguriert');
@@ -108,14 +120,14 @@ export async function GET(request: NextRequest) {
       }
 
       return await handleTrackingId(
-        targetUserId, // Die UUID
+        targetUserId,
         user.semrush_tracking_id_02,
-        'kampagne_2', // Der Campaign-Name
+        'kampagne_2',
         forceRefresh
       );
     }
 
-    // ========== FALL 2: projectId → Kampagne 1 (Standard) ==========
+    // ========== KAMPAGNE 1 (Standard) ==========
     console.log('[/api/semrush/keywords] 📌 Flow: Kampagne 1 (Standard)');
 
     if (!user.semrush_tracking_id) {
@@ -129,9 +141,9 @@ export async function GET(request: NextRequest) {
     }
 
     return await handleTrackingId(
-      targetUserId, // Die UUID
+      targetUserId,
       user.semrush_tracking_id,
-      'kampagne_1', // Der Campaign-Name
+      'kampagne_1',
       forceRefresh
     );
 
@@ -144,19 +156,34 @@ export async function GET(request: NextRequest) {
   }
 }
 
+/**
+ * Lädt Keywords für eine spezifische Kampagne
+ * Nutzt Cache mit 14-Tage Gültigkeit
+ */
 async function handleTrackingId(
-  userId: string, // Ist die UUID
-  trackingId: string,
-  campaign: 'kampagne_1' | 'kampagne_2', // Ist der Text-Bezeichner
+  userId: string,
+  trackingId: string | null,
+  campaign: 'kampagne_1' | 'kampagne_2',
   forceRefresh: boolean
 ): Promise<NextResponse> {
   
+  // Validierung
+  if (!trackingId) {
+    console.error(`[handleTrackingId] ❌ Keine Tracking-ID für ${campaign}`);
+    return NextResponse.json({
+      keywords: [],
+      lastFetched: null,
+      fromCache: false,
+      error: `Keine Tracking-ID für ${campaign} konfiguriert`
+    });
+  }
+
+  console.log(`[handleTrackingId] ========== ${campaign.toUpperCase()} ==========`);
   console.log('[handleTrackingId] UserId (UUID):', userId);
   console.log('[handleTrackingId] TrackingId:', trackingId);
   console.log('[handleTrackingId] Campaign:', campaign);
 
   // Lade Cache
-  // KORREKTUR: Frägt 'user_id' UND 'campaign' ab
   const { rows: cachedData } = await sql`
     SELECT keywords_data, last_fetched 
     FROM semrush_keywords_cache 
@@ -224,13 +251,10 @@ async function handleTrackingId(
   const now = new Date().toISOString();
   
   try {
-    // KORRIGIERTE ABFRAGE:
-    // Fügt 'userId' und 'campaign' in getrennte Spalten ein
-    // Nutzt 'ON CONFLICT (user_id, campaign)'
     await sql`
       INSERT INTO semrush_keywords_cache (user_id, campaign, keywords_data, last_fetched)
       VALUES (${userId}, ${campaign}, ${JSON.stringify(keywords)}::jsonb, ${now})
-      ON CONFLICT (user_id, campaign) -- Verwendet den zusammengesetzten PK
+      ON CONFLICT (user_id, campaign)
       DO UPDATE SET 
         keywords_data = ${JSON.stringify(keywords)}::jsonb,
         last_fetched = ${now}
@@ -246,4 +270,3 @@ async function handleTrackingId(
     fromCache: false
   });
 }
- 
