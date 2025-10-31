@@ -210,6 +210,10 @@ export async function getSemrushKeywords(campaignId: string) {
   // 2. Die 'fullUrl'-Logik wird nicht mehr benötigt
 
   try {
+    // DEBUG: Zeige die exakte URL und Parameter
+    console.log('[Semrush] DEBUG - Base URL:', url);
+    console.log('[Semrush] DEBUG - Params:', JSON.stringify(params, null, 2));
+    
     // 3. 'url' (die Basis-URL) verwenden und 'params' als Option übergeben
     const response = await axios.get<SemrushApiResponse>(url, {
       params: params,
@@ -227,7 +231,9 @@ export async function getSemrushKeywords(campaignId: string) {
             searchParams.set(key, String(value));
           }
         }
-        return searchParams.toString();
+        const serialized = searchParams.toString();
+        console.log('[Semrush] DEBUG - Serialized URL params:', serialized);
+        return serialized;
       }
     });
     const data = response.data;
