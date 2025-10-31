@@ -240,8 +240,16 @@ async function handleTrackingId(
   console.log('[handleTrackingId] 🔄 Fetching from Semrush API...');
   console.log('[handleTrackingId] API-Parameter: fullCampaignId =', fullCampaignId);
 
-  // ✅ KORRIGIERT: Verwende vollständige Campaign ID
-  const keywordsData = await getSemrushKeywords(fullCampaignId);
+  // ✅ KORRIGIERT: Verwende vollständige Campaign ID + Domain
+  // Lade User-Daten erneut um die Domain zu haben
+  const { rows: userRows } = await sql<UserWithSemrush>`
+    SELECT domain FROM users WHERE id::text = ${userId}
+  `;
+  
+  const userDomain = userRows.length > 0 ? userRows[0].domain : undefined;
+  console.log('[handleTrackingId] User Domain:', userDomain);
+  
+  const keywordsData = await getSemrushKeywords(fullCampaignId, userDomain);
 
   if ('error' in keywordsData && keywordsData.keywords.length === 0) {
     console.error('[handleTrackingId] ❌ API-Fehler:', keywordsData.error);
