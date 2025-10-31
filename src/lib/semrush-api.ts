@@ -248,28 +248,22 @@ export async function getSemrushKeywords(
   try {
     // DEBUG: Zeige die exakte URL und Parameter
     console.log('[Semrush] DEBUG - Base URL:', url);
-    console.log('[Semrush] DEBUG - Params:', JSON.stringify(params, null, 2));
+    console.log('[Semrush] DEBUG - Raw Params object:', params);
     
-    // 3. 'url' (die Basis-URL) verwenden und 'params' als Option übergeben
+    // Baue die komplette URL vor dem Request
+    const urlParams = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+      urlParams.set(key, String(value));
+    }
+    const fullUrlDebug = `${url}?${urlParams.toString()}`;
+    console.log('[Semrush] DEBUG - FULL REQUEST URL:', fullUrlDebug);
+    
+    // 3. Mache den API Request
     const response = await axios.get<SemrushApiResponse>(url, {
       params: params,
       timeout: 15000, 
       headers: {
         'Accept': 'application/json'
-      },
-      // ✅ WICHTIG: paramsSerializer für korrekte Array-Formatierung
-      paramsSerializer: (params) => {
-        const searchParams = new URLSearchParams();
-        for (const [key, value] of Object.entries(params)) {
-          if (Array.isArray(value)) {
-            value.forEach(v => searchParams.append(`${key}[]`, String(v)));
-          } else {
-            searchParams.set(key, String(value));
-          }
-        }
-        const serialized = searchParams.toString();
-        console.log('[Semrush] DEBUG - Full Request URL:', `${url}?${serialized}`);
-        return serialized;
       }
     });
     const data = response.data;
