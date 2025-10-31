@@ -1,4 +1,4 @@
-// src/app/api/projects/[id]/route.ts
+// src/app/api/projects/[id]/route.ts (ANGEPASST - Ohne Domain Overview)
 
 import { NextResponse, NextRequest } from 'next/server';
 import { getServerSession } from 'next-auth';
@@ -10,8 +10,8 @@ import {
   getAiTrafficData,
   type AiTrafficData
 } from '@/lib/google-api';
-// NEU: Semrush API importieren
-import { getSemrushDomainOverview } from '@/lib/semrush-api';
+// NEU: Semrush API importieren (DEAKTIVIERT)
+// import { getSemrushDomainOverview } from '@/lib/semrush-api';
 import { sql } from '@vercel/postgres';
 import { User } from '@/types'; // Stelle sicher, dass User die Semrush-Felder enthält
 
@@ -41,7 +41,7 @@ interface GaData {
 
 // ✅ NEU: Erweiterter User-Typ mit Semrush Error-Feld
 interface UserWithSemrushError extends Partial<User> {
-  semrushError?: string | null;
+  semrushError?: string | null; // Behalten wir bei, falls wir es später brauchen
 }
 
 // Hilfsfunktionen (unverändert)
@@ -213,7 +213,9 @@ async function getProjectDashboardData(user: UserWithSemrushError, dateRange: st
           value: gaCurrent.totalUsers.total ?? 0,
           change: calculateChange(gaCurrent.totalUsers.total, gaPrevious.totalUsers.total)
         },
-        // ✅ KORRIGIERT: Type-safe Zugriff auf semrushError
+        
+        // --- SEMRUSH DEAKTIVIERT ---
+        /*
         semrushKeywords: {
           value: user.semrush_organic_keywords ?? 0,
           change: 0 // Keine historischen Daten für Vergleich
@@ -222,6 +224,7 @@ async function getProjectDashboardData(user: UserWithSemrushError, dateRange: st
           value: user.semrush_organic_traffic ?? 0,
           change: 0 // Keine historischen Daten für Vergleich
         }
+        */
       },
       charts: {
         clicks: gscCurrent.clicks.daily ?? [],
@@ -244,8 +247,8 @@ async function getProjectDashboardData(user: UserWithSemrushError, dateRange: st
         sessions: { value: 0, change: 0, aiTraffic: { value: 0, percentage: 0 } },
         totalUsers: { value: 0, change: 0 },
         // --- NEUE SEMRUSH KPIS (Standardwerte) ---
-        semrushKeywords: { value: 0, change: 0 },
-        semrushTraffic: { value: 0, change: 0 }
+        // semrushKeywords: { value: 0, change: 0 }, // DEAKTIVIERT
+        // semrushTraffic: { value: 0, change: 0 } // DEAKTIVIERT
         // ----------------------------------------
       },
       charts: {
@@ -325,10 +328,12 @@ export async function GET(
         role,
         domain,
         gsc_site_url,
-        ga4_property_id,
+        ga4_property_id
+        /* -- DEAKTIVIERT --
         semrush_organic_keywords,
         semrush_organic_traffic,
         semrush_last_fetched
+        */
       FROM users
       WHERE id::text = ${projectId}
     `;
@@ -342,6 +347,9 @@ export async function GET(
     const projectWithError: UserWithSemrushError = { ...project };
 
     // --- NEUE SEMRUSH 14-TAGE CACHING LOGIK START ---
+    
+    // DEAKTIVIERT, DA WIR NUR NOCH KEYWORDS VERWENDEN (IN /api/semrush/keywords)
+    /*
     const lastFetched = project.semrush_last_fetched ? new Date(project.semrush_last_fetched) : null;
     const fourteenDaysAgo = new Date();
     fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
@@ -405,6 +413,7 @@ export async function GET(
       // ✅ KORRIGIERT (Zeile 398): Type-safe Error-Zuweisung
       projectWithError.semrushError = null;
     }
+    */
     // --- NEUE SEMRUSH 14-TAGE CACHING LOGIK ENDE ---
 
     // ✅ Rufe Dashboard-Daten auf (Google etc.)
