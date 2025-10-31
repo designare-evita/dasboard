@@ -5,6 +5,15 @@ import { authOptions } from '@/lib/auth';
 import { sql } from '@vercel/postgres';
 import { getSemrushKeywordsV2Only } from '@/lib/semrush-api-v2-only';
 
+interface UserRow {
+  domain: string | null;
+}
+
+interface CacheRow {
+  keywords_data: unknown;
+  last_fetched: string;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -21,9 +30,9 @@ export async function GET(request: NextRequest) {
     console.log('[API] Getting keywords for:', campaign);
 
     // User daten laden
-    const { rows } = await sql`
-      SELECT domain FROM users WHERE id::text = $1
-    ` as any;
+    const { rows } = await sql<UserRow>`
+      SELECT domain FROM users WHERE id::text = ${id}
+    `;
 
     if (!rows || rows.length === 0) {
       return NextResponse.json({ 
@@ -44,12 +53,11 @@ export async function GET(request: NextRequest) {
     console.log('[API] Domain:', domain);
 
     // Cache check
-    const cacheKey = `${id}_${campaign}`;
-    const { rows: cachedData } = await sql`
+    const { rows: cachedData } = await sql<CacheRow>`
       SELECT keywords_data, last_fetched 
       FROM semrush_keywords_cache 
-      WHERE user_id = $1 AND campaign = $2
-    ` as any;
+      WHERE user_id = ${id} AND campaign = ${campaign}
+    `;
 
     // Check if cache valid (14 days)
     if (!forceRefresh && cachedData && cachedData.length > 0) {
@@ -85,15 +93,15 @@ export async function GET(request: NextRequest) {
     try {
       await sql`
         INSERT INTO semrush_keywords_cache (user_id, campaign, keywords_data, last_fetched)
-        VALUES ($1, $2, $3::jsonb, $4)
+        VALUES (${id}, ${campaign}, ${JSON.stringify(result.keywords)}::jsonb, ${now})
         ON CONFLICT (user_id, campaign)
         DO UPDATE SET 
-          keywords_data = $3::jsonb,
-          last_fetched = $4
-      ` as any;
+          keywords_data = ${JSON.stringify(result.keywords)}::jsonb,
+          last_fetched = ${now}
+      `;
       console.log('[API] Cache saved');
-    } catch (e) {
-      console.error('[API] Cache error:', e);
+    } catch (error) {
+      console.error('[API] Cache error:', error);
     }
 
     return NextResponse.json({
