@@ -198,10 +198,14 @@ export async function getSemrushKeywords(campaignId: string) {
   const url = `https://api.semrush.com/reports/v1/projects/${trackingCampaignId}/tracking/`;
   
   // 1. Parameter als einfaches JavaScript-Objekt definieren
+  // ⚠️ KRITISCH: url ist ein erforderlicher Parameter! Format: *.domain.com/*
+  const trackedUrl = '*.aichelin.at/*'; // Die Domain die du trackst
+  
   const params = {
     key: apiKey,
     type: 'tracking_position_organic',
     action: 'report',
+    url: trackedUrl, // ✅ ERFORDERLICH! Sonst: "metadata not received"
     // ✅ WICHTIG: "competitors" als Array übergeben
     competitors: ['root_domain'], 
     display_limit: '50',
