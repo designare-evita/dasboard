@@ -84,7 +84,7 @@ export async function getSemrushKeywords(
 
   console.log('[Semrush] Testing URL mask formats for domain:', normalizedDomain);
 
-  let lastError: any = null;
+  let lastError: string | Record<string, unknown> | null = null;
 
   for (let attemptIndex = 0; attemptIndex < urlMaskFormats.length; attemptIndex++) {
     const currentUrlMask = urlMaskFormats[attemptIndex];
@@ -128,7 +128,7 @@ export async function getSemrushKeywords(
       const today = new Date();
       const dateKey = today.toISOString().slice(0, 10).replace(/-/g, '');
 
-      for (const [index, keywordData] of Object.entries(data.data)) {
+      for (const keywordData of Object.values(data.data)) {
         const keyword = keywordData.Ph || '';
         if (!keyword) continue;
 
@@ -217,12 +217,13 @@ export async function getSemrushKeywords(
       if (axios.isAxiosError(error)) {
         console.error('[Semrush] Attempt', attemptIndex + 1, '- Status:', error.response?.status);
         if (error.response?.data) {
-          console.error('[Semrush] Error:', (error.response.data as any).error);
-          lastError = (error.response.data as any).error;
+          const errorData = error.response.data as Record<string, unknown>;
+          console.error('[Semrush] Error:', errorData.error);
+          lastError = errorData.error as string;
         }
       } else {
         console.error('[Semrush] Attempt', attemptIndex + 1, '- Error:', error);
-        lastError = error;
+        lastError = String(error);
       }
 
       if (attemptIndex < urlMaskFormats.length - 1) {
