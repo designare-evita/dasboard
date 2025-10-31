@@ -42,20 +42,18 @@ export async function getSemrushKeywordsV2Fallback(
 
   console.log('[Semrush-v2] Using fallback v2 API for domain:', normalizedDomain);
 
-  const rankParams = {
+  const rankParams: Record<string, string> = {
     key: apiKey,
     type: 'rank',
     domain: normalizedDomain,
     database: database,
-    limit: 50
+    limit: '50'
   };
 
   try {
     console.log('[Semrush-v2] Fetching rank data from v2 API');
     
-    const queryString = new URLSearchParams(
-      rankParams as Record<string, string>
-    ).toString();
+    const queryString = new URLSearchParams(rankParams).toString();
     
     const response = await axios.get(
       `https://www.semrush.com/api/v2/?${queryString}`,
@@ -142,20 +140,20 @@ export async function getSemrushKeywordsV2Extended(
   console.log('[Semrush-v2-ext] Extended v2 API query for:', normalizedDomain);
 
   try {
-    const rankParams = {
+    const rankParams: Record<string, string> = {
       key: apiKey,
       type: 'rank',
       domain: normalizedDomain,
       database: database,
-      limit: 50
+      limit: '50'
     };
 
     const rankResponse = await axios.get(
-      `https://www.semrush.com/api/v2/?${new URLSearchParams(rankParams as Record<string, string>).toString()}`,
+      `https://www.semrush.com/api/v2/?${new URLSearchParams(rankParams).toString()}`,
       { timeout: 15000 }
     );
 
-    const volumeParams = {
+    const volumeParams: Record<string, string> = {
       key: apiKey,
       type: 'phrase_volume',
       phrase: '*',
@@ -165,7 +163,7 @@ export async function getSemrushKeywordsV2Extended(
     let volumeMap: Record<string, number> = {};
     try {
       const volumeResponse = await axios.get(
-        `https://www.semrush.com/api/v2/?${new URLSearchParams(volumeParams as Record<string, string>).toString()}`,
+        `https://www.semrush.com/api/v2/?${new URLSearchParams(volumeParams).toString()}`,
         { timeout: 15000 }
       );
       
