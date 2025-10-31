@@ -1,4 +1,4 @@
-// src/lib/semrush-api.ts - VERSION MIT URL-MASK RETRY-LOGIK
+// src/lib/semrush-api.ts - VERBESSERTE VERSION MIT ERWEITERTEN PARAMETERN
 import axios from 'axios';
 
 const apiKey = process.env.SEMRUSH_API_KEY;
@@ -73,55 +73,102 @@ export async function getSemrushKeywords(
     normalizedDomain = normalizedDomain.substring(7);
   }
 
+  const trackingId = parts[1];
   const url = `https://api.semrush.com/reports/v1/projects/${projectId}/tracking/`;
 
-  // URL-Mask Formate zum Ausprobieren
-  const urlMaskFormats = [
-    `*.${normalizedDomain}/*`,  // Format 1: *.domain.at/*
-    `*.${normalizedDomain}`,    // Format 2: *.domain.at
-    normalizedDomain             // Format 3: domain.at
+  // NEUE: Verschiedene Strategien für die API-Anfrage
+  const strategies = [
+    {
+      name: 'Strategy 1: Mit subdomain wildcard und /',
+      params: {
+        key: apiKey,
+        type: 'tracking_position_organic',
+        action: 'report',
+        url: `*.${normalizedDomain}/*`,
+        display_limit: '50'
+      }
+    },
+    {
+      name: 'Strategy 2: Mit einfacher Domain',
+      params: {
+        key: apiKey,
+        type: 'tracking_position_organic',
+        action: 'report',
+        url: normalizedDomain,
+        display_limit: '50'
+      }
+    },
+    {
+      name: 'Strategy 3: Mit www prefix',
+      params: {
+        key: apiKey,
+        type: 'tracking_position_organic',
+        action: 'report',
+        url: `www.${normalizedDomain}`,
+        display_limit: '50'
+      }
+    },
+    {
+      name: 'Strategy 4: Mit domain_name statt url (Alternative)',
+      params: {
+        key: apiKey,
+        type: 'tracking_position_organic',
+        action: 'report',
+        domain_name: normalizedDomain,
+        display_limit: '50'
+      }
+    },
+    {
+      name: 'Strategy 5: Mit report_type',
+      params: {
+        key: apiKey,
+        type: 'tracking_position_organic',
+        action: 'report',
+        url: normalizedDomain,
+        report_type: 'organic_keywords',
+        display_limit: '50'
+      }
+    }
   ];
 
-  console.log('[Semrush] Testing URL mask formats for domain:', normalizedDomain);
+  console.log('[Semrush] Testing strategies for domain:', normalizedDomain);
+  console.log('[Semrush] Tracking ID:', trackingId);
 
   let lastError: string | Record<string, unknown> | null = null;
 
-  for (let attemptIndex = 0; attemptIndex < urlMaskFormats.length; attemptIndex++) {
-    const currentUrlMask = urlMaskFormats[attemptIndex];
-    console.log(`[Semrush] ===== ATTEMPT ${attemptIndex + 1}/${urlMaskFormats.length}: ${currentUrlMask} =====`);
-
-    const params = {
-      key: apiKey,
-      type: 'tracking_position_organic',
-      action: 'report',
-      url: currentUrlMask,
-      display_limit: '50'
-    };
+  for (let attemptIndex = 0; attemptIndex < strategies.length; attemptIndex++) {
+    const strategy = strategies[attemptIndex];
+    console.log(`\n[Semrush] ===== ${strategy.name} =====`);
 
     try {
       // Debug URL
       const urlParams = new URLSearchParams();
-      for (const [key, value] of Object.entries(params)) {
+      for (const [key, value] of Object.entries(strategy.params)) {
         urlParams.set(key, String(value));
       }
-      console.log('[Semrush] Full URL:', `${url}?${urlParams.toString().substring(0, 100)}...`);
+      
+      const debugUrl = `${url}?${urlParams.toString()}`;
+      console.log('[Semrush] Full URL:', debugUrl.substring(0, 150) + '...');
 
-      // Request
+      // Request mit zusätzlichen Headers
       const response = await axios.get<SemrushApiResponse>(url, {
-        params: params,
+        params: strategy.params,
         timeout: 15000,
-        headers: { 'Accept': 'application/json' }
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Semrush Keyword Tracker)'
+        }
       });
 
       const data = response.data;
 
       if (!data?.data || typeof data.data !== 'object' || Object.keys(data.data).length === 0) {
-        console.warn('[Semrush] Attempt', attemptIndex + 1, '- No keywords returned');
+        console.warn('[Semrush] Strategy', attemptIndex + 1, '- No keywords returned');
         lastError = 'No keywords found';
         continue;
       }
 
-      console.log('[Semrush] ✅ SUCCESS! Format', attemptIndex + 1, 'works! Got', Object.keys(data.data).length, 'keywords');
+      console.log('[Semrush] ✅ SUCCESS! Strategy', attemptIndex + 1, 'works! Got', Object.keys(data.data).length, 'keywords');
 
       // Process keywords
       const keywords: ProcessedKeyword[] = [];
@@ -215,23 +262,22 @@ export async function getSemrushKeywords(
 
     } catch (error: unknown) {
       if (axios.isAxiosError(error)) {
-        console.error('[Semrush] Attempt', attemptIndex + 1, '- Status:', error.response?.status);
+        console.error('[Semrush] Strategy', attemptIndex + 1, '- Status:', error.response?.status);
         if (error.response?.data) {
           const errorData = error.response.data as Record<string, unknown>;
-          console.error('[Semrush] Error:', errorData.error);
-          lastError = errorData.error as string;
+          console.error('[Semrush] Error Data:', JSON.stringify(errorData));
+          lastError = errorData.error || errorData;
+        } else if (error.message) {
+          console.error('[Semrush] Error Message:', error.message);
+          lastError = error.message;
         }
       } else {
-        console.error('[Semrush] Attempt', attemptIndex + 1, '- Error:', error);
+        console.error('[Semrush] Strategy', attemptIndex + 1, '- Error:', error);
         lastError = String(error);
-      }
-
-      if (attemptIndex < urlMaskFormats.length - 1) {
-        console.log('[Semrush] Trying next format...\n');
       }
     }
   }
 
-  console.error('[Semrush] ❌ All URL mask formats failed!');
+  console.error('[Semrush] ❌ All strategies failed!');
   return { keywords: [], error: `Could not fetch Semrush keywords. Last error: ${lastError}` };
 }
