@@ -172,6 +172,11 @@ export async function getSemrushKeywords(
     };
   }
 
+  // Debug API Key
+  console.log('[Semrush] API Key available:', !!apiKey);
+  console.log('[Semrush] API Key length:', apiKey?.length);
+  console.log('[Semrush] API Key preview:', apiKey?.substring(0, 10) + '...' + apiKey?.substring(apiKey.length - 5));
+
   if (!campaignId) {
     console.warn('[Semrush] No campaign ID provided for keywords');
     return {
