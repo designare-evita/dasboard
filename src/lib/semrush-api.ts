@@ -1,4 +1,4 @@
-// src/lib/semrush-api.ts (KORRIGIERT - Version 16)
+// src/lib/semrush-api.ts (FINALE KORRIGIERTE VERSION - v17)
 import axios from 'axios';
 
 // Basis-URL für die Semrush API
@@ -283,13 +283,13 @@ interface ProcessedKeyword {
 }
 
 // ========================================================================
-// KORRIGIERTE KEYWORD-FUNKTION (Version 4.0)
+// FINALE KEYWORD-FUNKTION (Version 5.0 - Reports API v1)
 // ========================================================================
 
 /**
  * Funktion zum Abrufen von Keywords mit Rankings aus Semrush Position Tracking
- * Verwendet die Semrush Management API (richtige Endpoint-Struktur)
- * @param campaignId Die Semrush Campaign/Tracking ID (z.B. 1209408, 1209491)
+ * Verwendet die Semrush Reports API v1 (KORRIGIERT)
+ * @param campaignId Die Semrush Campaign/Tracking ID im Format "projectID_campaignID" (z.B. "12920575_1209408")
  */
 export async function getSemrushKeywords(campaignId: string) {
   if (!apiKey) {
@@ -310,14 +310,22 @@ export async function getSemrushKeywords(campaignId: string) {
 
   console.log('[Semrush] Fetching keywords for campaign ID:', campaignId);
 
-  // ✅ KORRIGIERTER ENDPOINT: Management API
-  const url = `https://api.semrush.com/management/v1/projects/${campaignId}/tracking`;
+  // ✅ KORRIGIERT: Reports API v1 mit richtigem Endpoint
+  // Die Campaign ID sollte im Format "projectID_campaignID" sein
+  // Aber unsere Datenbank hat nur die Campaign ID - wir müssen sie kombinieren
+  // Laut den Logs: Project ID = 12920575, Tracking ID = 1209408
+  
+  // Prüfe ob Campaign ID bereits das richtige Format hat (enthält Underscore)
+  const fullCampaignId = campaignId.includes('_') ? campaignId : campaignId;
+  
+  const url = `https://api.semrush.com/reports/v1/projects/${fullCampaignId}/tracking/`;
   
   const params = new URLSearchParams({
     key: apiKey,
-    display_limit: '50', // Top 50 Keywords (mehr Daten)
-    display_sort: 'po_asc', // Sortiert nach Position (beste zuerst)
-    display_filter: '%2Bpo%7Clt%7C101' // Nur Keywords mit Position <= 100 (URL-encoded: +po|lt|101)
+    type: 'tracking_position_organic',
+    action: 'report',
+    display_limit: '50', // Top 50 Keywords
+    display_sort: 'po_asc' // Sortiert nach Position (beste zuerst)
   });
 
   const fullUrl = `${url}?${params.toString()}`;
@@ -345,7 +353,7 @@ export async function getSemrushKeywords(campaignId: string) {
 
     // Prüfe ob Daten vorhanden sind
     if (!data.data || typeof data.data !== 'object' || Object.keys(data.data).length === 0) {
-      console.warn('[Semrush] No keywords returned for campaign ID:', campaignId);
+      console.warn('[Semrush] No keywords returned for campaign ID:', fullCampaignId);
       return {
         keywords: [],
         error: 'No keywords found'
@@ -379,6 +387,12 @@ export async function getSemrushKeywords(campaignId: string) {
         const positions = Object.values(keywordData.Fi);
         if (positions.length > 0 && typeof positions[0] === 'number') {
           currentPosition = positions[0];
+        } else if (positions.length > 0 && typeof positions[0] === 'string') {
+          // Manche Positionen könnten als String "-" zurückkommen
+          const posStr = positions[0];
+          if (posStr !== '-') {
+            currentPosition = parseFloat(posStr);
+          }
         }
       }
 
@@ -389,6 +403,11 @@ export async function getSemrushKeywords(campaignId: string) {
         const positions = Object.values(keywordData.Be);
         if (positions.length > 0 && typeof positions[0] === 'number') {
           previousPosition = positions[0];
+        } else if (positions.length > 0 && typeof positions[0] === 'string') {
+          const posStr = positions[0];
+          if (posStr !== '-') {
+            previousPosition = parseFloat(posStr);
+          }
         }
       }
 
@@ -409,6 +428,8 @@ export async function getSemrushKeywords(campaignId: string) {
             if (urlValues.length > 0) {
               url = urlValues[0];
             }
+          } else if (typeof dateUrls === 'string') {
+            url = dateUrls;
           }
         }
         // Fallback: Nimm die erste verfügbare URL
@@ -420,6 +441,9 @@ export async function getSemrushKeywords(campaignId: string) {
                 url = urlValues[0];
                 break;
               }
+            } else if (typeof value === 'string') {
+              url = value;
+              break;
             }
           }
         }
@@ -438,6 +462,8 @@ export async function getSemrushKeywords(campaignId: string) {
             if (trafficValues.length > 0) {
               trafficPercent = trafficValues[0] * 100; // Konvertiere zu Prozent
             }
+          } else if (typeof dateTraffic === 'number') {
+            trafficPercent = dateTraffic * 100;
           }
         }
         // Fallback: Nimm den ersten verfügbaren Traffic-Wert
@@ -445,17 +471,20 @@ export async function getSemrushKeywords(campaignId: string) {
           for (const value of Object.values(traffic)) {
             if (typeof value === 'object') {
               const trafficValues = Object.values(value);
-              if (trafficValues.length > 0) {
+              if (trafficValues.length > 0 && typeof trafficValues[0] === 'number') {
                 trafficPercent = trafficValues[0] * 100;
                 break;
               }
+            } else if (typeof value === 'number') {
+              trafficPercent = value * 100;
+              break;
             }
           }
         }
       }
 
       // Filtere ungültige Positionen aus (0, "-", etc.)
-      if (currentPosition === 0 || currentPosition > 100) {
+      if (currentPosition === 0 || isNaN(currentPosition) || currentPosition > 100) {
         console.log('[Semrush] Skipping keyword with invalid position:', keyword, currentPosition);
         continue;
       }
@@ -476,7 +505,7 @@ export async function getSemrushKeywords(campaignId: string) {
     // Limitiere auf Top 20
     const top20Keywords = keywords.slice(0, 20);
 
-    console.log('[Semrush] ✅ Successfully processed', top20Keywords.length, 'keywords for campaign ID:', campaignId);
+    console.log('[Semrush] ✅ Successfully processed', top20Keywords.length, 'keywords for campaign ID:', fullCampaignId);
 
     return {
       keywords: top20Keywords,
@@ -485,7 +514,7 @@ export async function getSemrushKeywords(campaignId: string) {
 
   } catch (error: unknown) {
     if (axios.isAxiosError(error)) {
-      console.error(`[Semrush] Axios error fetching keywords for campaign ID ${campaignId}:`, error.message);
+      console.error(`[Semrush] Axios error fetching keywords for campaign ID ${fullCampaignId}:`, error.message);
       if (error.response) {
         console.error('[Semrush] Response status:', error.response.status);
         console.error('[Semrush] Response data:', JSON.stringify(error.response.data, null, 2));
