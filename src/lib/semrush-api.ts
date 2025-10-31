@@ -252,9 +252,6 @@ export async function getSemrushKeywords(campaignId: string, trackedUrl?: string
   console.log('[Semrush] Fetching keywords for campaign ID:', campaignId);
 
   // Semrush Projects API für Position Tracking
-  // Dokumentation: https://developer.semrush.com/api/v3/projects/position-tracking/
-  
-  // Base URL für Projects API
   const baseUrl = `https://api.semrush.com/reports/v1/projects/${campaignId}/tracking/`;
   
   const params = new URLSearchParams({
@@ -265,8 +262,6 @@ export async function getSemrushKeywords(campaignId: string, trackedUrl?: string
     display_sort: 'po_asc', // Sortiert nach Position (beste zuerst)
   });
 
-  // Wenn trackedUrl angegeben ist, füge sie hinzu
-  // URL muss eine "mask" sein, z.B. "*.domain.com/*"
   if (trackedUrl) {
     params.append('url', trackedUrl);
   }
@@ -277,36 +272,47 @@ export async function getSemrushKeywords(campaignId: string, trackedUrl?: string
 
   try {
     const response = await axios.get(url, {
-      timeout: 15000, // 15 Sekunden Timeout für Keywords
+      timeout: 15000, 
       headers: {
         'Accept': 'application/json'
       }
     });
 
     // Projects API gibt JSON zurück (nicht CSV)
-    const data = response.data;
-    
-    if (!data || !data.data || data.data.length === 0) {
-      console.warn('[Semrush] No keywords returned for campaign ID:', campaignId);
+    // Wir deklarieren 'data' als 'unknown' für eine sichere Typprüfung
+    const data: unknown = response.data;
+
+    // Typsichere Prüfung, ob 'data' ein Objekt ist und 'data.data' ein Array enthält
+    if (
+      typeof data !== 'object' ||
+      data === null ||
+      !('data' in data) ||
+      !Array.isArray((data as { data: unknown }).data) ||
+      (data as { data: unknown[] }).data.length === 0
+    ) {
+      console.warn('[Semrush] No keywords returned or invalid data format for campaign ID:', campaignId);
       return {
         keywords: [],
         error: 'No keywords found'
       };
     }
 
+    // Jetzt wissen wir, dass data.data ein Array ist.
+    // Wir casten es für die map-Funktion sicher.
+    const rawItems = (data as { data: SemrushApiKeywordItem[] }).data;
+
     // Parse JSON-Daten von Projects API
-    // Die Struktur kann variieren, aber typischerweise:
-    // data.data = Array von Keyword-Objekten
-    const keywords = data.data.map((item: any) => {
+    const keywords = rawItems.map((item: SemrushApiKeywordItem): ProcessedKeyword => { // <-- KORREKTUR 1
       return {
         keyword: item.keyword || item.phrase || '',
-        position: parseFloat(item.position) || 0,
-        previousPosition: item.previous_position ? parseFloat(item.previous_position) : null,
-        searchVolume: parseInt(item.search_volume) || 0,
+        // String() sorgt dafür, dass null/undefined nicht zu NaN wird, bevor parseFloat aufgerufen wird
+        position: parseFloat(String(item.position)) || 0,
+        previousPosition: item.previous_position ? parseFloat(String(item.previous_position)) : null,
+        searchVolume: parseInt(String(item.search_volume)) || 0,
         url: item.url || '',
-        trafficPercent: parseFloat(item.traffic_percent) || 0
+        trafficPercent: parseFloat(String(item.traffic_percent)) || 0
       };
-    }).filter((kw: any) => kw.keyword); // Filtere leere Keywords
+    }).filter((kw: ProcessedKeyword) => kw.keyword); // <-- KORREKTUR 2
 
     console.log('[Semrush] ✅ Successfully fetched', keywords.length, 'keywords for campaign ID:', campaignId);
 
@@ -320,7 +326,7 @@ export async function getSemrushKeywords(campaignId: string, trackedUrl?: string
       console.error(`[Semrush] Axios error fetching keywords for campaign ID ${campaignId}:`, error.message);
       if (error.response) {
         console.error('[Semrush] Response status:', error.response.status);
-        console.error('[Semrush] Response data:', error.response.data); // Sehr wichtig für Debugging!
+        console.error('[Semrush] Response data:', error.response.data);
       }
     } else {
       console.error(`[Semrush] Error fetching keywords:`, error);
