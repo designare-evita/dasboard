@@ -253,7 +253,7 @@ export async function getSemrushKeywords(
   try {
     // DEBUG: Zeige die exakte URL und Parameter
     console.log('[Semrush] DEBUG - Base URL:', url);
-    console.log('[Semrush] DEBUG - Raw Params object:', params);
+    console.log('[Semrush] DEBUG - Raw Params object:', JSON.stringify(params));
     
     // Baue die komplette URL vor dem Request
     const urlParams = new URLSearchParams();
@@ -261,7 +261,9 @@ export async function getSemrushKeywords(
       urlParams.set(key, String(value));
     }
     const fullUrlDebug = `${url}?${urlParams.toString()}`;
-    console.log('[Semrush] DEBUG - FULL REQUEST URL:', fullUrlDebug);
+    console.log('[Semrush] ===== FULL REQUEST URL =====');
+    console.log(fullUrlDebug);
+    console.log('[Semrush] ===== END REQUEST URL =====');
     
     // 3. Mache den API Request
     const response = await axios.get<SemrushApiResponse>(url, {
