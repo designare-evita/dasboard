@@ -200,7 +200,8 @@ export async function getSemrushKeywords(
   
   // Wenn domainOrContext ein Objekt ist (z.B. User/Project-Kontext), Domain daraus auslesen
   if (typeof domainOrContext === 'object' && domainOrContext !== null) {
-    domain = domainOrContext.domain || domainOrContext.Domain || domainOrContext.url;
+    const obj = domainOrContext as Record<string, unknown>;
+    domain = (obj.domain || obj.Domain || obj.url) as string;
   }
   
   // Fallback auf 'aichelin.at' wenn keine Domain vorhanden
