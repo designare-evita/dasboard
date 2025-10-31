@@ -1,9 +1,6 @@
 // src/lib/semrush-api.ts (ANGEPASST - Nur Keywords aktiv)
 import axios from 'axios';
 
-// Basis-URL für die Semrush API
-const SEMRUSH_API_URL = 'https://api.semrush.com/';
-
 // API-Schlüssel aus der Umgebungsvariable holen
 const apiKey = process.env.SEMRUSH_API_KEY;
 
@@ -163,7 +160,10 @@ interface ProcessedKeyword {
  * @param campaignId Die Semrush Campaign/Tracking ID im Format "projectID_trackingID" (z.B. "12920575_1209408")
  * @param domainOrContext Die zu trackende Domain (z.B. "www.aichelin.at") ODER das gesamte Projekt-Kontext-Objekt
  */
-export async function getSemrushKeywords(campaignId: string, domainOrContext?: string | any) {
+export async function getSemrushKeywords(
+  campaignId: string,
+  domainOrContext?: string | Record<string, unknown>
+) {
   if (!apiKey) {
     console.error('[Semrush] SEMRUSH_API_KEY is not set in environment variables.');
     return {
