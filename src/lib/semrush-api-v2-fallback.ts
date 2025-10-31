@@ -14,7 +14,6 @@ interface ProcessedKeyword {
 
 /**
  * FALLBACK: Nutzt die älteren Semrush v2 API Endpoints
- * Falls v1 weiterhin "metadata not received" Fehler wirft
  */
 export async function getSemrushKeywordsV2Fallback(
   domain: string,
@@ -31,7 +30,6 @@ export async function getSemrushKeywordsV2Fallback(
     return { keywords: [], error: 'No domain provided' };
   }
 
-  // Normalize domain
   let normalizedDomain = String(domain);
   if (normalizedDomain.startsWith('www.')) {
     normalizedDomain = normalizedDomain.substring(4);
@@ -44,7 +42,6 @@ export async function getSemrushKeywordsV2Fallback(
 
   console.log('[Semrush-v2] Using fallback v2 API for domain:', normalizedDomain);
 
-  // v2 API hat einfachere Parameter
   const rankParams = {
     key: apiKey,
     type: 'rank',
@@ -56,7 +53,6 @@ export async function getSemrushKeywordsV2Fallback(
   try {
     console.log('[Semrush-v2] Fetching rank data from v2 API');
     
-    // Query string aufbauen (v2 erwartet das so)
     const queryString = new URLSearchParams(
       rankParams as Record<string, string>
     ).toString();
@@ -66,12 +62,11 @@ export async function getSemrushKeywordsV2Fallback(
       {
         timeout: 15000,
         headers: {
-          'Accept': 'text/plain' // v2 API gibt oft text/plain zurück
+          'Accept': 'text/plain'
         }
       }
     );
 
-    // v2 API gibt CSV-ähnliches Format zurück
     const lines = response.data.split('\n').filter((line: string) => line.trim());
     
     if (lines.length === 0 || lines[0].includes('No data')) {
@@ -81,7 +76,6 @@ export async function getSemrushKeywordsV2Fallback(
 
     console.log('[Semrush-v2] ✅ Got', lines.length, 'rank results');
 
-    // Parse CSV-Format: keyword|position|search_volume|...
     const keywords: ProcessedKeyword[] = [];
     
     for (const line of lines) {
@@ -93,8 +87,8 @@ export async function getSemrushKeywordsV2Fallback(
       if (parts.length < 3) continue;
 
       const keyword = parts[0].trim();
-      const position = parseInt(parts[1].trim());
-      const searchVolume = parseInt(parts[2].trim());
+      const position = parseInt(parts[1].trim(), 10);
+      const searchVolume = parseInt(parts[2].trim(), 10);
 
       if (!keyword || isNaN(position) || position === 0 || position > 100) {
         continue;
@@ -103,10 +97,10 @@ export async function getSemrushKeywordsV2Fallback(
       keywords.push({
         keyword,
         position,
-        previousPosition: null, // v2 API hat das nicht so leicht verfügbar
+        previousPosition: null,
         searchVolume: searchVolume || 0,
-        url: '', // v2 API gibt Landing URLs nicht so direkt zurück
-        trafficPercent: 0 // Müsste extra abgerufen werden
+        url: '',
+        trafficPercent: 0
       });
     }
 
@@ -116,7 +110,7 @@ export async function getSemrushKeywordsV2Fallback(
     console.log('[Semrush-v2] ✅ Processed', top20.length, 'keywords');
     return { keywords: top20, error: null };
 
-  } catch (error) {
+  } catch (error: unknown) {
     if (axios.isAxiosError(error)) {
       console.error('[Semrush-v2] Error status:', error.response?.status);
       console.error('[Semrush-v2] Error data:', error.response?.data);
@@ -128,7 +122,7 @@ export async function getSemrushKeywordsV2Fallback(
 }
 
 /**
- * Erweiterte v2 API: Holt zusätzliche Metriken wie vorherige Position
+ * Erweiterte v2 API: Holt zusätzliche Metriken
  */
 export async function getSemrushKeywordsV2Extended(
   domain: string,
@@ -148,7 +142,6 @@ export async function getSemrushKeywordsV2Extended(
   console.log('[Semrush-v2-ext] Extended v2 API query for:', normalizedDomain);
 
   try {
-    // Hole Rang-Daten
     const rankParams = {
       key: apiKey,
       type: 'rank',
@@ -162,7 +155,6 @@ export async function getSemrushKeywordsV2Extended(
       { timeout: 15000 }
     );
 
-    // Hole Suchvolumen-Daten
     const volumeParams = {
       key: apiKey,
       type: 'phrase_volume',
@@ -177,14 +169,15 @@ export async function getSemrushKeywordsV2Extended(
         { timeout: 15000 }
       );
       
-      volumeResponse.data.split('\n').forEach((line: string) => {
+      volumeMap = volumeResponse.data.split('\n').reduce((acc: Record<string, number>, line: string) => {
         const [phrase, volume] = line.split('|');
         if (phrase && volume) {
-          volumeMap[phrase.trim()] = parseInt(volume.trim());
+          acc[phrase.trim()] = parseInt(volume.trim(), 10);
         }
-      });
-    } catch (e) {
-      console.warn('[Semrush-v2-ext] Could not fetch volume data:', e);
+        return acc;
+      }, {});
+    } catch (error: unknown) {
+      console.warn('[Semrush-v2-ext] Could not fetch volume data:', error instanceof Error ? error.message : error);
     }
 
     const keywords: ProcessedKeyword[] = [];
@@ -193,7 +186,7 @@ export async function getSemrushKeywordsV2Extended(
       if (parts.length < 3) return;
 
       const keyword = parts[0].trim();
-      const position = parseInt(parts[1].trim());
+      const position = parseInt(parts[1].trim(), 10);
       
       if (!keyword || isNaN(position) || position === 0 || position > 100) {
         return;
@@ -212,28 +205,8 @@ export async function getSemrushKeywordsV2Extended(
     keywords.sort((a, b) => a.position - b.position);
     return { keywords: keywords.slice(0, 20), error: null };
 
-  } catch (error) {
-    console.error('[Semrush-v2-ext] Error:', error);
+  } catch (error: unknown) {
+    console.error('[Semrush-v2-ext] Error:', error instanceof Error ? error.message : error);
     return { keywords: [], error: String(error) };
   }
-}
-
-/**
- * HYBRID: Versucht v1, fällt zurück auf v2
- */
-export async function getSemrushKeywordsHybrid(
-  campaignId: string,
-  domain: string
-): Promise<{ keywords: ProcessedKeyword[]; error: null | string }> {
-  
-  console.log('[Semrush-hybrid] Attempting v1 API first...');
-  
-  // Versuche v1 (importiere die verbesserte Version)
-  // const result = await getSemrushKeywords(campaignId, domain);
-  // if (result.keywords.length > 0 || !result.error?.includes('metadata')) {
-  //   return result;
-  // }
-
-  console.log('[Semrush-hybrid] v1 failed, falling back to v2...');
-  return getSemrushKeywordsV2Fallback(domain);
 }
