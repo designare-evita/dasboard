@@ -1,4 +1,4 @@
-// src/components/SemrushTopKeywords.tsx (Version 8 - Bereinigtes useEffect)
+// src/components/SemrushTopKeywords.tsx (Version 9 - Korrigiert mit expliziter Kampagne)
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -23,9 +23,7 @@ export default function SemrushTopKeywords({ projectId }: SemrushTopKeywordsProp
   const [error, setError] = useState<string | null>(null);
   const [lastFetched, setLastFetched] = useState<string | null>(null);
   const [fromCache, setFromCache] = useState<boolean>(false);
-  // HINWEIS: currentProjectId entfernt, um Doppel-Fetch zu verhindern
 
-  // formatLastFetched bleibt gleich...
   const formatLastFetched = (dateString: string | null): string => {
     if (!dateString) return 'Nie';
     const date = new Date(dateString);
@@ -39,11 +37,8 @@ export default function SemrushTopKeywords({ projectId }: SemrushTopKeywordsProp
     return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
   };
 
-
-  // GEÄNDERT: useEffect bereinigt, hängt nur noch von 'projectId' ab
   useEffect(() => {
     const fetchKeywords = async () => {
-      // Setzt den Status zu Beginn jedes Fetches (oder bei projectId-Wechsel) zurück
       setIsLoading(true);
       setError(null);
       setKeywords([]);
@@ -51,17 +46,22 @@ export default function SemrushTopKeywords({ projectId }: SemrushTopKeywordsProp
       setFromCache(false);
 
       try {
-        // Baue die URL dynamisch
+        // ✅ KORREKTUR: Explizite Kampagnen-Übergabe
         const urlParams = new URLSearchParams();
+        
+        // 1. Explizit Kampagne 1 anfordern (kann auch weggelassen werden, da Default)
+        urlParams.set('campaign', 'kampagne_1');
+        
+        // 2. Projekt-Kontext (falls vorhanden)
         if (projectId) {
           urlParams.set('projectId', projectId);
         }
         
-        // Wenn projectId vorhanden: /api/semrush/keywords?projectId=...
-        // Sonst (für User): /api/semrush/keywords
         const url = `/api/semrush/keywords?${urlParams.toString()}`;
         
         console.log('[SemrushTopKeywords] Fetching keywords (Kampagne 1), URL:', url);
+        console.log('[SemrushTopKeywords] Campaign Parameter: kampagne_1');
+        console.log('[SemrushTopKeywords] Project ID:', projectId || 'none (eigene Daten)');
         
         const response = await fetch(url);
         const data = await response.json();
@@ -80,7 +80,7 @@ export default function SemrushTopKeywords({ projectId }: SemrushTopKeywordsProp
           setKeywords(data.keywords);
           setLastFetched(data.lastFetched);
           setFromCache(data.fromCache || false);
-          setError(data.error || null); // Zeige API-Fehler an, auch wenn alte Daten (Fallback) geladen wurden
+          setError(data.error || null);
         } else {
           setKeywords([]);
           setError('Unerwartete Antwort von der API');
@@ -95,18 +95,14 @@ export default function SemrushTopKeywords({ projectId }: SemrushTopKeywordsProp
     };
 
     fetchKeywords();
-  }, [projectId]); // Nur von projectId abhängig
+  }, [projectId]);
 
-  // getPositionChange bleibt gleich...
   const getPositionChange = (current: number, previous: number | null) => {
     if (previous === null) return null;
-    return previous - current; // Positive = Verbesserung
+    return previous - current;
   };
 
-  // --- Rendering-Logik (unverändert) ---
-
   if (isLoading) {
-    // ... (Ladezustand)
     return (
       <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
         <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
@@ -123,7 +119,6 @@ export default function SemrushTopKeywords({ projectId }: SemrushTopKeywordsProp
   }
 
   if (error || keywords.length === 0) {
-    // GEÄNDERT: Bessere Standard-Fehlermeldung
     const defaultError = projectId 
       ? 'Keine Keywords verfügbar. Bitte warten Sie auf den ersten Datenabruf.'
       : 'Keine Semrush Tracking ID konfiguriert oder keine Keywords gefunden.';
@@ -137,21 +132,20 @@ export default function SemrushTopKeywords({ projectId }: SemrushTopKeywordsProp
         <p className="text-sm text-gray-500 italic">
           {error || defaultError}
         </p>
-         {lastFetched && !isLoading && (
-            <div className="mt-4 pt-4 border-t border-gray-100 text-xs text-gray-500 flex flex-col items-start gap-1">
-                 Letzter Versuch: {formatLastFetched(lastFetched)}
-                <span className="text-[10px] text-gray-400">
-                ({new Date(lastFetched).toLocaleString('de-DE')})
-                </span>
-            </div>
-         )}
+        {lastFetched && !isLoading && (
+          <div className="mt-4 pt-4 border-t border-gray-100 text-xs text-gray-500 flex flex-col items-start gap-1">
+            Letzter Versuch: {formatLastFetched(lastFetched)}
+            <span className="text-[10px] text-gray-400">
+              ({new Date(lastFetched).toLocaleString('de-DE')})
+            </span>
+          </div>
+        )}
       </div>
     );
   }
 
   return (
     <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
-      {/* Header (unverändert) ... */}
       <div className="flex justify-between items-start mb-4">
         <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
           <Search size={20} className="text-orange-600" />
@@ -178,10 +172,13 @@ export default function SemrushTopKeywords({ projectId }: SemrushTopKeywordsProp
         )}
       </div>
       
-      {/* DEBUG INFO (unverändert) ... */}
+      {/* DEBUG INFO */}
       {process.env.NODE_ENV === 'development' && (
         <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
-          <strong>Debug (K1):</strong> ProjectId: {projectId || 'none'}, Keywords: {keywords.length}
+          <strong>Debug (Kampagne 1):</strong> 
+          <br />ProjectId: {projectId || 'none (User)'}, 
+          <br />Keywords: {keywords.length},
+          <br />Campaign: kampagne_1
         </div>
       )}
 
@@ -193,12 +190,9 @@ export default function SemrushTopKeywords({ projectId }: SemrushTopKeywordsProp
             
             return (
               <div 
-                // GEÄNDERT: Key angepasst
-                key={`${projectId || 'user'}-${kw.keyword}-${index}`}
+                key={`kampagne-1-${projectId || 'user'}-${kw.keyword}-${index}`}
                 className="border border-gray-100 rounded-lg p-3 hover:bg-orange-50 transition-colors"
               >
-                {/* ... Restliches Mapping (unverändert) ... */}
-                {/* Keyword & Position */}
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex-1 min-w-0">
                     <h4 className="text-sm font-medium text-gray-900 truncate">
@@ -216,7 +210,6 @@ export default function SemrushTopKeywords({ projectId }: SemrushTopKeywordsProp
                     )}
                   </div>
                   
-                  {/* Position Badge */}
                   <div className="flex items-center gap-2 ml-3">
                     {positionChange !== null && positionChange !== 0 && (
                       <span className={`flex items-center gap-0.5 text-xs font-medium ${
@@ -241,7 +234,6 @@ export default function SemrushTopKeywords({ projectId }: SemrushTopKeywordsProp
                   </div>
                 </div>
 
-                {/* Metriken */}
                 <div className="flex items-center gap-4 text-xs text-gray-600">
                   <div className="flex items-center gap-1">
                     <span className="text-gray-500">Suchvolumen:</span>
@@ -262,7 +254,6 @@ export default function SemrushTopKeywords({ projectId }: SemrushTopKeywordsProp
         </div>
       </div>
 
-      {/* Info (unverändert) ... */}
       <div className="mt-4 pt-4 border-t border-gray-100">
         <p className="text-xs text-gray-500">
           💡 Zeigt die Top 20 Keywords mit den besten Rankings. Daten werden alle 14 Tage aktualisiert.
