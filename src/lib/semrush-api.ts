@@ -193,6 +193,7 @@ export async function getSemrushKeywords(campaignId: string) {
     key: apiKey,
     type: 'tracking_position_organic',
     action: 'report',
+    'competitors[]': 'root_domain', 
     display_limit: '50', // Top 50 Keywords
     display_sort: 'po_asc' // Sortiert nach Position (beste zuerst)
   });
