@@ -222,6 +222,39 @@ export async function getSemrushData(params: {
   };
 }
 
+
+// ========================================================================
+// TYP-DEFINITIONEN FÜR KEYWORD-FUNKTION
+// ========================================================================
+
+/**
+ * Definiert die Struktur der Rohdaten, wie sie von der
+ * Semrush Projects API (v1) für ein einzelnes Keyword zurückgegeben werden.
+ */
+interface SemrushApiKeywordItem {
+  keyword?: string;
+  phrase?: string; // Manchmal wird 'phrase' statt 'keyword' verwendet
+  position?: string | number; // APIs senden Zahlen oft als Strings
+  previous_position?: string | number | null;
+  search_volume?: string | number;
+  url?: string;
+  traffic_percent?: string | number;
+  // Wir können andere Felder ignorieren, die wir nicht verwenden
+}
+
+/**
+ * Definiert die Struktur unseres bereinigten Keyword-Objekts,
+ * das wir in der Anwendung verwenden wollen.
+ */
+interface ProcessedKeyword {
+  keyword: string;
+  position: number;
+  previousPosition: number | null;
+  searchVolume: number;
+  url: string;
+  trafficPercent: number;
+}
+
 // ========================================================================
 // KORRIGIERTE FUNKTION (VERSUCH 3)
 // ========================================================================
