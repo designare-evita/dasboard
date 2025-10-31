@@ -1,10 +1,10 @@
-// src/app/api/semrush/keywords/route.ts (KORRIGIERT - Version 6.0 - Mit kombinierter Campaign ID)
+// src/app/api/semrush/keywords/route.ts (KORRIGIERT - Version 7.0 - Mit v2 API)
 import { NextResponse, NextRequest } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { sql } from '@vercel/postgres';
 import { User } from '@/types';
-import { getSemrushKeywords } from '@/lib/semrush-api';
+import { getSemrushKeywordsV2Only } from '@/lib/semrush-api-v2-only';
 
 interface UserWithSemrush extends User {
   semrush_project_id: string | null;
@@ -132,7 +132,7 @@ export async function GET(request: NextRequest) {
 
       return await handleTrackingId(
         targetUserId,
-        user.semrush_project_id, // ✅ NEU: Project ID mitgeben
+        user.domain,
         user.semrush_tracking_id_02,
         'kampagne_2',
         forceRefresh
@@ -154,7 +154,7 @@ export async function GET(request: NextRequest) {
 
     return await handleTrackingId(
       targetUserId,
-      user.semrush_project_id, // ✅ NEU: Project ID mitgeben
+      user.domain,
       user.semrush_tracking_id,
       'kampagne_1',
       forceRefresh
@@ -170,14 +170,12 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * Lädt Keywords für eine spezifische Kampagne
+ * Lädt Keywords für eine spezifische Kampagne mit v2 API
  * Nutzt Cache mit 14-Tage Gültigkeit
- * 
- * ✅ NEU: Kombiniert Project ID + Tracking ID zu vollständiger Campaign ID
  */
 async function handleTrackingId(
   userId: string,
-  projectId: string, // Project ID ist jetzt required (validated above)
+  domain: string | null,
   trackingId: string | null,
   campaign: 'kampagne_1' | 'kampagne_2',
   forceRefresh: boolean
@@ -194,15 +192,20 @@ async function handleTrackingId(
     });
   }
 
+  if (!domain) {
+    console.error(`[handleTrackingId] ❌ Keine Domain konfiguriert`);
+    return NextResponse.json({
+      keywords: [],
+      lastFetched: null,
+      fromCache: false,
+      error: 'Keine Domain konfiguriert'
+    });
+  }
+
   console.log(`[handleTrackingId] ========== ${campaign.toUpperCase()} ==========`);
   console.log('[handleTrackingId] UserId (UUID):', userId);
-  console.log('[handleTrackingId] Project ID:', projectId);
-  console.log('[handleTrackingId] Tracking ID:', trackingId);
+  console.log('[handleTrackingId] Domain:', domain);
   console.log('[handleTrackingId] Campaign:', campaign);
-
-  // ✅ KRITISCH: Kombiniere Project ID + Tracking ID im Format "projectID_campaignID"
-  const fullCampaignId = `${projectId}_${trackingId}`;
-  console.log('[handleTrackingId] Full Campaign ID:', fullCampaignId);
 
   // Lade Cache
   const { rows: cachedData } = await sql`
@@ -236,23 +239,15 @@ async function handleTrackingId(
     });
   }
 
-  // Refresh: Lade von Semrush API
-  console.log('[handleTrackingId] 🔄 Fetching from Semrush API...');
-  console.log('[handleTrackingId] API-Parameter: fullCampaignId =', fullCampaignId);
-
-  // ✅ KORRIGIERT: Verwende vollständige Campaign ID + Domain
-  // Lade User-Daten erneut um die Domain zu haben
-  const { rows: userRows } = await sql<UserWithSemrush>`
-    SELECT domain FROM users WHERE id::text = ${userId}
-  `;
+  // Refresh: Lade von Semrush v2 API
+  console.log('[handleTrackingId] 🔄 Fetching from Semrush v2 API...');
+  console.log('[handleTrackingId] Domain:', domain);
   
-  const userDomain = userRows.length > 0 ? userRows[0].domain : undefined;
-  console.log('[handleTrackingId] User Domain:', userDomain);
-  
-  const keywordsData = await getSemrushKeywords(fullCampaignId, userDomain);
+  // ✅ WICHTIG: Nutze v2 API statt v1
+  const keywordsData = await getSemrushKeywordsV2Only(domain, 'de');
 
-  if ('error' in keywordsData && keywordsData.keywords.length === 0) {
-    console.error('[handleTrackingId] ❌ API-Fehler:', keywordsData.error);
+  if (!keywordsData || keywordsData.keywords.length === 0) {
+    console.error('[handleTrackingId] ❌ API-Fehler:', keywordsData?.error);
     
     // Fallback auf alten Cache
     if (cachedData.length > 0) {
@@ -261,7 +256,7 @@ async function handleTrackingId(
         keywords: cachedData[0].keywords_data || [],
         lastFetched: new Date(cachedData[0].last_fetched).toISOString(),
         fromCache: true,
-        error: 'Konnte nicht aktualisiert werden: ' + keywordsData.error
+        error: 'Konnte nicht aktualisiert werden: ' + keywordsData?.error
       });
     }
 
@@ -269,13 +264,13 @@ async function handleTrackingId(
       keywords: [],
       lastFetched: null,
       fromCache: false,
-      error: keywordsData.error
+      error: keywordsData?.error || 'Unbekannter Fehler'
     });
   }
 
   // API-Daten erfolgreich geladen
   const keywords = keywordsData.keywords || [];
-  console.log('[handleTrackingId] ✅ Fetched', keywords.length, 'keywords');
+  console.log('[handleTrackingId] ✅ Fetched', keywords.length, 'keywords from v2 API');
 
   // Speichere im Cache
   const now = new Date().toISOString();
