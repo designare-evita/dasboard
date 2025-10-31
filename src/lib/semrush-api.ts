@@ -194,13 +194,14 @@ export async function getSemrushKeywords(campaignId: string) {
   const projectId = parts[0];
   const trackingCampaignId = parts[1];
   
-  const url = `https://api.semrush.com/reports/v1/projects/${projectId}/tracking`;
+  // ✅ WICHTIG: Der Endpoint verwendet CAMPAIGN ID, NICHT project_campaign
+  const url = `https://api.semrush.com/reports/v1/projects/${trackingCampaignId}/tracking/`;
   
   // 1. Parameter als einfaches JavaScript-Objekt definieren
   const params = {
     key: apiKey,
-    campaign_id: trackingCampaignId,
     type: 'tracking_position_organic',
+    action: 'report',
     // ✅ WICHTIG: "competitors" als Array übergeben
     competitors: ['root_domain'], 
     display_limit: '50',
