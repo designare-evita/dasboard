@@ -228,9 +228,11 @@ export async function getSemrushData(params: {
 
 /**
  * Funktion zum Abrufen von Keywords mit Rankings aus Semrush Position Tracking
- * @param trackingId Die Semrush Position Tracking ID (z.B. 1209491 aus der 'users' Tabelle)
+ * Verwendet die Semrush Projects API (v1) für Position Tracking
+ * @param campaignId Die Semrush Campaign ID (z.B. 1209491)
+ * @param trackedUrl Optional - Die getrackte URL mit Mask (z.B. "*.aichelin.at/*")
  */
-export async function getSemrushKeywords(trackingId: string) {
+export async function getSemrushKeywords(campaignId: string, trackedUrl?: string) {
   if (!apiKey) {
     console.error('[Semrush] SEMRUSH_API_KEY is not set in environment variables.');
     return {
@@ -239,78 +241,74 @@ export async function getSemrushKeywords(trackingId: string) {
     };
   }
 
-  if (!trackingId) {
-    console.warn('[Semrush] No tracking ID provided for keywords');
+  if (!campaignId) {
+    console.warn('[Semrush] No campaign ID provided for keywords');
     return {
       keywords: [],
-      error: 'No tracking ID'
+      error: 'No campaign ID'
     };
   }
 
-  console.log('[Semrush] Fetching keywords for tracking ID:', trackingId);
+  console.log('[Semrush] Fetching keywords for campaign ID:', campaignId);
 
-  // Semrush Position Tracking Keywords API
-  // Dokumentation: https://developer.semrush.com/api/v3/analytics/keyword-reports/
+  // Semrush Projects API für Position Tracking
+  // Dokumentation: https://developer.semrush.com/api/v3/projects/position-tracking/
+  
+  // Base URL für Projects API
+  const baseUrl = `https://api.semrush.com/reports/v1/projects/${campaignId}/tracking/`;
+  
   const params = new URLSearchParams({
     key: apiKey,
-    
-    // Wir bleiben bei 'tracking_report'
-    type: 'tracking_report', 
-    
-    // ⬇️ HIER IST DIE NEUE KORREKTUR ⬇️
-    // Der Parametername für die Tracking ID (1209491) ist 
-    // bei diesem Report-Typ wahrscheinlich 'campaign_id'.
-    campaign_id: trackingId, // ❌ WAR: project_id: trackingId
-
-    export_columns: 'Ph,Po,Pp,Nq,Ur,Tr',
-    // Ph = Keyword (phrase)
-    // Po = Position
-    // Pp = Previous Position
-    // Nq = Search Volume
-    // Ur = URL
-    // Tr = Traffic %
+    type: 'tracking_position_organic', // Organic Position Tracking Report
+    action: 'report',
     display_limit: '20', // Top 20 Keywords
-    display_sort: 'po_asc' // Sortiert nach Position (beste zuerst)
+    display_sort: 'po_asc', // Sortiert nach Position (beste zuerst)
   });
 
-  const url = `${SEMRUSH_API_URL}?${params.toString()}`;
+  // Wenn trackedUrl angegeben ist, füge sie hinzu
+  // URL muss eine "mask" sein, z.B. "*.domain.com/*"
+  if (trackedUrl) {
+    params.append('url', trackedUrl);
+  }
+
+  const url = `${baseUrl}?${params.toString()}`;
+  
+  console.log('[Semrush] API URL:', url);
 
   try {
     const response = await axios.get(url, {
-      timeout: 15000 // 15 Sekunden Timeout für Keywords
+      timeout: 15000, // 15 Sekunden Timeout für Keywords
+      headers: {
+        'Accept': 'application/json'
+      }
     });
 
-    if (typeof response.data !== 'string') {
-      throw new Error('Unexpected response format from Semrush');
-    }
-
-    const lines = response.data.trim().split('\n');
+    // Projects API gibt JSON zurück (nicht CSV)
+    const data = response.data;
     
-    if (lines.length < 2) {
-      console.warn('[Semrush] No keywords returned for tracking ID:', trackingId);
+    if (!data || !data.data || data.data.length === 0) {
+      console.warn('[Semrush] No keywords returned for campaign ID:', campaignId);
       return {
         keywords: [],
         error: 'No keywords found'
       };
     }
 
-    // Parse CSV-ähnliche Daten (erste Zeile = Header, Rest = Daten)
-    const keywords = lines.slice(1).map(line => {
-      const values = line.split(';');
-      // Sicherstellen, dass genügend Spalten vorhanden sind
-      if (values.length < 6) return null; 
-      
+    // Parse JSON-Daten von Projects API
+    // Die Struktur kann variieren, aber typischerweise:
+    // data.data = Array von Keyword-Objekten
+    const keywords = data.data.map((item: any) => {
       return {
-        keyword: values[0] || '',
-        position: parseFloat(values[1]) || 0,
-        previousPosition: values[2] ? parseFloat(values[2]) : null,
-        searchVolume: parseInt(values[3]) || 0,
-        url: values[4] || '',
-        trafficPercent: parseFloat(values[5]) || 0
+        keyword: item.keyword || item.phrase || '',
+        position: parseFloat(item.position) || 0,
+        previousPosition: item.previous_position ? parseFloat(item.previous_position) : null,
+        searchVolume: parseInt(item.search_volume) || 0,
+        url: item.url || '',
+        trafficPercent: parseFloat(item.traffic_percent) || 0
       };
-    }).filter(kw => kw && kw.keyword); // Filtere ungültige Zeilen und leere Keywords
+    }).filter((kw: any) => kw.keyword); // Filtere leere Keywords
 
-    console.log('[Semrush] Successfully fetched', keywords.length, 'keywords for tracking ID:', trackingId);
+    console.log('[Semrush] ✅ Successfully fetched', keywords.length, 'keywords for campaign ID:', campaignId);
 
     return {
       keywords,
@@ -319,7 +317,7 @@ export async function getSemrushKeywords(trackingId: string) {
 
   } catch (error: unknown) {
     if (axios.isAxiosError(error)) {
-      console.error(`[Semrush] Axios error fetching keywords for tracking ID ${trackingId}:`, error.message);
+      console.error(`[Semrush] Axios error fetching keywords for campaign ID ${campaignId}:`, error.message);
       if (error.response) {
         console.error('[Semrush] Response status:', error.response.status);
         console.error('[Semrush] Response data:', error.response.data); // Sehr wichtig für Debugging!
