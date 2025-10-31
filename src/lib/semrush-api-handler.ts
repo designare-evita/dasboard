@@ -32,23 +32,15 @@ interface SemrushHandlerResult {
 
 /**
  * 🎯 HAUPTFUNKTION - Semrush API mit automatischem Fallback
- * 
- * Versucht nacheinander:
- * 1. v1 API mit 5 Strategien (neue verbesserte Version)
- * 2. v2 API einfach (robuster Fallback)
- * 3. v2 API erweitert (zusätzliche Metriken)
- * 
- * Returniert sofort erfolgreiches Ergebnis oder schlägt nur fehl wenn alle versucht wurden
  */
 export async function getSemrushKeywordsWithFallback(
   data: CampaignData
 ): Promise<SemrushHandlerResult> {
-  const { campaignId, domain, userId } = data;
+  const { campaignId, domain } = data;
   
   const totalStartTime = Date.now();
   
   console.log('\n========== SEMRUSH HANDLER START ==========');
-  console.log('[Handler] User ID:', userId);
   console.log('[Handler] Campaign ID:', campaignId);
   console.log('[Handler] Domain:', domain);
   console.log('[Handler] Attempting: v1 → v2-simple → v2-extended');
@@ -85,7 +77,7 @@ export async function getSemrushKeywordsWithFallback(
     
     console.log('[Handler] ⚠️ v1 returned no keywords');
     console.log('[Handler] Error:', v1Result.error);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('[Handler] ❌ v1 threw error:', error instanceof Error ? error.message : error);
   }
 
@@ -114,7 +106,7 @@ export async function getSemrushKeywordsWithFallback(
     
     console.log('[Handler] ⚠️ v2-simple returned no keywords');
     console.log('[Handler] Error:', v2Result.error);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('[Handler] ❌ v2-simple threw error:', error instanceof Error ? error.message : error);
   }
 
@@ -143,7 +135,7 @@ export async function getSemrushKeywordsWithFallback(
     
     console.log('[Handler] ⚠️ v2-extended returned no keywords');
     console.log('[Handler] Error:', v2ExtResult.error);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('[Handler] ❌ v2-extended threw error:', error instanceof Error ? error.message : error);
   }
 
@@ -164,24 +156,23 @@ export async function getSemrushKeywordsWithFallback(
 
 /**
  * 🚀 RAPID FALLBACK - Nutzt schnelles Timeout für v1
- * Wenn v1 länger als 5 Sekunden dauert → sofort v2
  */
 export async function getSemrushKeywordsRapidFallback(
   data: CampaignData,
   v1TimeoutMs: number = 5000
 ): Promise<SemrushHandlerResult> {
-  const { campaignId, domain, userId } = data;
+  const { campaignId, domain } = data;
   
   console.log(`\n[RapidFallback] Starting with ${v1TimeoutMs}ms timeout for v1`);
 
-  // v1 mit Timeout
   const v1Promise = getSemrushKeywords(campaignId, domain);
-  const timeoutPromise = new Promise((_, reject) =>
+  const timeoutPromise = new Promise<never>((_, reject) =>
     setTimeout(() => reject(new Error('v1 timeout')), v1TimeoutMs)
   );
 
   try {
-    const v1Result = await Promise.race([v1Promise, timeoutPromise]) as any;
+    type V1Result = Awaited<ReturnType<typeof getSemrushKeywords>>;
+    const v1Result = await Promise.race<V1Result>([v1Promise, timeoutPromise]);
     
     if (v1Result.keywords && v1Result.keywords.length > 0) {
       return {
@@ -192,11 +183,10 @@ export async function getSemrushKeywordsRapidFallback(
         timing: { v1Ms: v1TimeoutMs, totalMs: v1TimeoutMs }
       };
     }
-  } catch (error) {
+  } catch (_error) {
     console.log('[RapidFallback] v1 timeout/error, falling back to v2');
   }
 
-  // Fallback zu v2
   const v2Result = await getSemrushKeywordsV2Fallback(domain);
   return {
     source: 'v2-api',
@@ -208,7 +198,7 @@ export async function getSemrushKeywordsRapidFallback(
 }
 
 /**
- * 📊 RESULT FORMATTER - Bereitet Ergebnis für API-Response vor
+ * 📊 RESULT FORMATTER
  */
 export function formatSemrushResult(result: SemrushHandlerResult) {
   return {
@@ -227,7 +217,7 @@ export function formatSemrushResult(result: SemrushHandlerResult) {
 }
 
 /**
- * 📝 LOGGING HELPER - Speichert Semrush Versuche in Datenbank/Log
+ * 📝 LOGGING HELPER
  */
 export function logSemrushAttempt(
   result: SemrushHandlerResult,
@@ -245,16 +235,13 @@ export function logSemrushAttempt(
     timing: result.timing
   };
 
-  // Später: In DB speichern
-  // await db.semrushLogs.create(logEntry);
-  
   console.log('[SemrushLog] Entry created:', JSON.stringify(logEntry, null, 2));
   
   return logEntry;
 }
 
 /**
- * 🔍 DIAGNOSTICS - Gibt Infos über API Health
+ * 🔍 DIAGNOSTICS
  */
 export async function getSemrushDiagnostics(testDomain: string = 'example.com') {
   console.log('\n========== SEMRUSH DIAGNOSTICS START ==========');
@@ -269,37 +256,34 @@ export async function getSemrushDiagnostics(testDomain: string = 'example.com') 
     }
   };
 
-  // Test v1
   try {
     const start = Date.now();
     const result = await getSemrushKeywords('test_campaign_12920575_1209491', testDomain);
     diagnostics.results.v1.timeMs = Date.now() - start;
     diagnostics.results.v1.success = (result.keywords?.length || 0) > 0;
     if (result.error) diagnostics.results.v1.error = result.error;
-  } catch (error) {
-    diagnostics.results.v1.error = String(error);
+  } catch (error: unknown) {
+    diagnostics.results.v1.error = error instanceof Error ? error.message : String(error);
   }
 
-  // Test v2
   try {
     const start = Date.now();
     const result = await getSemrushKeywordsV2Fallback(testDomain);
     diagnostics.results.v2.timeMs = Date.now() - start;
     diagnostics.results.v2.success = (result.keywords?.length || 0) > 0;
     if (result.error) diagnostics.results.v2.error = result.error;
-  } catch (error) {
-    diagnostics.results.v2.error = String(error);
+  } catch (error: unknown) {
+    diagnostics.results.v2.error = error instanceof Error ? error.message : String(error);
   }
 
-  // Test v2 Extended
   try {
     const start = Date.now();
     const result = await getSemrushKeywordsV2Extended(testDomain);
     diagnostics.results.v2Ext.timeMs = Date.now() - start;
     diagnostics.results.v2Ext.success = (result.keywords?.length || 0) > 0;
     if (result.error) diagnostics.results.v2Ext.error = result.error;
-  } catch (error) {
-    diagnostics.results.v2Ext.error = String(error);
+  } catch (error: unknown) {
+    diagnostics.results.v2Ext.error = error instanceof Error ? error.message : String(error);
   }
 
   console.log('[Diagnostics] Results:', JSON.stringify(diagnostics, null, 2));
