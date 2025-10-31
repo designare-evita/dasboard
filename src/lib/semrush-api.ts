@@ -159,10 +159,11 @@ interface ProcessedKeyword {
 
 /**
  * Funktion zum Abrufen von Keywords mit Rankings aus Semrush Position Tracking
- * Verwendet die Semrush Reports API v1 (KORRIGIERT)
- * @param campaignId Die Semrush Campaign/Tracking ID im Format "projectID_campaignID" (z.B. "12920575_1209408")
+ * Verwendet die Semrush Reports API v1
+ * @param campaignId Die Semrush Campaign/Tracking ID im Format "projectID_trackingID" (z.B. "12920575_1209408")
+ * @param domainOrContext Die zu trackende Domain (z.B. "www.aichelin.at") ODER das gesamte Projekt-Kontext-Objekt
  */
-export async function getSemrushKeywords(campaignId: string) {
+export async function getSemrushKeywords(campaignId: string, domainOrContext?: string | any) {
   if (!apiKey) {
     console.error('[Semrush] SEMRUSH_API_KEY is not set in environment variables.');
     return {
@@ -194,22 +195,51 @@ export async function getSemrushKeywords(campaignId: string) {
   const projectId = parts[0];
   const trackingCampaignId = parts[1];
   
-  // ✅ WICHTIG: Der Endpoint verwendet PROJECT ID in der URL, nicht die Tracking ID!
+  // ✅ Domain aus Kontext extrahieren (flexibel)
+  let domain = domainOrContext;
+  
+  // Wenn domainOrContext ein Objekt ist (z.B. User/Project-Kontext), Domain daraus auslesen
+  if (typeof domainOrContext === 'object' && domainOrContext !== null) {
+    domain = domainOrContext.domain || domainOrContext.Domain || domainOrContext.url;
+  }
+  
+  // Fallback auf 'aichelin.at' wenn keine Domain vorhanden
+  if (!domain) {
+    console.warn('[Semrush] No domain provided, using fallback');
+    domain = 'aichelin.at';
+  }
+  
+  // ✅ Domain normalisieren
+  let normalizedDomain = String(domain);
+  // Entferne www. wenn vorhanden
+  if (normalizedDomain.startsWith('www.')) {
+    normalizedDomain = normalizedDomain.substring(4);
+  }
+  // Entferne https://, http:// wenn vorhanden
+  if (normalizedDomain.startsWith('https://')) {
+    normalizedDomain = normalizedDomain.substring(8);
+  } else if (normalizedDomain.startsWith('http://')) {
+    normalizedDomain = normalizedDomain.substring(7);
+  }
+  
+  // Bilde die Semrush URL-Mask: *.domain.com/*
+  const urlMask = `*.${normalizedDomain}/*`;
+  
+  console.log('[Semrush] DEBUG - Project ID:', projectId);
+  console.log('[Semrush] DEBUG - Tracking Campaign ID:', trackingCampaignId);
+  console.log('[Semrush] DEBUG - Domain:', normalizedDomain);
+  console.log('[Semrush] DEBUG - URL Mask:', urlMask);
+  
+  // ✅ WICHTIG: Der Endpoint verwendet PROJECT ID in der URL
   const url = `https://api.semrush.com/reports/v1/projects/${projectId}/tracking/`;
   
-  // 1. Parameter als einfaches JavaScript-Objekt definieren
-  // ⚠️ KRITISCH: url ist ein erforderlicher Parameter! Format: *.domain.com/*
-  const trackedUrl = '*.aichelin.at/*'; // Die Domain die du trackst
-  
+  // 1. Parameter – VEREINFACHT, nur die notwendigen Parameter
   const params = {
     key: apiKey,
     type: 'tracking_position_organic',
     action: 'report',
-    url: trackedUrl, // ✅ ERFORDERLICH! Sonst: "metadata not received"
-    // ✅ WICHTIG: "competitors" als Array übergeben
-    competitors: ['root_domain'], 
-    display_limit: '50',
-    display_sort: 'po_asc'
+    url: urlMask, // ✅ ERFORDERLICH! Die Domain-Mask
+    display_limit: '50'
   };
 
   // 2. Die 'fullUrl'-Logik wird nicht mehr benötigt
@@ -237,7 +267,7 @@ export async function getSemrushKeywords(campaignId: string) {
           }
         }
         const serialized = searchParams.toString();
-        console.log('[Semrush] DEBUG - Serialized URL params:', serialized);
+        console.log('[Semrush] DEBUG - Full Request URL:', `${url}?${serialized}`);
         return serialized;
       }
     });
