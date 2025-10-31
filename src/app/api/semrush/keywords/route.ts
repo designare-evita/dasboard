@@ -1,4 +1,4 @@
-// src/app/api/semrush/keywords/route.ts (KORRIGIERT - Version 5.0 - Explizite Kampagnen)
+// src/app/api/semrush/keywords/route.ts (KORRIGIERT - Version 6.0 - Mit kombinierter Campaign ID)
 import { NextResponse, NextRequest } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -121,6 +121,7 @@ export async function GET(request: NextRequest) {
 
       return await handleTrackingId(
         targetUserId,
+        user.semrush_project_id, // ✅ NEU: Project ID mitgeben
         user.semrush_tracking_id_02,
         'kampagne_2',
         forceRefresh
@@ -142,6 +143,7 @@ export async function GET(request: NextRequest) {
 
     return await handleTrackingId(
       targetUserId,
+      user.semrush_project_id, // ✅ NEU: Project ID mitgeben
       user.semrush_tracking_id,
       'kampagne_1',
       forceRefresh
@@ -159,9 +161,12 @@ export async function GET(request: NextRequest) {
 /**
  * Lädt Keywords für eine spezifische Kampagne
  * Nutzt Cache mit 14-Tage Gültigkeit
+ * 
+ * ✅ NEU: Kombiniert Project ID + Tracking ID zu vollständiger Campaign ID
  */
 async function handleTrackingId(
   userId: string,
+  projectId: string | null, // ✅ NEU: Project ID Parameter
   trackingId: string | null,
   campaign: 'kampagne_1' | 'kampagne_2',
   forceRefresh: boolean
@@ -178,10 +183,25 @@ async function handleTrackingId(
     });
   }
 
+  if (!projectId) {
+    console.error(`[handleTrackingId] ❌ Keine Project-ID für ${campaign}`);
+    return NextResponse.json({
+      keywords: [],
+      lastFetched: null,
+      fromCache: false,
+      error: `Keine Semrush Project-ID konfiguriert`
+    });
+  }
+
   console.log(`[handleTrackingId] ========== ${campaign.toUpperCase()} ==========`);
   console.log('[handleTrackingId] UserId (UUID):', userId);
-  console.log('[handleTrackingId] TrackingId:', trackingId);
+  console.log('[handleTrackingId] Project ID:', projectId);
+  console.log('[handleTrackingId] Tracking ID:', trackingId);
   console.log('[handleTrackingId] Campaign:', campaign);
+
+  // ✅ KRITISCH: Kombiniere Project ID + Tracking ID im Format "projectID_campaignID"
+  const fullCampaignId = `${projectId}_${trackingId}`;
+  console.log('[handleTrackingId] Full Campaign ID:', fullCampaignId);
 
   // Lade Cache
   const { rows: cachedData } = await sql`
@@ -217,9 +237,10 @@ async function handleTrackingId(
 
   // Refresh: Lade von Semrush API
   console.log('[handleTrackingId] 🔄 Fetching from Semrush API...');
-  console.log('[handleTrackingId] API-Parameter: trackingId =', trackingId);
+  console.log('[handleTrackingId] API-Parameter: fullCampaignId =', fullCampaignId);
 
-  const keywordsData = await getSemrushKeywords(trackingId);
+  // ✅ KORRIGIERT: Verwende vollständige Campaign ID
+  const keywordsData = await getSemrushKeywords(fullCampaignId);
 
   if ('error' in keywordsData && keywordsData.keywords.length === 0) {
     console.error('[handleTrackingId] ❌ API-Fehler:', keywordsData.error);
