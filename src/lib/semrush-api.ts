@@ -181,21 +181,27 @@ export async function getSemrushKeywords(campaignId: string) {
 
   console.log('[Semrush] Fetching keywords for campaign ID:', campaignId);
 
-  // ✅ KORRIGIERT: Reports API v1 mit richtigem Endpoint
-  // Die Campaign ID sollte im Format "projectID_campaignID" sein
+  // ✅ KORRIGIERT: Campaign ID splitten in projectId und campaignId
+  const parts = campaignId.split('_');
+  if (parts.length !== 2) {
+    console.error('[Semrush] Campaign ID must be in format "projectId_campaignId"');
+    return {
+      keywords: [],
+      error: 'Invalid campaign ID format'
+    };
+  }
   
-  // Prüfe ob Campaign ID bereits das richtige Format hat (enthält Underscore)
-  const fullCampaignId = campaignId.includes('_') ? campaignId : campaignId;
+  const projectId = parts[0];
+  const trackingCampaignId = parts[1];
   
-  const url = `https://api.semrush.com/reports/v1/projects/${fullCampaignId}/tracking/`;
+  const url = `https://api.semrush.com/reports/v1/projects/${projectId}/tracking`;
   
   // 1. Parameter als einfaches JavaScript-Objekt definieren
   const params = {
     key: apiKey,
+    campaign_id: trackingCampaignId,
     type: 'tracking_position_organic',
-    action: 'report',
-    // ✅ HIER DIE WICHTIGE ÄNDERUNG: 
-    // "competitors" als Array übergeben. axios macht daraus "competitors[]"
+    // ✅ WICHTIG: "competitors" als Array übergeben
     competitors: ['root_domain'], 
     display_limit: '50',
     display_sort: 'po_asc'
@@ -237,7 +243,7 @@ export async function getSemrushKeywords(campaignId: string) {
 
     // Prüfe ob Daten vorhanden sind
     if (!data.data || typeof data.data !== 'object' || Object.keys(data.data).length === 0) {
-      console.warn('[Semrush] No keywords returned for campaign ID:', fullCampaignId);
+      console.warn('[Semrush] No keywords returned for campaign ID:', campaignId);
       return {
         keywords: [],
         error: 'No keywords found'
@@ -389,7 +395,7 @@ export async function getSemrushKeywords(campaignId: string) {
     // Limitiere auf Top 20
     const top20Keywords = keywords.slice(0, 20);
 
-    console.log('[Semrush] ✅ Successfully processed', top20Keywords.length, 'keywords for campaign ID:', fullCampaignId);
+    console.log('[Semrush] ✅ Successfully processed', top20Keywords.length, 'keywords for campaign ID:', campaignId);
 
     return {
       keywords: top20Keywords,
@@ -398,7 +404,7 @@ export async function getSemrushKeywords(campaignId: string) {
 
   } catch (error: unknown) {
     if (axios.isAxiosError(error)) {
-      console.error(`[Semrush] Axios error fetching keywords for campaign ID ${fullCampaignId}:`, error.message);
+      console.error(`[Semrush] Axios error fetching keywords for campaign ID ${campaignId}:`, error.message);
       if (error.response) {
         console.error('[Semrush] Response status:', error.response.status);
         console.error('[Semrush] Response data:', JSON.stringify(error.response.data, null, 2));
