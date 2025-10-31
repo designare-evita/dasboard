@@ -7,9 +7,9 @@ import { User } from '@/types';
 import { getSemrushKeywords } from '@/lib/semrush-api';
 
 interface UserWithSemrush extends User {
-  semrush_project_id?: string | null;
-  semrush_tracking_id?: string | null;
-  semrush_tracking_id_02?: string | null;
+  semrush_project_id: string | null;
+  semrush_tracking_id: string | null;
+  semrush_tracking_id_02: string | null;
 }
 
 /**
@@ -105,6 +105,17 @@ export async function GET(request: NextRequest) {
     console.log('[/api/semrush/keywords] - Tracking ID (Kampagne 1):', user.semrush_tracking_id);
     console.log('[/api/semrush/keywords] - Tracking ID 02 (Kampagne 2):', user.semrush_tracking_id_02);
 
+    // Validierung: Project ID muss vorhanden sein
+    if (!user.semrush_project_id) {
+      console.error('[/api/semrush/keywords] ❌ Keine Semrush Project ID konfiguriert');
+      return NextResponse.json({
+        keywords: [],
+        lastFetched: null,
+        fromCache: false,
+        error: 'Keine Semrush Project ID konfiguriert. Bitte in den Einstellungen hinterlegen.'
+      });
+    }
+
     // ========== KAMPAGNEN-ROUTING ==========
     if (campaign === 'kampagne_2') {
       console.log('[/api/semrush/keywords] 📌 Flow: Kampagne 2');
@@ -166,7 +177,7 @@ export async function GET(request: NextRequest) {
  */
 async function handleTrackingId(
   userId: string,
-  projectId: string | null, // ✅ NEU: Project ID Parameter
+  projectId: string, // Project ID ist jetzt required (validated above)
   trackingId: string | null,
   campaign: 'kampagne_1' | 'kampagne_2',
   forceRefresh: boolean
@@ -180,16 +191,6 @@ async function handleTrackingId(
       lastFetched: null,
       fromCache: false,
       error: `Keine Tracking-ID für ${campaign} konfiguriert`
-    });
-  }
-
-  if (!projectId) {
-    console.error(`[handleTrackingId] ❌ Keine Project-ID für ${campaign}`);
-    return NextResponse.json({
-      keywords: [],
-      lastFetched: null,
-      fromCache: false,
-      error: `Keine Semrush Project-ID konfiguriert`
     });
   }
 
