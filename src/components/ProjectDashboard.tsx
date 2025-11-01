@@ -157,13 +157,6 @@ export default function ProjectDashboard({
         )}
       </div>
       
-      {/* Info-Box (unverändert) */}
-      <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-        <p className="text-sm text-blue-800">
-          💡 <strong>Hinweis:</strong> Die Keyword-Daten werden alle 14 Tage automatisch aktualisiert. 
-          Sie zeigen die Top 20 organischen Keywords mit den besten Rankings aus Ihren Semrush Position Tracking Kampagnen.
-        </p>
-      </div>
     </>
   );
 }
