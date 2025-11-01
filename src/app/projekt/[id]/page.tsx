@@ -1,4 +1,4 @@
-// src/app/projekt/[id]/page.tsx (KORRIGIERT FÜR LINTING, TYPEN & PDF)
+// src/app/projekt/[id]/page.tsx (KORRIGIERT)
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -12,7 +12,6 @@ import {
 import ProjectDashboard from '@/components/ProjectDashboard';
 import { ArrowRepeat, ExclamationTriangleFill } from 'react-bootstrap-icons';
 import { useSession } from 'next-auth/react';
-import { User } from '@/types'; // KORREKTUR: User-Typ importieren
 
 // Fehler-Typ mit status-Property definieren
 interface FetchError extends Error {
@@ -41,65 +40,58 @@ export default function ProjektDetailPage() {
   // 1. SWR-Hook für Google-Daten (kritisch)
   const { 
     data: googleData, 
-    error: googleError, 
-    isLoading: isLoadingGoogle,
-    mutate: _mutateGoogleData // KORREKTUR: 'mutate' in '_mutateGoogleData' umbenannt (wg. Linter)
-  } = useSWR<ProjectDashboardData, FetchError>(
-    projectId ? `/api/data?projectId=${projectId}&dateRange=${dateRange}` : null,
-    fetcher,
-    {
-      revalidateOnFocus: false,
-    }
-  );
-
-  // Kombinierter Ladezustand
-  const isLoading = isLoadingGoogle || sessionStatus === 'loading';
-  const error = googleError;
-
-  // 2. SWR-Hook für Admin-Projektliste (nur für Admins)
-  const { data: adminProjects } = useSWR<User[]>( // KORREKTUR: 'any[]' zu 'User[]'
-    session?.user?.role === 'ADMIN' ? '/api/projects' : null,
+    isLoading: isLoadingGoogle, 
+    error: errorGoogle 
+  } = useSWR<ProjectDashboardData>(
+    projectId ? `/api/data?projectId=${projectId}&dateRange=${dateRange}` : null, 
     fetcher
   );
-  
-  // Effekt, um sicherzustellen, dass Admins auf Projekte zugreifen können
+
+  // 2. SWR-Hook für User/Domain-Daten (inkl. semrush_tracking_id_02)
+  const { 
+    data: userData 
+  } = useSWR<{ 
+    domain?: string; 
+    email?: string;
+    semrush_tracking_id_02?: string | null;
+  }>(
+    projectId ? `/api/users/${projectId}` : null,
+    fetcher
+  );
+
+  // Kombinierter Ladezustand - nur Google-Daten sind kritisch
+  const isLoading = isLoadingGoogle || sessionStatus === 'loading';
+
+  // --- Berechtigungsprüfung (wichtig für Admins) ---
   useEffect(() => {
-    if (sessionStatus === 'authenticated' && session?.user?.role === 'ADMIN' && adminProjects) {
-      // (Logik)
+    if (sessionStatus === 'authenticated' && session?.user && 
+        session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN' &&
+        session.user.id !== projectId) {
+       console.error("Zugriffsversuch auf fremdes Projekt durch Benutzer:", session.user.id, "auf Projekt:", projectId);
+       // redirect('/'); // Optional: Redirect implementieren
     }
-  }, [sessionStatus, session, adminProjects, projectId]);
-
-
-  // PDF-Export-Funktion definieren
-  const handlePdfExport = () => {
-    // Ruft den Druckdialog des Browsers auf
-    window.print();
-  };
+  }, [sessionStatus, session, projectId]);
 
 
   // --- Ladezustand ---
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-[calc(100vh-200px)]">
-        <div className="text-center">
-          <ArrowRepeat className="animate-spin text-indigo-600 h-12 w-12 mx-auto" size={40} />
-          <h2 className="text-xl font-bold text-gray-800 mt-4">
-            Dashboard wird geladen...
-          </h2>
-          <p className="text-gray-600">
-            Bitte einen Moment Geduld, die Daten werden aufbereitet.
-          </p>
-        </div>
+      <div className="flex justify-center items-center min-h-[calc(100vh-200px)]">
+        <ArrowRepeat className="animate-spin text-indigo-600" size={40} />
+        <span className="ml-3 text-gray-600">Daten werden geladen...</span>
       </div>
     );
   }
 
   // --- Fehlerzustand ---
+  // Nur Google-Fehler sind kritisch, Semrush-Fehler werden ignoriert
+  const error = errorGoogle as FetchError | undefined;
   if (error) {
+    console.error("Fehler beim Laden der Projektdaten:", error);
     return (
-      <div className="flex items-center justify-center h-[calc(100vh-200px)]">
-        <div className="text-center p-6 bg-white rounded-lg shadow-md border border-red-200">
-          <ExclamationTriangleFill className="text-red-500 h-12 w-12 mx-auto" size={40} />
+      <div className="flex justify-center items-center min-h-[calc(100vh-200px)] p-8">
+        <div className="bg-white p-8 rounded-lg shadow-md max-w-lg text-center border border-red-200">
+           <ExclamationTriangleFill className="text-red-500 mx-auto mb-4" size={40} />
           <h2 className="text-xl font-bold text-gray-800 mb-2">Fehler beim Laden</h2>
           <p className="text-gray-600">
              {error.status === 404 
@@ -137,12 +129,8 @@ export default function ProjektDetailPage() {
         showNoDataHint={showNoDataHint}
         noDataHintText="Hinweis: Für dieses Projekt wurden noch keine KPI-/Zeitreihen-Daten von Google geliefert. Es werden vorübergehend Platzhalter-Werte angezeigt."
         projectId={projectId}
-        domain={googleData?.kpis?.domain}
-        
-        // KORREKTUR: snake_case verwenden
-        semrushTrackingId02={googleData?.kpis?.semrush_tracking_id_02} 
-        
-        onPdfExport={handlePdfExport} 
+        domain={userData?.domain}
+        semrushTrackingId02={userData?.semrush_tracking_id_02}
       />
     </div>
   );
