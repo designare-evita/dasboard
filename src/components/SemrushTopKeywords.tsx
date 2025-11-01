@@ -32,9 +32,13 @@ export default function SemrushTopKeywords({ projectId }: SemrushTopKeywordsProp
     const date = new Date(dateString);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    if (diffDays === 0) return diffHours === 0 ? 'Gerade eben' : `Heute (vor ${diffHours}h)`;
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    
+    if (diffMinutes < 5) return 'Gerade eben';
+    if (diffHours === 0) return `vor ${diffMinutes} Minuten`;
+    if (diffDays === 0) return `Heute (vor ${diffHours}h)`;
     if (diffDays === 1) return 'Gestern';
     if (diffDays < 14) return `vor ${diffDays} Tagen`;
     return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
