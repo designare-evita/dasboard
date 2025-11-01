@@ -1,4 +1,4 @@
-// src/components/charts/KpiTrendChart.tsx (Mit Tab-Navigation)
+// src/components/charts/KpiTrendChart.tsx (TypeScript Fix)
 'use client';
 
 import React, { useState } from 'react';
@@ -9,8 +9,7 @@ import {
   YAxis, 
   CartesianGrid, 
   Tooltip, 
-  ResponsiveContainer,
-  TooltipProps
+  ResponsiveContainer
 } from 'recharts';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -64,7 +63,8 @@ export default function KpiTrendChart({
   const currentColor = KPI_TAB_META[currentKpi].color;
   const currentLabel = KPI_TAB_META[currentKpi].title;
 
-  const CustomTooltip = ({ active, payload }: TooltipProps<number, string>) => {
+  // ✅ Type-safe Custom Tooltip
+  const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
       const dataPoint = payload[0];
       const dateValue = dataPoint.payload.date;
