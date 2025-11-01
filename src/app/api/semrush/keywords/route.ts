@@ -1,4 +1,4 @@
-// src/app/api/semrush/keywords/route.ts (FINALE VERSION MIT KORREKTER RECHTEPRÜFUNG)
+// src/app/api/semrush/keywords/route.ts (DEBUG VERSION - Findet Cache-Problem)
 import { NextResponse, NextRequest } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -9,8 +9,8 @@ interface UserRow {
   id: string;
   domain: string | null;
   semrush_project_id: string | null;
-  semrush_tracking_id: string | null; // Für Kampagne 1
-  semrush_tracking_id_02: string | null; // Für Kampagne 2
+  semrush_tracking_id: string | null;
+  semrush_tracking_id_02: string | null;
 }
 
 interface CacheRow {
@@ -19,6 +19,10 @@ interface CacheRow {
 }
 
 export async function GET(request: NextRequest) {
+  const debugLog = (msg: string, data?: any) => {
+    console.log(`[API Keywords Debug] ${msg}`, data ? JSON.stringify(data, null, 2) : '');
+  };
+
   try {
     const session = await getServerSession(authOptions);
 
@@ -34,21 +38,17 @@ export async function GET(request: NextRequest) {
     const projectIdParam = searchParams.get('projectId');
     let targetUserId: string;
 
-    // --- KORRIGIERTE LOGIK FÜR ADMIN/KUNDE ---
     if (projectIdParam && (role === 'ADMIN' || role === 'SUPERADMIN')) {
-      // FALL 1: Admin greift auf ein bestimmtes Projekt zu.
-      // Wir vertrauen dem Admin und nutzen die ID aus dem URL-Parameter.
       targetUserId = projectIdParam;
-      console.log(`[API] Admin ${adminOrUserId} greift auf Daten von User ${targetUserId} zu (Kampagne: ${campaign})`);
+      debugLog(`Admin ${adminOrUserId} accessing user ${targetUserId}`);
     } else {
-      // FALL 2: Kunde (BENUTZER) greift auf seine EIGENEN Daten zu.
-      // Wir ignorieren den projectIdParam (falls vorhanden) und nutzen die ID aus der Session.
       targetUserId = adminOrUserId;
-      console.log(`[API] User ${targetUserId} greift auf eigene Daten zu (Kampagne: ${campaign})`);
+      debugLog(`User ${targetUserId} accessing own data`);
     }
-    // --- ENDE KORRIGIERTE LOGIK ---
 
-    // User daten laden (erweitert, um semrush_tracking_id_02)
+    debugLog('Request params', { campaign, forceRefresh, targetUserId });
+
+    // User daten laden
     const { rows } = await sql<UserRow>`
       SELECT 
         id,
@@ -70,64 +70,117 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ keywords: [], error: 'Domain not configured' });
     }
     
-    // --- LOGIK ZUR KAMPAGNEN-AUSWAHL (BLEIBT GLEICH) ---
-    
     const projectId = userData.semrush_project_id;
     let trackingId: string | null = null;
     
     if (campaign === 'kampagne_2') {
-      console.log('[API] Kampagne 2 ausgewählt.');
       trackingId = userData.semrush_tracking_id_02;
     } else {
-      console.log('[API] Kampagne 1 (Standard) ausgewählt.');
       trackingId = userData.semrush_tracking_id;
     }
 
     if (!projectId || !trackingId) {
-      const errorMsg = `Semrush Konfiguration für ${campaign} unvollständig. (ProjectID: ${projectId || 'fehlt'}, TrackingID: ${trackingId || 'fehlt'})`;
-      console.error(`[API] ${errorMsg} für User: ${targetUserId}`);
+      const errorMsg = `Semrush config incomplete for ${campaign}`;
+      debugLog(errorMsg, { projectId, trackingId });
       return NextResponse.json({
         keywords: [],
         error: errorMsg,
-        keywordsCount: 0 // Wichtig für Frontend
+        keywordsCount: 0
       }, { status: 400 });
     }
     
     const campaignId = `${projectId}_${trackingId}`;
     const domain = userData.domain;
 
-    console.log('[API] Domain:', domain);
-    console.log(`[API] Rufe API ab mit Campaign ID: ${campaignId}`);
+    debugLog('Semrush config', { domain, campaignId, campaign });
     
-    // --- ENDE KAMPAGNEN-LOGIK ---
-
-
-    // Cache check
-    const { rows: cachedData } = await sql<CacheRow>`
-      SELECT keywords_data, last_fetched 
-      FROM semrush_keywords_cache 
-      WHERE user_id = ${targetUserId} AND campaign = ${campaign}
-    `;
-
-    if (!forceRefresh && cachedData && cachedData.length > 0) {
-      const lastFetched = new Date(cachedData[0].last_fetched);
-      const now = new Date();
-      const ageMs = now.getTime() - lastFetched.getTime();
-      const ageDays = ageMs / (1000 * 60 * 60 * 24);
-
-      if (ageDays < 14) {
-        console.log('[API] Using cache (age:', Math.floor(ageDays), 'days)');
-        return NextResponse.json({
-          keywords: cachedData[0].keywords_data || [],
+    // ============================================
+    // 🔍 KRITISCHER PUNKT: Cache Check
+    // ============================================
+    
+    debugLog('🔍 Checking cache...', { targetUserId, campaign });
+    
+    let cachedData: CacheRow[] = [];
+    try {
+      const cacheResult = await sql<CacheRow>`
+        SELECT keywords_data, last_fetched 
+        FROM semrush_keywords_cache 
+        WHERE user_id::text = ${targetUserId} AND campaign = ${campaign}
+      `;
+      cachedData = cacheResult.rows;
+      
+      debugLog('📦 Cache query executed', {
+        rowsFound: cachedData.length,
+        hasData: cachedData.length > 0,
+        firstRow: cachedData[0] ? {
           lastFetched: cachedData[0].last_fetched,
-          fromCache: true,
-          keywordsCount: Array.isArray(cachedData[0].keywords_data) ? cachedData[0].keywords_data.length : 0
-        });
-      }
+          dataType: typeof cachedData[0].keywords_data,
+          isArray: Array.isArray(cachedData[0].keywords_data),
+          itemCount: Array.isArray(cachedData[0].keywords_data) 
+            ? cachedData[0].keywords_data.length 
+            : 'N/A'
+        } : null
+      });
+    } catch (cacheError) {
+      debugLog('❌ Cache query error', {
+        error: cacheError instanceof Error ? cacheError.message : String(cacheError),
+        stack: cacheError instanceof Error ? cacheError.stack : undefined
+      });
+      // Weiter ohne Cache
     }
 
-    // Rufe den robusten Fallback-Handler auf
-    console.log('[API] Fetching from API (v1 with fallback)...');
+    if (!forceRefresh && cachedData && cachedData.length > 0) {
+      const cachedLastFetched = cachedData[0].last_fetched;
+      const lastFetchedDate = new Date(cachedLastFetched);
+      const now = new Date();
+      const ageMs = now.getTime() - lastFetchedDate.getTime();
+      const ageDays = ageMs / (1000 * 60 * 60 * 24);
+      const ageHours = ageMs / (1000 * 60 * 60);
+
+      debugLog('⏰ Cache age check', {
+        cachedLastFetched,
+        now: now.toISOString(),
+        ageMs,
+        ageHours: ageHours.toFixed(2),
+        ageDays: ageDays.toFixed(2),
+        isValid: ageDays < 14,
+        willUseCache: ageDays < 14
+      });
+
+      if (ageDays < 14) {
+        debugLog('✅ USING CACHE', {
+          age: `${Math.floor(ageDays)} days, ${Math.floor(ageHours)} hours`,
+          timestamp: cachedLastFetched
+        });
+        
+        return NextResponse.json({
+          keywords: cachedData[0].keywords_data || [],
+          lastFetched: cachedLastFetched,
+          fromCache: true,
+          keywordsCount: Array.isArray(cachedData[0].keywords_data) 
+            ? cachedData[0].keywords_data.length 
+            : 0
+        });
+      } else {
+        debugLog('⏰ Cache expired', { ageDays: ageDays.toFixed(2) });
+      }
+    } else {
+      debugLog('ℹ️ Cache not available', {
+        forceRefresh,
+        hasCachedData: cachedData && cachedData.length > 0,
+        reason: forceRefresh 
+          ? 'Force refresh requested' 
+          : cachedData.length === 0 
+            ? 'No cache entries found' 
+            : 'Unknown'
+      });
+    }
+
+    // ============================================
+    // 🔄 FETCHING FROM API
+    // ============================================
+    
+    debugLog('🔄 Fetching from Semrush API...');
     const result = await getSemrushKeywordsWithFallback({
       campaignId: campaignId,
       domain: domain,
@@ -135,7 +188,7 @@ export async function GET(request: NextRequest) {
     });
 
     if (!result || result.keywords.length === 0) {
-      console.error('[API] Error:', result?.error);
+      debugLog('❌ API fetch failed', { error: result?.error });
       return NextResponse.json({
         keywords: [],
         error: result?.error || 'Failed to fetch keywords',
@@ -143,23 +196,58 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Save to cache
+    debugLog('✅ API fetch successful', { 
+      keywordCount: result.keywords.length 
+    });
+
+    // ============================================
+    // 💾 SAVING TO CACHE
+    // ============================================
+    
     const now = new Date().toISOString();
     try {
+      debugLog('💾 Saving to cache...', { 
+        targetUserId, 
+        campaign, 
+        keywordCount: result.keywords.length,
+        timestamp: now 
+      });
+
       await sql`
         INSERT INTO semrush_keywords_cache (user_id, campaign, keywords_data, last_fetched)
-        VALUES (${targetUserId}, ${campaign}, ${JSON.stringify(result.keywords)}::jsonb, ${now})
+        VALUES (
+          ${targetUserId}::uuid, 
+          ${campaign}, 
+          ${JSON.stringify(result.keywords)}::jsonb, 
+          ${now}
+        )
         ON CONFLICT (user_id, campaign)
         DO UPDATE SET 
           keywords_data = ${JSON.stringify(result.keywords)}::jsonb,
           last_fetched = ${now}
       `;
-      console.log('[API] Cache saved for', campaign);
+      
+      debugLog('✅ Cache saved successfully');
+      
+      // Verify cache was saved
+      const verifyResult = await sql`
+        SELECT last_fetched 
+        FROM semrush_keywords_cache 
+        WHERE user_id::text = ${targetUserId} AND campaign = ${campaign}
+      `;
+      
+      debugLog('🔍 Cache verification', {
+        saved: verifyResult.rows.length > 0,
+        timestamp: verifyResult.rows[0]?.last_fetched
+      });
+      
     } catch (error) {
-      console.error('[API] Cache error:', error);
+      debugLog('❌ Cache save error', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
     }
 
-    // Sende die erfolgreiche Antwort zurück
     return NextResponse.json({
       keywords: result.keywords,
       lastFetched: now,
@@ -168,7 +256,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('[API] Error:', error);
+    console.error('[API Keywords] ❌ Unexpected error:', error);
     return NextResponse.json({ 
       keywords: [],
       error: error instanceof Error ? error.message : 'Unknown error',
