@@ -23,8 +23,6 @@ interface ChartDataPoint {
 
 interface KpiTrendChartProps {
   data: ChartDataPoint[];
-  color?: string;
-  label?: string;
   activeKpi?: ActiveKpi;
   onKpiChange?: (kpi: ActiveKpi) => void;
   allChartData?: {
@@ -39,8 +37,6 @@ const KPI_TABS: ActiveKpi[] = ['clicks', 'impressions', 'sessions', 'totalUsers'
 
 export default function KpiTrendChart({ 
   data, 
-  color = '#3b82f6',
-  label = 'Wert',
   activeKpi = 'clicks',
   onKpiChange,
   allChartData
@@ -64,7 +60,18 @@ export default function KpiTrendChart({
   const currentLabel = KPI_TAB_META[currentKpi].title;
 
   // ✅ Type-safe Custom Tooltip
-  const CustomTooltip = ({ active, payload }: any) => {
+  interface CustomTooltipProps {
+    active?: boolean;
+    payload?: Array<{
+      value: number;
+      payload: {
+        date: string;
+        value: number;
+      };
+    }>;
+  }
+
+  const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
     if (active && payload && payload.length) {
       const dataPoint = payload[0];
       const dateValue = dataPoint.payload.date;
@@ -75,7 +82,7 @@ export default function KpiTrendChart({
         if (!isNaN(parsedDate.getTime())) {
           formattedDate = format(parsedDate, 'dd. MMM yyyy', { locale: de });
         }
-      } catch (e) {
+      } catch {
         // Fallback auf Original-String
       }
 
