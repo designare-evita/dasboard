@@ -132,10 +132,7 @@ export default function KpiTrendChart({
                 style={isActive ? { borderColor: meta.color, color: meta.color } : {}}
                 aria-current={isActive ? 'page' : undefined}
               >
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">{meta.icon}</span>
-                  <span>{meta.title}</span>
-                </div>
+                {meta.title}
               </button>
             );
           })}
