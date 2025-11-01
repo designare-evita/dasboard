@@ -1,7 +1,7 @@
 // src/components/SemrushTopKeywords02.tsx (Version 8 - Excel-Design)
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ArrowUp, ArrowDown, Search, FunnelFill } from 'react-bootstrap-icons';
 import { cn } from '@/lib/utils';
 
@@ -51,7 +51,7 @@ export default function SemrushTopKeywords02({ projectId }: SemrushTopKeywords02
   };
 
   // Sortierte Keywords
-  const sortedKeywords = React.useMemo(() => {
+  const sortedKeywords = useMemo(() => {
     if (!sortField) return keywords;
     
     return [...keywords].sort((a, b) => {
