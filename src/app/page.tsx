@@ -1,4 +1,4 @@
-// src/app/page.tsx (FINAL FIX)
+// src/app/page.tsx (MIT PDF-EXPORT)
 'use client';
 
 import { useSession } from 'next-auth/react';
@@ -89,6 +89,13 @@ export default function HomePage() {
     setDateRange(range);
   };
 
+  // PDF-Export Handler
+  const handlePdfExport = () => {
+    if (typeof window !== 'undefined') {
+      window.print();
+    }
+  };
+
   if (status === 'loading' || (isLoading && !dashboardData && !error)) {
     return (
       <div className="flex justify-center items-center min-h-screen bg-gray-50">
@@ -125,6 +132,7 @@ export default function HomePage() {
         isLoading={isLoading}
         dateRange={dateRange}
         onDateRangeChange={handleDateRangeChange}
+        onPdfExport={handlePdfExport}
         domain={userDomain}
         userId={session.user.id}
       />
@@ -180,6 +188,7 @@ function CustomerDashboard({
   isLoading,
   dateRange,
   onDateRangeChange,
+  onPdfExport,
   domain,
   userId
 }: {
@@ -187,6 +196,7 @@ function CustomerDashboard({
   isLoading: boolean;
   dateRange: DateRangeOption;
   onDateRangeChange: (range: DateRangeOption) => void;
+  onPdfExport: () => void;
   domain?: string;
   userId?: string;
 }) {
@@ -210,6 +220,7 @@ function CustomerDashboard({
           isLoading={isLoading}
           dateRange={dateRange}
           onDateRangeChange={onDateRangeChange}
+          onPdfExport={onPdfExport}
           showNoDataHint={showNoDataHint}
           noDataHintText="Hinweis: Für Ihr Projekt wurden noch keine KPI-Daten geliefert. Es werden vorübergehend Platzhalter-Werte angezeigt."
           projectId={userId}
