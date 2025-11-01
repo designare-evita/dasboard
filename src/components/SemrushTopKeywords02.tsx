@@ -108,7 +108,7 @@ export default function SemrushTopKeywords02({ projectId }: SemrushTopKeywords02
       <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
         <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
           <Search size={20} className="text-orange-600" />
-          Top 20 Keywords (Kampagne 2)
+          Top 20 Keywords - USA
         </h2>
         <div className="animate-pulse space-y-3">
           {[...Array(5)].map((_, i) => (
