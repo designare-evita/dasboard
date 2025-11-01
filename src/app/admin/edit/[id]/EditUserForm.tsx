@@ -195,11 +195,26 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
           />
         </div>
 
+        {/* ========== Passwort (Optional) - DIREKT NACH E-MAIL ========== */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700">
+            Passwort (Optional - leer lassen um nicht zu ändern)
+          </label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Nur ausfüllen wenn Passwort geändert werden soll"
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
+            disabled={isSubmitting}
+          />
+        </div>
+
         {/* ========== Kunden-spezifische Felder (nur für BENUTZER) ========== */}
         {user.role === 'BENUTZER' && (
           <>
             {/* Domain */}
-            <div>
+            <div className="border-t pt-4 mt-4">
               <label className="block text-sm font-medium text-gray-700">Domain</label>
               <input
                 type="text"
@@ -213,7 +228,12 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
 
             {/* GSC Site URL */}
             <div>
-              <label className="block text-sm font-medium text-gray-700">GSC Site URL</label>
+              <label className="block text-sm font-medium text-gray-700">
+                GSC Site URL
+                {formData.gscSiteUrl && (
+                  <span className="ml-2 text-xs text-green-600">✓ Gesetzt</span>
+                )}
+              </label>
               <input
                 type="text"
                 value={formData.gscSiteUrl}
@@ -222,11 +242,19 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
                 disabled={isSubmitting}
               />
+              {formData.gscSiteUrl && (
+                <p className="mt-1 text-xs text-gray-500">Aktueller Wert: {formData.gscSiteUrl}</p>
+              )}
             </div>
 
             {/* GA4 Property ID */}
             <div>
-              <label className="block text-sm font-medium text-gray-700">GA4 Property ID</label>
+              <label className="block text-sm font-medium text-gray-700">
+                GA4 Property ID
+                {formData.ga4PropertyId && (
+                  <span className="ml-2 text-xs text-green-600">✓ Gesetzt</span>
+                )}
+              </label>
               <input
                 type="text"
                 value={formData.ga4PropertyId}
@@ -235,11 +263,12 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
                 disabled={isSubmitting}
               />
+              {formData.ga4PropertyId && (
+                <p className="mt-1 text-xs text-gray-500">Aktueller Wert: {formData.ga4PropertyId}</p>
+              )}
             </div>
 
             {/* ========== SEMRUSH SECTION ========== */}
-            <fieldset className="border-t pt-4 mt-4">
-              <legend className="text-sm font-bold text-gray-900 mb-3">📊 Semrush Einstellungen</legend>
 
               {/* Semrush Projekt ID */}
               <div>
@@ -307,21 +336,6 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
             </fieldset>
           </>
         )}
-
-        {/* ========== Passwort (Optional) ========== */}
-        <div className="border-t pt-4 mt-4">
-          <label className="block text-sm font-medium text-gray-700">
-            Passwort (Optional - leer lassen um nicht zu ändern)
-          </label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Nur ausfüllen wenn Passwort geändert werden soll"
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
-            disabled={isSubmitting}
-          />
-        </div>
 
         {/* ========== Button & Messages ========== */}
         <button
