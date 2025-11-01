@@ -1,4 +1,4 @@
-// src/app/page.tsx (FINAL FIX - KORRIGIERT)
+// src/app/page.tsx (FINAL FIX - KORRIGIERT FÜR BUILD)
 'use client';
 
 import { useSession } from 'next-auth/react';
@@ -35,7 +35,6 @@ export default function HomePage() {
     setIsLoading(true);
     setError(null);
     try {
-      // Nur Google-Daten laden - Semrush lädt jede Komponente selbst
       const googleResponse = await fetch(`/api/data?dateRange=${range}`);
       
       if (!googleResponse.ok) {
@@ -49,17 +48,17 @@ export default function HomePage() {
     } catch (err) {
       console.error('Fehler in fetchData:', err);
       setError(err instanceof Error ? err.message : 'Ein unbekannter Fehler ist aufgetreten.');
-      setDashboardData(null); // Bei Fehler Daten zurücksetzen
+      setDashboardData(null);
     } finally {
       setIsLoading(false);
     }
-  }, [dateRange]); // Abhängigkeit von dateRange
+  }, [dateRange]);
 
   const fetchAdminProjects = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/projects'); // API-Endpunkt für Admins
+      const response = await fetch('/api/projects');
       if (!response.ok) {
         throw new Error('Fehler beim Laden der Projekte');
       }
@@ -75,7 +74,7 @@ export default function HomePage() {
 
   useEffect(() => {
     if (status === 'loading') {
-      return; // Warten, bis die Session geladen ist
+      return; 
     }
     if (status === 'unauthenticated') {
       router.push('/login');
@@ -93,7 +92,6 @@ export default function HomePage() {
 
   const handleDateRangeChange = (range: DateRangeOption) => {
     setDateRange(range);
-    // Nur bei "BENUTZER" neu laden, Admins sehen nur eine Liste
     if (session?.user?.role === 'BENUTZER') {
       fetchData(range);
     }
@@ -165,9 +163,6 @@ function AdminProjectList({ projects, isLoading }: { projects: User[], isLoading
       <div className="max-w-4xl mx-auto">
         <h1 className="text-3xl font-bold text-gray-900 mb-6">Projektübersicht</h1>
         
-        {/* Platzhalter für Filter/Suche */}
-        {/* <div className="mb-4">...</div> */}
-
         {isLoading ? (
           <p>Projekte werden geladen...</p>
         ) : (
@@ -250,7 +245,7 @@ function CustomerDashboard({
           projectId={userId}
           domain={user?.domain || domain}
           
-          // KORREKTUR: Snake_case verwenden
+          // KORREKTUR 1: snake_case verwenden
           semrushTrackingId02={user?.semrush_tracking_id_02} 
           
           onPdfExport={handlePdfExport}
@@ -258,7 +253,8 @@ function CustomerDashboard({
         
         {/* Landingpage Approval (wird beim Drucken ausgeblendet) */}
         <div className="mt-6 print:hidden">
-          <LandingpageApproval projectId={userId} />
+          {/* KORREKTUR 2: 'projectId' Prop entfernt */}
+          <LandingpageApproval />
         </div>
       </main>
     </div>
