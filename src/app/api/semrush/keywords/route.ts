@@ -1,12 +1,17 @@
-// src/app/api/semrush/keywords/route.ts
+// src/app/api/semrush/keywords/route.ts (KORRIGIERTE VERSION)
 import { NextResponse, NextRequest } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { sql } from '@vercel/postgres';
-import { getSemrushKeywordsV2Only } from '@/lib/semrush-api-v2-only';
+// GESTRICHEN: import { getSemrushKeywordsV2Only } from '@/lib/semrush-api-v2-only';
+// NEU: Importieren Sie den korrekten Handler
+import { getSemrushKeywordsWithFallback } from '@/lib/semrush-api-handler';
 
 interface UserRow {
   domain: string | null;
+  // NEU: Diese Felder werden jetzt benötigt
+  semrush_project_id: string | null;
+  semrush_tracking_id: string | null;
 }
 
 interface CacheRow {
@@ -29,9 +34,15 @@ export async function GET(request: NextRequest) {
 
     console.log('[API] Getting keywords for:', campaign);
 
-    // User daten laden
+    // User daten laden (erweitert)
+    // NEU: semrush_project_id und semrush_tracking_id ebenfalls abfragen
     const { rows } = await sql<UserRow>`
-      SELECT domain FROM users WHERE id::text = ${id}
+      SELECT 
+        domain, 
+        semrush_project_id, 
+        semrush_tracking_id 
+      FROM users 
+      WHERE id::text = ${id}
     `;
 
     if (!rows || rows.length === 0) {
@@ -41,25 +52,39 @@ export async function GET(request: NextRequest) {
       }, { status: 404 });
     }
 
-    const domain = rows[0].domain;
+    const userData = rows[0];
 
-    if (!domain) {
+    if (!userData.domain) {
       return NextResponse.json({ 
         keywords: [],
         error: 'Domain not configured'
       });
     }
+    
+    // NEU: Prüfen, ob die Konfiguration für die v1 API vorhanden ist
+    if (!userData.semrush_project_id || !userData.semrush_tracking_id) {
+      console.error('[API] Semrush Project ID or Tracking ID not configured for user:', id);
+      return NextResponse.json({
+        keywords: [],
+        error: 'Semrush Project ID or Tracking ID not configured'
+      }, { status: 400 });
+    }
+    
+    // NEU: Die korrekte campaignId für die v1 API zusammenbauen
+    const campaignId = `${userData.semrush_project_id}_${userData.semrush_tracking_id}`;
+    const domain = userData.domain;
 
     console.log('[API] Domain:', domain);
+    console.log('[API] Campaign ID (für v1 API):', campaignId);
 
-    // Cache check
+
+    // Cache check (bleibt gleich)
     const { rows: cachedData } = await sql<CacheRow>`
       SELECT keywords_data, last_fetched 
       FROM semrush_keywords_cache 
       WHERE user_id = ${id} AND campaign = ${campaign}
     `;
 
-    // Check if cache valid (14 days)
     if (!forceRefresh && cachedData && cachedData.length > 0) {
       const lastFetched = new Date(cachedData[0].last_fetched);
       const now = new Date();
@@ -76,9 +101,13 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Fetch from v2 API
-    console.log('[API] Fetching from v2 API...');
-    const result = await getSemrushKeywordsV2Only(domain, 'de');
+    // NEU: Rufe den robusten Fallback-Handler auf
+    console.log('[API] Fetching from API (v1 with fallback)...');
+    const result = await getSemrushKeywordsWithFallback({
+      campaignId: campaignId,
+      domain: domain,
+      userId: id
+    });
 
     if (!result || result.keywords.length === 0) {
       console.error('[API] Error:', result?.error);
@@ -88,7 +117,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Save to cache
+    // Save to cache (bleibt gleich)
     const now = new Date().toISOString();
     try {
       await sql`
