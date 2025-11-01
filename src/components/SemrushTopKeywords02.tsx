@@ -129,7 +129,7 @@ export default function SemrushTopKeywords02({ projectId }: SemrushTopKeywords02
       <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
         <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
           <Search size={20} className="text-orange-600" />
-          Top 20 Keywords (Kampagne 2)
+          Top 20 Keywords - USA
         </h3>
         <p className="text-sm text-gray-500 italic">
           {error || defaultError}
@@ -152,7 +152,7 @@ export default function SemrushTopKeywords02({ projectId }: SemrushTopKeywords02
       <div className="flex justify-between items-start mb-4">
         <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
           <Search size={20} className="text-orange-600" />
-          Top 20 Keywords (Kampagne 2)
+          Top 20 Keywords - USA
         </h3>
         {lastFetched && (
           <div className="text-xs text-gray-500 flex flex-col items-end gap-1">
@@ -246,8 +246,7 @@ export default function SemrushTopKeywords02({ projectId }: SemrushTopKeywords02
       
       <div className="mt-4 pt-4 border-t border-gray-100">
         <p className="text-xs text-gray-500">
-          💡 Zeigt die Top 20 Keywords mit den besten Rankings aus Kampagne 2. 
-          Daten werden alle 14 Tage aktualisiert.
+          💡 Zeigt die Top 20 Keywords mit den besten Rankings. Daten werden alle 14 Tage aktualisiert.
         </p>
       </div>
     </div>
