@@ -1,4 +1,4 @@
-// src/components/ProjectDashboard.tsx (Version 29 - Semrush nur bei Konfiguration anzeigen)
+// src/components/ProjectDashboard.tsx (Version 31 - Mit KPI Selector)
 'use client';
 
 import { useState } from 'react';
@@ -44,17 +44,15 @@ export default function ProjectDashboard({
   onPdfExport
 }: ProjectDashboardProps) {
   
+  // ✅ State für aktiven KPI
   const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
   
   const { data: session } = useSession();
   const userRole = session?.user?.role;
 
   const normalizedKpis = normalizeFlatKpis(data.kpis);
-  const chartData = data.charts?.[activeKpi] ?? [];
 
   // Prüfen ob überhaupt Semrush-Daten vorhanden sind
-  // Für Admins: Immer anzeigen (können alle Projekte konfigurieren)
-  // Für Nutzer: Nur anzeigen, wenn mindestens eine Kampagne konfiguriert ist
   const hasSemrushConfig = userRole === 'ADMIN' || userRole === 'SUPERADMIN' || !!semrushTrackingId02;
 
   return (
@@ -68,7 +66,7 @@ export default function ProjectDashboard({
         })}
       />
 
-      {/* Außenabstand */}
+      {/* KPI Cards */}
       <div className="mt-6">
         <KpiCardsGrid
           kpis={normalizedKpis}
@@ -76,19 +74,20 @@ export default function ProjectDashboard({
         />
       </div>
 
-      {/* KPI-Trendchart */}
+      {/* KPI-Trendchart mit Tab-Navigation */}
       <div className="mt-6">
         <KpiTrendChart 
-          data={chartData}
+          activeKpi={activeKpi}
+          onKpiChange={setActiveKpi}
+          allChartData={data.charts}
+          data={data.charts?.[activeKpi] ?? []}
           color={KPI_TAB_META[activeKpi].color}
           label={KPI_TAB_META[activeKpi].title}
         />
       </div>
 
-      {/* Reihenfolge und Höhe */}
+      {/* AI Traffic & Top Queries */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mt-6">
-        
-        {/* SPALTE 1 AiTrafficCard */}
         <div className="xl:col-span-1">
           <AiTrafficCard 
             totalSessions={data.aiTraffic?.totalSessions ?? 0}
@@ -98,7 +97,6 @@ export default function ProjectDashboard({
           />
         </div>
         
-        {/* SPALTE 2  TopQueriesList */}
         <div className="xl:col-span-2">
           <TopQueriesList 
             queries={data.topQueries ?? []} 
@@ -108,29 +106,18 @@ export default function ProjectDashboard({
         </div>
       </div>
 
-      {/* ---------------------------------------------------------------------- */}
-      {/* SEMRUSH KEYWORDS (KAMPAGNE 1 & 2) */}
-      {/* Nur anzeigen, wenn Semrush-Konfiguration vorhanden ist */}
-      {/* ---------------------------------------------------------------------- */}
+      {/* Semrush Keywords */}
       {hasSemrushConfig && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-          
-          {/* Kampagne 1: Standard Tracking ID */}
           <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-gray-200">
-            <SemrushTopKeywords 
-              projectId={projectId} 
-            />
+            <SemrushTopKeywords projectId={projectId} />
           </div>
 
-          {/* Kampagne 2: Explizite Tracking ID */}
           {semrushTrackingId02 ? (
             <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-gray-200">
-              <SemrushTopKeywords02 
-                projectId={projectId}
-              />
+              <SemrushTopKeywords02 projectId={projectId} />
             </div>
           ) : (
-            // Platzhalter nur für Admins anzeigen
             (userRole === 'ADMIN' || userRole === 'SUPERADMIN') && (
               <div className="bg-gray-50 rounded-lg border border-gray-200 border-dashed">
                 <div className="flex flex-col items-center justify-center h-full text-center py-12">
@@ -161,7 +148,6 @@ export default function ProjectDashboard({
           )}
         </div>
       )}
-      
     </>
   );
 }
