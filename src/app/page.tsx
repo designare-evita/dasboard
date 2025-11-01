@@ -1,4 +1,4 @@
-// src/app/page.tsx (FINAL FIX - KORRIGIERT FÜR BUILD)
+// src/app/page.tsx (FINAL KORRIGIERT FÜR BUILD)
 'use client';
 
 import { useSession } from 'next-auth/react';
