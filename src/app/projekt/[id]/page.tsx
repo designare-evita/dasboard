@@ -1,4 +1,4 @@
-// src/app/projekt/[id]/page.tsx (KORRIGIERT MIT PDF-FUNKTION)
+// src/app/projekt/[id]/page.tsx (KORRIGIERT FÜR LINTING & PDF)
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -12,6 +12,7 @@ import {
 import ProjectDashboard from '@/components/ProjectDashboard';
 import { ArrowRepeat, ExclamationTriangleFill } from 'react-bootstrap-icons';
 import { useSession } from 'next-auth/react';
+import { User } from '@/types'; // KORREKTUR: User-Typ importieren
 
 // Fehler-Typ mit status-Property definieren
 interface FetchError extends Error {
@@ -42,14 +43,12 @@ export default function ProjektDetailPage() {
     data: googleData, 
     error: googleError, 
     isLoading: isLoadingGoogle,
-    mutate: mutateGoogleData // Zum Neuladen
+    mutate: _mutateGoogleData // KORREKTUR: 'mutate' in '_mutateGoogleData' umbenannt (wg. Linter)
   } = useSWR<ProjectDashboardData, FetchError>(
     projectId ? `/api/data?projectId=${projectId}&dateRange=${dateRange}` : null,
     fetcher,
     {
-      // Optional: Caching-Verhalten
       revalidateOnFocus: false,
-      // errorRetryCount: 2
     }
   );
 
@@ -58,7 +57,7 @@ export default function ProjektDetailPage() {
   const error = googleError;
 
   // 2. SWR-Hook für Admin-Projektliste (nur für Admins)
-  const { data: adminProjects } = useSWR<any[]>(
+  const { data: adminProjects } = useSWR<User[]>( // KORREKTUR: 'any[]' zu 'User[]'
     session?.user?.role === 'ADMIN' ? '/api/projects' : null,
     fetcher
   );
@@ -66,13 +65,12 @@ export default function ProjektDetailPage() {
   // Effekt, um sicherzustellen, dass Admins auf Projekte zugreifen können
   useEffect(() => {
     if (sessionStatus === 'authenticated' && session?.user?.role === 'ADMIN' && adminProjects) {
-      // Logik, um zu prüfen, ob der Admin dieses Projekt sehen darf
-      // (Aktuell nicht implementiert, aber hier wäre der Ort)
+      // (Logik)
     }
   }, [sessionStatus, session, adminProjects, projectId]);
 
 
-  // NEU: PDF-Export-Funktion definieren
+  // PDF-Export-Funktion definieren
   const handlePdfExport = () => {
     // Ruft den Druckdialog des Browsers auf
     window.print();
@@ -140,7 +138,7 @@ export default function ProjektDetailPage() {
         noDataHintText="Hinweis: Für dieses Projekt wurden noch keine KPI-/Zeitreihen-Daten von Google geliefert. Es werden vorübergehend Platzhalter-Werte angezeigt."
         projectId={projectId}
         domain={googleData?.kpis?.domain}
-        semrushTrackingId02={googleData?.kpis?.semrushTrackingId02}
+        semrushTrackingId02={googleData?.kpis?.semrush_tracking_id_02} // Auch hier auf snake_case achten
         onPdfExport={handlePdfExport} 
       />
     </div>
