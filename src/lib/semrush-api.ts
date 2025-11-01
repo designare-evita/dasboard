@@ -1,4 +1,4 @@
-// src/lib/semrush-api.ts (KORRIGIERTE VERSION MIT TRACKING_ID)
+// src/lib/semrush-api.ts (FINALE KORREKTUR DER URL)
 import axios from 'axios';
 
 const apiKey = process.env.SEMRUSH_API_KEY;
@@ -34,22 +34,16 @@ export async function getSemrushKeywords(
     return { keywords: [], error: 'Semrush API key is not set' };
   }
 
-  if (!campaignId) {
-    console.warn('[Semrush] No campaign ID provided');
-    return { keywords: [], error: 'No campaign ID' };
-  }
-
-  console.log('[Semrush] Fetching keywords for campaign ID:', campaignId);
-
-  // Parse campaign ID
-  const parts = campaignId.split('_');
-  if (parts.length !== 2) {
-    console.error('[Semrush] Invalid campaign ID format, expected project_tracking');
+  if (!campaignId || !campaignId.includes('_')) {
+    console.warn('[Semrush] Invalid campaign ID provided, expected projectID_trackingID');
     return { keywords: [], error: 'Invalid campaign ID format' };
   }
 
-  const projectId = parts[0];
-  const trackingId = parts[1]; // Diese ID WIRD JETZT VERWENDET
+  console.log('[Semrush] Fetching keywords for campaign ID:', campaignId);
+  
+  // HINWEIS: campaignId IST BEREITS "projectID_trackingID"
+  // Wir müssen sie NICHT mehr in parts zerlegen
+
   let domain = domainOrContext;
 
   // (Domain-Extraktion bleibt gleich)
@@ -58,8 +52,8 @@ export async function getSemrushKeywords(
     domain = (obj.domain || obj.Domain || obj.url) as string;
   }
   if (!domain) {
-    console.warn('[Semrush] No domain provided, using fallback');
-    domain = 'aichelin.at'; // Fallback (sollte nicht passieren)
+    console.warn('[Semrush] No domain provided, request will likely fail');
+    domain = 'example.com'; 
   }
 
   // (Domain-Normalisierung bleibt gleich)
@@ -73,9 +67,10 @@ export async function getSemrushKeywords(
     normalizedDomain = normalizedDomain.substring(7);
   }
 
-  const url = `https://api.semrush.com/reports/v1/projects/${projectId}/tracking/`;
+  // KORREKTUR: Die URL MUSS die *gesamte* campaignId enthalten
+  const url = `https://api.semrush.com/reports/v1/projects/${campaignId}/tracking/`;
 
-  // NEU: trackingId wird zu JEDER Strategie hinzugefügt
+  // KORREKTUR: 'tracking_id' wird aus allen Strategien ENTFERNT
   const strategies = [
     {
       name: 'Strategy 1: Mit subdomain wildcard und /',
@@ -83,7 +78,7 @@ export async function getSemrushKeywords(
         key: apiKey,
         type: 'tracking_position_organic',
         action: 'report',
-        tracking_id: trackingId, // HINZUGEFÜGT
+        // tracking_id: trackingId, // ENTFERNT
         url: `*.${normalizedDomain}/*`,
         display_limit: '50'
       }
@@ -94,7 +89,7 @@ export async function getSemrushKeywords(
         key: apiKey,
         type: 'tracking_position_organic',
         action: 'report',
-        tracking_id: trackingId, // HINZUGEFÜGT
+        // tracking_id: trackingId, // ENTFERNT
         url: normalizedDomain,
         display_limit: '50'
       }
@@ -105,7 +100,7 @@ export async function getSemrushKeywords(
         key: apiKey,
         type: 'tracking_position_organic',
         action: 'report',
-        tracking_id: trackingId, // HINZUGEFÜGT
+        // tracking_id: trackingId, // ENTFERNT
         url: `www.${normalizedDomain}`,
         display_limit: '50'
       }
@@ -116,7 +111,7 @@ export async function getSemrushKeywords(
         key: apiKey,
         type: 'tracking_position_organic',
         action: 'report',
-        tracking_id: trackingId, // HINZUGEFÜGT
+        // tracking_id: trackingId, // ENTFERNT
         domain_name: normalizedDomain,
         display_limit: '50'
       }
@@ -127,7 +122,7 @@ export async function getSemrushKeywords(
         key: apiKey,
         type: 'tracking_position_organic',
         action: 'report',
-        tracking_id: trackingId, // HINZUGEFÜGT
+        // tracking_id: trackingId, // ENTFERNT
         url: normalizedDomain,
         report_type: 'organic_keywords',
         display_limit: '50'
@@ -136,8 +131,7 @@ export async function getSemrushKeywords(
   ];
 
   console.log('[Semrush] Testing strategies for domain:', normalizedDomain);
-  console.log('[Semrush] Using Project ID:', projectId);
-  console.log('[Semrush] Using Tracking ID:', trackingId); // Wichtiges Log
+  console.log('[Semrush] Using Correct API URL Endpoint:', url);
 
   let lastError: string | null = null;
 
