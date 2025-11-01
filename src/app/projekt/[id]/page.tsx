@@ -1,4 +1,4 @@
-// src/app/projekt/[id]/page.tsx (KORRIGIERT FÜR LINTING & PDF)
+// src/app/projekt/[id]/page.tsx (KORRIGIERT FÜR LINTING, TYPEN & PDF)
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -138,7 +138,10 @@ export default function ProjektDetailPage() {
         noDataHintText="Hinweis: Für dieses Projekt wurden noch keine KPI-/Zeitreihen-Daten von Google geliefert. Es werden vorübergehend Platzhalter-Werte angezeigt."
         projectId={projectId}
         domain={googleData?.kpis?.domain}
-        semrushTrackingId02={googleData?.kpis?.semrush_tracking_id_02} // Auch hier auf snake_case achten
+        
+        // KORREKTUR: snake_case verwenden
+        semrushTrackingId02={googleData?.kpis?.semrush_tracking_id_02} 
+        
         onPdfExport={handlePdfExport} 
       />
     </div>
