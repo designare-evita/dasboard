@@ -1,4 +1,4 @@
-// src/app/projekt/[id]/page.tsx (KORRIGIERT)
+// src/app/projekt/[id]/page.tsx (MIT PDF-EXPORT)
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -61,6 +61,13 @@ export default function ProjektDetailPage() {
 
   // Kombinierter Ladezustand - nur Google-Daten sind kritisch
   const isLoading = isLoadingGoogle || sessionStatus === 'loading';
+
+  // --- PDF-Export Handler ---
+  const handlePdfExport = () => {
+    if (typeof window !== 'undefined') {
+      window.print();
+    }
+  };
 
   // --- Berechtigungsprüfung (wichtig für Admins) ---
   useEffect(() => {
@@ -126,6 +133,7 @@ export default function ProjektDetailPage() {
         isLoading={isLoading} 
         dateRange={dateRange}
         onDateRangeChange={setDateRange}
+        onPdfExport={handlePdfExport}
         showNoDataHint={showNoDataHint}
         noDataHintText="Hinweis: Für dieses Projekt wurden noch keine KPI-/Zeitreihen-Daten von Google geliefert. Es werden vorübergehend Platzhalter-Werte angezeigt."
         projectId={projectId}
