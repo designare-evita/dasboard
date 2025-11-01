@@ -195,17 +195,22 @@ export default function SemrushTopKeywords({ projectId }: SemrushTopKeywordsProp
           </div>
           <div className="flex items-center gap-3">
             {lastFetched && (
-              <div className="text-xs text-orange-100 flex items-center gap-2">
-                <span className={cn(
-                  "px-2 py-0.5 rounded text-xs font-medium",
-                  fromCache ? 'bg-white/20 text-white' : 'bg-green-500 text-white'
-                )}>
-                  {fromCache ? 'Cache' : 'Live'}
+              <div className="text-xs text-orange-100 flex flex-col items-end gap-1">
+                <div className="flex items-center gap-2">
+                  <span className={cn(
+                    "px-2 py-0.5 rounded text-xs font-medium",
+                    fromCache ? 'bg-white/20 text-white' : 'bg-green-500 text-white'
+                  )}>
+                    {fromCache ? 'Cache' : 'Live'}
+                  </span>
+                  <span className="whitespace-nowrap">{formatLastFetched(lastFetched)}</span>
+                </div>
+                <span className="text-[10px] text-orange-50 opacity-75" title={lastFetched}>
+                  {new Date(lastFetched).toLocaleString('de-DE')}
                 </span>
-                <span>{formatLastFetched(lastFetched)}</span>
               </div>
             )}
-            <div className="text-xs text-orange-100">
+            <div className="text-xs text-orange-100 whitespace-nowrap">
               {keywords.length} {keywords.length === 1 ? 'Keyword' : 'Keywords'}
             </div>
           </div>
