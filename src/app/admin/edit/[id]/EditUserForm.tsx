@@ -269,9 +269,9 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
             </div>
 
             {/* ========== SEMRUSH SECTION ========== */}
-
+        
               {/* Semrush Projekt ID */}
-              <div>
+              <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700">
                   Semrush Projekt ID
                   {formData.semrushProjectId && (
@@ -292,7 +292,7 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
               </div>
 
               {/* Semrush Tracking-ID (Kampagne 1) */}
-              <div>
+              <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700">
                   Semrush Tracking-ID (Kampagne 1)
                   {formData.semrushTrackingId && (
