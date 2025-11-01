@@ -1,4 +1,4 @@
-// src/app/page.tsx (FINAL KORRIGIERT FÜR BUILD)
+// src/app/page.tsx (FINAL FIX)
 'use client';
 
 import { useSession } from 'next-auth/react';
@@ -35,109 +35,90 @@ export default function HomePage() {
     setIsLoading(true);
     setError(null);
     try {
+      // Nur Google-Daten laden - Semrush lädt jede Komponente selbst
       const googleResponse = await fetch(`/api/data?dateRange=${range}`);
-      
+
       if (!googleResponse.ok) {
-        throw new Error('Fehler beim Laden der Dashboard-Daten');
+        const errorResult = await googleResponse.json();
+        throw new Error(errorResult.message || 'Fehler beim Laden der Google-Daten');
       }
       
-      const googleData = await googleResponse.json();
-      setDashboardData(googleData);
-      setUserDomain(googleData?.kpis?.domain);
+      const googleResult = await googleResponse.json();
+      setDashboardData(googleResult);
 
-    } catch (err) {
-      console.error('Fehler in fetchData:', err);
-      setError(err instanceof Error ? err.message : 'Ein unbekannter Fehler ist aufgetreten.');
-      setDashboardData(null);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Ein unbekannter Fehler ist aufgetreten');
     } finally {
       setIsLoading(false);
     }
   }, [dateRange]);
 
-  const fetchAdminProjects = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const response = await fetch('/api/projects');
-      if (!response.ok) {
-        throw new Error('Fehler beim Laden der Projekte');
-      }
-      const data: User[] = await response.json();
-      setProjects(data);
-    } catch (err) {
-      console.error('Fehler in fetchAdminProjects:', err);
-      setError(err instanceof Error ? err.message : 'Ein unbekannter Fehler ist aufgetreten.');
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    if (status === 'loading') {
-      return; 
-    }
-    if (status === 'unauthenticated') {
-      router.push('/login');
-      return;
-    }
-    if (session) {
-      const { role } = session.user;
-      if (role === 'ADMIN' || role === 'SUPERADMIN') {
-        fetchAdminProjects();
-      } else if (role === 'BENUTZER') {
+    if (status === 'authenticated') {
+      if (session.user.role === 'ADMIN' || session.user.role === 'SUPERADMIN') {
+        setIsLoading(true);
+        fetch('/api/projects')
+          .then(res => res.json())
+          .then(data => {
+            setProjects(data.projects || []);
+            setIsLoading(false);
+          })
+          .catch(err => {
+            setError(err.message);
+            setIsLoading(false);
+          });
+      } else if (session.user.role === 'BENUTZER') {
+        // Lade Domain für Kunde
+        fetch(`/api/users/${session.user.id}`)
+          .then(res => res.json())
+          .then(userData => {
+            setUserDomain(userData.domain);
+          })
+          .catch(err => {
+            console.error('Fehler beim Laden der User-Daten:', err);
+          });
+        
         fetchData(dateRange);
       }
+    } else if (status === 'unauthenticated') {
+      router.push('/login');
     }
-  }, [status, session, router, fetchAdminProjects, fetchData, dateRange]);
+  }, [status, session, router, fetchData, dateRange]);
 
   const handleDateRangeChange = (range: DateRangeOption) => {
     setDateRange(range);
-    if (session?.user?.role === 'BENUTZER') {
-      fetchData(range);
-    }
   };
 
-  if (status === 'loading' || isLoading) {
+  if (status === 'loading' || (isLoading && !dashboardData && !error)) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center">
-          <ArrowRepeat className="animate-spin text-indigo-600 h-12 w-12 mx-auto" size={40} />
-          <h2 className="text-xl font-bold text-gray-800 mt-4">
-            Lade...
-          </h2>
-        </div>
+      <div className="flex justify-center items-center min-h-screen bg-gray-50">
+        <ArrowRepeat className="animate-spin text-indigo-600" size={40} />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center p-6 bg-white rounded-lg shadow-md border border-red-200">
-          <ExclamationTriangleFill className="text-red-500 h-12 w-12 mx-auto" size={40} />
-          <h2 className="text-xl font-bold text-gray-800 mb-2">Fehler</h2>
+      <div className="flex justify-center items-center min-h-screen bg-gray-50 p-8">
+        <div className="bg-white p-8 rounded-lg shadow-md max-w-lg text-center border border-red-200">
+          <ExclamationTriangleFill className="text-red-500 mx-auto mb-4" size={40} />
+          <h2 className="text-xl font-bold text-gray-800 mb-2">Fehler beim Laden</h2>
           <p className="text-gray-600">{error}</p>
-          <button 
-            onClick={() => window.location.reload()}
-            className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
-          >
-            Erneut versuchen
-          </button>
         </div>
       </div>
     );
   }
 
-  if (session?.user?.role === 'ADMIN' || session?.user?.role === 'SUPERADMIN') {
+  if (session?.user.role === 'ADMIN' || session?.user.role === 'SUPERADMIN') {
     return (
-      <AdminProjectList 
+      <AdminDashboard 
         projects={projects} 
         isLoading={isLoading} 
       />
     );
   }
 
-  if (session?.user?.role === 'BENUTZER' && dashboardData) {
+  if (session?.user.role === 'BENUTZER' && dashboardData) {
     return (
       <CustomerDashboard
         data={dashboardData}
@@ -151,44 +132,38 @@ export default function HomePage() {
   }
 
   return (
-    <div className="flex items-center justify-center h-screen">
-      <p>Keine Daten verfügbar oder ungültiger Benutzerstatus.</p>
+    <div className="flex justify-center items-center min-h-screen bg-gray-50">
+      <p>Unbekannter Status oder keine Daten.</p>
     </div>
   );
 }
 
-function AdminProjectList({ projects, isLoading }: { projects: User[], isLoading: boolean }) {
+function AdminDashboard({ projects, isLoading }: { projects: User[], isLoading: boolean }) {
   return (
-    <div className="p-4 md:p-8">
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-3xl font-bold text-gray-900 mb-6">Projektübersicht</h1>
-        
+    <div className="p-8 bg-gray-50 min-h-screen">
+      <div className="max-w-7xl mx-auto">
+        <h1 className="text-3xl font-bold text-gray-900 mb-8">Alle Projekte</h1>
         {isLoading ? (
-          <p>Projekte werden geladen...</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="bg-white p-6 rounded-lg shadow-md border border-gray-200 animate-pulse">
+                <div className="h-5 bg-gray-200 rounded w-3/4 mb-3"></div>
+                <div className="h-4 bg-gray-200 rounded w-1/2 mb-4"></div>
+                <div className="h-9 bg-gray-200 rounded w-1/3"></div>
+              </div>
+            ))}
+          </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {projects.map((project) => (
-              <Link 
-                href={`/projekt/${project.id}`} 
-                key={project.id}
-                className="bg-white p-6 rounded-lg shadow-md border border-gray-200 hover:shadow-lg hover:border-indigo-500 transition-all duration-200 group"
-              >
-                <div className="flex flex-col h-full">
-                  <div className="flex-grow">
-                    <div className="mb-3">
-                      <GraphUp size={32} className="text-indigo-600" />
-                    </div>
-                    <h2 className="text-xl font-semibold text-gray-900 mb-2">
-                      {project.domain || project.email}
-                    </h2>
-                    <p className="text-sm text-gray-500 mb-4">
-                      {project.domain ? project.email : `ID: ${project.id}`}
-                    </p>
+            {projects.map(project => (
+              <Link href={`/projekt/${project.id}`} key={project.id} legacyBehavior>
+                <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200 hover:shadow-xl hover:border-indigo-300 transition-all cursor-pointer flex flex-col justify-between h-full min-h-[160px]">
+                  <div>
+                    <h2 className="text-lg font-bold text-gray-900 truncate mb-1">{project.domain || project.email}</h2>
+                    <p className="text-sm text-gray-500 mb-4 truncate">{project.domain ? project.email : 'Keine Domain zugewiesen'}</p>
                   </div>
-                  
-                  <span className="mt-auto text-sm font-medium text-indigo-600 group-hover:text-indigo-800 flex items-center gap-2">
-                    Dashboard öffnen
-                    <ArrowRightSquare size={14} />
+                  <span className="text-indigo-600 hover:text-indigo-800 text-sm font-medium flex items-center gap-1.5 transition-colors">
+                    Dashboard anzeigen <ArrowRightSquare size={14} />
                   </span>
                 </div>
               </Link>
@@ -227,11 +202,6 @@ function CustomerDashboard({
     }
   }, [userId]);
 
-  // PDF-Export-Funktion definieren
-  const handlePdfExport = () => {
-    window.print();
-  };
-
   return (
     <div className="p-4 md:p-8 bg-gray-50 min-h-screen">
       <main>
@@ -244,16 +214,10 @@ function CustomerDashboard({
           noDataHintText="Hinweis: Für Ihr Projekt wurden noch keine KPI-Daten geliefert. Es werden vorübergehend Platzhalter-Werte angezeigt."
           projectId={userId}
           domain={user?.domain || domain}
-          
-          // KORREKTUR 1: snake_case verwenden
-          semrushTrackingId02={user?.semrush_tracking_id_02} 
-          
-          onPdfExport={handlePdfExport}
+          semrushTrackingId02={user?.semrush_tracking_id_02}
         />
-        
-        {/* Landingpage Approval (wird beim Drucken ausgeblendet) */}
-        <div className="mt-6 print:hidden">
-          {/* KORREKTUR 2: 'projectId' Prop entfernt */}
+
+        <div className="mt-8">
           <LandingpageApproval />
         </div>
       </main>
