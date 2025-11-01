@@ -127,7 +127,7 @@ export default function SemrushTopKeywords({ projectId }: SemrushTopKeywordsProp
       <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
         <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
           <Search size={20} className="text-orange-600" />
-          Top 20 Organische Keywords
+          Top 20 Organische Keywords - Österreich
         </h3>
         <p className="text-sm text-gray-500 italic">
           {error || defaultError}
