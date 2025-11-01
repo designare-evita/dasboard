@@ -1,8 +1,9 @@
-// src/lib/semrush-api.ts - VERBESSERTE VERSION MIT ERWEITERTEN PARAMETERN
+// src/lib/semrush-api.ts (KORRIGIERTE VERSION MIT TRACKING_ID)
 import axios from 'axios';
 
 const apiKey = process.env.SEMRUSH_API_KEY;
 
+// (Interfaces bleiben gleich)
 interface SemrushApiKeywordData {
   Ph?: string;
   Fi?: Record<string, number | string>;
@@ -11,11 +12,9 @@ interface SemrushApiKeywordData {
   Lu?: Record<string, string | Record<string, string>>;
   Tr?: Record<string, number | Record<string, number>>;
 }
-
 interface SemrushApiResponse {
   data?: Record<string, SemrushApiKeywordData>;
 }
-
 interface ProcessedKeyword {
   keyword: string;
   position: number;
@@ -25,13 +24,14 @@ interface ProcessedKeyword {
   trafficPercent: number;
 }
 
+
 export async function getSemrushKeywords(
   campaignId: string,
   domainOrContext?: string | Record<string, unknown>
 ) {
   if (!apiKey) {
     console.error('[Semrush] SEMRUSH_API_KEY is not set');
-    return { keywords: [], error: 'Semrush API key is missing' };
+    return { keywords: [], error: 'Semrush API key is not set' };
   }
 
   if (!campaignId) {
@@ -44,25 +44,25 @@ export async function getSemrushKeywords(
   // Parse campaign ID
   const parts = campaignId.split('_');
   if (parts.length !== 2) {
-    console.error('[Semrush] Invalid campaign ID format');
+    console.error('[Semrush] Invalid campaign ID format, expected project_tracking');
     return { keywords: [], error: 'Invalid campaign ID format' };
   }
 
   const projectId = parts[0];
+  const trackingId = parts[1]; // Diese ID WIRD JETZT VERWENDET
   let domain = domainOrContext;
 
-  // Extract domain from object if needed
+  // (Domain-Extraktion bleibt gleich)
   if (typeof domainOrContext === 'object' && domainOrContext !== null) {
     const obj = domainOrContext as Record<string, unknown>;
     domain = (obj.domain || obj.Domain || obj.url) as string;
   }
-
   if (!domain) {
     console.warn('[Semrush] No domain provided, using fallback');
-    domain = 'aichelin.at';
+    domain = 'aichelin.at'; // Fallback (sollte nicht passieren)
   }
 
-  // Normalize domain
+  // (Domain-Normalisierung bleibt gleich)
   let normalizedDomain = String(domain);
   if (normalizedDomain.startsWith('www.')) {
     normalizedDomain = normalizedDomain.substring(4);
@@ -73,10 +73,9 @@ export async function getSemrushKeywords(
     normalizedDomain = normalizedDomain.substring(7);
   }
 
-  const trackingId = parts[1];
   const url = `https://api.semrush.com/reports/v1/projects/${projectId}/tracking/`;
 
-  // NEUE: Verschiedene Strategien für die API-Anfrage
+  // NEU: trackingId wird zu JEDER Strategie hinzugefügt
   const strategies = [
     {
       name: 'Strategy 1: Mit subdomain wildcard und /',
@@ -84,6 +83,7 @@ export async function getSemrushKeywords(
         key: apiKey,
         type: 'tracking_position_organic',
         action: 'report',
+        tracking_id: trackingId, // HINZUGEFÜGT
         url: `*.${normalizedDomain}/*`,
         display_limit: '50'
       }
@@ -94,6 +94,7 @@ export async function getSemrushKeywords(
         key: apiKey,
         type: 'tracking_position_organic',
         action: 'report',
+        tracking_id: trackingId, // HINZUGEFÜGT
         url: normalizedDomain,
         display_limit: '50'
       }
@@ -104,6 +105,7 @@ export async function getSemrushKeywords(
         key: apiKey,
         type: 'tracking_position_organic',
         action: 'report',
+        tracking_id: trackingId, // HINZUGEFÜGT
         url: `www.${normalizedDomain}`,
         display_limit: '50'
       }
@@ -114,6 +116,7 @@ export async function getSemrushKeywords(
         key: apiKey,
         type: 'tracking_position_organic',
         action: 'report',
+        tracking_id: trackingId, // HINZUGEFÜGT
         domain_name: normalizedDomain,
         display_limit: '50'
       }
@@ -124,6 +127,7 @@ export async function getSemrushKeywords(
         key: apiKey,
         type: 'tracking_position_organic',
         action: 'report',
+        tracking_id: trackingId, // HINZUGEFÜGT
         url: normalizedDomain,
         report_type: 'organic_keywords',
         display_limit: '50'
@@ -132,7 +136,8 @@ export async function getSemrushKeywords(
   ];
 
   console.log('[Semrush] Testing strategies for domain:', normalizedDomain);
-  console.log('[Semrush] Tracking ID:', trackingId);
+  console.log('[Semrush] Using Project ID:', projectId);
+  console.log('[Semrush] Using Tracking ID:', trackingId); // Wichtiges Log
 
   let lastError: string | null = null;
 
@@ -141,16 +146,15 @@ export async function getSemrushKeywords(
     console.log(`\n[Semrush] ===== ${strategy.name} =====`);
 
     try {
-      // Debug URL
+      // (Debug URL bleibt gleich)
       const urlParams = new URLSearchParams();
       for (const [key, value] of Object.entries(strategy.params)) {
         urlParams.set(key, String(value));
       }
-      
       const debugUrl = `${url}?${urlParams.toString()}`;
       console.log('[Semrush] Full URL:', debugUrl.substring(0, 150) + '...');
 
-      // Request mit zusätzlichen Headers
+      // (Axios-Request bleibt gleich)
       const response = await axios.get<SemrushApiResponse>(url, {
         params: strategy.params,
         timeout: 15000,
@@ -170,7 +174,7 @@ export async function getSemrushKeywords(
 
       console.log('[Semrush] ✅ SUCCESS! Strategy', attemptIndex + 1, 'works! Got', Object.keys(data.data).length, 'keywords');
 
-      // Process keywords
+      // (Keyword-Verarbeitung bleibt gleich)
       const keywords: ProcessedKeyword[] = [];
       const today = new Date();
       const dateKey = today.toISOString().slice(0, 10).replace(/-/g, '');
@@ -179,7 +183,6 @@ export async function getSemrushKeywords(
         const keyword = keywordData.Ph || '';
         if (!keyword) continue;
 
-        // Extract position
         let currentPosition = 0;
         if (keywordData.Fi && typeof keywordData.Fi === 'object') {
           const positions = Object.values(keywordData.Fi);
@@ -188,10 +191,8 @@ export async function getSemrushKeywords(
             currentPosition = typeof pos === 'number' ? pos : (pos !== '-' ? parseFloat(String(pos)) : 0);
           }
         }
-
         if (currentPosition === 0 || isNaN(currentPosition) || currentPosition > 100) continue;
 
-        // Extract previous position
         let previousPosition: number | null = null;
         if (keywordData.Be && typeof keywordData.Be === 'object') {
           const positions = Object.values(keywordData.Be);
@@ -201,10 +202,8 @@ export async function getSemrushKeywords(
           }
         }
 
-        // Extract search volume
         const searchVolume = keywordData.Nq ? parseInt(keywordData.Nq) : 0;
 
-        // Extract URL
         let landingUrl = '';
         if (keywordData.Lu && typeof keywordData.Lu === 'object') {
           const urls = keywordData.Lu as Record<string, string | Record<string, string>>;
@@ -223,7 +222,6 @@ export async function getSemrushKeywords(
           }
         }
 
-        // Extract traffic
         let trafficPercent = 0;
         if (keywordData.Tr && typeof keywordData.Tr === 'object') {
           const traffic = keywordData.Tr as Record<string, number | Record<string, number>>;
@@ -261,6 +259,7 @@ export async function getSemrushKeywords(
       return { keywords: top20, error: null };
 
     } catch (error: unknown) {
+      // (Fehlerbehandlung bleibt gleich)
       if (axios.isAxiosError(error)) {
         console.error('[Semrush] Strategy', attemptIndex + 1, '- Status:', error.response?.status);
         if (error.response?.data) {
