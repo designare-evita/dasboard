@@ -1,15 +1,13 @@
-// src/app/api/semrush/keywords/route.ts (KORRIGIERTE VERSION)
+// src/app/api/semrush/keywords/route.ts (KORRIGIERTE VERSION FÜR ADMINS)
 import { NextResponse, NextRequest } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { sql } from '@vercel/postgres';
-// GESTRICHEN: import { getSemrushKeywordsV2Only } from '@/lib/semrush-api-v2-only';
-// NEU: Importieren Sie den korrekten Handler
 import { getSemrushKeywordsWithFallback } from '@/lib/semrush-api-handler';
 
 interface UserRow {
+  id: string; // Hinzugefügt
   domain: string | null;
-  // NEU: Diese Felder werden jetzt benötigt
   semrush_project_id: string | null;
   semrush_tracking_id: string | null;
 }
@@ -27,22 +25,41 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
     }
 
-    const { id } = session.user;
+    const { role, id: adminOrUserId } = session.user; // ID des angemeldeten Users
     const { searchParams } = new URL(request.url);
     const campaign = searchParams.get('campaign') || 'kampagne_1';
     const forceRefresh = searchParams.get('forceRefresh') === 'true';
+    
+    // NEU: Admin-Logik (kopiert von /api/semrush/config)
+    const projectIdParam = searchParams.get('projectId'); // Das ist die User-ID des Kunden
+    let targetUserId: string;
+
+    if (projectIdParam) {
+      // Admin greift auf anderes Projekt zu
+      if (role !== 'ADMIN' && role !== 'SUPERADMIN') {
+        return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
+      }
+      // TODO: Man könnte hier noch prüfen, ob der Admin Zugriff auf dieses Projekt hat
+      targetUserId = projectIdParam;
+      console.log(`[API] Admin ${adminOrUserId} greift auf Daten von User ${targetUserId} zu`);
+    } else {
+      // User greift auf eigene Daten zu
+      targetUserId = adminOrUserId;
+      console.log(`[API] User ${targetUserId} greift auf eigene Daten zu`);
+    }
+    // ENDE NEU
 
     console.log('[API] Getting keywords for:', campaign);
 
-    // User daten laden (erweitert)
-    // NEU: semrush_project_id und semrush_tracking_id ebenfalls abfragen
+    // User daten laden (jetzt mit targetUserId)
     const { rows } = await sql<UserRow>`
       SELECT 
+        id,
         domain, 
         semrush_project_id, 
         semrush_tracking_id 
       FROM users 
-      WHERE id::text = ${id}
+      WHERE id::text = ${targetUserId} 
     `;
 
     if (!rows || rows.length === 0) {
@@ -61,31 +78,29 @@ export async function GET(request: NextRequest) {
       });
     }
     
-    // NEU: Prüfen, ob die Konfiguration für die v1 API vorhanden ist
     if (!userData.semrush_project_id || !userData.semrush_tracking_id) {
-      console.error('[API] Semrush Project ID or Tracking ID not configured for user:', id);
+      console.error('[API] Semrush Project ID or Tracking ID not configured for user:', targetUserId);
       return NextResponse.json({
         keywords: [],
         error: 'Semrush Project ID or Tracking ID not configured'
       }, { status: 400 });
     }
     
-    // NEU: Die korrekte campaignId für die v1 API zusammenbauen
     const campaignId = `${userData.semrush_project_id}_${userData.semrush_tracking_id}`;
     const domain = userData.domain;
 
     console.log('[API] Domain:', domain);
     console.log('[API] Campaign ID (für v1 API):', campaignId);
 
-
-    // Cache check (bleibt gleich)
+    // Cache check (targetUserId und campaign_key verwenden)
     const { rows: cachedData } = await sql<CacheRow>`
       SELECT keywords_data, last_fetched 
       FROM semrush_keywords_cache 
-      WHERE user_id = ${id} AND campaign = ${campaign}
+      WHERE user_id = ${targetUserId} AND campaign = ${campaign}
     `;
 
     if (!forceRefresh && cachedData && cachedData.length > 0) {
+      // (Cache-Logik bleibt gleich)
       const lastFetched = new Date(cachedData[0].last_fetched);
       const now = new Date();
       const ageMs = now.getTime() - lastFetched.getTime();
@@ -101,12 +116,12 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // NEU: Rufe den robusten Fallback-Handler auf
+    // Rufe den robusten Fallback-Handler auf
     console.log('[API] Fetching from API (v1 with fallback)...');
     const result = await getSemrushKeywordsWithFallback({
       campaignId: campaignId,
       domain: domain,
-      userId: id
+      userId: targetUserId
     });
 
     if (!result || result.keywords.length === 0) {
@@ -117,12 +132,12 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Save to cache (bleibt gleich)
+    // Save to cache (targetUserId verwenden)
     const now = new Date().toISOString();
     try {
       await sql`
         INSERT INTO semrush_keywords_cache (user_id, campaign, keywords_data, last_fetched)
-        VALUES (${id}, ${campaign}, ${JSON.stringify(result.keywords)}::jsonb, ${now})
+        VALUES (${targetUserId}, ${campaign}, ${JSON.stringify(result.keywords)}::jsonb, ${now})
         ON CONFLICT (user_id, campaign)
         DO UPDATE SET 
           keywords_data = ${JSON.stringify(result.keywords)}::jsonb,
