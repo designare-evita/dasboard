@@ -1,4 +1,4 @@
-// src/app/page.tsx (KORRIGIERT MIT PDF-FUNKTION)
+// src/app/page.tsx (FINAL FIX - KORRIGIERT)
 'use client';
 
 import { useSession } from 'next-auth/react';
@@ -232,7 +232,7 @@ function CustomerDashboard({
     }
   }, [userId]);
 
-  // NEU: PDF-Export-Funktion definieren
+  // PDF-Export-Funktion definieren
   const handlePdfExport = () => {
     window.print();
   };
@@ -249,8 +249,11 @@ function CustomerDashboard({
           noDataHintText="Hinweis: Für Ihr Projekt wurden noch keine KPI-Daten geliefert. Es werden vorübergehend Platzhalter-Werte angezeigt."
           projectId={userId}
           domain={user?.domain || domain}
-          semrushTrackingId02={user?.semrushTrackingId02}
-          onPdfExport={handlePdfExport} // NEU: Funktion hier übergeben
+          
+          // KORREKTUR: Snake_case verwenden
+          semrushTrackingId02={user?.semrush_tracking_id_02} 
+          
+          onPdfExport={handlePdfExport}
         />
         
         {/* Landingpage Approval (wird beim Drucken ausgeblendet) */}
