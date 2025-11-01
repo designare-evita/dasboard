@@ -81,8 +81,6 @@ export default function ProjectDashboard({
           onKpiChange={setActiveKpi}
           allChartData={data.charts}
           data={data.charts?.[activeKpi] ?? []}
-          color={KPI_TAB_META[activeKpi].color}
-          label={KPI_TAB_META[activeKpi].title}
         />
       </div>
 
