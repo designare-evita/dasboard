@@ -1,4 +1,4 @@
-// src/components/ProjectDashboard.tsx (Version 28 - Korrigiert)
+// src/components/ProjectDashboard.tsx (Version 29 - Semrush nur bei Konfiguration anzeigen)
 'use client';
 
 import { useState } from 'react';
@@ -14,7 +14,7 @@ import AiTrafficCard from '@/components/AiTrafficCard';
 import { type DateRangeOption } from '@/components/DateRangeSelector';
 import TopQueriesList from '@/components/TopQueriesList';
 import SemrushTopKeywords from '@/components/SemrushTopKeywords';
-import SemrushTopKeywords02 from '@/components/SemrushTopKeywords02'; // Importiert die geänderte Komponente
+import SemrushTopKeywords02 from '@/components/SemrushTopKeywords02';
 import DashboardHeader from '@/components/DashboardHeader';
 import { useSession } from 'next-auth/react'; 
 
@@ -25,9 +25,9 @@ interface ProjectDashboardProps {
   onDateRangeChange: (range: DateRangeOption) => void;
   showNoDataHint?: boolean;
   noDataHintText?: string;
-  projectId?: string; // Wird an beide Komponenten übergeben
+  projectId?: string;
   domain?: string;
-  semrushTrackingId02?: string | null; // Wird nur noch für die Anzeige-Logik genutzt
+  semrushTrackingId02?: string | null;
   onPdfExport?: () => void;
 }
 
@@ -38,9 +38,9 @@ export default function ProjectDashboard({
   onDateRangeChange,
   showNoDataHint = false,
   noDataHintText = "Für dieses Projekt wurden noch keine KPI-Daten geliefert.",
-  projectId, // Diese ID nutzen wir jetzt
+  projectId,
   domain,
-  semrushTrackingId02, // Diese ID nutzen wir nur für die if-Bedingung
+  semrushTrackingId02,
   onPdfExport
 }: ProjectDashboardProps) {
   
@@ -51,6 +51,11 @@ export default function ProjectDashboard({
 
   const normalizedKpis = normalizeFlatKpis(data.kpis);
   const chartData = data.charts?.[activeKpi] ?? [];
+
+  // Prüfen ob überhaupt Semrush-Daten vorhanden sind
+  // Für Admins: Immer anzeigen (können alle Projekte konfigurieren)
+  // Für Nutzer: Nur anzeigen, wenn mindestens eine Kampagne konfiguriert ist
+  const hasSemrushConfig = userRole === 'ADMIN' || userRole === 'SUPERADMIN' || !!semrushTrackingId02;
 
   return (
     <>
@@ -105,57 +110,57 @@ export default function ProjectDashboard({
 
       {/* ---------------------------------------------------------------------- */}
       {/* SEMRUSH KEYWORDS (KAMPAGNE 1 & 2) */}
+      {/* Nur anzeigen, wenn Semrush-Konfiguration vorhanden ist */}
       {/* ---------------------------------------------------------------------- */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-        
-        {/* Kampagne 1: Standard Tracking ID */}
-        <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-gray-200">
-          <SemrushTopKeywords 
-            projectId={projectId} 
-          />
-        </div>
-
-        {/* Kampagne 2: Explizite Tracking ID */}
-        {/* Wir prüfen weiterhin, ob 'semrushTrackingId02' existiert, 
-            um zu entscheiden, OB wir die Komponente anzeigen... */}
-        {semrushTrackingId02 ? (
+      {hasSemrushConfig && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+          
+          {/* Kampagne 1: Standard Tracking ID */}
           <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-gray-200">
-            
-            {/* ...aber wir übergeben 'projectId' an die Komponente,
-                genau wie bei Kampagne 1 */}
-            <SemrushTopKeywords02 
-              projectId={projectId} // KORREKTUR: von trackingId auf projectId geändert
+            <SemrushTopKeywords 
+              projectId={projectId} 
             />
           </div>
-        ) : (
-          // Platzhalter (unverändert)
-          <div className="bg-gray-50 rounded-lg border border-gray-200 border-dashed">
-            <div className="flex flex-col items-center justify-center h-full text-center py-12">
-              <div className="text-gray-400 mb-3">
-                <svg 
-                  className="w-16 h-16 mx-auto" 
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
-                >
-                  <path 
-                    strokeLinecap="round" 
-                    strokeLinejoin="round" 
-                    strokeWidth={1.5} 
-                    d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                  />
-                </svg>
-              </div>
-              <h3 className="text-lg font-medium text-gray-700 mb-2">
-                Zweite Kampagne nicht konfiguriert
-              </h3>
-              <p className="text-sm text-gray-500 max-w-sm">
-                Fügen Sie eine zweite Semrush Tracking-ID hinzu, um hier weitere Keywords zu verfolgen.
-              </p>
+
+          {/* Kampagne 2: Explizite Tracking ID */}
+          {semrushTrackingId02 ? (
+            <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-gray-200">
+              <SemrushTopKeywords02 
+                projectId={projectId}
+              />
             </div>
-          </div>
-        )}
-      </div>
+          ) : (
+            // Platzhalter nur für Admins anzeigen
+            (userRole === 'ADMIN' || userRole === 'SUPERADMIN') && (
+              <div className="bg-gray-50 rounded-lg border border-gray-200 border-dashed">
+                <div className="flex flex-col items-center justify-center h-full text-center py-12">
+                  <div className="text-gray-400 mb-3">
+                    <svg 
+                      className="w-16 h-16 mx-auto" 
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                    >
+                      <path 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round" 
+                        strokeWidth={1.5} 
+                        d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                      />
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-medium text-gray-700 mb-2">
+                    Zweite Kampagne nicht konfiguriert
+                  </h3>
+                  <p className="text-sm text-gray-500 max-w-sm">
+                    Fügen Sie eine zweite Semrush Tracking-ID hinzu, um hier weitere Keywords zu verfolgen.
+                  </p>
+                </div>
+              </div>
+            )
+          )}
+        </div>
+      )}
       
     </>
   );
