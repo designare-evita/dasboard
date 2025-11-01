@@ -107,7 +107,7 @@ export default function SemrushTopKeywords({ projectId }: SemrushTopKeywordsProp
       <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
         <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
           <Search size={20} className="text-orange-600" />
-          Top 20 Organische Keywords
+          Top 20 Organische Keywords - Österreich
         </h2>
         <div className="animate-pulse space-y-3">
           {[...Array(5)].map((_, i) => (
@@ -149,7 +149,7 @@ export default function SemrushTopKeywords({ projectId }: SemrushTopKeywordsProp
       <div className="flex justify-between items-start mb-4">
         <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
           <Search size={20} className="text-orange-600" />
-          Top 20 Organische Keywords
+          Top 20 Organische Keywords - Österreich
         </h3>
         {lastFetched && (
           <div className="text-xs text-gray-500 flex flex-col items-end gap-1">
