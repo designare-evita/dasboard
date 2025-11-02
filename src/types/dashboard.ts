@@ -26,12 +26,11 @@ export type TopQueryData = {
   position: number;
 };
 
-// ... (Rest der Datei bleibt gleich) ...
 export type AiTrafficData = {
   totalSessions: number;
   totalUsers: number;
   sessionsBySource: {
-    : number;
+    [source: string]: number;
   };
   topAiSources: Array<{
     source: string;
@@ -58,3 +57,4 @@ export const KPI_TAB_META: Record<ActiveKpi, KpiMetadata> = {
   sessions: { title: 'Sitzungen', color: '#10b981' },
   totalUsers: { title: 'Nutzer', color: '#f59e0b' },
 };
+
