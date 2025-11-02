@@ -73,7 +73,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
       const payload: Record<string, string | string[] | null> = {
         email: formData.email,
         mandant_id: formData.mandantId || null,
-        permissions: isSuperAdmin ? permissionsArray : undefined, // Nur Superadmin darf senden
+        permissions: isSuperAdmin ? permissionsArray : null,
         
         // KORREKTUR: Diese Felder immer mitsenden
         domain: formData.domain || null,
