@@ -1,9 +1,21 @@
 // src/app/api/projects/[id]/assign/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
+// KORREKTUR: 'Session' importieren, um 'any' zu ersetzen
+import { getServerSession, type Session } from 'next-auth'; 
 import { authOptions } from '@/lib/auth';
 import { sql } from '@vercel/postgres';
+
+// Berechtigungsprüfung: Darf der eingeloggte Admin Zuweisungen ändern?
+// KORREKTUR: 'any' ersetzt durch 'Session | null'
+async function hasAssignmentPermission(session: Session | null) {
+  if (!session?.user) return false;
+  if (session.user.role === 'SUPERADMIN') return true;
+  if (session.user.role === 'ADMIN' && session.user.permissions?.includes('kann_admins_verwalten')) {
+    return true;
+  }
+  return false;
+}
 
 // Weist einen Benutzer (Admin) einem Projekt zu
 export async function POST(
@@ -15,57 +27,37 @@ export async function POST(
     const session = await getServerSession(authOptions);
     
     console.log('[POST /api/projects/[id]/assign] Start');
-    console.log('[POST] Session User:', session?.user?.email, 'Role:', session?.user?.role);
-    console.log('[POST] Project ID:', projectId);
     
-    // Sicherheitscheck: Nur Superadmins dürfen das
-    if (session?.user?.role !== 'SUPERADMIN') {
+    // KORREKTUR: Prüft auf 'kann_admins_verwalten' oder SUPERADMIN
+    if (!(await hasAssignmentPermission(session))) {
       console.warn('[POST] ❌ Nicht autorisiert - Rolle:', session?.user?.role);
-      return NextResponse.json({ message: 'Nicht autorisiert. Nur Superadmins dürfen Projekte zuweisen.' }, { status: 403 });
+      return NextResponse.json({ message: 'Nicht autorisiert. Nur Superadmins oder Admins mit "kann_admins_verwalten" dürfen dies.' }, { status: 403 });
     }
 
     const body = await request.json();
-    const { userId } = body;
+    const { userId } = body; // Der Admin, der zugewiesen wird
     
     console.log('[POST] User ID (Admin):', userId);
+    console.log('[POST] Project ID (Kunde):', projectId);
 
-    if (!userId) {
-      console.error('[POST] ❌ Benutzer-ID fehlt im Request Body');
-      return NextResponse.json({ message: 'Benutzer-ID fehlt' }, { status: 400 });
-    }
 
-    if (!projectId) {
-      console.error('[POST] ❌ Projekt-ID fehlt in URL');
-      return NextResponse.json({ message: 'Projekt-ID fehlt' }, { status: 400 });
+    if (!userId || !projectId) {
+      return NextResponse.json({ message: 'Benutzer-ID oder Projekt-ID fehlt' }, { status: 400 });
     }
 
     // Validiere, dass beide IDs existieren
     const { rows: adminCheck } = await sql`
       SELECT id, email, role FROM users WHERE id::text = ${userId};
     `;
-    
-    if (adminCheck.length === 0) {
-      console.error('[POST] ❌ Admin nicht gefunden:', userId);
-      return NextResponse.json({ message: 'Admin-Benutzer nicht gefunden' }, { status: 404 });
-    }
-
-    if (adminCheck[0].role !== 'ADMIN') {
-      console.error('[POST] ❌ Benutzer ist kein Admin:', adminCheck[0].email, 'Rolle:', adminCheck[0].role);
-      return NextResponse.json({ message: 'Der Benutzer muss ein Admin sein' }, { status: 400 });
+    if (adminCheck.length === 0 || adminCheck[0].role !== 'ADMIN') {
+      return NextResponse.json({ message: 'Ziel-Benutzer ist kein Admin' }, { status: 404 });
     }
 
     const { rows: projectCheck } = await sql`
       SELECT id, email, role FROM users WHERE id::text = ${projectId};
     `;
-    
-    if (projectCheck.length === 0) {
-      console.error('[POST] ❌ Projekt nicht gefunden:', projectId);
-      return NextResponse.json({ message: 'Projekt nicht gefunden' }, { status: 404 });
-    }
-
-    if (projectCheck[0].role !== 'BENUTZER') {
-      console.error('[POST] ❌ Projekt ist kein Benutzer:', projectCheck[0].email, 'Rolle:', projectCheck[0].role);
-      return NextResponse.json({ message: 'Das Projekt muss ein Benutzer sein' }, { status: 400 });
+    if (projectCheck.length === 0 || projectCheck[0].role !== 'BENUTZER') {
+      return NextResponse.json({ message: 'Ziel-Projekt ist kein Benutzer (Kunde)' }, { status: 404 });
     }
 
     console.log('[POST] ✅ Validierung erfolgreich');
@@ -89,17 +81,9 @@ export async function POST(
 
   } catch (error) {
     console.error('[POST] ❌ Fehler bei der Zuweisung:', error);
-    
-    const errorMessage = error instanceof Error ? error.message : 'Ein unbekannter Fehler ist aufgetreten.';
-    const errorStack = error instanceof Error ? error.stack : undefined;
-    
-    console.error('[POST] Error Message:', errorMessage);
-    console.error('[POST] Error Stack:', errorStack);
-    
     return NextResponse.json({ 
       message: 'Fehler bei der Zuweisung',
-      error: errorMessage,
-      details: errorStack
+      error: error instanceof Error ? error.message : 'Ein unbekannter Fehler'
     }, { status: 500 });
   }
 }
@@ -114,22 +98,19 @@ export async function DELETE(
     const session = await getServerSession(authOptions);
     
     console.log('[DELETE /api/projects/[id]/assign] Start');
-    console.log('[DELETE] Session User:', session?.user?.email, 'Role:', session?.user?.role);
-    console.log('[DELETE] Project ID:', projectId);
 
-    // Sicherheitscheck: Nur Superadmins dürfen das
-    if (session?.user?.role !== 'SUPERADMIN') {
+    // KORREKTUR: Prüft auf 'kann_admins_verwalten' oder SUPERADMIN
+    if (!(await hasAssignmentPermission(session))) {
       console.warn('[DELETE] ❌ Nicht autorisiert');
-      return NextResponse.json({ message: 'Nicht autorisiert. Nur Superadmins dürfen Zuweisungen entfernen.' }, { status: 403 });
+      return NextResponse.json({ message: 'Nicht autorisiert. Nur Superadmins oder Admins mit "kann_admins_verwalten" dürfen dies.' }, { status: 403 });
     }
     
     const body = await request.json();
-    const { userId } = body;
+    const { userId } = body; // Der Admin, dessen Zuweisung entfernt wird
     
     console.log('[DELETE] User ID (Admin):', userId);
     
     if (!userId) {
-      console.error('[DELETE] ❌ Benutzer-ID fehlt');
       return NextResponse.json({ message: 'Benutzer-ID fehlt' }, { status: 400 });
     }
 
@@ -140,7 +121,6 @@ export async function DELETE(
     `;
 
     if (result.rowCount === 0) {
-      console.warn('[DELETE] ⚠️ Keine Zuweisung zum Löschen gefunden');
       return NextResponse.json({ message: 'Keine Zuweisung gefunden' }, { status: 404 });
     }
 
@@ -150,12 +130,9 @@ export async function DELETE(
 
   } catch (error) {
     console.error('[DELETE] ❌ Fehler:', error);
-    
-    const errorMessage = error instanceof Error ? error.message : 'Ein unbekannter Fehler ist aufgetreten.';
-    
     return NextResponse.json({ 
       message: 'Fehler beim Entfernen der Zuweisung',
-      error: errorMessage
+      error: error instanceof Error ? error.message : 'Ein unbekannter Fehler'
     }, { status: 500 });
   }
 }
