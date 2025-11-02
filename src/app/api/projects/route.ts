@@ -1,10 +1,12 @@
 // src/app/api/projects/route.ts
-import { NextResponse } from 'next/server';
+// (KORRIGIERT: Nutzt jetzt 'project_assignments' für Admins)
+
+import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@vercel/postgres';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     const user = session?.user;
@@ -25,7 +27,7 @@ export async function GET() {
 
     if (user.role === 'SUPERADMIN') {
       // Superadmins sehen alle Projekte (= alle Benutzer mit Rolle BENUTZER)
-      console.log('[/api/projects] SUPERADMIN - Lade alle Projekte');
+      console.log('[/api/projects] SUPERADMIN - Lade alle Projekte (Kunden)');
       
       result = await sql`
         SELECT 
@@ -34,17 +36,18 @@ export async function GET() {
           role, 
           domain,
           gsc_site_url,
-          ga4_property_id
+          ga4_property_id,
+          mandant_id
         FROM users
         WHERE role = 'BENUTZER'
-        ORDER BY domain ASC NULLS LAST, email ASC
+        ORDER BY mandant_id ASC NULLS LAST, domain ASC NULLS LAST, email ASC
       `;
 
       console.log('[/api/projects] Gefunden:', result.rows.length, 'Projekte');
 
     } else if (user.role === 'ADMIN') {
-      // Admins sehen nur ihre zugewiesenen Projekte
-      console.log('[/api/projects] ADMIN - Lade zugewiesene Projekte');
+      // KORREKTUR: Admins sehen nur ihre zugewiesenen Projekte
+      console.log('[/api/projects] ADMIN - Lade zugewiesene Projekte aus project_assignments');
       
       result = await sql`
         SELECT 
@@ -53,12 +56,13 @@ export async function GET() {
           u.role, 
           u.domain,
           u.gsc_site_url,
-          u.ga4_property_id
+          u.ga4_property_id,
+          u.mandant_id
         FROM users u
         INNER JOIN project_assignments pa ON u.id = pa.project_id
         WHERE pa.user_id::text = ${user.id}
         AND u.role = 'BENUTZER'
-        ORDER BY u.domain ASC NULLS LAST, u.email ASC
+        ORDER BY u.mandant_id ASC, u.domain ASC NULLS LAST, u.email ASC
       `;
 
       console.log('[/api/projects] Gefunden:', result.rows.length, 'zugewiesene Projekte');
