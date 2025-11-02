@@ -32,9 +32,11 @@ export const authOptions: NextAuthOptions = {
         console.log('[Authorize] Suche Benutzer:', normalizedEmail);
 
         try {
-          // 1. Benutzer in der Datenbank suchen
+          // 1. Benutzer in der Datenbank suchen (INKLUSIVE mandant_id und permissions)
           const { rows } = await sql`
-            SELECT id, email, password, role FROM users WHERE email = ${normalizedEmail}
+            SELECT id, email, password, role, mandant_id, permissions 
+            FROM users 
+            WHERE email = ${normalizedEmail}
           `;
           const user = rows[0];
 
@@ -66,6 +68,8 @@ export const authOptions: NextAuthOptions = {
             id: user.id,
             email: user.email,
             role: user.role,
+            mandant_id: user.mandant_id, // NEU
+            permissions: user.permissions || [], // NEU
           };
         } catch (error) {
           // Leitet die spezifische Fehlermeldung an NextAuth weiter
@@ -92,8 +96,12 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        // @ts-expect-error - Das User-Objekt vom authorize-Callback hat eine 'role'-Eigenschaft
+        // @ts-expect-error
         token.role = user.role;
+        // @ts-expect-error
+        token.mandant_id = user.mandant_id; // NEU
+        // @ts-expect-error
+        token.permissions = user.permissions; // NEU
       }
       return token;
     },
@@ -103,6 +111,8 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.id as string;
         // Stellen sicher, dass die Rolle korrekt typisiert ist
         session.user.role = token.role as 'BENUTZER' | 'ADMIN' | 'SUPERADMIN';
+        session.user.mandant_id = token.mandant_id as string | null | undefined; // NEU
+        session.user.permissions = token.permissions as string[] | undefined; // NEU
       }
       return session;
     },
