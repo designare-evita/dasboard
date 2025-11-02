@@ -6,12 +6,14 @@ import { useRouter } from 'next/navigation';
 
 // Typen für Klarheit
 interface Project {
-  id: string; // Die ID des "Projekt"-Benutzers
+  id: string; // Die ID des "Projekt"-Benutzers (Kunde)
   name: string; // Die Domain oder E-Mail des "Projekt"-Benutzers
+  mandant_id: string | null; // NEU: Mandant des Projekts
 }
 
 interface User {
   id: string; // Die ID des Admins, der bearbeitet wird
+  mandant_id: string | null; // NEU: Mandant des Admins
   assigned_projects: { project_id: string }[];
 }
 
@@ -25,6 +27,12 @@ export default function ProjectAssignmentManager({ user, allProjects }: Props) {
   const [loading, setLoading] = useState(false);
 
   const assignedProjectIds = new Set(user.assigned_projects.map(p => p.project_id));
+
+  // Filtert Projekte: Zeigt nur Projekte an, die NICHT bereits
+  // zum Standard-Mandanten des Admins gehören (dafür ist die Zuweisung unnötig).
+  const crossMandantProjects = allProjects.filter(
+    p => p.mandant_id !== user.mandant_id
+  );
 
   const handleAssignmentChange = async (projectId: string, isAssigned: boolean) => {
     setLoading(true);
@@ -40,7 +48,8 @@ export default function ProjectAssignmentManager({ user, allProjects }: Props) {
         throw new Error('Aktion fehlgeschlagen');
       }
       
-      router.refresh();
+      // WICHTIG: router.refresh() lädt die Server-Daten (assigned_projects) neu
+      router.refresh(); 
 
     } catch (error) {
       console.error('Fehler bei der Zuweisung:', error);
@@ -50,27 +59,35 @@ export default function ProjectAssignmentManager({ user, allProjects }: Props) {
     }
   };
   
-  if (allProjects.length === 0) {
+  if (crossMandantProjects.length === 0) {
     return (
-        <div className="mt-8 p-6 bg-white rounded-lg shadow-md">
-            <h3 className="text-xl font-bold mb-4">Projektzuweisungen</h3>
-            <p className="text-gray-500">Es sind keine Kunden-Projekte vorhanden, die zugewiesen werden könnten.</p>
+        <div className="mt-8 p-6 bg-white rounded-lg shadow-md border border-gray-200">
+            <h3 className="text-xl font-bold mb-4">Mandanten-übergreifende Zuweisungen</h3>
+            <p className="text-gray-500">
+              Es sind keine Kunden-Projekte aus *anderen* Mandanten vorhanden, die zugewiesen werden könnten.
+            </p>
         </div>
     );
   }
 
   return (
-    <div className="mt-8 p-6 bg-white rounded-lg shadow-md">
-      <h3 className="text-xl font-bold mb-4">Projektzuweisungen</h3>
+    <div className="mt-8 p-6 bg-white rounded-lg shadow-md border border-gray-200">
+      <h3 className="text-xl font-bold mb-4">Mandanten-übergreifende Zuweisungen</h3>
       <p className="text-sm text-gray-600 mb-4">
-        Weisen Sie diesem Admin die Projekte (Kunden) zu, auf die er Zugriff haben soll.
+        Weisen Sie diesem Admin Projekte (Kunden) zu, die sich **außerhalb** seines Standard-Mandanten (`{user.mandant_id || 'N/A'}`) befinden.
       </p>
       <div className="space-y-3">
-        {allProjects.map((project) => {
+        {crossMandantProjects.map((project) => {
           const isAssigned = assignedProjectIds.has(project.id);
           return (
-            <div key={project.id} className="flex items-center justify-between p-3 border rounded-md">
-              <span className="font-medium">{project.name}</span>
+            <div 
+              key={project.id} 
+              className={`flex items-center justify-between p-3 border rounded-md ${isAssigned ? 'bg-indigo-50 border-indigo-200' : ''}`}
+            >
+              <div>
+                <span className="font-medium">{project.name}</span>
+                <span className="ml-2 text-xs text-gray-500">(Mandant: {project.mandant_id || 'N/A'})</span>
+              </div>
               <button
                 onClick={() => handleAssignmentChange(project.id, isAssigned)}
                 disabled={loading}
@@ -80,7 +97,7 @@ export default function ProjectAssignmentManager({ user, allProjects }: Props) {
                     : 'bg-green-600 hover:bg-green-700 text-white'
                 } disabled:bg-gray-400`}
               >
-                {isAssigned ? 'Entfernen' : 'Zuweisen'}
+                {loading ? '...' : (isAssigned ? 'Entfernen' : 'Zuweisen')}
               </button>
             </div>
           );
