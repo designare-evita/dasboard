@@ -96,11 +96,14 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        // @ts-expect-error
+        // KORREKTUR: Beschreibung hinzugefügt
+        // @ts-expect-error Das 'user'-Objekt wird im 'authorize'-Callback erweitert
         token.role = user.role;
-        // @ts-expect-error
+        // KORREKTUR: Beschreibung hinzugefügt
+        // @ts-expect-error Das 'user'-Objekt wird im 'authorize'-Callback erweitert
         token.mandant_id = user.mandant_id; // NEU
-        // @ts-expect-error
+        // KORREKTUR: Beschreibung hinzugefügt
+        // @ts-expect-error Das 'user'-Objekt wird im 'authorize'-Callback erweitert
         token.permissions = user.permissions; // NEU
       }
       return token;
