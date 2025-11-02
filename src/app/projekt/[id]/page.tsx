@@ -127,7 +127,7 @@ export default function ProjektDetailPage() {
   const showNoDataHint = !isLoadingGoogle && !hasDashboardData(finalGoogleData);
 
   return (
-   <div className="p-4 sm:p-6 md:p-8 max-w-7xl mx-auto">
+   <div className="p-4 sm:p-6 md:p-8">
       <ProjectDashboard
         data={finalGoogleData} 
         isLoading={isLoading} 
