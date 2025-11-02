@@ -13,8 +13,7 @@ import {
   ArrowRightSquare
 } from 'react-bootstrap-icons';
 import {
-  ProjectDashboardData,
-  hasDashboardData
+  ProjectDashboardData
 } from '@/lib/dashboard-shared';
 import ProjectDashboard from '@/components/ProjectDashboard';
 import LandingpageApproval from '@/components/LandingpageApproval';
@@ -200,7 +199,6 @@ function CustomerDashboard({
   domain?: string;
   userId?: string;
 }) {
-  const showNoDataHint = !isLoading && !hasDashboardData(data);
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
@@ -221,8 +219,6 @@ function CustomerDashboard({
           dateRange={dateRange}
           onDateRangeChange={onDateRangeChange}
           onPdfExport={onPdfExport}
-          showNoDataHint={showNoDataHint}
-          noDataHintText="Hinweis: Für Ihr Projekt wurden noch keine KPI-Daten geliefert. Es werden vorübergehend Platzhalter-Werte angezeigt."
           projectId={userId}
           domain={user?.domain || domain}
           semrushTrackingId02={user?.semrush_tracking_id_02}
