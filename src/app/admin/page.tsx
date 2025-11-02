@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState, FormEvent } from 'react';
 import Link from 'next/link';
 import { User } from '@/types';
-// KEIN Import für die globale 'Button' Komponente mehr
 import {
   Pencil,
   Trash,
@@ -66,7 +65,18 @@ export default function AdminPage() {
 
     const formData = new FormData(e.currentTarget);
     const rawData = Object.fromEntries(formData) as Record<string, unknown>;
-    const payload = { ...rawData, role: selectedRole };
+
+    // NEU: 'permissions' als Array aufbereiten
+    const permissionsString = (rawData.permissions as string) || '';
+    const permissionsArray = permissionsString.split(',')
+      .map(p => p.trim())
+      .filter(p => p.length > 0);
+
+    const payload = { 
+      ...rawData, 
+      role: selectedRole,
+      permissions: permissionsArray // Array an API senden
+    };
 
     try {
       const response = await fetch('/api/users', {
@@ -191,6 +201,37 @@ export default function AdminPage() {
                 disabled={isSubmitting}
               />
             </div>
+            
+            {/* NEUES PFLICHTFELD: Mandant-ID (Label) */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Mandant-ID (Label)</label>
+              <input
+                name="mandant_id"
+                type="text"
+                required
+                placeholder="z.B. max-online (für alle in dieser Gruppe)"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
+                disabled={isSubmitting}
+              />
+            </div>
+
+            {/* NEUES FELD: Berechtigungen (Klasse) - Nur für SUPERADMIN sichtbar */}
+            {isSuperAdmin && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Berechtigungen (Klasse)</label>
+                <input
+                  name="permissions"
+                  type="text"
+                  placeholder="Optional: z.B. kann_admins_verwalten"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
+                  disabled={isSubmitting}
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Mehrere Labels mit Komma trennen (z.B. label1, label2)
+                </p>
+              </div>
+            )}
+
 
             {selectedRole === 'BENUTZER' && (
               <>
@@ -300,13 +341,18 @@ export default function AdminPage() {
                     {/* User Info */}
                     <div className="flex-1 overflow-hidden">
                       <p className="font-semibold truncate" title={user.email}>{user.email}</p>
+                      {/* NEU: Zeige Mandant-ID (Label) an */}
+                      {user.mandant_id && (
+                        <p className="text-xs text-indigo-600 font-medium truncate" title={`Mandant: ${user.mandant_id}`}>
+                          Label: {user.mandant_id}
+                        </p>
+                      )}
                       {user.domain && (
                         <p className="text-sm text-blue-600 font-medium truncate">{user.domain}</p>
                       )}
                       <p className="text-xs uppercase font-medium text-gray-500">{user.role}</p>
                     </div>
 
-                    {/* Action Buttons - KORREKTUR: Globale Button-Komponente entfernt */}
                     <div className="flex gap-2 flex-shrink-0 w-full sm:w-auto">
                       <Link
                         href={`/admin/edit/${user.id}`}
@@ -314,12 +360,15 @@ export default function AdminPage() {
                       >
                         <Pencil size={14} /> Bearbeiten
                       </Link>
-                      <button
-                        onClick={() => void handleDelete(user.id)}
-                        className="flex-1 sm:flex-none justify-center bg-red-500 text-white px-3 py-1.5 rounded hover:bg-red-600 text-sm flex items-center gap-1.5 transition-colors"
-                      >
-                        <Trash size={14} /> Löschen
-                      </button>
+                      {/* NEU: Nur SUPERADMIN darf löschen */}
+                      {isSuperAdmin && (
+                        <button
+                          onClick={() => void handleDelete(user.id)}
+                          className="flex-1 sm:flex-none justify-center bg-red-500 text-white px-3 py-1.5 rounded hover:bg-red-600 text-sm flex items-center gap-1.5 transition-colors"
+                        >
+                          <Trash size={14} /> Löschen
+                        </button>
+                      )}
                     </div>
                   </li>
                 ))}
