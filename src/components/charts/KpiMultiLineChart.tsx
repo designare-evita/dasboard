@@ -10,11 +10,11 @@ import {
   CartesianGrid, 
   Tooltip, 
   ResponsiveContainer,
-  Legend // Wichtig für die Zuordnung der Farben
+  Legend 
 } from 'recharts';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { KPI_TAB_META } from '@/lib/dashboard-shared'; // Wir nutzen deine Farbdefinitionen
+import { KPI_TAB_META } from '@/lib/dashboard-shared';
 
 // Typ für die Eingangs-Datenpunkte (aus KpiTrendChart.tsx)
 interface ChartDataPoint {
@@ -29,12 +29,10 @@ interface CombinedChartData {
   impressions?: number;
   sessions?: number;
   totalUsers?: number;
-  
-  // Für die X-Achse (formatiertes Datum)
   formattedDate: string; 
 }
 
-// Typ für die Props
+// Typ für die Props der Komponente
 interface KpiMultiLineChartProps {
   allChartData?: {
     clicks?: ChartDataPoint[];
@@ -44,18 +42,38 @@ interface KpiMultiLineChartProps {
   };
 }
 
+// ✅ KORREKTUR: Typen für den Custom Tooltip
+interface TooltipPayloadEntry {
+  stroke: string;
+  name: string; // Der "name" prop von <Line />
+  value: number;
+  payload: CombinedChartData; 
+  dataKey: string; 
+}
+
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: TooltipPayloadEntry[];
+  label?: string; // Dies ist der x-Achsen-Wert (unser formattedDate)
+}
+
 /**
  * CustomTooltip, der alle vier Werte anzeigt
+ * ✅ KORREKTUR: 'any' durch 'CustomTooltipProps' ersetzt
  */
-const CustomTooltip = ({ active, payload, label }: any) => {
-  if (active && payload && payload.length) {
+const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
+  if (active && payload && payload.length && label) {
+    // Wir verwenden das 'date'-Feld aus dem Payload, da 'label' formatiert ist
+    const originalDate = payload[0].payload.date; 
+    
     return (
       <div className="bg-white px-4 py-3 rounded-lg shadow-lg border border-gray-200">
         <p className="text-sm font-medium text-gray-900 mb-2">
-          {format(new Date(label), 'dd. MMM yyyy', { locale: de })}
+          {format(new Date(originalDate), 'dd. MMM yyyy', { locale: de })}
         </p>
         <ul className="space-y-1">
-          {payload.map((entry: any) => (
+          {/* ✅ KORREKTUR: 'any' entfernt, 'entry' wird korrekt hergeleitet */}
+          {payload.map((entry) => (
             <li key={entry.dataKey} style={{ color: entry.stroke }}>
               <span className="text-sm font-medium">
                 {entry.name}: {entry.value?.toLocaleString('de-DE')}
@@ -74,9 +92,14 @@ const CustomTooltip = ({ active, payload, label }: any) => {
  */
 const formatXAxis = (dateStr: string) => {
   try {
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return dateStr;
-    return format(date, 'dd.MM.', { locale: de });
+    // Annahme: dateStr ist bereits 'dd.MM.'
+    // Wenn es ein volles Datum ist, formatiere es
+    if (dateStr.includes('-')) {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return dateStr;
+      return format(date, 'dd.MM.', { locale: de });
+    }
+    return dateStr; // Gebe das bereits formatierte Datum zurück
   } catch {
     return dateStr;
   }
@@ -87,18 +110,12 @@ export default function KpiMultiLineChart({ allChartData }: KpiMultiLineChartPro
   
   /**
    * 1. DATEN-TRANSFORMATION
-   * Wir wandeln die separaten Arrays (clicks, impressions, etc.) in EIN
-   * Array um, das Recharts für Multi-Linien-Diagramme benötigt.
-   *
-   * Von: { clicks: [{date, value}], impressions: [{date, value}] }
-   * Zu:  [ { date, clicks, impressions, sessions, totalUsers }, ... ]
    */
   const combinedData = useMemo((): CombinedChartData[] => {
     if (!allChartData) return [];
 
     const dataMap = new Map<string, Partial<CombinedChartData>>();
 
-    // Helfer, um ein KPI-Array in die Map einzufügen
     const processKpi = (kpiData: ChartDataPoint[] | undefined, kpiName: keyof CombinedChartData) => {
       if (!kpiData) return;
       for (const point of kpiData) {
@@ -108,19 +125,18 @@ export default function KpiMultiLineChart({ allChartData }: KpiMultiLineChartPro
       }
     };
 
-    // Alle KPIs verarbeiten
     processKpi(allChartData.clicks, 'clicks');
     processKpi(allChartData.impressions, 'impressions');
     processKpi(allChartData.sessions, 'sessions');
     processKpi(allChartData.totalUsers, 'totalUsers');
 
-    // Map in ein Array umwandeln und nach Datum sortieren
     return Array.from(dataMap.values())
       .sort((a, b) => new Date(a.date!).getTime() - new Date(b.date!).getTime())
       .map(d => ({
         ...d,
-        date: d.date!, // Datum ist garantiert vorhanden
-        formattedDate: formatXAxis(d.date!) // X-Achsen-Label
+        date: d.date!, 
+        // WICHTIG: Wir übergeben das formatierte Datum für die X-Achse
+        formattedDate: formatXAxis(d.date!) 
       }));
       
   }, [allChartData]);
