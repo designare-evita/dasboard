@@ -16,6 +16,8 @@ declare module 'next-auth' {
     user: {
       id: string;
       role: 'BENUTZER' | 'ADMIN' | 'SUPERADMIN';
+      mandant_id?: string | null; // NEU
+      permissions?: string[]; // NEU
     } & DefaultSession['user'];
   }
 }
@@ -29,5 +31,7 @@ declare module 'next-auth/jwt' {
     accessToken?: string;
     refreshToken?: string;
     role: 'BENUTZER' | 'ADMIN' | 'SUPERADMIN';
+    mandant_id?: string | null; // NEU
+    permissions?: string[]; // NEU
   }
 }
