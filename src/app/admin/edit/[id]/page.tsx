@@ -175,8 +175,8 @@ export default async function EditUserPage({ params }: PageProps) {
           </div>
          {/* KORREKTUR: Prop 'isSuperAdmin' wird übergeben */}
          <EditUserForm 
-           user={user} 
-           isSuperAdmin={currentUserIsSuperAdmin} 
+           user={user}
+           isSuperAdmin={currentUserIsSuperAdmin}
          />
         </div>
 
