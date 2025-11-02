@@ -40,6 +40,8 @@ const DEFAULT_AI_TRAFFIC: AiTrafficData = {
   sessionsBySource: {},
   topAiSources: [],
   trend: [],
+  totalSessionsChange: 0, // Standardwert hinzugefügt
+  totalUsersChange: 0,  // Standardwert hinzugefügt
 };
 
 
@@ -105,7 +107,8 @@ async function getDashboardDataForUser(user: Partial<User>, dateRange: string = 
   
   let gaCurrent: GaData = DEFAULT_GA_DATA;
   let gaPrevious: { sessions: { total: number }, totalUsers: { total: number } } = DEFAULT_GA_PREVIOUS;
-  let aiTraffic: AiTrafficData = DEFAULT_AI_TRAFFIC;
+  let aiTrafficCurrent: AiTrafficData = DEFAULT_AI_TRAFFIC;
+  let aiTrafficPrevious: AiTrafficData = DEFAULT_AI_TRAFFIC; // Hier werden nur totals benötigt
 
   try {
     console.log(`[getDashboardDataForUser] Lade Daten für ${user.email} (${dateRange})`);
@@ -124,12 +127,13 @@ async function getDashboardDataForUser(user: Partial<User>, dateRange: string = 
       console.warn(`[DEBUG] Überspringe GSC-Daten, da gsc_site_url fehlt.`);
     }
 
-    // GA4-Daten HINZUFÜGEN, WENN VORHANDEN
+   // ✅ GA4-Daten um AI Traffic (Previous) erweitert
     if (user.ga4_property_id) {
       console.log(`[DEBUG] Lade GA4-Daten für Property: ${user.ga4_property_id}`);
       ga4Promises.push(getAnalyticsData(user.ga4_property_id, sDateCurrent, eDateCurrent));
       ga4Promises.push(getAnalyticsData(user.ga4_property_id, sDatePrevious, eDatePrevious));
-      ga4Promises.push(getAiTrafficData(user.ga4_property_id, sDateCurrent, eDateCurrent));
+      ga4Promises.push(getAiTrafficData(user.ga4_property_id, sDateCurrent, eDateCurrent)); // AI Current
+      ga4Promises.push(getAiTrafficData(user.ga4_property_id, sDatePrevious, eDatePrevious)); // ✅ AI Previous
     } else {
       console.warn(`[DEBUG] Überspringe GA4-Daten, da ga4_property_id fehlt.`);
     }
@@ -145,21 +149,29 @@ async function getDashboardDataForUser(user: Partial<User>, dateRange: string = 
       [gscCurrent, gscPrevious, topQueries] = gscResults as [GscData, typeof gscPrevious, TopQueryData];
     }
     if (ga4Results.length > 0) {
-      [gaCurrent, gaPrevious, aiTraffic] = ga4Results as [GaData, typeof gaPrevious, AiTrafficData];
+      [gaCurrent, gaPrevious, aiTrafficCurrent, aiTrafficPrevious] = ga4Results as [GaData, typeof gaPrevious, AiTrafficData, AiTrafficData];
     }
     
     console.log(`[getDashboardDataForUser] ✅ Daten erfolgreich geladen (GSC: ${gscResults.length > 0}, GA4: ${ga4Results.length > 0})`);
 
-    // --- Aufbereitung ---
+// --- Aufbereitung ---
+    
+    // ✅ NEU: Change-Werte für AI Traffic berechnen
+    aiTrafficCurrent.totalSessionsChange = calculateChange(
+      aiTrafficCurrent.totalSessions,
+      aiTrafficPrevious.totalSessions
+    );
+    aiTrafficCurrent.totalUsersChange = calculateChange(
+      aiTrafficCurrent.totalUsers,
+      aiTrafficPrevious.totalUsers
+    );
+    
     const totalSessions = gaCurrent.sessions.total ?? 0;
     const aiSessionsPercentage = totalSessions > 0
-      ? (aiTraffic.totalSessions / totalSessions) * 100
+      ? (aiTrafficCurrent.totalSessions / totalSessions) * 100
       : 0;
 
-    console.log(`[getDashboardDataForUser] KI-Traffic: ${aiTraffic.totalSessions} Sitzungen`);
-    console.log(`[getDashboardDataForUser] KI-Traffic-Anteil: ${aiSessionsPercentage.toFixed(2)}%`);
-
-    // --- Rückgabeobjekt (funktioniert jetzt auch mit Teildaten) ---
+    // --- Rückgabeobjekt ---
     return {
       kpis: {
         clicks: {
@@ -173,9 +185,11 @@ async function getDashboardDataForUser(user: Partial<User>, dateRange: string = 
         sessions: {
           value: gaCurrent.sessions.total ?? 0,
           change: calculateChange(gaCurrent.sessions.total ?? 0, gaPrevious.sessions.total ?? 0),
+          // ✅ aiTraffic Sub-Objekt mit allen Werten füllen
           aiTraffic: {
-            value: aiTraffic.totalSessions,
-            percentage: aiSessionsPercentage
+            value: aiTrafficCurrent.totalSessions,
+            percentage: aiSessionsPercentage,
+            change: aiTrafficCurrent.totalSessionsChange // ✅ Change-Wert hinzugefügt
           }
         },
         totalUsers: {
@@ -190,11 +204,11 @@ async function getDashboardDataForUser(user: Partial<User>, dateRange: string = 
         totalUsers: gaCurrent.totalUsers.daily ?? [],
       },
       topQueries,
-      aiTraffic
+      // ✅ Das 'aiTraffic'-Objekt enthält jetzt 'change'-Werte
+      aiTraffic: aiTrafficCurrent 
     };
   } catch (error) {
     console.error('[getDashboardDataForUser] Fehler beim Abrufen der Google-Daten:', error);
-    // Wenn hier ein Fehler auftritt, ist es ein ECHTER API-Fehler (z.B. Berechtigungen)
     throw error;
   }
 }
