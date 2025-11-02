@@ -1,4 +1,4 @@
-// src/app/api/users/route.ts - ANGEPASST FÜR MANDANTEN-LOGIK
+// src/app/api/users/route.ts - KORRIGIERT (Filtert Admin-Ansicht basierend auf Berechtigung)
 
 import { NextResponse, NextRequest } from 'next/server';
 import { sql } from '@vercel/postgres';
@@ -7,7 +7,7 @@ import { User } from '@/types';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
-// GET: Benutzer abrufen (mit Mandanten-Filterung)
+// GET: Benutzer abrufen (mit Mandanten-Filterung UND Berechtigungs-Filterung)
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
 
@@ -54,15 +54,21 @@ export async function GET(request: NextRequest) {
       // ADMIN sieht nur Benutzer des EIGENEN Mandanten
       const adminMandantId = session.user.mandant_id;
       
+      // KORREKTUR: Berechtigungen (Klasse) des Admins laden
+      const adminPermissions = session.user.permissions || [];
+      const kannAdminsVerwalten = adminPermissions.includes('kann_admins_verwalten');
+      
       if (!adminMandantId) {
         console.warn(`[/api/users] ADMIN ${session.user.email} hat keine mandant_id und kann niemanden sehen.`);
         return NextResponse.json([]); // Leeres Array zurückgeben
       }
 
       console.log(`[/api/users] ADMIN - Lade Benutzer für Mandant: ${adminMandantId}`);
+      console.log(`[/api/users] ADMIN - Hat 'kann_admins_verwalten': ${kannAdminsVerwalten}`);
+
 
       if (onlyCustomers) {
-        // Nur Kunden (BENUTZER) des eigenen Mandanten
+        // Nur Kunden (BENUTZER) des eigenen Mandanten (Diese Logik ändert sich nicht)
         result = await sql`
           SELECT id::text as id, email, role, domain, mandant_id, permissions
           FROM users
@@ -71,14 +77,29 @@ export async function GET(request: NextRequest) {
           ORDER BY domain ASC, email ASC
         `;
       } else {
-        // Alle Benutzer (auch andere Admins) des eigenen Mandanten
-        result = await sql`
-          SELECT id::text as id, email, role, domain, mandant_id, permissions
-          FROM users
-          WHERE mandant_id = ${adminMandantId}
-          AND role != 'SUPERADMIN'
-          ORDER BY role DESC, email ASC
-        `;
+        // KORREKTUR: Logik für die /admin Seite (wenn onlyCustomers=false ist)
+        
+        if (kannAdminsVerwalten) {
+          // Admin (Klasse 1) darf Admins + Benutzer seines Mandanten sehen
+          console.log('[/api/users] Admin (Klasse 1) lädt Admins + Benutzer');
+          result = await sql`
+            SELECT id::text as id, email, role, domain, mandant_id, permissions
+            FROM users
+            WHERE mandant_id = ${adminMandantId}
+            AND role != 'SUPERADMIN'
+            ORDER BY role DESC, email ASC
+          `;
+        } else {
+          // Normaler Admin (ohne Klasse 1) darf NUR Benutzer seines Mandanten sehen
+          console.log('[/api/users] Admin (Standard) lädt NUR Benutzer');
+          result = await sql`
+            SELECT id::text as id, email, role, domain, mandant_id, permissions
+            FROM users
+            WHERE mandant_id = ${adminMandantId}
+            AND role = 'BENUTZER'
+            ORDER BY role DESC, email ASC
+          `;
+        }
       }
 
       console.log('[/api/users] Gefunden:', result.rows.length, 'zugewiesene Benutzer/Admins');
