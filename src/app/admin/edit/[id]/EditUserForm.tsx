@@ -74,7 +74,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
         email: formData.email,
         mandant_id: formData.mandantId || null,
         // KORREKTUR: Sende 'permissions' nur, wenn der User ein Admin IST
-        permissions: (isSuperAdmin && user.role === 'ADMIN') ? permissionsArray : undefined,
+        permissions: (isSuperAdmin && user.role === 'ADMIN') ? permissionsArray : null,
         
         domain: formData.domain || null,
         gsc_site_url: formData.gscSiteUrl || null,
