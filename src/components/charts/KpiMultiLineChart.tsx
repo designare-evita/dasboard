@@ -14,7 +14,7 @@ import {
 } from 'recharts';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { KPI_TAB_META } from '@/lib/dashboard-shared'; // Wir nutzen deine Farbdefinitionen
+import { KPI_TAB_META } from '@/lib/dashboard-shared'; 
 
 // Typ für die Eingangs-Datenpunkte
 interface ChartDataPoint {
@@ -32,7 +32,7 @@ interface CombinedChartData {
   formattedDate: string; 
 }
 
-// ✅ KORREKTUR 1: Ein Typ nur für die KPI-Keys (die 'number' erwarten)
+// Ein Typ nur für die KPI-Keys (die 'number' erwarten)
 type KpiKey = 'clicks' | 'impressions' | 'sessions' | 'totalUsers';
 
 // Typ für die Props der Komponente
@@ -115,15 +115,14 @@ export default function KpiMultiLineChart({ allChartData }: KpiMultiLineChartPro
     const dataMap = new Map<string, Partial<CombinedChartData>>();
 
     // Helfer, um ein KPI-Array in die Map einzufügen
-    // ✅ KORREKTUR 2: kpiName ist jetzt vom Typ KpiKey
     const processKpi = (kpiData: ChartDataPoint[] | undefined, kpiName: KpiKey) => {
       if (!kpiData) return;
       for (const point of kpiData) {
-        // Expliziter Typ für 'entry' hilft TypeScript
-        const entry: Partial<CombinedChartData> & { date: string } = 
-          dataMap.get(point.date) || { date: point.date };
         
-        // ✅ KORREKTUR 3: Diese Zuweisung ist jetzt typsicher
+        // ✅ KORREKTUR: Die explizite Typ-Annotation wurde entfernt.
+        // TypeScript leitet den Typ von 'entry' jetzt korrekt selbst ab.
+        const entry = dataMap.get(point.date) || { date: point.date };
+        
         entry[kpiName] = point.value; 
         
         dataMap.set(point.date, entry);
@@ -139,7 +138,6 @@ export default function KpiMultiLineChart({ allChartData }: KpiMultiLineChartPro
     return Array.from(dataMap.values())
       .sort((a, b) => new Date(a.date!).getTime() - new Date(b.date!).getTime())
       .map(d => ({
-        // Standardwerte für fehlende Datenpunkte (verhindert Lücken im Chart)
         clicks: d.clicks,
         impressions: d.impressions,
         sessions: d.sessions,
@@ -184,7 +182,7 @@ export default function KpiMultiLineChart({ allChartData }: KpiMultiLineChartPro
               strokeWidth={2}
               dot={false}
               activeDot={{ r: 6 }}
-              connectNulls // Verbindet Lücken, falls Daten fehlen
+              connectNulls 
             />
             <Line 
               type="monotone" 
