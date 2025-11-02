@@ -13,15 +13,17 @@ export async function createTables() {
         email VARCHAR(255) NOT NULL UNIQUE,
         password VARCHAR(255) NOT NULL,
         role VARCHAR(50) NOT NULL CHECK (role IN ('SUPERADMIN', 'ADMIN', 'BENUTZER')),
+        
+        -- NEU: Mandanten-Label (Gruppe)
+        mandant_id VARCHAR(255) NULL, 
+        -- NEU: Berechtigungen (Klasse)
+        permissions TEXT[] DEFAULT '{}', 
+
         domain VARCHAR(255),
         gsc_site_url VARCHAR(255),
         ga4_property_id VARCHAR(255),
-
-        -- HIER DIE NEUEN SPALTEN --
         semrush_project_id VARCHAR(255),
         tracking_id VARCHAR(255),
-        ---------------------------
-
         "createdByAdminId" UUID REFERENCES users(id),
         "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         semrush_organic_keywords INTEGER,
@@ -30,7 +32,7 @@ export async function createTables() {
       );
     `;
     // Angepasste Log-Nachricht
-    console.log('Tabelle "users" erfolgreich geprüft/erstellt (inkl. semrush_project_id & tracking_id).');
+    console.log('Tabelle "users" erfolgreich geprüft/erstellt (inkl. mandant_id & permissions).');
 
     // Projects-Tabelle (aus deiner hochgeladenen Datei übernommen)
     await sql`
