@@ -2,10 +2,9 @@
 'use client';
 
 import React from 'react';
-// Importieren der Basis-Komponente und des Theme-Typs
 import SemrushKeywordTableBase, { type SemrushTheme } from './SemrushKeywordTableBase';
 
-// Definition des Farbschemas für Kampagne 1 (Österreich)
+// Definition des Farbschemas für Kampagne 1 (Österreich) - ORANGE
 const themeKampagne1: SemrushTheme = {
   headerGradient: "from-orange-600 to-orange-500",
   headerText: "text-orange-100",
@@ -14,6 +13,9 @@ const themeKampagne1: SemrushTheme = {
   tableHeaderBorder: "border-orange-500",
   tableHeaderHover: "hover:bg-orange-700",
   tableRowHover: "hover:bg-orange-50",
+  // Hex-Farben für inline-styles
+  tableHeaderBgColor: "#ea580c", // orange-600
+  tableHeaderHoverColor: "#c2410c", // orange-700
 };
 
 interface SemrushTopKeywordsProps {
