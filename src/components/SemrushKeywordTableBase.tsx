@@ -435,7 +435,7 @@ export default function SemrushKeywordTableBase({
               </span>
             </span>
           </div>
-          <div className="text-gray-500 italic">
+          <div className="text-gray-500">
             💡 Datenaktualisierung alle 14 Tage | Klicken Sie auf die Spaltenüberschriften zum Sortieren
           </div>
         </div>
