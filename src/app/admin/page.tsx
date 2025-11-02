@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState, FormEvent } from 'react';
 import Link from 'next/link';
 import { User } from '@/types';
+// KEIN Import für die globale 'Button' Komponente mehr
 import {
   Pencil,
   Trash,
@@ -66,7 +67,7 @@ export default function AdminPage() {
     const formData = new FormData(e.currentTarget);
     const rawData = Object.fromEntries(formData) as Record<string, unknown>;
 
-    // NEU: 'permissions' als Array aufbereiten
+    // 'permissions' als Array aufbereiten
     const permissionsString = (rawData.permissions as string) || '';
     const permissionsArray = permissionsString.split(',')
       .map(p => p.trim())
@@ -75,7 +76,8 @@ export default function AdminPage() {
     const payload = { 
       ...rawData, 
       role: selectedRole,
-      permissions: permissionsArray // Array an API senden
+      // KORREKTUR: Sende 'permissions' nur, wenn Superadmin (obwohl Backend dies auch prüft)
+      permissions: isSuperAdmin ? permissionsArray : []
     };
 
     try {
@@ -104,18 +106,16 @@ export default function AdminPage() {
 
   // Handles deleting a user
   const handleDelete = async (userId: string): Promise<void> => {
+    // (Unverändert)
     if (!window.confirm('Sind Sie sicher, dass Sie diesen Nutzer endgültig löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.')) {
         return;
     }
-
     try {
       const response = await fetch(`/api/users/${userId}`, { method: 'DELETE' });
       const result = await response.json();
-
       if (!response.ok) {
         throw new Error(result.message || 'Fehler beim Löschen');
       }
-
       setMessage('Benutzer erfolgreich gelöscht.');
       await fetchUsers(); // Refresh the user list
     } catch (error) {
@@ -147,7 +147,7 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* Überarbeitete Nachrichtenanzeige */}
+      {/* (Nachrichtenanzeige - Unverändert) */}
       {message && (
         <div className={`my-4 p-4 border rounded-md flex items-center gap-2 ${
           message.startsWith('Fehler:')
@@ -176,6 +176,7 @@ export default function AdminPage() {
                 disabled={isSubmitting}
               >
                 <option value="BENUTZER">Kunde (Benutzer)</option>
+                {/* Nur Superadmin kann Admin-Rolle zuweisen */}
                 {isSuperAdmin && <option value="ADMIN">Admin</option>}
               </select>
             </div>
@@ -202,20 +203,25 @@ export default function AdminPage() {
               />
             </div>
             
-            {/* NEUES PFLICHTFELD: Mandant-ID (Label) */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Mandant-ID (Label)</label>
-              <input
-                name="mandant_id"
-                type="text"
-                required
-                placeholder="z.B. max-online (für alle in dieser Gruppe)"
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
-                disabled={isSubmitting}
-              />
-            </div>
+            {/* Mandant-ID (Label) - Nur sichtbar wenn Superadmin ODER Admin (für eigene Erstellung) */}
+            {(isSuperAdmin || selectedRole === 'BENUTZER') && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Mandant-ID (Label)</label>
+                <input
+                  name="mandant_id"
+                  type="text"
+                  required
+                  // Superadmin kann frei tippen, Admin erbt sein eigenes Label
+                  readOnly={!isSuperAdmin}
+                  value={!isSuperAdmin ? session?.user?.mandant_id || '' : undefined}
+                  placeholder={isSuperAdmin ? "z.B. max-online (Gruppe)" : "Wird von Ihrem Konto geerbt"}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
+                  disabled={isSubmitting}
+                />
+              </div>
+            )}
 
-            {/* NEUES FELD: Berechtigungen (Klasse) - Nur für SUPERADMIN sichtbar */}
+            {/* KORREKTUR: Berechtigungen (Klasse) - Nur für SUPERADMIN sichtbar */}
             {isSuperAdmin && (
               <div>
                 <label className="block text-sm font-medium text-gray-700">Berechtigungen (Klasse)</label>
@@ -232,7 +238,7 @@ export default function AdminPage() {
               </div>
             )}
 
-
+            {/* (Restliche Felder für BENUTZER - Unverändert) */}
             {selectedRole === 'BENUTZER' && (
               <>
                 <div>
@@ -245,6 +251,7 @@ export default function AdminPage() {
                     disabled={isSubmitting}
                   />
                 </div>
+                {/* ... (andere Kundenfelder: gsc_site_url, ga4_property_id, etc.) ... */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700">GSC Site URL (z. B. https://kundendomain.at/)</label>
                   <input
@@ -298,7 +305,6 @@ export default function AdminPage() {
               </>
             )}
 
-            {/* Angepasster Button "Kunden/Admin erstellen" */}
             <button
               type="submit"
               disabled={isSubmitting}
@@ -319,7 +325,7 @@ export default function AdminPage() {
           </form>
         </div>
 
-        {/* Existing Users List */}
+        {/* (Vorhandene Nutzer Liste - Unverändert) */}
         <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
           <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
             <People size={22} /> Vorhandene Nutzer
@@ -341,7 +347,7 @@ export default function AdminPage() {
                     {/* User Info */}
                     <div className="flex-1 overflow-hidden">
                       <p className="font-semibold truncate" title={user.email}>{user.email}</p>
-                      {/* NEU: Zeige Mandant-ID (Label) an */}
+                      {/* Zeige Mandant-ID (Label) an */}
                       {user.mandant_id && (
                         <p className="text-xs text-indigo-600 font-medium truncate" title={`Mandant: ${user.mandant_id}`}>
                           Label: {user.mandant_id}
@@ -351,8 +357,15 @@ export default function AdminPage() {
                         <p className="text-sm text-blue-600 font-medium truncate">{user.domain}</p>
                       )}
                       <p className="text-xs uppercase font-medium text-gray-500">{user.role}</p>
+                      {/* Zeige Berechtigungen (Klasse) an, wenn vorhanden */}
+                      {user.permissions && user.permissions.length > 0 && (
+                        <p className="text-xs text-green-700 truncate" title={`Klasse: ${user.permissions.join(', ')}`}>
+                          Klasse: {user.permissions.join(', ')}
+                        </p>
+                      )}
                     </div>
 
+                    {/* Action Buttons */}
                     <div className="flex gap-2 flex-shrink-0 w-full sm:w-auto">
                       <Link
                         href={`/admin/edit/${user.id}`}
@@ -360,7 +373,7 @@ export default function AdminPage() {
                       >
                         <Pencil size={14} /> Bearbeiten
                       </Link>
-                      {/* NEU: Nur SUPERADMIN darf löschen */}
+                      {/* Nur SUPERADMIN darf löschen */}
                       {isSuperAdmin && (
                         <button
                           onClick={() => void handleDelete(user.id)}
