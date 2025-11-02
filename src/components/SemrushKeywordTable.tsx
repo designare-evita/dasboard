@@ -20,10 +20,13 @@ export interface SemrushTheme {
   headerGradient: string;
   headerText: string;
   headerTextMuted: string;
-  tableHeaderBg: string;
+  tableHeaderBg: string; // Wird jetzt als Tailwind-Klasse verwendet
   tableHeaderBorder: string;
   tableHeaderHover: string;
   tableRowHover: string;
+  // NEU: Hex-Farben für inline-styles
+  tableHeaderBgColor: string;
+  tableHeaderHoverColor: string;
 }
 
 // Props für die Basis-Komponente
@@ -31,9 +34,9 @@ interface SemrushKeywordTableBaseProps {
   projectId?: string | null;
   campaign: 'kampagne_1' | 'kampagne_2';
   title: string;
-  logContext: string; // Für Console-Logs (z.B. "SemrushTopKeywords")
-  errorContext: string; // Für Fehlermeldungen (z.B. "Kampagne 1")
-  keyPrefix: string; // Für React-Keys (z.B. "kampagne-1")
+  logContext: string;
+  errorContext: string;
+  keyPrefix: string;
   theme: SemrushTheme;
   debugInfo: {
     title: string;
@@ -52,7 +55,7 @@ export default function SemrushKeywordTableBase({
   debugInfo,
 }: SemrushKeywordTableBaseProps) {
   
-  // --- STATE & LOGIK (Identisch zu vorher) ---
+  // --- STATE & LOGIK ---
   const [keywords, setKeywords] = useState<KeywordData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -102,7 +105,7 @@ export default function SemrushKeywordTableBase({
     });
   }, [keywords, sortField, sortDirection]);
 
-  // --- DATENABRUF (Jetzt generisch) ---
+  // --- DATENABRUF ---
   useEffect(() => {
     const fetchKeywords = async () => {
       setIsLoading(true);
@@ -113,7 +116,7 @@ export default function SemrushKeywordTableBase({
 
       try {
         const urlParams = new URLSearchParams();
-        urlParams.set('campaign', campaign); // ✅ Verwendet 'campaign' Prop
+        urlParams.set('campaign', campaign);
         
         if (projectId) {
           urlParams.set('projectId', projectId);
@@ -121,7 +124,7 @@ export default function SemrushKeywordTableBase({
         
         const url = `/api/semrush/keywords?${urlParams.toString()}`;
         
-        console.log(`[${logContext}] Fetching keywords (${campaign}), URL:`, url); // ✅ Verwendet 'logContext'
+        console.log(`[${logContext}] Fetching keywords (${campaign}), URL:`, url);
         
         const response = await fetch(url);
         const data = await response.json();
@@ -147,7 +150,7 @@ export default function SemrushKeywordTableBase({
         }
       } catch (err) {
         console.error(`[${logContext}] Error fetching keywords:`, err);
-        setError(`Fehler beim Laden der Keywords (${errorContext})`); // ✅ Verwendet 'errorContext'
+        setError(`Fehler beim Laden der Keywords (${errorContext})`);
         setKeywords([]);
       } finally {
         setIsLoading(false);
@@ -155,23 +158,23 @@ export default function SemrushKeywordTableBase({
     };
 
     fetchKeywords();
-  }, [projectId, campaign, logContext, errorContext]); // ✅ 'campaign' etc. als Abhängigkeit
+  }, [projectId, campaign, logContext, errorContext]);
 
   const getPositionChange = (current: number, previous: number | null) => {
     if (previous === null) return null;
     return previous - current;
   };
 
-  // --- RENDER-LOGIK (Verwendet 'title' und 'theme' Props) ---
+  // --- RENDER-LOGIK ---
 
   // Ladezustand
   if (isLoading) {
     return (
       <div className="bg-white rounded-lg shadow-md border border-gray-200">
-        <div className={cn("p-4 rounded-t-lg", theme.headerGradient)}> {/* ✅ Theme */}
+        <div className={cn("p-4 rounded-t-lg bg-gradient-to-r", theme.headerGradient)}>
           <div className="flex items-center gap-2">
             <Search className="text-white" size={20} />
-            <h3 className="text-lg font-semibold text-white">{title}</h3> {/* ✅ Title */}
+            <h3 className="text-lg font-semibold text-white">{title}</h3>
           </div>
         </div>
         <div className="p-6 animate-pulse space-y-3">
@@ -187,14 +190,14 @@ export default function SemrushKeywordTableBase({
   if (error || keywords.length === 0) {
     const defaultError = projectId 
       ? 'Keine Keywords verfügbar. Bitte warten Sie auf den ersten Datenabruf.'
-      : `Keine Semrush Tracking ID (${errorContext}) konfiguriert oder keine Keywords gefunden.`; // ✅ 'errorContext'
+      : `Keine Semrush Tracking ID (${errorContext}) konfiguriert oder keine Keywords gefunden.`;
 
     return (
       <div className="bg-white rounded-lg shadow-md border border-gray-200">
-        <div className={cn("p-4 rounded-t-lg", theme.headerGradient)}> {/* ✅ Theme */}
+        <div className={cn("p-4 rounded-t-lg bg-gradient-to-r", theme.headerGradient)}>
           <div className="flex items-center gap-2">
             <Search className="text-white" size={20} />
-            <h3 className="text-lg font-semibold text-white">{title}</h3> {/* ✅ Title */}
+            <h3 className="text-lg font-semibold text-white">{title}</h3>
           </div>
         </div>
         <div className="p-6">
@@ -216,15 +219,15 @@ export default function SemrushKeywordTableBase({
   return (
     <div className="bg-white rounded-lg shadow-md border border-gray-200 flex flex-col">
       {/* Header */}
-      <div className={cn("p-4 rounded-t-lg", theme.headerGradient)}> {/* ✅ Theme */}
+      <div className={cn("p-4 rounded-t-lg bg-gradient-to-r", theme.headerGradient)}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Search className="text-white" size={20} />
-            <h3 className="text-lg font-semibold text-white">{title}</h3> {/* ✅ Title */}
+            <h3 className="text-lg font-semibold text-white">{title}</h3>
           </div>
           <div className="flex items-center gap-3">
             {lastFetched && (
-              <div className={cn("text-xs flex flex-col items-end gap-1", theme.headerText)}> {/* ✅ Theme */}
+              <div className={cn("text-xs flex flex-col items-end gap-1", theme.headerText)}>
                 <div className="flex items-center gap-2">
                   <span className={cn(
                     "px-2 py-0.5 rounded text-xs font-medium",
@@ -234,12 +237,12 @@ export default function SemrushKeywordTableBase({
                   </span>
                   <span className="whitespace-nowrap">{formatLastFetched(lastFetched)}</span>
                 </div>
-                <span className={cn("text-[10px]", theme.headerTextMuted)} title={lastFetched}> {/* ✅ Theme */}
+                <span className={cn("text-[10px]", theme.headerTextMuted)} title={lastFetched}>
                   {new Date(lastFetched).toLocaleString('de-DE')}
                 </span>
               </div>
             )}
-            <div className={cn("text-xs whitespace-nowrap", theme.headerText)}> {/* ✅ Theme */}
+            <div className={cn("text-xs whitespace-nowrap", theme.headerText)}>
               {keywords.length} {keywords.length === 1 ? 'Keyword' : 'Keywords'}
             </div>
           </div>
@@ -248,7 +251,7 @@ export default function SemrushKeywordTableBase({
 
       {/* DEBUG INFO */}
       {process.env.NODE_ENV === 'development' && (
-        <div className={cn("mx-4 mt-4 p-2 border rounded text-xs", debugInfo.classes)}> {/* ✅ Debug Info */}
+        <div className={cn("mx-4 mt-4 p-2 border rounded text-xs", debugInfo.classes)}>
           <strong>{debugInfo.title}:</strong> 
           <br />ProjectId: {projectId || 'none (User)'}, 
           <br />Keywords: {keywords.length},
@@ -261,10 +264,18 @@ export default function SemrushKeywordTableBase({
         <div className="max-h-[600px] overflow-y-auto">
           <table className="w-full border-collapse">
             <thead className="sticky top-0 z-10">
-              <tr className={cn("text-white", theme.tableHeaderBg)}> {/* ✅ Theme */}
+              <tr 
+                className="text-white"
+                style={{ backgroundColor: theme.tableHeaderBgColor }}
+              >
                 <th 
                   onClick={() => handleSort('keyword')}
-                  className={cn("px-4 py-3 text-left text-sm font-semibold cursor-pointer transition-colors", theme.tableHeaderBorder, theme.tableHeaderHover)}
+                  className="px-4 py-3 text-left text-sm font-semibold cursor-pointer transition-colors border-r border-white/20"
+                  style={{ 
+                    backgroundColor: theme.tableHeaderBgColor,
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = theme.tableHeaderHoverColor}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = theme.tableHeaderBgColor}
                 >
                   <div className="flex items-center gap-2">
                     Keyword
@@ -273,19 +284,32 @@ export default function SemrushKeywordTableBase({
                 </th>
                 <th 
                   onClick={() => handleSort('position')}
-                  className={cn("px-4 py-3 text-right text-sm font-semibold cursor-pointer transition-colors whitespace-nowrap", theme.tableHeaderBorder, theme.tableHeaderHover)}
+                  className="px-4 py-3 text-right text-sm font-semibold cursor-pointer transition-colors whitespace-nowrap border-r border-white/20"
+                  style={{ 
+                    backgroundColor: theme.tableHeaderBgColor,
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = theme.tableHeaderHoverColor}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = theme.tableHeaderBgColor}
                 >
                   <div className="flex items-center justify-end gap-2">
                     Position
                     <FunnelFill size={12} className="opacity-60" />
                   </div>
                 </th>
-                <th className={cn("px-4 py-3 text-center text-sm font-semibold whitespace-nowrap", theme.tableHeaderBorder)}>
+                <th 
+                  className="px-4 py-3 text-center text-sm font-semibold whitespace-nowrap border-r border-white/20"
+                  style={{ backgroundColor: theme.tableHeaderBgColor }}
+                >
                   Änderung
                 </th>
                 <th 
                   onClick={() => handleSort('searchVolume')}
-                  className={cn("px-4 py-3 text-right text-sm font-semibold cursor-pointer transition-colors whitespace-nowrap", theme.tableHeaderBorder, theme.tableHeaderHover)}
+                  className="px-4 py-3 text-right text-sm font-semibold cursor-pointer transition-colors whitespace-nowrap border-r border-white/20"
+                  style={{ 
+                    backgroundColor: theme.tableHeaderBgColor,
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = theme.tableHeaderHoverColor}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = theme.tableHeaderBgColor}
                 >
                   <div className="flex items-center justify-end gap-2">
                     Suchvolumen
@@ -294,14 +318,22 @@ export default function SemrushKeywordTableBase({
                 </th>
                 <th 
                   onClick={() => handleSort('trafficPercent')}
-                  className={cn("px-4 py-3 text-right text-sm font-semibold cursor-pointer transition-colors whitespace-nowrap", theme.tableHeaderBorder, theme.tableHeaderHover)}
+                  className="px-4 py-3 text-right text-sm font-semibold cursor-pointer transition-colors whitespace-nowrap border-r border-white/20"
+                  style={{ 
+                    backgroundColor: theme.tableHeaderBgColor,
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = theme.tableHeaderHoverColor}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = theme.tableHeaderBgColor}
                 >
                   <div className="flex items-center justify-end gap-2">
                     Traffic %
                     <FunnelFill size={12} className="opacity-60" />
                   </div>
                 </th>
-                <th className={cn("px-4 py-3 text-left text-sm font-semibold whitespace-nowrap", theme.tableHeaderBorder)}>
+                <th 
+                  className="px-4 py-3 text-left text-sm font-semibold whitespace-nowrap"
+                  style={{ backgroundColor: theme.tableHeaderBgColor }}
+                >
                   URL
                 </th>
               </tr>
@@ -312,11 +344,11 @@ export default function SemrushKeywordTableBase({
                 
                 return (
                   <tr 
-                    key={`${keyPrefix}-${projectId || 'user'}-${kw.keyword}-${index}`} // ✅ Key Prefix
+                    key={`${keyPrefix}-${projectId || 'user'}-${kw.keyword}-${index}`}
                     className={cn(
                       "border-b border-gray-200 transition-colors",
                       index % 2 === 0 ? "bg-white" : "bg-gray-50",
-                      theme.tableRowHover // ✅ Theme
+                      theme.tableRowHover
                     )}
                   >
                     {/* Keyword */}
@@ -332,8 +364,7 @@ export default function SemrushKeywordTableBase({
                         "inline-flex items-center px-2 py-0.5 rounded text-xs font-bold",
                         kw.position <= 3 ? "bg-green-100 text-green-800" :
                         kw.position <= 10 ? "bg-blue-100 text-blue-800" :
-                        // ✅ HIER IST DIE KORREKTUR: Orange zu Gelb
-                        kw.position <= 20 ? "bg-yellow-100 text-yellow-800" :
+                        kw.position <= 20 ? "bg-orange-100 text-orange-800" :
                         "bg-gray-100 text-gray-800"
                       )}>
                         #{Math.round(kw.position)}
@@ -389,7 +420,7 @@ export default function SemrushKeywordTableBase({
         </div>
       </div>
 
-      {/* Footer (Identisch) */}
+      {/* Footer */}
       <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 rounded-b-lg">
         <div className="flex flex-wrap items-center justify-between gap-4 text-xs text-gray-600">
           <div className="flex items-center gap-4">
