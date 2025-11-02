@@ -213,7 +213,7 @@ function CustomerDashboard({
   }, [userId]);
 
   return (
-   <div className="p-4 sm:p-6 md:p-8 max-w-7xl mx-auto">
+<div className="p-4 md:p-8 bg-gray-50 min-h-screen">
       <main>
         <ProjectDashboard
           data={data}
