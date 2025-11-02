@@ -11,9 +11,10 @@ interface Project {
   mandant_id: string | null; // NEU: Mandant des Projekts
 }
 
+// ✅ KORREKTUR: mandant_id kann auch undefined sein (kompatibel mit UserWithAssignments)
 interface User {
   id: string; // Die ID des Admins, der bearbeitet wird
-  mandant_id: string | null; // NEU: Mandant des Admins
+  mandant_id?: string | null; // KORRIGIERT: optional mit undefined
   assigned_projects: { project_id: string }[];
 }
 
