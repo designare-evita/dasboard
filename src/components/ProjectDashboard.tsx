@@ -89,7 +89,10 @@ export default function ProjectDashboard({
             totalSessions={data.aiTraffic?.totalSessions ?? 0}
             totalUsers={data.aiTraffic?.totalUsers ?? 0}
             percentage={data.kpis?.sessions?.aiTraffic?.percentage ?? 0}
-            trend={data.aiTraffic?.trend ?? []}
+            trend={(data.aiTraffic?.trend ?? []).map(item => ({
+              date: item.date,
+              value: item.value
+            }))}
             topAiSources={data.aiTraffic?.topAiSources ?? []}
             className="h-full"
             isLoading={isLoading}
