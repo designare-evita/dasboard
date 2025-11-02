@@ -83,8 +83,8 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
         .map(p => p.trim())
         .filter(p => p.length > 0);
 
-      // ✅ Payload mit SNAKE_CASE für API
-      const payload: Record<string, any> = {
+      // ✅ KORRIGIERT: 'any' entfernt und durch spezifischen Typ ersetzt
+      const payload: Record<string, string | string[] | null> = {
         email: formData.email,
         mandant_id: formData.mandantId || null, // NEU
         permissions: permissionsArray,          // NEU
