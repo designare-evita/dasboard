@@ -1,3 +1,4 @@
+// src/app/admin/edit/[id]/EditUserForm.tsx
 'use client';
 
 import { useState, FormEvent, useEffect } from 'react';
@@ -13,6 +14,8 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
   // ✅ Form States - Alle Felder explizit
   const [formData, setFormData] = useState({
     email: '',
+    mandantId: '',    // NEU
+    permissions: '',  // NEU (als Komma-getrennter String)
     domain: '',
     gscSiteUrl: '',
     ga4PropertyId: '',
@@ -32,15 +35,16 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
       console.log('📋 EditUserForm - User empfangen:', {
         id: user.id,
         email: user.email,
+        mandant_id: user.mandant_id, // NEU
+        permissions: user.permissions, // NEU
         domain: user.domain,
-        semrush_project_id: user.semrush_project_id,
-        semrush_tracking_id: user.semrush_tracking_id,
-        semrush_tracking_id_02: user.semrush_tracking_id_02,
       });
 
       // ✅ Alle Felder mit Fallback auf leeren String
       setFormData({
         email: user.email || '',
+        mandantId: user.mandant_id || '', // NEU
+        permissions: user.permissions?.join(', ') || '', // NEU (Array zu String)
         domain: user.domain || '',
         gscSiteUrl: user.gsc_site_url || '',
         ga4PropertyId: user.ga4_property_id || '',
@@ -48,13 +52,6 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
         semrushTrackingId: user.semrush_tracking_id || '',
         semrushTrackingId02: user.semrush_tracking_id_02 || '',
       });
-
-      console.log('✅ Form States aktualisiert:');
-      console.log('  Email:', user.email);
-      console.log('  Domain:', user.domain);
-      console.log('  Semrush Project ID:', user.semrush_project_id);
-      console.log('  Semrush Tracking ID:', user.semrush_tracking_id);
-      console.log('  Semrush Tracking ID 02:', user.semrush_tracking_id_02);
       
       setPassword('');
       setMessage('');
@@ -68,11 +65,6 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
       ...prev,
       [field]: value
     }));
-
-    // Debug Logging für semrushTrackingId02
-    if (field === 'semrushTrackingId02') {
-      console.log('📝 semrushTrackingId02 geändert auf:', value);
-    }
   };
 
   // ✅ Submit Handler
@@ -83,12 +75,19 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
     setIsSubmitting(true);
 
     try {
-      // ✅ Payload mit SNAKE_CASE für API
       // Wichtig: Benutzer hat Rolle BENUTZER oder andere
       const isCustomer = user.role === 'BENUTZER';
 
-      const payload: Record<string, string | number | null> = {
+      // NEU: Berechtigungen-String zurück in Array umwandeln
+      const permissionsArray = formData.permissions.split(',')
+        .map(p => p.trim())
+        .filter(p => p.length > 0);
+
+      // ✅ Payload mit SNAKE_CASE für API
+      const payload: Record<string, any> = {
         email: formData.email,
+        mandant_id: formData.mandantId || null, // NEU
+        permissions: permissionsArray,          // NEU
       };
 
       // ✅ Nur für Kunden: Zusätzliche Felder setzen
@@ -108,7 +107,6 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
 
       console.log('📤 Sende PUT Request mit Payload:');
       console.log(JSON.stringify(payload, null, 2));
-      console.log('   semrush_tracking_id_02 =', payload.semrush_tracking_id_02);
 
       // ✅ API Call
       const response = await fetch(`/api/users/${user.id}`, {
@@ -127,7 +125,6 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
       }
 
       console.log('📥 Server Response:', result);
-      console.log('   semrush_tracking_id_02 im Response =', result.semrush_tracking_id_02);
 
       // ✅ Error Check
       if (!response.ok) {
@@ -138,6 +135,8 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
       // 🔴 WICHTIG: Die formData mit Response aktualisieren, bevor onUserUpdated aufgerufen wird
       setFormData({
         email: result.email || '',
+        mandantId: result.mandant_id || '', // NEU
+        permissions: result.permissions?.join(', ') || '', // NEU
         domain: result.domain || '',
         gscSiteUrl: result.gsc_site_url || '',
         ga4PropertyId: result.ga4_property_id || '',
@@ -151,14 +150,9 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
       setSuccessMessage('✅ Benutzer erfolgreich aktualisiert!');
 
       console.log('✅ Success! Form States mit Response aktualisiert');
-      console.log('✅ Lokale formData nach Update:', {
-        semrushTrackingId02: result.semrush_tracking_id_02
-      });
 
       // ⏱️ WICHTIG: Callback NACH formData Update, damit die lokal gespeicherten Daten erhalten bleiben
       if (onUserUpdated) {
-        console.log('📞 Rufe onUserUpdated Callback auf...');
-        // Gib dem Callback den aktualisierten User zurück, falls nötig
         onUserUpdated();
       }
 
@@ -208,6 +202,35 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
             className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
             disabled={isSubmitting}
           />
+        </div>
+
+        {/* ========== NEU: Mandant & Berechtigungen ========== */}
+        {/* TODO: Diese Felder sollten nur für SUPERADMIN editierbar sein */}
+        <div className="border-t pt-4 mt-4">
+          <label className="block text-sm font-medium text-gray-700">Mandant-ID (Label)</label>
+          <input
+            type="text"
+            value={formData.mandantId}
+            onChange={(e) => handleInputChange('mandantId', e.target.value)}
+            placeholder="z.B. max-online"
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
+            disabled={isSubmitting} // Später: || session.user.role !== 'SUPERADMIN'
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Berechtigungen (Klasse)</label>
+          <input
+            type="text"
+            value={formData.permissions}
+            onChange={(e) => handleInputChange('permissions', e.target.value)}
+            placeholder="z.B. kann_admins_verwalten, kann_exportieren"
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
+            disabled={isSubmitting} // Später: || session.user.role !== 'SUPERADMIN'
+          />
+          <p className="mt-1 text-xs text-gray-500">
+            Labels mit Komma trennen.
+          </p>
         </div>
 
         {/* ========== Kunden-spezifische Felder (nur für BENUTZER) ========== */}
@@ -380,6 +403,8 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
                   id: user.id,
                   email: user.email,
                   role: user.role,
+                  mandant_id: user.mandant_id, // NEU
+                  permissions: user.permissions, // NEU
                   semrush_tracking_id_02: user.semrush_tracking_id_02,
                 },
                 formData,
