@@ -22,8 +22,6 @@ interface ProjectDashboardProps {
   isLoading: boolean;
   dateRange: DateRangeOption;
   onDateRangeChange: (range: DateRangeOption) => void;
-  showNoDataHint?: boolean;
-  noDataHintText?: string;
   projectId?: string;
   domain?: string;
   semrushTrackingId02?: string | null;
@@ -35,8 +33,6 @@ export default function ProjectDashboard({
   isLoading,
   dateRange,
   onDateRangeChange,
-  showNoDataHint = false,
-  noDataHintText = "Für dieses Projekt wurden noch keine KPI-Daten geliefert.",
   projectId,
   domain,
   semrushTrackingId02,
@@ -91,7 +87,7 @@ export default function ProjectDashboard({
             percentage={data.kpis?.sessions?.aiTraffic?.percentage ?? 0}
             trend={(data.aiTraffic?.trend ?? []).map(item => ({
               date: item.date,
-              value: 'value' in item ? item.value : (item as any).sessions
+              value: 'value' in item ? item.value : (item as { date: string; sessions: number }).sessions
             }))}
             topAiSources={data.aiTraffic?.topAiSources ?? []}
             className="h-full"
