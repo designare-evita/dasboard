@@ -1,4 +1,4 @@
-// src/components/charts/KpiTrendChart.tsx (TypeScript Fix)
+// src/components/charts/KpiTrendChart.tsx (Vereinfacht)
 'use client';
 
 import React, { useState } from 'react';
@@ -22,7 +22,8 @@ interface ChartDataPoint {
 }
 
 interface KpiTrendChartProps {
-  data: ChartDataPoint[];
+  // data prop ist nicht mehr nötig, wenn allChartData vorhanden ist
+  // data?: ChartDataPoint[]; 
   activeKpi?: ActiveKpi;
   onKpiChange?: (kpi: ActiveKpi) => void;
   allChartData?: {
@@ -36,7 +37,7 @@ interface KpiTrendChartProps {
 const KPI_TABS: ActiveKpi[] = ['clicks', 'impressions', 'sessions', 'totalUsers'];
 
 export default function KpiTrendChart({ 
-  data, 
+  // data, // Entfernt
   activeKpi = 'clicks',
   onKpiChange,
   allChartData
@@ -44,7 +45,6 @@ export default function KpiTrendChart({
   
   const [localActiveKpi, setLocalActiveKpi] = useState<ActiveKpi>(activeKpi);
   
-  // Verwende entweder controlled (onKpiChange) oder uncontrolled (localActiveKpi) State
   const currentKpi = onKpiChange ? activeKpi : localActiveKpi;
   const setCurrentKpi = (kpi: ActiveKpi) => {
     if (onKpiChange) {
@@ -54,12 +54,12 @@ export default function KpiTrendChart({
     }
   };
 
-  // Hole die richtigen Daten für den aktiven KPI
-  const currentData = allChartData?.[currentKpi] || data;
+  // ✅ KORREKTUR: Wählt die Daten basierend auf currentKpi aus allChartData aus
+  const currentData = allChartData?.[currentKpi] ?? []; // Fallback auf leeres Array
   const currentColor = KPI_TAB_META[currentKpi].color;
   const currentLabel = KPI_TAB_META[currentKpi].title;
 
-  // ✅ Type-safe Custom Tooltip
+  // Type-safe Custom Tooltip
   interface CustomTooltipProps {
     active?: boolean;
     payload?: Array<{
@@ -83,7 +83,7 @@ export default function KpiTrendChart({
           formattedDate = format(parsedDate, 'dd. MMM yyyy', { locale: de });
         }
       } catch {
-        // Fallback auf Original-String
+        // Fallback
       }
 
       return (
@@ -114,29 +114,34 @@ export default function KpiTrendChart({
     <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6">
       {/* Tab-Navigation */}
       <div className="mb-6 border-b border-gray-200">
-        <nav className="flex -mb-px space-x-8" aria-label="KPI Tabs">
-          {KPI_TABS.map((kpi) => {
-            const meta = KPI_TAB_META[kpi];
-            const isActive = currentKpi === kpi;
-            
-            return (
-              <button
-                key={kpi}
-                onClick={() => setCurrentKpi(kpi)}
-                className={cn(
-                  "whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors",
-                  isActive
-                    ? "border-current text-gray-900"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                )}
-                style={isActive ? { borderColor: meta.color, color: meta.color } : {}}
-                aria-current={isActive ? 'page' : undefined}
-              >
-                {meta.title}
-              </button>
-            );
-          })}
-        </nav>
+        <div className="flex items-center justify-between"> {/* NEU: justify-between */}
+          <h3 className="text-lg font-semibold text-gray-900 hidden sm:block">
+            KPI Trend
+          </h3>
+          <nav className="flex -mb-px space-x-4 sm:space-x-8 overflow-x-auto" aria-label="KPI Tabs">
+            {KPI_TABS.map((kpi) => {
+              const meta = KPI_TAB_META[kpi];
+              const isActive = currentKpi === kpi;
+              
+              return (
+                <button
+                  key={kpi}
+                  onClick={() => setCurrentKpi(kpi)}
+                  className={cn(
+                    "whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors",
+                    isActive
+                      ? "border-current text-gray-900"
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                  )}
+                  style={isActive ? { borderColor: meta.color, color: meta.color } : {}}
+                  aria-current={isActive ? 'page' : undefined}
+                >
+                  {meta.title}
+                </button>
+              );
+            })}
+          </nav>
+        </div>
       </div>
 
       {/* Chart */}
