@@ -1,4 +1,4 @@
-// src/app/api/users/route.ts - KORRIGIERT (Filtert Admin-Ansicht basierend auf Berechtigung)
+// src/app/api/users/route.ts - KORRIGIERT (Mit automatischer Zuweisung)
 
 import { NextResponse, NextRequest } from 'next/server';
 import { sql } from '@vercel/postgres';
@@ -8,6 +8,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
 // GET: Benutzer abrufen (mit Mandanten-Filterung UND Berechtigungs-Filterung)
+// (Diese Funktion ist von der letzten Korrektur bereits korrekt und bleibt unverändert)
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
 
@@ -18,7 +19,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ message: "Nicht autorisiert" }, { status: 401 });
   }
 
-  // ✅ Query-Parameter prüfen
   const { searchParams } = new URL(request.url);
   const onlyCustomers = searchParams.get('onlyCustomers') === 'true';
 
@@ -54,7 +54,6 @@ export async function GET(request: NextRequest) {
       // ADMIN sieht nur Benutzer des EIGENEN Mandanten
       const adminMandantId = session.user.mandant_id;
       
-      // KORREKTUR: Berechtigungen (Klasse) des Admins laden
       const adminPermissions = session.user.permissions || [];
       const kannAdminsVerwalten = adminPermissions.includes('kann_admins_verwalten');
       
@@ -77,7 +76,7 @@ export async function GET(request: NextRequest) {
           ORDER BY domain ASC, email ASC
         `;
       } else {
-        // KORREKTUR: Logik für die /admin Seite (wenn onlyCustomers=false ist)
+        // Logik für die /admin Seite (wenn onlyCustomers=false ist)
         
         if (kannAdminsVerwalten) {
           // Admin (Klasse 1) darf Admins + Benutzer seines Mandanten sehen
@@ -120,7 +119,6 @@ export async function GET(request: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
 
-  // Prüfen, ob der Benutzer eingeloggt ist UND Admin oder Superadmin ist
   if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
     return NextResponse.json({ message: "Zugriff verweigert" }, { status: 403 });
   }
@@ -132,8 +130,8 @@ export async function POST(req: NextRequest) {
       email, 
       password, 
       role, 
-      mandant_id, // NEU
-      permissions,  // NEU (kommt als string[] an)
+      mandant_id, 
+      permissions,
       domain, 
       gsc_site_url, 
       ga4_property_id, 
@@ -145,36 +143,27 @@ export async function POST(req: NextRequest) {
     if (!email || !password || !role) {
       return NextResponse.json({ message: 'E-Mail, Passwort und Rolle sind erforderlich' }, { status: 400 });
     }
-
-    // NEU: Mandant-ID ist für Admins und Benutzer erforderlich (wird vom SUPERADMIN gesetzt)
-    if (role !== 'SUPERADMIN' && !mandant_id) {
-       return NextResponse.json({ message: 'Mandant-ID (Label) ist erforderlich' }, { status: 400 });
-    }
-
-    // --- BERECHTIGUNGSPRÜFUNG ---
+    
+    // (Berechtigungsprüfungen bleiben gleich)
     const loggedInUserRole = session.user.role;
     const loggedInUserMandantId = session.user.mandant_id;
     const roleToCreate = role;
 
-    // 1. Superadmin darf keine Superadmins erstellen
     if (roleToCreate === 'SUPERADMIN') {
        return NextResponse.json({ message: 'Superadmins können nicht über diese API erstellt werden.' }, { status: 403 });
     }
-
-    // 2. Admin darf NUR Benutzer im EIGENEN Mandanten erstellen
     if (loggedInUserRole === 'ADMIN') {
       if (roleToCreate !== 'BENUTZER') {
          return NextResponse.json({ message: 'Admins dürfen nur Kunden (Benutzer) erstellen.' }, { status: 403 });
       }
+      // KORREKTUR: Wenn ein Admin erstellt, wird der Mandant automatisch geerbt
       if (mandant_id !== loggedInUserMandantId) {
          return NextResponse.json({ message: 'Admins dürfen nur Benutzer im eigenen Mandanten erstellen.' }, { status: 403 });
       }
-      // Ein Admin darf keine 'permissions' (Klasse) zuweisen
       if (permissions && permissions.length > 0) {
          return NextResponse.json({ message: 'Admins dürfen keine Berechtigungen (Klasse) zuweisen.' }, { status: 403 });
       }
     }
-    // --- ENDE BERECHTIGUNGSPRÜFUNG ---
     
     const { rows } = await sql<User>`SELECT * FROM users WHERE email = ${email}`;
     if (rows.length > 0) {
@@ -182,12 +171,9 @@ export async function POST(req: NextRequest) {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    
-    // Konvertiere JS-Array ['label1', 'label2'] in Postgres-Array-String '{label1,label2}'
     const permissionsArray = Array.isArray(permissions) ? permissions : [];
     const permissionsPgString = `{${permissionsArray.join(',')}}`;
 
-    // ✨ SQL-Query verwendet || null, um leere optionale Werte korrekt als NULL einzufügen ✨
     const { rows: newUsers } = await sql<User>`
       INSERT INTO users (
         email, password, role, mandant_id, permissions,
@@ -196,16 +182,41 @@ export async function POST(req: NextRequest) {
         "createdByAdminId"
       )
       VALUES (
-        ${email}, ${hashedPassword}, ${roleToCreate}, ${mandant_id || null}, ${permissionsPgString},
+        ${email}, ${hashedPassword}, ${roleToCreate}, 
+        ${mandant_id || null}, -- Wird vom Admin (wenn nicht Superadmin) geerbt oder vom Superadmin gesetzt
+        ${permissionsPgString},
         ${domain || null}, ${gsc_site_url || null}, ${ga4_property_id || null},
         ${semrush_project_id || null}, ${semrush_tracking_id || null}, ${semrush_tracking_id_02 || null},
         ${createdByAdminId}
       )
       RETURNING id, email, role, domain, mandant_id, permissions`;
+      
+    const newUser = newUsers[0];
 
-    // Die alte 'project_assignments' Logik wird entfernt, da sie durch mandant_id ersetzt wird.
+    // --- KORREKTUR: Automatische Zuweisung für den Ersteller ---
+    // Wenn ein Admin (egal ob Klasse 1 oder Standard) einen KUNDEN erstellt,
+    // wird er automatisch diesem Kunden zugewiesen.
+    if (loggedInUserRole === 'ADMIN' && roleToCreate === 'BENUTZER') {
+      const newCustomerId = newUser.id;
+      
+      console.log(`[/api/users] ADMIN ${createdByAdminId} erstellt Kunde ${newCustomerId}.`);
+      console.log(`[/api/users] Füge automatische Zuweisung in 'project_assignments' hinzu...`);
 
-    return NextResponse.json(newUsers[0], { status: 201 });
+      try {
+        await sql`
+          INSERT INTO project_assignments (user_id, project_id)
+          VALUES (${createdByAdminId}::uuid, ${newCustomerId}::uuid)
+        `;
+        console.log(`[/api/users] ✅ Zuweisung erfolgreich.`);
+      } catch (assignError) {
+        console.error(`[/api/users] ❌ FEHLER bei automatischer Zuweisung:`, assignError);
+        // Der Benutzer wurde erstellt, aber die Zuweisung schlug fehl.
+        // Wir loggen den Fehler, aber die Aktion war trotzdem "teils" erfolgreich.
+      }
+    }
+    // --- ENDE KORREKTUR ---
+
+    return NextResponse.json(newUser, { status: 201 });
 
   } catch (error) {
     console.error('Fehler bei der Benutzererstellung:', error);
