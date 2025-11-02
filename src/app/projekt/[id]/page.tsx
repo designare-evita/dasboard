@@ -6,8 +6,7 @@ import { useParams } from 'next/navigation';
 import useSWR from 'swr';
 import { type DateRangeOption } from '@/components/DateRangeSelector';
 import {
-  ProjectDashboardData,
-  hasDashboardData
+  ProjectDashboardData
 } from '@/lib/dashboard-shared';
 import ProjectDashboard from '@/components/ProjectDashboard';
 import { ArrowRepeat, ExclamationTriangleFill } from 'react-bootstrap-icons';
@@ -124,7 +123,6 @@ export default function ProjektDetailPage() {
     aiTraffic: undefined, 
     topQueries: [] 
   }; 
-  const showNoDataHint = !isLoadingGoogle && !hasDashboardData(finalGoogleData);
 
   return (
    <div className="p-4 sm:p-6 md:p-8">
@@ -134,8 +132,6 @@ export default function ProjektDetailPage() {
         dateRange={dateRange}
         onDateRangeChange={setDateRange}
         onPdfExport={handlePdfExport}
-        showNoDataHint={showNoDataHint}
-        noDataHintText="Hinweis: Für dieses Projekt wurden noch keine KPI-/Zeitreihen-Daten von Google geliefert. Es werden vorübergehend Platzhalter-Werte angezeigt."
         projectId={projectId}
         domain={userData?.domain}
         semrushTrackingId02={userData?.semrush_tracking_id_02}
