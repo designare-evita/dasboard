@@ -14,9 +14,9 @@ import {
 } from 'recharts';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { KPI_TAB_META } from '@/lib/dashboard-shared';
+import { KPI_TAB_META } from '@/lib/dashboard-shared'; // Wir nutzen deine Farbdefinitionen
 
-// Typ für die Eingangs-Datenpunkte (aus KpiTrendChart.tsx)
+// Typ für die Eingangs-Datenpunkte
 interface ChartDataPoint {
   date: string;
   value: number;
@@ -32,6 +32,9 @@ interface CombinedChartData {
   formattedDate: string; 
 }
 
+// ✅ KORREKTUR 1: Ein Typ nur für die KPI-Keys (die 'number' erwarten)
+type KpiKey = 'clicks' | 'impressions' | 'sessions' | 'totalUsers';
+
 // Typ für die Props der Komponente
 interface KpiMultiLineChartProps {
   allChartData?: {
@@ -42,10 +45,10 @@ interface KpiMultiLineChartProps {
   };
 }
 
-// ✅ KORREKTUR: Typen für den Custom Tooltip
+// Typen für den Custom Tooltip
 interface TooltipPayloadEntry {
   stroke: string;
-  name: string; // Der "name" prop von <Line />
+  name: string; 
   value: number;
   payload: CombinedChartData; 
   dataKey: string; 
@@ -54,16 +57,14 @@ interface TooltipPayloadEntry {
 interface CustomTooltipProps {
   active?: boolean;
   payload?: TooltipPayloadEntry[];
-  label?: string; // Dies ist der x-Achsen-Wert (unser formattedDate)
+  label?: string; 
 }
 
 /**
  * CustomTooltip, der alle vier Werte anzeigt
- * ✅ KORREKTUR: 'any' durch 'CustomTooltipProps' ersetzt
  */
 const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
   if (active && payload && payload.length && label) {
-    // Wir verwenden das 'date'-Feld aus dem Payload, da 'label' formatiert ist
     const originalDate = payload[0].payload.date; 
     
     return (
@@ -72,7 +73,6 @@ const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
           {format(new Date(originalDate), 'dd. MMM yyyy', { locale: de })}
         </p>
         <ul className="space-y-1">
-          {/* ✅ KORREKTUR: 'any' entfernt, 'entry' wird korrekt hergeleitet */}
           {payload.map((entry) => (
             <li key={entry.dataKey} style={{ color: entry.stroke }}>
               <span className="text-sm font-medium">
@@ -92,14 +92,12 @@ const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
  */
 const formatXAxis = (dateStr: string) => {
   try {
-    // Annahme: dateStr ist bereits 'dd.MM.'
-    // Wenn es ein volles Datum ist, formatiere es
     if (dateStr.includes('-')) {
       const date = new Date(dateStr);
       if (isNaN(date.getTime())) return dateStr;
       return format(date, 'dd.MM.', { locale: de });
     }
-    return dateStr; // Gebe das bereits formatierte Datum zurück
+    return dateStr; 
   } catch {
     return dateStr;
   }
@@ -116,15 +114,23 @@ export default function KpiMultiLineChart({ allChartData }: KpiMultiLineChartPro
 
     const dataMap = new Map<string, Partial<CombinedChartData>>();
 
-    const processKpi = (kpiData: ChartDataPoint[] | undefined, kpiName: keyof CombinedChartData) => {
+    // Helfer, um ein KPI-Array in die Map einzufügen
+    // ✅ KORREKTUR 2: kpiName ist jetzt vom Typ KpiKey
+    const processKpi = (kpiData: ChartDataPoint[] | undefined, kpiName: KpiKey) => {
       if (!kpiData) return;
       for (const point of kpiData) {
-        const entry = dataMap.get(point.date) || { date: point.date };
-        entry[kpiName] = point.value;
+        // Expliziter Typ für 'entry' hilft TypeScript
+        const entry: Partial<CombinedChartData> & { date: string } = 
+          dataMap.get(point.date) || { date: point.date };
+        
+        // ✅ KORREKTUR 3: Diese Zuweisung ist jetzt typsicher
+        entry[kpiName] = point.value; 
+        
         dataMap.set(point.date, entry);
       }
     };
 
+    // Alle KPIs verarbeiten
     processKpi(allChartData.clicks, 'clicks');
     processKpi(allChartData.impressions, 'impressions');
     processKpi(allChartData.sessions, 'sessions');
@@ -133,9 +139,13 @@ export default function KpiMultiLineChart({ allChartData }: KpiMultiLineChartPro
     return Array.from(dataMap.values())
       .sort((a, b) => new Date(a.date!).getTime() - new Date(b.date!).getTime())
       .map(d => ({
+        // Standardwerte für fehlende Datenpunkte (verhindert Lücken im Chart)
+        clicks: d.clicks,
+        impressions: d.impressions,
+        sessions: d.sessions,
+        totalUsers: d.totalUsers,
         ...d,
         date: d.date!, 
-        // WICHTIG: Wir übergeben das formatierte Datum für die X-Achse
         formattedDate: formatXAxis(d.date!) 
       }));
       
@@ -152,7 +162,7 @@ export default function KpiMultiLineChart({ allChartData }: KpiMultiLineChartPro
           <LineChart data={combinedData} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis 
-              dataKey="formattedDate" // Formatiertes Datum für die Achse
+              dataKey="formattedDate" 
               stroke="#6b7280"
               style={{ fontSize: '12px' }}
             />
@@ -162,7 +172,6 @@ export default function KpiMultiLineChart({ allChartData }: KpiMultiLineChartPro
               tickFormatter={(value) => value.toLocaleString('de-DE')}
             />
             
-            {/* 3. TOOLTIP & LEGENDE */}
             <Tooltip content={<CustomTooltip />} />
             <Legend /> 
 
@@ -175,6 +184,7 @@ export default function KpiMultiLineChart({ allChartData }: KpiMultiLineChartPro
               strokeWidth={2}
               dot={false}
               activeDot={{ r: 6 }}
+              connectNulls // Verbindet Lücken, falls Daten fehlen
             />
             <Line 
               type="monotone" 
@@ -184,6 +194,7 @@ export default function KpiMultiLineChart({ allChartData }: KpiMultiLineChartPro
               strokeWidth={2}
               dot={false}
               activeDot={{ r: 6 }}
+              connectNulls
             />
             <Line 
               type="monotone" 
@@ -193,6 +204,7 @@ export default function KpiMultiLineChart({ allChartData }: KpiMultiLineChartPro
               strokeWidth={2}
               dot={false}
               activeDot={{ r: 6 }}
+              connectNulls
             />
             <Line 
               type="monotone" 
@@ -202,6 +214,7 @@ export default function KpiMultiLineChart({ allChartData }: KpiMultiLineChartPro
               strokeWidth={2}
               dot={false}
               activeDot={{ r: 6 }}
+              connectNulls
             />
           </LineChart>
         </ResponsiveContainer>
