@@ -1,9 +1,10 @@
-// src/components/charts/KpiTrendChart.tsx (Vereinfacht)
+// src/components/charts/KpiTrendChart.tsx (Mit Area-Chart-Stil)
 'use client';
 
 import React, { useState } from 'react';
 import { 
-  LineChart, 
+  AreaChart, // Geändert von LineChart
+  Area,      // NEU: Für die Füllfläche
   Line, 
   XAxis, 
   YAxis, 
@@ -22,8 +23,6 @@ interface ChartDataPoint {
 }
 
 interface KpiTrendChartProps {
-  // data prop ist nicht mehr nötig, wenn allChartData vorhanden ist
-  // data?: ChartDataPoint[]; 
   activeKpi?: ActiveKpi;
   onKpiChange?: (kpi: ActiveKpi) => void;
   allChartData?: {
@@ -37,7 +36,6 @@ interface KpiTrendChartProps {
 const KPI_TABS: ActiveKpi[] = ['clicks', 'impressions', 'sessions', 'totalUsers'];
 
 export default function KpiTrendChart({ 
-  // data, // Entfernt
   activeKpi = 'clicks',
   onKpiChange,
   allChartData
@@ -54,12 +52,11 @@ export default function KpiTrendChart({
     }
   };
 
-  // ✅ KORREKTUR: Wählt die Daten basierend auf currentKpi aus allChartData aus
-  const currentData = allChartData?.[currentKpi] ?? []; // Fallback auf leeres Array
+  const currentData = allChartData?.[currentKpi] ?? []; 
   const currentColor = KPI_TAB_META[currentKpi].color;
   const currentLabel = KPI_TAB_META[currentKpi].title;
 
-  // Type-safe Custom Tooltip
+  // (CustomTooltip bleibt unverändert)
   interface CustomTooltipProps {
     active?: boolean;
     payload?: Array<{
@@ -82,9 +79,7 @@ export default function KpiTrendChart({
         if (!isNaN(parsedDate.getTime())) {
           formattedDate = format(parsedDate, 'dd. MMM yyyy', { locale: de });
         }
-      } catch {
-        // Fallback
-      }
+      } catch {}
 
       return (
         <div className="bg-white px-4 py-3 rounded-lg shadow-lg border border-gray-200">
@@ -100,6 +95,7 @@ export default function KpiTrendChart({
     return null;
   };
 
+  // (formatXAxis bleibt unverändert)
   const formatXAxis = (dateStr: string) => {
     try {
       const date = new Date(dateStr);
@@ -112,9 +108,9 @@ export default function KpiTrendChart({
 
   return (
     <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6">
-      {/* Tab-Navigation */}
+      {/* (Tab-Navigation bleibt unverändert) */}
       <div className="mb-6 border-b border-gray-200">
-        <div className="flex items-center justify-between"> {/* NEU: justify-between */}
+        <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900 hidden sm:block">
             KPI Trend
           </h3>
@@ -144,10 +140,20 @@ export default function KpiTrendChart({
         </div>
       </div>
 
-      {/* Chart */}
+      {/* --- MODIFIZIERTER CHART-BEREICH --- */}
       {currentData.length > 0 ? (
         <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={currentData}>
+          {/* 1. <LineChart> zu <AreaChart> geändert */}
+          <AreaChart data={currentData}>
+            
+            {/* 2. Farbverlauf-Definition hinzugefügt */}
+            <defs>
+              <linearGradient id={`colorGradient-${currentKpi}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor={currentColor} stopOpacity={0.4}/> 
+                <stop offset="95%" stopColor={currentColor} stopOpacity={0.05}/>
+              </linearGradient>
+            </defs>
+
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis 
               dataKey="date" 
@@ -161,15 +167,26 @@ export default function KpiTrendChart({
               tickFormatter={(value) => value.toLocaleString('de-DE')}
             />
             <Tooltip content={<CustomTooltip />} />
+            
+            {/* 3. <Area>-Komponente für die Füllung hinzugefügt */}
+            <Area 
+              type="monotone" 
+              dataKey="value" 
+              stroke="none" 
+              fillOpacity={1} 
+              fill={`url(#colorGradient-${currentKpi})`}
+            />
+
+            {/* 4. <Line>-Komponente für die Linie und die Punkte beibehalten */}
             <Line 
               type="monotone" 
               dataKey="value" 
               stroke={currentColor}
               strokeWidth={2}
-              dot={{ fill: currentColor, r: 4 }}
+              dot={{ fill: currentColor, r: 4 }} // Zeigt die Punkte an
               activeDot={{ r: 6 }}
             />
-          </LineChart>
+          </AreaChart>
         </ResponsiveContainer>
       ) : (
         <div className="h-[300px] flex items-center justify-center text-gray-500">
