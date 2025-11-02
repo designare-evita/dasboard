@@ -5,7 +5,7 @@ import React from 'react';
 import { Cpu, GraphUp, People, ArrowUp, ArrowDown } from 'react-bootstrap-icons';
 import { cn } from '@/lib/utils';
 // ✅ NEU: Recharts-Importe für Sparkline
-import { ResponsiveContainer, AreaChart, Area } from 'recharts';
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 // ✅ NEU: Typ für Trend-Daten importieren (muss 'value' enthalten)
 import { ChartPoint } from '@/types/dashboard'; 
 
@@ -185,11 +185,11 @@ export default function AiTrafficCard({
         <div>
           <h4 className="text-sm font-semibold text-gray-700 mb-2">Sitzungs-Trend (KI)</h4>
           {safeTrend.length > 0 ? (
-            <div className="h-[120px]">
+            <div className="h-[200px]">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart 
                   data={safeTrend}
-                  margin={{ top: 5, right: 0, left: 0, bottom: 0 }}
+                  margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
                 >
                   <defs>
                     <linearGradient id="aiGradient" x1="0" y1="0" x2="0" y2="1">
@@ -197,6 +197,35 @@ export default function AiTrafficCard({
                       <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.05}/>
                     </linearGradient>
                   </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis 
+                    dataKey="date" 
+                    tick={{ fontSize: 11, fill: '#6b7280' }}
+                    tickFormatter={(value) => {
+                      // Format: YYYY-MM-DD zu DD.MM
+                      const date = new Date(value);
+                      return `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1).toString().padStart(2, '0')}`;
+                    }}
+                    minTickGap={30}
+                  />
+                  <YAxis 
+                    tick={{ fontSize: 11, fill: '#6b7280' }}
+                    width={35}
+                  />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'white', 
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '6px',
+                      fontSize: '12px'
+                    }}
+                    labelFormatter={(value) => {
+                      // Format: YYYY-MM-DD zu DD.MM.YYYY
+                      const date = new Date(value);
+                      return `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1).toString().padStart(2, '0')}.${date.getFullYear()}`;
+                    }}
+                    formatter={(value: number) => [value.toLocaleString('de-DE'), 'Sitzungen']}
+                  />
                   <Area
                     type="monotone"
                     dataKey="value"
@@ -210,7 +239,7 @@ export default function AiTrafficCard({
               </ResponsiveContainer>
             </div>
           ) : (
-            <div className="h-[120px] flex items-center justify-center text-xs text-gray-400 italic border border-dashed border-gray-200 rounded">
+            <div className="h-[200px] flex items-center justify-center text-xs text-gray-400 italic border border-dashed border-gray-200 rounded">
               Keine Trenddaten verfügbar
             </div>
           )}
