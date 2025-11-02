@@ -2,10 +2,9 @@
 'use client';
 
 import React from 'react';
-// Importieren der Basis-Komponente und des Theme-Typs
 import SemrushKeywordTableBase, { type SemrushTheme } from './SemrushKeywordTableBase';
 
-// Definition des Farbschemas für Kampagne 2 (USA)
+// Definition des Farbschemas für Kampagne 2 (USA) - PURPLE
 const themeKampagne2: SemrushTheme = {
   headerGradient: "from-purple-600 to-purple-500",
   headerText: "text-purple-100",
@@ -14,6 +13,9 @@ const themeKampagne2: SemrushTheme = {
   tableHeaderBorder: "border-purple-500",
   tableHeaderHover: "hover:bg-purple-700",
   tableRowHover: "hover:bg-purple-50",
+  // Hex-Farben für inline-styles
+  tableHeaderBgColor: "#9333ea", // purple-600
+  tableHeaderHoverColor: "#7e22ce", // purple-700
 };
 
 interface SemrushTopKeywords02Props {
@@ -25,7 +27,7 @@ export default function SemrushTopKeywords02({ projectId }: SemrushTopKeywords02
     <SemrushKeywordTableBase
       projectId={projectId}
       campaign="kampagne_2"
-      title="Top 20 Keywords - USA"
+      title="Top 20 Organische Keywords - USA"
       logContext="SemrushTopKeywords02"
       errorContext="Kampagne 2"
       keyPrefix="kampagne-2"
