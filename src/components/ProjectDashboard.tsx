@@ -82,14 +82,24 @@ export default function ProjectDashboard({
         />
       </div>
 
-      {/* AI Traffic & Top Queries (bleibt gleich) */}
+     {/* AI Traffic & Top Queries */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mt-6">
         <div className="xl:col-span-1">
+          {/* ✅ HIER WERDEN DIE NEUEN PROPS ÜBERGEBEN */}
           <AiTrafficCard 
             totalSessions={data.aiTraffic?.totalSessions ?? 0}
             totalUsers={data.aiTraffic?.totalUsers ?? 0}
+            // 'percentage' holen wir aus dem kpis-Objekt, wo es berechnet wurde
+            percentage={data.kpis?.sessions?.aiTraffic?.percentage ?? 0}
+            // 'change'-Werte kommen jetzt direkt vom aiTraffic-Objekt
+            totalSessionsChange={data.aiTraffic?.totalSessionsChange}
+            totalUsersChange={data.aiTraffic?.totalUsersChange}
+            // 'trend' wird ebenfalls durchgereicht
+            trend={data.aiTraffic?.trend ?? []}
             topAiSources={data.aiTraffic?.topAiSources ?? []}
             className="h-full"
+            isLoading={isLoading} // Ladezustand weitergeben
+            dateRange={dateRange} // Zeitraum weitergeben
           />
         </div>
         
