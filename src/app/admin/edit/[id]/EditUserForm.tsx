@@ -5,11 +5,10 @@ import { useState, FormEvent, useEffect } from 'react';
 import { User } from '@/types';
 import { Pencil, ArrowRepeat, CheckCircle } from 'react-bootstrap-icons';
 
-// KORREKTUR: Interface EXPORTIEREN
-export interface EditUserFormProps {
+interface EditUserFormProps {
   user: User;
   onUserUpdated?: () => void;
-  isSuperAdmin: boolean; // NEU: Info, ob der EINGELOGGTE Benutzer Superadmin ist
+  isSuperAdmin: boolean; // Info, ob der EINGELOGGTE Benutzer Superadmin ist
 }
 
 export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: EditUserFormProps) {
@@ -67,34 +66,29 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
     setIsSubmitting(true);
 
     try {
-      const isCustomer = user.role === 'BENUTZER';
-
       const permissionsArray = formData.permissions.split(',')
         .map(p => p.trim())
         .filter(p => p.length > 0);
 
-      const payload: Record<string, string | string[] | null | undefined> = {
+      const payload: Record<string, string | string[] | null> = {
         email: formData.email,
         mandant_id: formData.mandantId || null,
-        // KORREKTUR: Sende 'permissions' nur, wenn Superadmin
-        // (Das Backend MUSS dies trotzdem prüfen!)
-        permissions: isSuperAdmin ? permissionsArray : undefined,
+        permissions: isSuperAdmin ? permissionsArray : undefined, // Nur Superadmin darf senden
+        
+        // KORREKTUR: Diese Felder immer mitsenden
+        domain: formData.domain || null,
+        gsc_site_url: formData.gscSiteUrl || null,
+        ga4_property_id: formData.ga4PropertyId || null,
+        semrush_project_id: formData.semrushProjectId || null,
+        semrush_tracking_id: formData.semrushTrackingId || null,
+        semrush_tracking_id_02: formData.semrushTrackingId02 || null,
       };
       
       if (!isSuperAdmin) {
-        // Wenn kein Superadmin, sende permissions nicht mit
         delete payload.permissions;
       }
-
-      if (isCustomer) {
-        payload.domain = formData.domain || null;
-        payload.gsc_site_url = formData.gscSiteUrl || null;
-        payload.ga4_property_id = formData.ga4PropertyId || null;
-        payload.semrush_project_id = formData.semrushProjectId || null;
-        payload.semrush_tracking_id = formData.semrushTrackingId || null;
-        payload.semrush_tracking_id_02 = formData.semrushTrackingId02 || null;
-      }
-
+      
+      // (Passwort - Unverändert)
       if (password && password.trim().length > 0) {
         payload.password = password;
       }
@@ -175,7 +169,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
           />
         </div>
 
-        {/* --- KORREKTUR: Mandant & Berechtigungen --- */}
+        {/* --- Mandant & Berechtigungen (Nur für Superadmin editierbar) --- */}
         <div className="border-t pt-4 mt-4">
           <label className="block text-sm font-medium text-gray-700">Mandant-ID (Label)</label>
           <input
@@ -184,7 +178,6 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
             onChange={(e) => handleInputChange('mandantId', e.target.value)}
             placeholder="z.B. max-online"
             className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
-            // KORREKTUR: Nur Superadmin darf Mandant-ID ändern
             disabled={isSubmitting || !isSuperAdmin}
             readOnly={!isSuperAdmin}
           />
@@ -198,7 +191,6 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
             onChange={(e) => handleInputChange('permissions', e.target.value)}
             placeholder={isSuperAdmin ? "z.B. kann_admins_verwalten" : "Nur von Superadmin editierbar"}
             className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
-            // KORREKTUR: Nur Superadmin darf Berechtigungen (Klasse) ändern
             disabled={isSubmitting || !isSuperAdmin}
             readOnly={!isSuperAdmin}
           />
@@ -207,12 +199,129 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
           </p>
         </div>
 
-        {/* (Kunden-spezifische Felder - Unverändert) */}
-        {user.role === 'BENUTZER' && (
-          <>
-            {/* ... (domain, gsc, ga4, semrush...) ... */}
-          </>
-        )}
+        {/* --- KORREKTUR: Diese Felder sind jetzt IMMER sichtbar --- */}
+        {/* Domain */}
+        <div className="border-t pt-4 mt-4">
+          <label className="block text-sm font-medium text-gray-700">Domain</label>
+          <input
+            type="text"
+            value={formData.domain}
+            onChange={(e) => handleInputChange('domain', e.target.value)}
+            placeholder="z.B. www.kundendomain.at"
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
+            disabled={isSubmitting}
+          />
+        </div>
+
+        {/* GSC Site URL */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700">
+            GSC Site URL
+            {formData.gscSiteUrl && (
+              <span className="ml-2 text-xs text-green-600">✓ Gesetzt</span>
+            )}
+          </label>
+          <input
+            type="text"
+            value={formData.gscSiteUrl}
+            onChange={(e) => handleInputChange('gscSiteUrl', e.target.value)}
+            placeholder="z.B. sc-domain:kundendomain.at"
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
+            disabled={isSubmitting}
+          />
+          {formData.gscSiteUrl && (
+            <p className="mt-1 text-xs text-gray-500">Aktueller Wert: {formData.gscSiteUrl}</p>
+          )}
+        </div>
+
+        {/* GA4 Property ID */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700">
+            GA4 Property ID
+            {formData.ga4PropertyId && (
+              <span className="ml-2 text-xs text-green-600">✓ Gesetzt</span>
+            )}
+          </label>
+          <input
+            type="text"
+            value={formData.ga4PropertyId}
+            onChange={(e) => handleInputChange('ga4PropertyId', e.target.value)}
+            placeholder="z.B. 123456789"
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
+            disabled={isSubmitting}
+          />
+          {formData.ga4PropertyId && (
+            <p className="mt-1 text-xs text-gray-500">Aktueller Wert: {formData.ga4PropertyId}</p>
+          )}
+        </div>
+
+        {/* ========== SEMRUSH SECTION ========== */}
+        <fieldset className="border-t pt-4 mt-4">
+          
+          {/* Semrush Projekt ID */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700">
+              Semrush Projekt ID
+              {formData.semrushProjectId && (
+                <span className="ml-2 text-xs text-green-600">✓ Gesetzt</span>
+              )}
+            </label>
+            <input
+              type="text"
+              value={formData.semrushProjectId}
+              onChange={(e) => handleInputChange('semrushProjectId', e.target.value)}
+              placeholder="z.B. 12920575"
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
+              disabled={isSubmitting}
+            />
+            {formData.semrushProjectId && (
+              <p className="mt-1 text-xs text-gray-500">Aktueller Wert: {formData.semrushProjectId}</p>
+            )}
+          </div>
+
+          {/* Semrush Tracking-ID (Kampagne 1) */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700">
+              Semrush Tracking-ID (Kampagne 1)
+              {formData.semrushTrackingId && (
+                <span className="ml-2 text-xs text-green-600">✓ Gesetzt</span>
+              )}
+            </label>
+            <input
+              type="text"
+              value={formData.semrushTrackingId}
+              onChange={(e) => handleInputChange('semrushTrackingId', e.target.value)}
+              placeholder="z.B. 1209408"
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
+              disabled={isSubmitting}
+            />
+            {formData.semrushTrackingId && (
+              <p className="mt-1 text-xs text-gray-500">Aktueller Wert: {formData.semrushTrackingId}</p>
+            )}
+          </div>
+
+          {/* Semrush Tracking-ID 02 (Kampagne 2) */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700">
+              Semrush Tracking-ID (Kampagne 2)
+              {formData.semrushTrackingId02 && (
+                <span className="ml-2 text-xs text-green-600">✓ Gesetzt</span>
+              )}
+            </label>
+            <input
+              type="text"
+              value={formData.semrushTrackingId02}
+              onChange={(e) => handleInputChange('semrushTrackingId02', e.target.value)}
+              placeholder="z.B. 1209491"
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
+              disabled={isSubmitting}
+            />
+            {formData.semrushTrackingId02 && (
+              <p className="mt-1 text-xs text-gray-500">Aktueller Wert: {formData.semrushTrackingId02}</p>
+            )}
+            <p className="mt-1 text-xs text-gray-400">Optional: Für eine zweite Kampagne/Tracking</p>
+          </div>
+        </fieldset>
         
         {/* (Button & Messages - Unverändert) */}
         <button
