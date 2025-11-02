@@ -26,6 +26,10 @@ interface TopQueryData {
 export interface AiTrafficData {
   totalSessions: number;
   totalUsers: number;
+
+  totalSessionsChange?: number; 
+  totalUsersChange?: number;
+  
   sessionsBySource: {
     [source: string]: number;
   };
@@ -37,7 +41,7 @@ export interface AiTrafficData {
   }>;
   trend: Array<{
     date: string;
-    sessions: number;
+    value: number;
   }>;
 }
 
@@ -467,10 +471,10 @@ export async function getAiTrafficData(
     console.log('[AI-Traffic] Top AI Sources:', topAiSources);
 
     // Trend-Daten formatieren
-    const trend = Object.entries(trendMap)
+   const trend = Object.entries(trendMap)
       .map(([date, sessions]) => ({
-        date: formatDateForChart(date.replace(/-/g, '')),
-        sessions,
+        date: date, // Wichtig: YYYY-MM-DD Format für Recharts beibehalten
+        value: sessions, // ✅ 'sessions' zu 'value' umbenannt
       }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
