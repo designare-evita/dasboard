@@ -12,9 +12,14 @@ interface Project {
   mandant_id: string | null;
 }
 
+// Erweiteres User-Interface mit assigned_projects
+interface UserWithAssignments extends User {
+  assigned_projects: { project_id: string }[];
+}
+
 // WICHTIG: Interface mit availableProjects!
 export interface ProjectAssignmentManagerProps {
-  user: User;
+  user: UserWithAssignments;
   allProjects: Project[];
   availableProjects: Project[]; // ← NEUES PROP
 }
