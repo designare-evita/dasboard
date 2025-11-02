@@ -1,7 +1,9 @@
-// src/components/KpiCardsGrid.tsx (Version 2 - Mit Info-Tooltips)
+// src/components/KpiCardsGrid.tsx (Version 3 - Mit Sparklines)
 import React from 'react';
 import KpiCard from './kpi-card';
-import type { KPI } from '@/types/dashboard';
+// ✅ NEU: KPI_TAB_META für Farben und ChartPoint für Typ importieren
+import { KPI_TAB_META } from '@/lib/dashboard-shared';
+import type { KPI, ChartPoint } from '@/types/dashboard'; 
 import { InfoCircle } from 'react-bootstrap-icons';
 
 interface KpiCardsGridProps {
@@ -12,36 +14,37 @@ interface KpiCardsGridProps {
     totalUsers: KPI;
   };
   isLoading?: boolean;
+  // ✅ NEU: allChartData Prop hinzufügen
+  allChartData?: {
+    clicks?: ChartPoint[];
+    impressions?: ChartPoint[];
+    sessions?: ChartPoint[];
+    totalUsers?: ChartPoint[];
+  };
 }
 
 /**
- * KpiCardsGrid - Grid-Layout für die 4 Standard-KPI-Karten mit Info-Tooltips
- * 
- * Diese Komponente kapselt das Grid-Layout für Klicks, Impressionen, 
- * Sitzungen und Nutzer-KPIs und verwendet die bestehende KpiCard Komponente.
- * 
- * @param kpis - Objekt mit allen KPI-Werten
- * @param isLoading - Optional: Zeigt Lade-Skeleton an
+ * KpiCardsGrid - Grid-Layout für die 4 Standard-KPI-Karten
  */
-export default function KpiCardsGrid({ kpis, isLoading = false }: KpiCardsGridProps) {
+export default function KpiCardsGrid({ kpis, isLoading = false, allChartData }: KpiCardsGridProps) {
   
-  // KPI-Informationen für Tooltips
+  // (kpiInfo bleibt gleich)
   const kpiInfo = {
     clicks: {
       title: "Was sind Klicks?",
-      description: "Die Anzahl der Klicks auf Ihre Website-Links in den Google-Suchergebnissen. Ein Nutzer kann mehrere Klicks auf verschiedene Links Ihrer Website durchführen."
+      description: "Die Anzahl der Klicks auf Ihre Website-Links in den Google-Suchergebnissen..."
     },
     impressions: {
       title: "Was sind Impressionen?",
-      description: "Wie oft ein Link zu Ihrer Website in den Google-Suchergebnissen angezeigt wurde. Mehrere Links zur selben Website auf einer Ergebnisseite zählen als eine Impression."
+      description: "Wie oft ein Link zu Ihrer Website in den Google-Suchergebnissen angezeigt wurde..."
     },
     sessions: {
       title: "Was sind Sitzungen?",
-      description: "Eine Sitzung ist eine Gruppe von Interaktionen, die ein Nutzer innerhalb eines bestimmten Zeitraums auf Ihrer Website durchführt. Eine Sitzung endet nach 30 Minuten Inaktivität."
+      description: "Eine Sitzung ist eine Gruppe von Interaktionen, die ein Nutzer innerhalb eines bestimmten Zeitraums..."
     },
     totalUsers: {
       title: "Was sind Nutzer?",
-      description: "Die Anzahl eindeutiger Besucher Ihrer Website. Ein Nutzer kann mehrere Sitzungen durchführen, wird aber nur einmal gezählt."
+      description: "Die Anzahl eindeutiger Besucher Ihrer Website..."
     }
   };
 
@@ -54,6 +57,9 @@ export default function KpiCardsGrid({ kpis, isLoading = false }: KpiCardsGridPr
           isLoading={isLoading} 
           value={kpis.clicks.value} 
           change={kpis.clicks.change} 
+          // ✅ NEU: Daten & Farbe übergeben
+          data={allChartData?.clicks}
+          color={KPI_TAB_META.clicks.color}
         />
         {!isLoading && (
           <InfoTooltip 
@@ -70,6 +76,9 @@ export default function KpiCardsGrid({ kpis, isLoading = false }: KpiCardsGridPr
           isLoading={isLoading} 
           value={kpis.impressions.value} 
           change={kpis.impressions.change} 
+          // ✅ NEU: Daten & Farbe übergeben
+          data={allChartData?.impressions}
+          color={KPI_TAB_META.impressions.color}
         />
         {!isLoading && (
           <InfoTooltip 
@@ -86,6 +95,9 @@ export default function KpiCardsGrid({ kpis, isLoading = false }: KpiCardsGridPr
           isLoading={isLoading} 
           value={kpis.sessions.value} 
           change={kpis.sessions.change} 
+          // ✅ NEU: Daten & Farbe übergeben
+          data={allChartData?.sessions}
+          color={KPI_TAB_META.sessions.color}
         />
         {!isLoading && (
           <InfoTooltip 
@@ -102,6 +114,9 @@ export default function KpiCardsGrid({ kpis, isLoading = false }: KpiCardsGridPr
           isLoading={isLoading} 
           value={kpis.totalUsers.value} 
           change={kpis.totalUsers.change} 
+          // ✅ NEU: Daten & Farbe übergeben
+          data={allChartData?.totalUsers}
+          color={KPI_TAB_META.totalUsers.color}
         />
         {!isLoading && (
           <InfoTooltip 
@@ -115,7 +130,7 @@ export default function KpiCardsGrid({ kpis, isLoading = false }: KpiCardsGridPr
 }
 
 /**
- * InfoTooltip - Hover-Tooltip mit Informationen zur KPI
+ * InfoTooltip - (Diese Funktion bleibt unverändert)
  */
 function InfoTooltip({ title, description }: { title: string; description: string }) {
   const [isVisible, setIsVisible] = React.useState(false);
