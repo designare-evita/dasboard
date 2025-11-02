@@ -1,4 +1,4 @@
-// src/app/api/users/[id]/route.ts - ANGEPASST FÜR MANDANTEN-LOGIK
+// src/app/api/users/[id]/route.ts - KORRIGIERT (Mandanten-Logik)
 
 import { NextResponse, NextRequest } from 'next/server';
 import { sql } from '@vercel/postgres';
@@ -12,7 +12,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;
+  const { id: targetUserId } = await params; // Umbenannt zu targetUserId für Klarheit
   try {
     const session = await getServerSession(authOptions);
     
@@ -21,17 +21,23 @@ export async function GET(
       return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
     }
 
-    const { role: sessionRole, id: sessionId, mandant_id: sessionMandantId } = session.user;
+    const { 
+      role: sessionRole, 
+      id: sessionId, 
+      mandant_id: sessionMandantId, 
+      permissions: sessionPermissions // KORREKTUR: Berechtigungen des Admins laden
+    } = session.user;
+    
     const isAdmin = sessionRole === 'ADMIN' || sessionRole === 'SUPERADMIN';
-    const isOwnProfile = sessionId === id;
+    const isOwnProfile = sessionId === targetUserId;
 
     if (!isAdmin && !isOwnProfile) {
       return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
     }
 
-    console.log(`[GET /api/users/${id}] Benutzerdaten abrufen... (angefragt von: ${session.user.email})`);
+    console.log(`[GET /api/users/${targetUserId}] Benutzerdaten abrufen... (angefragt von: ${session.user.email})`);
 
-    // ✅ KORRIGIERT: Lade mandant_id und permissions
+    // Lade Zieldaten
     const { rows } = await sql<User>`
       SELECT
         id::text as id,
@@ -46,26 +52,38 @@ export async function GET(
         mandant_id,
         permissions
       FROM users
-      WHERE id = ${id}::uuid;
+      WHERE id = ${targetUserId}::uuid;
     `;
 
     if (rows.length === 0) {
-      console.warn(`[GET /api/users/${id}] Benutzer nicht gefunden`);
+      console.warn(`[GET /api/users/${targetUserId}] Benutzer nicht gefunden`);
       return NextResponse.json({ message: 'Benutzer nicht gefunden' }, { status: 404 });
     }
     
     const userToGet = rows[0];
 
-    // BERECHTIGUNGSPRÜFUNG: Admin darf nur eigene Mandanten-Benutzer sehen (außer Superadmin)
-    if (sessionRole === 'ADMIN' && userToGet.mandant_id !== sessionMandantId) {
-       return NextResponse.json({ message: 'Zugriff auf diesen Mandanten verweigert' }, { status: 403 });
+    // --- KORRIGIERTE BERECHTIGUNGSPRÜFUNG ---
+    if (sessionRole === 'ADMIN') {
+      // 1. Admin darf nur Benutzer des eigenen Mandanten sehen
+      if (userToGet.mandant_id !== sessionMandantId) {
+         return NextResponse.json({ message: 'Zugriff auf diesen Mandanten verweigert' }, { status: 403 });
+      }
+      
+      // 2. Admin darf andere Admins nur mit Berechtigung sehen
+      const kannAdminsVerwalten = sessionPermissions?.includes('kann_admins_verwalten');
+      // Prüfen, ob das Ziel ein Admin ist UND es NICHT das eigene Profil ist UND die Berechtigung fehlt
+      if (userToGet.role === 'ADMIN' && !isOwnProfile && !kannAdminsVerwalten) {
+          console.warn(`[GET /api/users/${targetUserId}] Zugriff verweigert. Admin ${sessionId} hat keine Berechtigung für Admin ${targetUserId}.`);
+          return NextResponse.json({ message: 'Sie haben keine Berechtigung, diesen Admin anzuzeigen' }, { status: 403 });
+      }
     }
+    // SUPERADMIN darf alles (außer GET/isOwnProfile, was bereits abgedeckt ist)
 
-    console.log(`[GET /api/users/${id}] ✅ Benutzer gefunden:`, userToGet.email);
+    console.log(`[GET /api/users/${targetUserId}] ✅ Benutzer gefunden:`, userToGet.email);
     
     return NextResponse.json(userToGet);
   } catch (error) {
-    console.error(`[GET /api/users/${id}] Fehler:`, error);
+    console.error(`[GET /api/users/${targetUserId}] Fehler:`, error);
     return NextResponse.json({ message: 'Interner Serverfehler' }, { status: 500 });
   }
 }
@@ -89,6 +107,8 @@ export async function PUT(
       mandant_id: sessionMandantId,
       permissions: sessionPermissions
     } = session.user;
+    
+    const isOwnProfile = sessionId === targetUserId;
 
     // Nur Admins/Superadmins dürfen Updates durchführen
     if (sessionRole !== 'ADMIN' && sessionRole !== 'SUPERADMIN') {
@@ -123,7 +143,7 @@ export async function PUT(
     }
     const targetUser = existingUsers[0];
 
-    // --- BERECHTIGUNGSPRÜFUNG (WER DARF WEN BEARBEITEN) ---
+    // --- KORRIGIERTE BERECHTIGUNGSPRÜFUNG (WER DARF WEN BEARBEITEN) ---
     if (sessionRole === 'ADMIN') {
       // 1. Admin darf keinen Superadmin bearbeiten
       if (targetUser.role === 'SUPERADMIN') {
@@ -135,15 +155,21 @@ export async function PUT(
         return NextResponse.json({ message: 'Sie dürfen nur Benutzer Ihres eigenen Mandanten bearbeiten' }, { status: 403 });
       }
 
-      // 3. Admin (Klasse 1) mit 'kann_admins_verwalten' darf andere Admins im Mandanten bearbeiten
+      // 3. Admin (Klasse 1) darf andere Admins im Mandanten bearbeiten
       const kannAdminsVerwalten = sessionPermissions?.includes('kann_admins_verwalten');
-      if (targetUser.role === 'ADMIN' && !kannAdminsVerwalten) {
+      // Prüfen, ob das Ziel ein Admin ist UND es NICHT das eigene Profil ist UND die Berechtigung fehlt
+      if (targetUser.role === 'ADMIN' && !isOwnProfile && !kannAdminsVerwalten) {
+         console.warn(`[PUT /api/users/${targetUserId}] Zugriff verweigert. Admin ${sessionId} hat keine Berechtigung für Admin ${targetUserId}.`);
          return NextResponse.json({ message: 'Sie haben keine Berechtigung, andere Admins zu bearbeiten' }, { status: 403 });
       }
 
-      // 4. Ein normaler Admin darf mandant_id oder permissions nicht ändern
-      if (body.mandant_id !== targetUser.mandant_id || (body.permissions && !kannAdminsVerwalten)) {
-         return NextResponse.json({ message: 'Nur Superadmins (oder Admins mit Sonderrechten) dürfen Mandanten und Berechtigungen ändern' }, { status: 403 });
+      // 4. Ein normaler Admin darf mandant_id oder permissions nicht ändern (außer er bearbeitet sich selbst, aber das Feld wird im UI ausgeblendet)
+      if ((body.mandant_id !== targetUser.mandant_id || body.permissions) && !kannAdminsVerwalten) {
+         // Wir lassen Admins ihre eigenen Profil-Details (z.B. Passwort) ändern,
+         // aber verhindern, dass sie ihre eigenen Berechtigungen oder Mandanten ändern.
+         if (body.mandant_id || body.permissions) {
+            return NextResponse.json({ message: 'Nur Superadmins (oder Admins mit Sonderrechten) dürfen Mandanten und Berechtigungen ändern' }, { status: 403 });
+         }
       }
     }
     
@@ -153,7 +179,7 @@ export async function PUT(
          return NextResponse.json({ message: 'Die Zuweisung der SUPERADMIN-Rolle ist über die API nicht gestattet.' }, { status: 403 });
       }
       // Superadmin darf sich nicht selbst bearbeiten (Sicherheit)
-      if (targetUserId === sessionId) {
+      if (isOwnProfile) {
          return NextResponse.json({ message: 'Superadmins können sich nicht selbst über die API bearbeiten.' }, { status: 403 });
       }
     }
@@ -260,6 +286,9 @@ export async function DELETE(
       mandant_id: sessionMandantId,
       permissions: sessionPermissions
     } = session.user;
+    
+    const isOwnProfile = sessionId === targetUserId;
+
 
     if (sessionRole !== 'ADMIN' && sessionRole !== 'SUPERADMIN') {
       return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
@@ -276,7 +305,7 @@ export async function DELETE(
     }
     const targetUser = existingUsers[0];
 
-    // --- BERECHTIGUNGSPRÜFUNG (WER DARF WEN LÖSCHEN) ---
+    // --- KORRIGIERTE BERECHTIGUNGSPRÜFUNG (WER DARF WEN LÖSCHEN) ---
     if (sessionRole === 'ADMIN') {
       if (targetUser.role === 'SUPERADMIN') {
         return NextResponse.json({ message: 'Admins dürfen keine Superadmins löschen' }, { status: 403 });
@@ -285,13 +314,18 @@ export async function DELETE(
         return NextResponse.json({ message: 'Sie dürfen nur Benutzer Ihres eigenen Mandanten löschen' }, { status: 403 });
       }
       const kannAdminsVerwalten = sessionPermissions?.includes('kann_admins_verwalten');
-      if (targetUser.role === 'ADMIN' && !kannAdminsVerwalten) {
+      // Prüfen, ob das Ziel ein Admin ist UND es NICHT das eigene Profil ist UND die Berechtigung fehlt
+      if (targetUser.role === 'ADMIN' && !isOwnProfile && !kannAdminsVerwalten) {
          return NextResponse.json({ message: 'Sie haben keine Berechtigung, andere Admins zu löschen' }, { status: 403 });
+      }
+      // Admins dürfen sich nicht selbst löschen
+      if (isOwnProfile) {
+         return NextResponse.json({ message: 'Admins können sich nicht selbst löschen.' }, { status: 403 });
       }
     }
 
     if (sessionRole === 'SUPERADMIN') {
-      if (targetUser.role === 'SUPERADMIN' || targetUserId === sessionId) {
+      if (targetUser.role === 'SUPERADMIN' || isOwnProfile) {
          return NextResponse.json({ message: 'Superadmins können nicht sich selbst oder andere Superadmins löschen.' }, { status: 403 });
       }
     }
