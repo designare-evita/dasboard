@@ -1,6 +1,4 @@
 // src/app/admin/edit/[id]/page.tsx
-// (Wiederherstellung der Zuweisungs-Logik)
-
 import { sql } from '@vercel/postgres';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -8,7 +6,7 @@ import { redirect } from 'next/navigation';
 import type { User } from '@/types';
 import EditUserForm from './EditUserForm';
 import LandingpageManager from './LandingpageManager';
-import ProjectAssignmentManager from './ProjectAssignmentManager'; // WIEDER AKTIVIERT
+import ProjectAssignmentManager from './ProjectAssignmentManager';
 import UserLogbook from '@/components/UserLogbook'; 
 
 type PageProps = {
@@ -21,7 +19,7 @@ type PageProps = {
 interface Project {
   id: string;
   name: string;
-  mandant_id: string | null; // NEU
+  mandant_id: string | null;
 }
 
 // Admin-Interface (Der Benutzer, der bearbeitet wird)
@@ -110,14 +108,16 @@ export default async function EditUserPage({ params }: PageProps) {
   const resolvedParams = await params;
   const { id } = resolvedParams;
 
-  // --- ID-Validierung (unverändert) ---
+  // --- ID-Validierung ---
   if (!id || typeof id !== 'string' || id.length !== 36) {
-    // (Fehler-Rendering... bleibt gleich)
     return (
         <div className="min-h-screen bg-gray-50 p-8">
             <div className="p-8 text-center bg-white rounded-lg shadow-md max-w-2xl mx-auto mt-10">
                 <h2 className="text-xl font-bold text-red-600 mb-4">❌ Ungültige ID</h2>
-                {/* ... restlicher Fehlercode ... */}
+                <p className="text-gray-600 mb-4">Die angegebene Benutzer-ID hat ein ungültiges Format.</p>
+                <p className="text-sm text-gray-500 font-mono bg-gray-50 p-3 rounded mb-4">
+                  ID: {id}
+                </p>
             </div>
         </div>
     );
@@ -128,7 +128,6 @@ export default async function EditUserPage({ params }: PageProps) {
   let loadError: string | null = null;
 
   try {
-    // LÄDT WIEDER BEIDES
     [user, allProjects] = await Promise.all([
       getUserData(id),
       getAllProjects()
@@ -137,14 +136,16 @@ export default async function EditUserPage({ params }: PageProps) {
     loadError = error instanceof Error ? error.message : 'Unbekannter Fehler';
   }
 
-  // --- Fehlerbehandlung beim Laden (unverändert) ---
+  // --- Fehlerbehandlung beim Laden ---
   if (!user || loadError) {
-     // (Fehler-Rendering... bleibt gleich)
      return (
         <div className="min-h-screen bg-gray-50 p-8">
             <div className="p-8 bg-white rounded-lg shadow-md max-w-2xl mx-auto mt-10">
                 <h2 className="text-xl font-bold text-red-600 mb-4">Benutzer nicht gefunden</h2>
-                {/* ... restlicher Fehlercode ... */}
+                <p className="text-gray-600 mb-4">
+                  {loadError || 'Der angeforderte Benutzer konnte nicht geladen werden.'}
+                </p>
+                <p className="text-sm text-gray-500">ID: {id}</p>
             </div>
         </div>
     );
@@ -179,10 +180,8 @@ export default async function EditUserPage({ params }: PageProps) {
               </span>
             </div>
           </div>
-         <EditUserForm user={user} onUserUpdated={() => {
-           // WICHTIG: Wir brauchen hier keinen router.refresh(), 
-           // da EditUserForm seine eigenen Daten per State aktuell hält.
-         }} />
+         {/* ✅ KORREKTUR: onUserUpdated Prop entfernt */}
+         <EditUserForm user={user} />
         </div>
 
         {/* Landingpage Manager UND Logbuch (Nur für Kunden) */}
@@ -193,11 +192,9 @@ export default async function EditUserPage({ params }: PageProps) {
           </>
         )}
 
-        {/* KORREKTUR: Projektzuweisungen (Nur für Superadmin ODER Klasse 1 Admins, wenn ein Admin bearbeitet wird) */}
+        {/* Projektzuweisungen (Nur für Superadmin ODER Klasse 1 Admins, wenn ein Admin bearbeitet wird) */}
         {canManageAssignments && userBeingEditedIsAdmin && (
           <ProjectAssignmentManager user={user} allProjects={allProjects} />
         )}
       </div>
     </div>
-  );
-}
