@@ -395,6 +395,7 @@ export async function getAiTrafficData(
         dimensions: [
           { name: 'date' },
           { name: 'sessionSource' },
+          { name: 'sessionMedium' },
         ],
         metrics: [
           { name: 'sessions' },
@@ -449,9 +450,11 @@ export async function getAiTrafficData(
     for (const row of trendRows) {
       const rawDate = row.dimensionValues?.[0]?.value || '';
       const source = row.dimensionValues?.[1]?.value || '';
+      const medium = row.dimensionValues?.[2]?.value || '';
       const sessions = parseInt(row.metricValues?.[0]?.value || '0', 10);
+const fullSource = `${source}${medium ? `/${medium}` : ''}`; // ✅ HINZUGEFÜGT
 
-      if (isAiSource(source)) {
+      if (isAiSource(fullSource) || isAiSource(source)) {
         const date = formatDateToISO(rawDate);
         trendMap[date] = (trendMap[date] || 0) + sessions;
       }
