@@ -1,17 +1,19 @@
-// src/components/ProjectDashboard.tsx (Version 32 - Mit Multi-Linien-Chart)
+// src/components/ProjectDashboard.tsx 
 'use client';
 
-// 1. 'useState' wird nicht mehr für den Chart benötigt
+// 1. 'useState' wieder importieren
+import { useState } from 'react';
 import { 
   ProjectDashboardData, 
-  ActiveKpi, // Wird noch von KpiCardsGrid benötigt (implizit)
+  ActiveKpi, 
   normalizeFlatKpis 
 } from '@/lib/dashboard-shared';
 import KpiCardsGrid from '@/components/KpiCardsGrid';
 
-// 2. 'KpiTrendChart' import entfernt und 'KpiMultiLineChart' hinzugefügt
-// import KpiTrendChart from '@/components/charts/KpiTrendChart';
-import KpiMultiLineChart from '@/components/charts/KpiMultiLineChart'; // NEU
+// 2. 'KpiTrendChart' wieder importieren
+import KpiTrendChart from '@/components/charts/KpiTrendChart';
+// 'KpiMultiLineChart' entfernen
+// import KpiMultiLineChart from '@/components/charts/KpiMultiLineChart'; 
 
 import AiTrafficCard from '@/components/AiTrafficCard';
 import { type DateRangeOption } from '@/components/DateRangeSelector';
@@ -47,8 +49,8 @@ export default function ProjectDashboard({
   onPdfExport
 }: ProjectDashboardProps) {
   
-  // 3. Dieser State wird für den neuen Chart nicht mehr benötigt
-  // const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
+  // 3. Den 'activeKpi'-State wieder einführen
+  const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
   
   const { data: session } = useSession();
   const userRole = session?.user?.role;
@@ -76,19 +78,20 @@ export default function ProjectDashboard({
         />
       </div>
 
-      {/* 4. KPI-Trendchart ersetzt durch Multi-Linien-Chart */}
+      {/* 4. Zurück zum KpiTrendChart (Tab-Ansicht) */}
       <div className="mt-6">
-        {/* Dies ist der alte Chart-Block, den wir ersetzen */}
-        {/* <KpiTrendChart 
+        {/* Multi-Linien-Chart auskommentiert/entfernt */}
+        {/* <KpiMultiLineChart 
+          allChartData={data.charts}
+        /> */}
+
+        {/* ✅ ALT: Der KpiTrendChart mit Tabs */}
+        <KpiTrendChart 
           activeKpi={activeKpi}
           onKpiChange={setActiveKpi}
           allChartData={data.charts}
-          data={data.charts?.[activeKpi] ?? []}
-        /> */}
-
-        {/* ✅ NEU: Der Multi-Linien-Chart */}
-        <KpiMultiLineChart 
-          allChartData={data.charts}
+          // data prop wird nicht mehr benötigt, da allChartData alles enthält
+          // data={data.charts?.[activeKpi] ?? []} 
         />
       </div>
 
