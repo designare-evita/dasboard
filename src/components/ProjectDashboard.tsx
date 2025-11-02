@@ -101,6 +101,7 @@ export default function ProjectDashboard({
             queries={data.topQueries ?? []} 
             isLoading={isLoading}
             className="h-full"
+            dateRange={dateRange}
           />
         </div>
       </div>
