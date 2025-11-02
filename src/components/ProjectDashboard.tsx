@@ -88,8 +88,12 @@ export default function ProjectDashboard({
           <AiTrafficCard 
             totalSessions={data.aiTraffic?.totalSessions ?? 0}
             totalUsers={data.aiTraffic?.totalUsers ?? 0}
+            percentage={data.kpis?.sessions?.aiTraffic?.percentage ?? 0}
+            trend={data.aiTraffic?.trend ?? []}
             topAiSources={data.aiTraffic?.topAiSources ?? []}
             className="h-full"
+            isLoading={isLoading}
+            dateRange={dateRange}
           />
         </div>
         
