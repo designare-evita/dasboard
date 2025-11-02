@@ -1,4 +1,5 @@
-// src/app/api/users/route.ts - KORRIGIERT (Mit automatischer Zuweisung)
+// src/app/api/users/route.ts
+// (FINALE KORREKTUR der GET-Logik basierend auf Ihren Regeln)
 
 import { NextResponse, NextRequest } from 'next/server';
 import { sql } from '@vercel/postgres';
@@ -7,8 +8,7 @@ import { User } from '@/types';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
-// GET: Benutzer abrufen (mit Mandanten-Filterung UND Berechtigungs-Filterung)
-// (Diese Funktion ist von der letzten Korrektur bereits korrekt und bleibt unverändert)
+// GET: Benutzer abrufen (mit korrekter Berechtigungs-Logik)
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
 
@@ -20,18 +20,17 @@ export async function GET(request: NextRequest) {
   }
 
   const { searchParams } = new URL(request.url);
+  // ?onlyCustomers=true wird vom Redaktionsplan-Dropdown verwendet
   const onlyCustomers = searchParams.get('onlyCustomers') === 'true';
-
-  console.log('[/api/users] onlyCustomers:', onlyCustomers);
 
   try {
     let result;
 
+    // --- SUPERADMIN Logik ---
     if (session.user.role === 'SUPERADMIN') {
-      // SUPERADMIN sieht alle (oder nur Kunden, je nach Filter)
       console.log('[/api/users] SUPERADMIN - Lade Benutzer');
-      
       if (onlyCustomers) {
+        // Redaktionsplan: Alle Kunden
         result = await sql`
           SELECT id::text as id, email, role, domain, mandant_id, permissions
           FROM users
@@ -39,7 +38,7 @@ export async function GET(request: NextRequest) {
           ORDER BY mandant_id ASC, domain ASC, email ASC
         `;
       } else {
-        // Alle außer SUPERADMIN (für Admin-Bereich)
+        // Admin-Panel: Alle außer Superadmins
         result = await sql`
           SELECT id::text as id, email, role, domain, mandant_id, permissions
           FROM users
@@ -47,64 +46,77 @@ export async function GET(request: NextRequest) {
           ORDER BY mandant_id ASC, role DESC, email ASC
         `;
       }
+      console.log('[/api/users] (SA) Gefunden:', result.rows.length, 'Benutzer');
+      return NextResponse.json(result.rows);
+    }
 
-      console.log('[/api/users] Gefunden:', result.rows.length, 'Benutzer');
-
-    } else { // ADMIN
-      // ADMIN sieht nur Benutzer des EIGENEN Mandanten
+    // --- ADMIN Logik ---
+    if (session.user.role === 'ADMIN') {
+      const adminId = session.user.id;
       const adminMandantId = session.user.mandant_id;
-      
       const adminPermissions = session.user.permissions || [];
       const kannAdminsVerwalten = adminPermissions.includes('kann_admins_verwalten');
-      
-      if (!adminMandantId) {
-        console.warn(`[/api/users] ADMIN ${session.user.email} hat keine mandant_id und kann niemanden sehen.`);
-        return NextResponse.json([]); // Leeres Array zurückgeben
-      }
-
-      console.log(`[/api/users] ADMIN - Lade Benutzer für Mandant: ${adminMandantId}`);
-      console.log(`[/api/users] ADMIN - Hat 'kann_admins_verwalten': ${kannAdminsVerwalten}`);
-
 
       if (onlyCustomers) {
-        // Nur Kunden (BENUTZER) des eigenen Mandanten (Diese Logik ändert sich nicht)
+        // FÜR REDAKTIONSPLAN (/admin/redaktionsplan)
+        // Zeige nur explizit zugewiesene Kunden (Benutzer)
+        console.log(`[/api/users] ADMIN - Lade zugewiesene Kunden für Redaktionsplan`);
         result = await sql`
+          SELECT u.id::text as id, u.email, u.role, u.domain, u.mandant_id, u.permissions
+          FROM users u
+          INNER JOIN project_assignments pa ON u.id = pa.project_id
+          WHERE pa.user_id::text = ${adminId} AND u.role = 'BENUTZER'
+          ORDER BY u.domain ASC, u.email ASC
+        `;
+        console.log('[/api/users] (Admin) Gefunden:', result.rows.length, 'zugewiesene Kunden');
+        return NextResponse.json(result.rows);
+      } 
+      
+      // FÜR ADMIN-PANEL (/admin)
+      console.log(`[/api/users] ADMIN - Lade Ansicht für Admin-Panel`);
+      console.log(`[/api/users] ADMIN - Hat 'kann_admins_verwalten': ${kannAdminsVerwalten}`);
+
+      // 1. Hole immer die explizit zugewiesenen KUNDEN
+      const kundenQuery = sql`
+        SELECT u.id::text as id, u.email, u.role, u.domain, u.mandant_id, u.permissions
+        FROM users u
+        INNER JOIN project_assignments pa ON u.id = pa.project_id
+        WHERE pa.user_id::text = ${adminId} AND u.role = 'BENUTZER'
+      `;
+
+      if (kannAdminsVerwalten && adminMandantId) {
+        // 2. Admin (Klasse 1) - Hole KUNDEN + ANDERE ADMINS (im selben Label)
+        console.log(`[/api/users] Admin (Klasse 1) lädt Admins + zugewiesene Kunden für Mandant: ${adminMandantId}`);
+        const adminsQuery = sql`
           SELECT id::text as id, email, role, domain, mandant_id, permissions
           FROM users
           WHERE mandant_id = ${adminMandantId}
-          AND role = 'BENUTZER'
-          ORDER BY domain ASC, email ASC
+            AND role = 'ADMIN'
+            AND id::text != ${adminId} -- Sich selbst ausschließen
         `;
-      } else {
-        // Logik für die /admin Seite (wenn onlyCustomers=false ist)
         
-        if (kannAdminsVerwalten) {
-          // Admin (Klasse 1) darf Admins + Benutzer seines Mandanten sehen
-          console.log('[/api/users] Admin (Klasse 1) lädt Admins + Benutzer');
-          result = await sql`
-            SELECT id::text as id, email, role, domain, mandant_id, permissions
-            FROM users
-            WHERE mandant_id = ${adminMandantId}
-            AND role != 'SUPERADMIN'
-            ORDER BY role DESC, email ASC
-          `;
-        } else {
-          // Normaler Admin (ohne Klasse 1) darf NUR Benutzer seines Mandanten sehen
-          console.log('[/api/users] Admin (Standard) lädt NUR Benutzer');
-          result = await sql`
-            SELECT id::text as id, email, role, domain, mandant_id, permissions
-            FROM users
-            WHERE mandant_id = ${adminMandantId}
-            AND role = 'BENUTZER'
-            ORDER BY role DESC, email ASC
-          `;
-        }
+        // Führe beide Abfragen parallel aus und kombiniere sie
+        const [kundenResult, adminsResult] = await Promise.all([kundenQuery, adminsQuery]);
+        const combinedUsers = [...kundenResult.rows, ...adminsResult.rows];
+        
+        // Sortieren (optional, aber schön)
+        combinedUsers.sort((a, b) => (a.role > b.role) ? -1 : (a.role === b.role) ? a.email.localeCompare(b.email) : 1);
+        
+        console.log('[/api/users] (Klasse 1) Gefunden:', combinedUsers.length, 'Benutzer/Admins');
+        return NextResponse.json(combinedUsers);
+        
+      } else {
+        // 3. Admin (Standard) - Hole NUR zugewiesene KUNDEN
+        console.log('[/api/users] Admin (Standard) lädt NUR zugewiesene Kunden');
+        result = await kundenQuery;
+        
+        console.log('[/api/users] (Standard) Gefunden:', result.rows.length, 'Benutzer');
+        return NextResponse.json(result.rows);
       }
-
-      console.log('[/api/users] Gefunden:', result.rows.length, 'zugewiesene Benutzer/Admins');
     }
 
-    return NextResponse.json(result.rows);
+    // Fallback (sollte nie eintreten)
+    return NextResponse.json({ message: "Unbekannter Fehler" }, { status: 500 });
 
   } catch (error) {
     console.error('[/api/users] Fehler beim Abrufen der Benutzer:', error);
@@ -116,6 +128,8 @@ export async function GET(request: NextRequest) {
 }
 
 // POST: Neuen Benutzer erstellen
+// (Diese Funktion ist bereits korrekt aus unserem letzten Schritt, 
+// sie legt den User an UND erstellt die Zuweisung in 'project_assignments', wenn ein Admin einen Kunden erstellt)
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
 
@@ -144,7 +158,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'E-Mail, Passwort und Rolle sind erforderlich' }, { status: 400 });
     }
     
-    // (Berechtigungsprüfungen bleiben gleich)
+    // (Berechtigungsprüfungen)
     const loggedInUserRole = session.user.role;
     const loggedInUserMandantId = session.user.mandant_id;
     const roleToCreate = role;
@@ -152,18 +166,27 @@ export async function POST(req: NextRequest) {
     if (roleToCreate === 'SUPERADMIN') {
        return NextResponse.json({ message: 'Superadmins können nicht über diese API erstellt werden.' }, { status: 403 });
     }
+    
+    let effective_mandant_id = mandant_id;
+
     if (loggedInUserRole === 'ADMIN') {
       if (roleToCreate !== 'BENUTZER') {
          return NextResponse.json({ message: 'Admins dürfen nur Kunden (Benutzer) erstellen.' }, { status: 403 });
       }
-      // KORREKTUR: Wenn ein Admin erstellt, wird der Mandant automatisch geerbt
-      if (mandant_id !== loggedInUserMandantId) {
-         return NextResponse.json({ message: 'Admins dürfen nur Benutzer im eigenen Mandanten erstellen.' }, { status: 403 });
+      // KORREKTUR: Admin erbt Mandant-ID
+      effective_mandant_id = loggedInUserMandantId; 
+      if (!effective_mandant_id) {
+         return NextResponse.json({ message: 'Ihr Admin-Konto hat kein Label (Mandant-ID) und kann keine Benutzer erstellen.' }, { status: 400 });
       }
       if (permissions && permissions.length > 0) {
          return NextResponse.json({ message: 'Admins dürfen keine Berechtigungen (Klasse) zuweisen.' }, { status: 403 });
       }
     }
+    
+    if (roleToCreate !== 'SUPERADMIN' && !effective_mandant_id) {
+       return NextResponse.json({ message: 'Mandant-ID (Label) ist erforderlich' }, { status: 400 });
+    }
+
     
     const { rows } = await sql<User>`SELECT * FROM users WHERE email = ${email}`;
     if (rows.length > 0) {
@@ -183,7 +206,7 @@ export async function POST(req: NextRequest) {
       )
       VALUES (
         ${email}, ${hashedPassword}, ${roleToCreate}, 
-        ${mandant_id || null}, -- Wird vom Admin (wenn nicht Superadmin) geerbt oder vom Superadmin gesetzt
+        ${effective_mandant_id || null}, 
         ${permissionsPgString},
         ${domain || null}, ${gsc_site_url || null}, ${ga4_property_id || null},
         ${semrush_project_id || null}, ${semrush_tracking_id || null}, ${semrush_tracking_id_02 || null},
@@ -210,8 +233,6 @@ export async function POST(req: NextRequest) {
         console.log(`[/api/users] ✅ Zuweisung erfolgreich.`);
       } catch (assignError) {
         console.error(`[/api/users] ❌ FEHLER bei automatischer Zuweisung:`, assignError);
-        // Der Benutzer wurde erstellt, aber die Zuweisung schlug fehl.
-        // Wir loggen den Fehler, aber die Aktion war trotzdem "teils" erfolgreich.
       }
     }
     // --- ENDE KORREKTUR ---
