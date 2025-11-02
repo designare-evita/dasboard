@@ -58,7 +58,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
     }));
   };
 
-  // (handleSubmit - Unverändert, die API prüft die Berechtigung)
+  // (handleSubmit - Unverändert)
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setMessage('💾 Speichere Änderungen...');
@@ -73,9 +73,9 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
       const payload: Record<string, string | string[] | null> = {
         email: formData.email,
         mandant_id: formData.mandantId || null,
-        permissions: isSuperAdmin ? permissionsArray : null,
+        // KORREKTUR: Sende 'permissions' nur, wenn der User ein Admin IST
+        permissions: (isSuperAdmin && user.role === 'ADMIN') ? permissionsArray : undefined,
         
-        // KORREKTUR: Diese Felder immer mitsenden
         domain: formData.domain || null,
         gsc_site_url: formData.gscSiteUrl || null,
         ga4_property_id: formData.ga4PropertyId || null,
@@ -84,11 +84,11 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
         semrush_tracking_id_02: formData.semrushTrackingId02 || null,
       };
       
-      if (!isSuperAdmin) {
+      // Wenn kein Superadmin ODER der User ein Kunde ist, sende 'permissions' nicht mit
+      if (!isSuperAdmin || user.role !== 'ADMIN') {
         delete payload.permissions;
       }
       
-      // (Passwort - Unverändert)
       if (password && password.trim().length > 0) {
         payload.password = password;
       }
@@ -169,7 +169,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
           />
         </div>
 
-        {/* --- Mandant & Berechtigungen (Nur für Superadmin editierbar) --- */}
+        {/* --- Mandant & Berechtigungen --- */}
         <div className="border-t pt-4 mt-4">
           <label className="block text-sm font-medium text-gray-700">Mandant-ID (Label)</label>
           <input
@@ -183,21 +183,24 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
           />
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Berechtigungen (Klasse)</label>
-          <input
-            type="text"
-            value={formData.permissions}
-            onChange={(e) => handleInputChange('permissions', e.target.value)}
-            placeholder={isSuperAdmin ? "z.B. kann_admins_verwalten" : "Nur von Superadmin editierbar"}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
-            disabled={isSubmitting || !isSuperAdmin}
-            readOnly={!isSuperAdmin}
-          />
-          <p className="mt-1 text-xs text-gray-500">
-            Labels mit Komma trennen.
-          </p>
-        </div>
+        {/* KORREKTUR: 'Berechtigungen (Klasse)' nur für ADMINS anzeigen */}
+        {user.role === 'ADMIN' && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Berechtigungen (Klasse)</label>
+            <input
+              type="text"
+              value={formData.permissions}
+              onChange={(e) => handleInputChange('permissions', e.target.value)}
+              placeholder={isSuperAdmin ? "z.B. kann_admins_verwalten" : "Nur von Superadmin editierbar"}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
+              disabled={isSubmitting || !isSuperAdmin}
+              readOnly={!isSuperAdmin}
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Labels mit Komma trennen.
+            </p>
+          </div>
+        )}
 
         {/* --- KORREKTUR: Diese Felder sind jetzt IMMER sichtbar --- */}
         {/* Domain */}
