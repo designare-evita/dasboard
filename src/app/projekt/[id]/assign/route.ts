@@ -1,12 +1,13 @@
-// src/app/api/projects/[id]/assign/route.ts
-
+// src/app/projekt/[id]/assign/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
+// KORREKTUR: 'Session' importieren, um 'any' zu ersetzen
+import { getServerSession, type Session } from 'next-auth'; 
 import { authOptions } from '@/lib/auth';
 import { sql } from '@vercel/postgres';
 
 // Berechtigungsprüfung: Darf der eingeloggte Admin Zuweisungen ändern?
-async function hasAssignmentPermission(session: any) { // 'any' zur Vereinfachung
+// KORREKTUR: 'any' ersetzt durch 'Session | null'
+async function hasAssignmentPermission(session: Session | null) {
   if (!session?.user) return false;
   if (session.user.role === 'SUPERADMIN') return true;
   if (session.user.role === 'ADMIN' && session.user.permissions?.includes('kann_admins_verwalten')) {
