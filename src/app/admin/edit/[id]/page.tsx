@@ -1,4 +1,3 @@
-
 // src/app/admin/edit/[id]/page.tsx
 
 import { sql } from '@vercel/postgres';
@@ -8,25 +7,21 @@ import { redirect } from 'next/navigation';
 import type { User } from '@/types';
 import EditUserForm from './EditUserForm';
 import LandingpageManager from './LandingpageManager';
-import ProjectAssignmentManager from './ProjectAssignmentManager';
-// KORRIGIERTER IMPORT: Importiere die neue UserLogbook Komponente
+// import ProjectAssignmentManager from './ProjectAssignmentManager'; // VERALTET: Entfernt
 import UserLogbook from '@/components/UserLogbook'; 
 
 type PageProps = {
   params: Promise<{ id: string }>;
 };
 
-// --- (Interfaces und Datenladefunktionen bleiben gleich) ---
-interface Project {
-  id: string;
-  name: string;
-}
+// --- VERALTET: Project-Interface (wird nicht mehr benötigt) ---
+// interface Project {
+//   id: string;
+//   name: string;
+// }
 
-interface UserWithAssignments extends User {
-  assigned_projects: { project_id: string }[];
-}
-
-async function getUserData(id: string): Promise<UserWithAssignments | null> {
+// --- Angepasst: Benötigt keine 'assigned_projects' mehr ---
+async function getUserData(id: string): Promise<User | null> {
   try {
     console.log('[getUserData] 🔍 Suche Benutzer mit ID:', id);
     const { rows: users } = await sql`
@@ -34,6 +29,8 @@ async function getUserData(id: string): Promise<UserWithAssignments | null> {
         id::text as id,
         email,
         role,
+        mandant_id,
+        permissions,
         COALESCE(domain, '') as domain,
         COALESCE(gsc_site_url, '') as gsc_site_url,
         COALESCE(ga4_property_id, '') as ga4_property_id,
@@ -47,43 +44,18 @@ async function getUserData(id: string): Promise<UserWithAssignments | null> {
       console.error('[getUserData] ❌ Benutzer nicht gefunden!');
       return null;
     }
-    const user = users[0] as User;
-    let assigned_projects: { project_id: string }[] = [];
-    try {
-      const { rows } = await sql<{ project_id: string }>`
-        SELECT project_id::text as project_id
-        FROM project_assignments
-        WHERE user_id::text = ${id};`;
-      assigned_projects = rows;
-    } catch (paError) {
-      console.warn('[getUserData] ⚠️ Projektzuweisungen konnten nicht geladen werden:', paError);
-    }
-    return { ...user, assigned_projects };
+    // Gibt den reinen User zurück
+    return users[0] as User; 
   } catch (error) {
     console.error('[getUserData] ❌ FEHLER:', error);
     throw error;
   }
 }
 
-async function getAllProjects(): Promise<Project[]> {
-  try {
-    const { rows } = await sql<{ id: string; email: string; domain: string | null }>`
-      SELECT
-        id::text as id,
-        email,
-        COALESCE(domain, email) as domain
-      FROM users
-      WHERE role = 'BENUTZER'
-      ORDER BY email ASC;`;
-    return rows.map(p => ({
-      id: p.id,
-      name: p.domain || p.email
-    }));
-  } catch (error) {
-    console.error('[getAllProjects] ❌ Fehler:', error);
-    return [];
-  }
-}
+// --- VERALTET: Funktion (wird nicht mehr benötigt) ---
+// async function getAllProjects(): Promise<Project[]> {
+// ...
+// }
 
 // --- Hauptkomponente der Seite ---
 
@@ -113,15 +85,12 @@ export default async function EditUserPage({ params }: PageProps) {
     );
   }
 
-  let user: UserWithAssignments | null = null;
-  let allProjects: Project[] = [];
+  let user: User | null = null;
   let loadError: string | null = null;
 
   try {
-    [user, allProjects] = await Promise.all([
-      getUserData(id),
-      getAllProjects()
-    ]);
+    // Lädt nur noch den Benutzer
+    user = await getUserData(id);
   } catch (error) {
     loadError = error instanceof Error ? error.message : 'Unbekannter Fehler';
   }
@@ -164,7 +133,7 @@ export default async function EditUserPage({ params }: PageProps) {
   const currentUserIsSuperAdmin = session.user.role === 'SUPERADMIN';
   const userBeingEditedIsAdmin = user.role === 'ADMIN';
 
-  // --- Seiten-Rendering mit Logbuch ---
+  // --- Seiten-Rendering ohne Logbuch ---
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-4xl mx-auto space-y-8">
@@ -176,6 +145,12 @@ export default async function EditUserPage({ params }: PageProps) {
               Benutzer <span className="text-indigo-600">{user.email}</span> bearbeiten
             </h2>
             <div className="flex gap-2 items-center">
+              {/* Zeige Mandant-ID (Label) an, wenn vorhanden */}
+              {user.mandant_id && (
+                <span className="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full text-xs font-medium">
+                  {user.mandant_id}
+                </span>
+              )}
               <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
                 {user.role}
               </span>
@@ -188,16 +163,16 @@ export default async function EditUserPage({ params }: PageProps) {
         {user.role === 'BENUTZER' && (
           <>
             <LandingpageManager userId={id} />
-            
-            {/* KORRIGIERTE KOMPONENTE: Verwende UserLogbook mit der userId */}
             <UserLogbook userId={id} />
           </>
         )}
 
-        {/* Projektzuweisungen (Nur für Superadmin, wenn ein Admin bearbeitet wird) */}
+        {/* VERALTET: Projektzuweisungen (wird nicht mehr gerendert) */}
+        {/*
         {currentUserIsSuperAdmin && userBeingEditedIsAdmin && (
           <ProjectAssignmentManager user={user} allProjects={allProjects} />
         )}
+        */}
       </div>
     </div>
   );
