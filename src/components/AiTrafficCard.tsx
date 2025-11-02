@@ -112,13 +112,11 @@ export default function AiTrafficCard({
       </div>
       <p className="text-xs text-gray-500 mb-4">{rangeLabel}</p>
 
-      {/* NEU: 2-Spalten-Grid (flex-1, damit es den Platz füllt) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1">
+      {/* NEU: Metriken nebeneinander, dann Top-Quellen, dann Chart volle Breite */}
+      <div className="flex flex-col gap-4 flex-1">
         
-        {/* Linke Spalte (Metriken & Trend) */}
-        <div className="flex flex-col space-y-4">
-          
-          {/* Haupt-Metriken mit Change (Vorschlag 2) */}
+        {/* Metriken nebeneinander */}
+        <div className="grid grid-cols-2 gap-4">
           <div className="bg-purple-50 rounded-lg p-4">
             <div className="flex items-center gap-2 mb-1">
               <GraphUp size={16} className="text-purple-600" />
@@ -128,7 +126,6 @@ export default function AiTrafficCard({
               <p className="text-2xl font-bold text-purple-900">
                 {safeTotalSessions.toLocaleString('de-DE')}
               </p>
-              {/* ✅ Change-Indikator hinzugefügt */}
               <ChangeIndicator change={totalSessionsChange} />
             </div>
           </div>
@@ -142,48 +139,13 @@ export default function AiTrafficCard({
               <p className="text-2xl font-bold text-purple-900">
                 {safeTotalUsers.toLocaleString('de-DE')}
               </p>
-              {/* ✅ Change-Indikator hinzugefügt */}
               <ChangeIndicator change={totalUsersChange} />
             </div>
           </div>
-
-          {/* Trend Chart (Vorschlag 1) */}
-          <h4 className="text-sm font-semibold text-gray-700 pt-2">Sitzungs-Trend (KI)</h4>
-          {safeTrend.length > 0 ? (
-            <div className="flex-1 h-[80px] sm:h-[100px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart 
-                  data={safeTrend}
-                  margin={{ top: 5, right: 0, left: 0, bottom: 0 }}
-                >
-                  <defs>
-                    <linearGradient id="aiGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.4}/>
-                      <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.05}/>
-                    </linearGradient>
-                  </defs>
-                  <Area
-                    type="monotone"
-                    dataKey="value" // 'value' kommt von der API
-                    stroke="#8b5cf6"
-                    strokeWidth={2}
-                    fillOpacity={1}
-                    fill="url(#aiGradient)"
-                    dot={false}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          ) : (
-            <div className="flex-1 flex items-center justify-center text-xs text-gray-400 italic">
-              Keine Trenddaten verfügbar
-            </div>
-          )}
-
         </div>
 
-        {/* Rechte Spalte (Top Quellen) */}
-        <div className="flex-1">
+        {/* Top KI-Quellen */}
+        <div>
           <h4 className="text-sm font-semibold text-gray-700 mb-3">Top KI-Quellen</h4>
           <div className="space-y-2">
             {safeTopAiSources.length > 0 ? (
@@ -217,6 +179,41 @@ export default function AiTrafficCard({
               <p className="text-sm text-gray-500 italic">Keine KI-Traffic-Daten verfügbar</p>
             )}
           </div>
+        </div>
+
+        {/* Trend Chart - volle Breite */}
+        <div>
+          <h4 className="text-sm font-semibold text-gray-700 mb-2">Sitzungs-Trend (KI)</h4>
+          {safeTrend.length > 0 ? (
+            <div className="h-[120px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart 
+                  data={safeTrend}
+                  margin={{ top: 5, right: 0, left: 0, bottom: 0 }}
+                >
+                  <defs>
+                    <linearGradient id="aiGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.4}/>
+                      <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.05}/>
+                    </linearGradient>
+                  </defs>
+                  <Area
+                    type="monotone"
+                    dataKey="value"
+                    stroke="#8b5cf6"
+                    strokeWidth={2}
+                    fillOpacity={1}
+                    fill="url(#aiGradient)"
+                    dot={false}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="h-[120px] flex items-center justify-center text-xs text-gray-400 italic border border-dashed border-gray-200 rounded">
+              Keine Trenddaten verfügbar
+            </div>
+          )}
         </div>
 
       </div>
