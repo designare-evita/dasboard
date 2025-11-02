@@ -1,10 +1,9 @@
 // src/app/dashboard/freigabe/page.tsx
 'use client';
 
-import { useState, useEffect, ReactNode, useCallback } from 'react'; // useCallback hinzugefügt
+import { useState, useEffect, ReactNode, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 // Icons importieren
 import {
   FileEarmarkText,
@@ -197,7 +196,6 @@ export default function FreigabePage() {
                   {pendingReviewCount} Landingpage{pendingReviewCount > 1 ? 's warten' : ' wartet'} auf Ihre Freigabe
                 </p>
                 <p className="text-sm text-yellow-700 mt-1">
-                  {/* KORREKTUR: " durch &quot; ersetzt */}
                   Bitte prüfen Sie die Seiten unter <span className="font-medium">&quot;In Prüfung&quot;</span> und geben Sie sie frei oder sperren Sie sie.
                 </p>
               </div>
