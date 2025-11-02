@@ -1,7 +1,6 @@
 // src/components/ProjectDashboard.tsx 
 'use client';
 
-// 1. 'useState' wieder importieren
 import { useState } from 'react';
 import { 
   ProjectDashboardData, 
@@ -9,12 +8,7 @@ import {
   normalizeFlatKpis 
 } from '@/lib/dashboard-shared';
 import KpiCardsGrid from '@/components/KpiCardsGrid';
-
-// 2. 'KpiTrendChart' wieder importieren
 import KpiTrendChart from '@/components/charts/KpiTrendChart';
-// 'KpiMultiLineChart' entfernen
-// import KpiMultiLineChart from '@/components/charts/KpiMultiLineChart'; 
-
 import AiTrafficCard from '@/components/AiTrafficCard';
 import { type DateRangeOption } from '@/components/DateRangeSelector';
 import TopQueriesList from '@/components/TopQueriesList';
@@ -49,7 +43,7 @@ export default function ProjectDashboard({
   onPdfExport
 }: ProjectDashboardProps) {
   
-  // 3. Den 'activeKpi'-State wieder einführen
+
   const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
   
   const { data: session } = useSession();
@@ -70,28 +64,21 @@ export default function ProjectDashboard({
         })}
       />
 
-      {/* KPI Cards (bleibt gleich) */}
+    {/* KPI Cards */}
       <div className="mt-6">
         <KpiCardsGrid
           kpis={normalizedKpis}
           isLoading={isLoading}
+          allChartData={data.charts} 
         />
       </div>
 
-      {/* 4. Zurück zum KpiTrendChart (Tab-Ansicht) */}
+      {/* KPI-Trendchart */}
       <div className="mt-6">
-        {/* Multi-Linien-Chart auskommentiert/entfernt */}
-        {/* <KpiMultiLineChart 
-          allChartData={data.charts}
-        /> */}
-
-        {/* ✅ ALT: Der KpiTrendChart mit Tabs */}
         <KpiTrendChart 
           activeKpi={activeKpi}
           onKpiChange={setActiveKpi}
           allChartData={data.charts}
-          // data prop wird nicht mehr benötigt, da allChartData alles enthält
-          // data={data.charts?.[activeKpi] ?? []} 
         />
       </div>
 
