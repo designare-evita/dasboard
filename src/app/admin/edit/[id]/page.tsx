@@ -198,3 +198,5 @@ export default async function EditUserPage({ params }: PageProps) {
         )}
       </div>
     </div>
+  );
+}
