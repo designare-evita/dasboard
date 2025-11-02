@@ -1,7 +1,9 @@
-// src/components/TopQueriesList.tsx (Version 4 - Excel-Design)
+// src/components/TopQueriesList.tsx (Version 5 - Mit Zeitraum-Anzeige)
 import React, { useState } from 'react';
 import { ClockHistory, FunnelFill } from 'react-bootstrap-icons';
 import { cn } from '@/lib/utils';
+// ✅ NEU: Typen und Helper für den Zeitraum importiert
+import { type DateRangeOption, getRangeLabel } from '@/components/DateRangeSelector';
 
 type TopQueryData = {
   query: string;
@@ -15,15 +17,20 @@ interface TopQueriesListProps {
   queries: TopQueryData[];
   isLoading?: boolean;
   className?: string;
+  dateRange?: DateRangeOption; // ✅ NEU: Prop für den Zeitraum
 }
 
 export default function TopQueriesList({
   queries,
   isLoading = false,
-  className
+  className,
+  dateRange // ✅ NEU: Prop hier entgegennehmen
 }: TopQueriesListProps) {
   const [sortField, setSortField] = useState<keyof TopQueryData | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+
+  // ✅ NEU: Lesbaren Text für den Zeitraum holen
+  const rangeLabel = dateRange ? getRangeLabel(dateRange) : null;
 
   // Sortier-Handler
   const handleSort = (field: keyof TopQueryData) => {
@@ -62,9 +69,17 @@ export default function TopQueriesList({
     return (
       <div className={cn("bg-white rounded-lg shadow-md border border-gray-200", className)}>
         <div className="p-4 bg-gradient-to-r from-indigo-600 to-indigo-500 rounded-t-lg">
-          <div className="flex items-center gap-2">
-            <ClockHistory className="text-white" size={20} />
-            <h3 className="text-lg font-semibold text-white">Top 100 Suchanfragen</h3>
+          {/* ✅ NEU: Header-Layout angepasst */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <ClockHistory className="text-white" size={20} />
+              <h3 className="text-lg font-semibold text-white">Top 100 Suchanfragen</h3>
+            </div>
+            {rangeLabel && (
+              <span className="text-xs text-indigo-100 bg-black/10 px-2 py-0.5 rounded-full">
+                {rangeLabel}
+              </span>
+            )}
           </div>
         </div>
         <div className="p-6 animate-pulse space-y-3">
@@ -81,9 +96,17 @@ export default function TopQueriesList({
     return (
       <div className={cn("bg-white rounded-lg shadow-md border border-gray-200", className)}>
         <div className="p-4 bg-gradient-to-r from-indigo-600 to-indigo-500 rounded-t-lg">
-          <div className="flex items-center gap-2">
-            <ClockHistory className="text-white" size={20} />
-            <h3 className="text-lg font-semibold text-white">Top 100 Suchanfragen</h3>
+          {/* ✅ NEU: Header-Layout angepasst */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <ClockHistory className="text-white" size={20} />
+              <h3 className="text-lg font-semibold text-white">Top 100 Suchanfragen</h3>
+            </div>
+            {rangeLabel && (
+              <span className="text-xs text-indigo-100 bg-black/10 px-2 py-0.5 rounded-full">
+                {rangeLabel}
+              </span>
+            )}
           </div>
         </div>
         <div className="p-6 text-center text-sm text-gray-500 italic">
@@ -98,13 +121,21 @@ export default function TopQueriesList({
     <div className={cn("bg-white rounded-lg shadow-md border border-gray-200 flex flex-col", className)}>
       {/* Header */}
       <div className="p-4 bg-gradient-to-r from-indigo-600 to-indigo-500 rounded-t-lg">
+        {/* ✅ NEU: Header-Layout angepasst */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <ClockHistory className="text-white" size={20} />
             <h3 className="text-lg font-semibold text-white">Top 100 Suchanfragen</h3>
           </div>
-          <div className="text-xs text-indigo-100">
-            {queries.length} {queries.length === 1 ? 'Eintrag' : 'Einträge'}
+          <div className="flex items-center gap-3">
+            {rangeLabel && (
+              <span className="text-xs text-indigo-100 bg-black/10 px-2 py-0.5 rounded-full">
+                {rangeLabel}
+              </span>
+            )}
+            <div className="text-xs text-indigo-100">
+              {queries.length} {queries.length === 1 ? 'Eintrag' : 'Einträge'}
+            </div>
           </div>
         </div>
       </div>
