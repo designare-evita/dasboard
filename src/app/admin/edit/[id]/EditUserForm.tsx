@@ -2,20 +2,23 @@
 'use client';
 
 import { useState, FormEvent, useEffect } from 'react';
+import { useRouter } from 'next/navigation'; // ✅ NEU: Router importiert
 import { User } from '@/types';
 import { Pencil, ArrowRepeat, CheckCircle } from 'react-bootstrap-icons';
 
 interface EditUserFormProps {
   user: User;
-  onUserUpdated?: () => void;
+  // ✅ KORREKTUR: onUserUpdated Prop entfernt
 }
 
-export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps) {
+export default function EditUserForm({ user }: EditUserFormProps) {
+  const router = useRouter(); // ✅ NEU: Router Hook
+
   // ✅ Form States - Alle Felder explizit
   const [formData, setFormData] = useState({
     email: '',
-    mandantId: '',    // NEU
-    permissions: '',  // NEU (als Komma-getrennter String)
+    mandantId: '',
+    permissions: '',
     domain: '',
     gscSiteUrl: '',
     ga4PropertyId: '',
@@ -35,16 +38,15 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
       console.log('📋 EditUserForm - User empfangen:', {
         id: user.id,
         email: user.email,
-        mandant_id: user.mandant_id, // NEU
-        permissions: user.permissions, // NEU
+        mandant_id: user.mandant_id,
+        permissions: user.permissions,
         domain: user.domain,
       });
 
-      // ✅ Alle Felder mit Fallback auf leeren String
       setFormData({
         email: user.email || '',
-        mandantId: user.mandant_id || '', // NEU
-        permissions: user.permissions?.join(', ') || '', // NEU (Array zu String)
+        mandantId: user.mandant_id || '',
+        permissions: user.permissions?.join(', ') || '',
         domain: user.domain || '',
         gscSiteUrl: user.gsc_site_url || '',
         ga4PropertyId: user.ga4_property_id || '',
@@ -59,7 +61,7 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
     }
   }, [user]);
 
-  // ✅ Handle Input Changes - alle Felder
+  // ✅ Handle Input Changes
   const handleInputChange = (field: keyof typeof formData, value: string) => {
     setFormData(prev => ({
       ...prev,
@@ -75,22 +77,17 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
     setIsSubmitting(true);
 
     try {
-      // Wichtig: Benutzer hat Rolle BENUTZER oder andere
       const isCustomer = user.role === 'BENUTZER';
-
-      // NEU: Berechtigungen-String zurück in Array umwandeln
       const permissionsArray = formData.permissions.split(',')
         .map(p => p.trim())
         .filter(p => p.length > 0);
 
-      // ✅ KORRIGIERT: 'any' entfernt und durch spezifischen Typ ersetzt
       const payload: Record<string, string | string[] | null> = {
         email: formData.email,
-        mandant_id: formData.mandantId || null, // NEU
-        permissions: permissionsArray,          // NEU
+        mandant_id: formData.mandantId || null,
+        permissions: permissionsArray,
       };
 
-      // ✅ Nur für Kunden: Zusätzliche Felder setzen
       if (isCustomer) {
         payload.domain = formData.domain || null;
         payload.gsc_site_url = formData.gscSiteUrl || null;
@@ -100,7 +97,6 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
         payload.semrush_tracking_id_02 = formData.semrushTrackingId02 || null;
       }
 
-      // ✅ Passwort nur wenn gefüllt
       if (password && password.trim().length > 0) {
         payload.password = password;
       }
@@ -108,14 +104,12 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
       console.log('📤 Sende PUT Request mit Payload:');
       console.log(JSON.stringify(payload, null, 2));
 
-      // ✅ API Call
       const response = await fetch(`/api/users/${user.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
-      // ✅ Response parsen
       let result;
       try {
         result = await response.json();
@@ -126,17 +120,15 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
 
       console.log('📥 Server Response:', result);
 
-      // ✅ Error Check
       if (!response.ok) {
         throw new Error(result.message || result.error || `HTTP ${response.status}: Ein Fehler ist aufgetreten.`);
       }
 
       // ✅ Success: Update lokale States mit Response
-      // 🔴 WICHTIG: Die formData mit Response aktualisieren, bevor onUserUpdated aufgerufen wird
       setFormData({
         email: result.email || '',
-        mandantId: result.mandant_id || '', // NEU
-        permissions: result.permissions?.join(', ') || '', // NEU
+        mandantId: result.mandant_id || '',
+        permissions: result.permissions?.join(', ') || '',
         domain: result.domain || '',
         gscSiteUrl: result.gsc_site_url || '',
         ga4PropertyId: result.ga4_property_id || '',
@@ -151,12 +143,9 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
 
       console.log('✅ Success! Form States mit Response aktualisiert');
 
-      // ⏱️ WICHTIG: Callback NACH formData Update, damit die lokal gespeicherten Daten erhalten bleiben
-      if (onUserUpdated) {
-        onUserUpdated();
-      }
+      // ✅ NEU: router.refresh() direkt aufrufen statt Callback
+      router.refresh();
 
-      // ✅ Success Message nach 3 Sekunden clearen
       setTimeout(() => setSuccessMessage(''), 3000);
 
     } catch (error) {
@@ -176,7 +165,7 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
 
       <form onSubmit={handleSubmit} className="space-y-4">
         
-        {/* ========== E-Mail (Alle Rollen) ========== */}
+        {/* E-Mail */}
         <div>
           <label className="block text-sm font-medium text-gray-700">E-Mail *</label>
           <input
@@ -189,7 +178,7 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
           />
         </div>
 
-        {/* ========== Passwort (Optional) - DIREKT NACH E-MAIL ========== */}
+        {/* Passwort */}
         <div>
           <label className="block text-sm font-medium text-gray-700">
             Passwort (Optional - leer lassen um nicht zu ändern)
@@ -204,8 +193,7 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
           />
         </div>
 
-        {/* ========== NEU: Mandant & Berechtigungen ========== */}
-        {/* TODO: Diese Felder sollten nur für SUPERADMIN editierbar sein */}
+        {/* Mandant & Berechtigungen */}
         <div className="border-t pt-4 mt-4">
           <label className="block text-sm font-medium text-gray-700">Mandant-ID (Label)</label>
           <input
@@ -214,7 +202,7 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
             onChange={(e) => handleInputChange('mandantId', e.target.value)}
             placeholder="z.B. max-online"
             className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
-            disabled={isSubmitting} // Später: || session.user.role !== 'SUPERADMIN'
+            disabled={isSubmitting}
           />
         </div>
 
@@ -226,17 +214,16 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
             onChange={(e) => handleInputChange('permissions', e.target.value)}
             placeholder="z.B. kann_admins_verwalten, kann_exportieren"
             className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
-            disabled={isSubmitting} // Später: || session.user.role !== 'SUPERADMIN'
+            disabled={isSubmitting}
           />
           <p className="mt-1 text-xs text-gray-500">
             Labels mit Komma trennen.
           </p>
         </div>
 
-        {/* ========== Kunden-spezifische Felder (nur für BENUTZER) ========== */}
+        {/* Kunden-spezifische Felder */}
         {user.role === 'BENUTZER' && (
           <>
-            {/* Domain */}
             <div className="border-t pt-4 mt-4">
               <label className="block text-sm font-medium text-gray-700">Domain</label>
               <input
@@ -249,7 +236,6 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
               />
             </div>
 
-            {/* GSC Site URL */}
             <div>
               <label className="block text-sm font-medium text-gray-700">
                 GSC Site URL
@@ -270,7 +256,6 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
               )}
             </div>
 
-            {/* GA4 Property ID */}
             <div>
               <label className="block text-sm font-medium text-gray-700">
                 GA4 Property ID
@@ -291,10 +276,7 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
               )}
             </div>
 
-            {/* ========== SEMRUSH SECTION ========== */}
             <fieldset className="border-t pt-4 mt-4">
-             
-              {/* Semrush Projekt ID */}
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700">
                   Semrush Projekt ID
@@ -315,7 +297,6 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
                 )}
               </div>
 
-              {/* Semrush Tracking-ID (Kampagne 1) */}
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700">
                   Semrush Tracking-ID (Kampagne 1)
@@ -336,7 +317,6 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
                 )}
               </div>
 
-              {/* ✅ Semrush Tracking-ID 02 (Kampagne 2) */}
               <div>
                 <label className="block text-sm font-medium text-gray-700">
                   Semrush Tracking-ID (Kampagne 2)
@@ -361,7 +341,7 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
           </>
         )}
 
-        {/* ========== Button & Messages ========== */}
+        {/* Button & Messages */}
         <button
           type="submit"
           disabled={isSubmitting}
@@ -375,14 +355,12 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
           <span>{isSubmitting ? 'Wird gespeichert...' : 'Änderungen speichern'}</span>
         </button>
 
-        {/* Success Message */}
         {successMessage && (
           <p className="text-sm text-green-600 font-medium mt-4 p-3 bg-green-50 rounded border border-green-200">
             {successMessage}
           </p>
         )}
 
-        {/* Error Message */}
         {message && !successMessage && (
           <p className="text-sm text-red-600 font-medium mt-4 p-3 bg-red-50 rounded border border-red-200">
             {message}
@@ -390,7 +368,6 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
         )}
       </form>
 
-      {/* ========== Debug Section (In Entwicklung) ========== */}
       {process.env.NODE_ENV === 'development' && (
         <details className="mt-6 pt-4 border-t border-gray-300">
           <summary className="text-xs font-bold text-gray-500 cursor-pointer hover:text-gray-700">
@@ -403,8 +380,8 @@ export default function EditUserForm({ user, onUserUpdated }: EditUserFormProps)
                   id: user.id,
                   email: user.email,
                   role: user.role,
-                  mandant_id: user.mandant_id, // NEU
-                  permissions: user.permissions, // NEU
+                  mandant_id: user.mandant_id,
+                  permissions: user.permissions,
                   semrush_tracking_id_02: user.semrush_tracking_id_02,
                 },
                 formData,
