@@ -1,15 +1,18 @@
-// src/components/ProjectDashboard.tsx (Version 31 - Mit KPI Selector)
+// src/components/ProjectDashboard.tsx (Version 32 - Mit Multi-Linien-Chart)
 'use client';
 
-import { useState } from 'react';
+// 1. 'useState' wird nicht mehr für den Chart benötigt
 import { 
   ProjectDashboardData, 
-  ActiveKpi, 
-  KPI_TAB_META, 
+  ActiveKpi, // Wird noch von KpiCardsGrid benötigt (implizit)
   normalizeFlatKpis 
 } from '@/lib/dashboard-shared';
 import KpiCardsGrid from '@/components/KpiCardsGrid';
-import KpiTrendChart from '@/components/charts/KpiTrendChart';
+
+// 2. 'KpiTrendChart' import entfernt und 'KpiMultiLineChart' hinzugefügt
+// import KpiTrendChart from '@/components/charts/KpiTrendChart';
+import KpiMultiLineChart from '@/components/charts/KpiMultiLineChart'; // NEU
+
 import AiTrafficCard from '@/components/AiTrafficCard';
 import { type DateRangeOption } from '@/components/DateRangeSelector';
 import TopQueriesList from '@/components/TopQueriesList';
@@ -44,15 +47,14 @@ export default function ProjectDashboard({
   onPdfExport
 }: ProjectDashboardProps) {
   
-  // ✅ State für aktiven KPI
-  const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
+  // 3. Dieser State wird für den neuen Chart nicht mehr benötigt
+  // const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
   
   const { data: session } = useSession();
   const userRole = session?.user?.role;
 
   const normalizedKpis = normalizeFlatKpis(data.kpis);
 
-  // Prüfen ob überhaupt Semrush-Daten vorhanden sind
   const hasSemrushConfig = userRole === 'ADMIN' || userRole === 'SUPERADMIN' || !!semrushTrackingId02;
 
   return (
@@ -66,7 +68,7 @@ export default function ProjectDashboard({
         })}
       />
 
-      {/* KPI Cards */}
+      {/* KPI Cards (bleibt gleich) */}
       <div className="mt-6">
         <KpiCardsGrid
           kpis={normalizedKpis}
@@ -74,17 +76,23 @@ export default function ProjectDashboard({
         />
       </div>
 
-      {/* KPI-Trendchart mit Tab-Navigation */}
+      {/* 4. KPI-Trendchart ersetzt durch Multi-Linien-Chart */}
       <div className="mt-6">
-        <KpiTrendChart 
+        {/* Dies ist der alte Chart-Block, den wir ersetzen */}
+        {/* <KpiTrendChart 
           activeKpi={activeKpi}
           onKpiChange={setActiveKpi}
           allChartData={data.charts}
           data={data.charts?.[activeKpi] ?? []}
+        /> */}
+
+        {/* ✅ NEU: Der Multi-Linien-Chart */}
+        <KpiMultiLineChart 
+          allChartData={data.charts}
         />
       </div>
 
-      {/* AI Traffic & Top Queries */}
+      {/* AI Traffic & Top Queries (bleibt gleich) */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mt-6">
         <div className="xl:col-span-1">
           <AiTrafficCard 
@@ -104,7 +112,7 @@ export default function ProjectDashboard({
         </div>
       </div>
 
-      {/* Semrush Keywords */}
+      {/* Semrush Keywords (bleibt gleich) */}
       {hasSemrushConfig && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
           <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-gray-200">
