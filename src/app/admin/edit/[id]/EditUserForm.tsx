@@ -12,7 +12,7 @@ interface EditUserFormProps {
 }
 
 export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: EditUserFormProps) {
-  // (Form States - Unverändert)
+  // (Form States - Aktualisiert mit favicon_url)
   const [formData, setFormData] = useState({
     email: '',
     mandantId: '',
@@ -23,6 +23,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
     semrushProjectId: '',
     semrushTrackingId: '',
     semrushTrackingId02: '',
+    favicon_url: '', // ✅ NEUES FELD
   });
 
   const [password, setPassword] = useState('');
@@ -30,7 +31,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
 
-  // (useEffect zum Füllen - Unverändert)
+  // (useEffect zum Füllen - Aktualisiert mit favicon_url)
   useEffect(() => {
     if (user) {
       setFormData({
@@ -43,6 +44,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
         semrushProjectId: user.semrush_project_id || '',
         semrushTrackingId: user.semrush_tracking_id || '',
         semrushTrackingId02: user.semrush_tracking_id_02 || '',
+        favicon_url: (user as any).favicon_url || '', // ✅ NEUES FELD (mit 'any' Cast, da Typ noch nicht aktualisiert wurde)
       });
       setPassword('');
       setMessage('');
@@ -58,7 +60,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
     }));
   };
 
-  // (handleSubmit - Unverändert)
+  // (handleSubmit - Aktualisiert mit favicon_url)
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setMessage('💾 Speichere Änderungen...');
@@ -73,18 +75,18 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
       const payload: Record<string, string | string[] | null> = {
         email: formData.email,
         mandant_id: formData.mandantId || null,
-        // KORREKTUR: Sende 'permissions' nur, wenn der User ein Admin IST
         permissions: (isSuperAdmin && user.role === 'ADMIN') ? permissionsArray : null,
         
         domain: formData.domain || null,
         gsc_site_url: formData.gscSiteUrl || null,
         ga4_property_id: formData.ga4PropertyId || null,
+        favicon_url: formData.favicon_url || null, // ✅ NEUES FELD
+        
         semrush_project_id: formData.semrushProjectId || null,
         semrush_tracking_id: formData.semrushTrackingId || null,
         semrush_tracking_id_02: formData.semrushTrackingId02 || null,
       };
       
-      // Wenn kein Superadmin ODER der User ein Kunde ist, sende 'permissions' nicht mit
       if (!isSuperAdmin || user.role !== 'ADMIN') {
         delete payload.permissions;
       }
@@ -105,7 +107,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
         throw new Error(result.message || result.error || `HTTP ${response.status}: Ein Fehler ist aufgetreten.`);
       }
 
-      // (Restlicher Success-Code - Unverändert)
+      // (Restlicher Success-Code - Aktualisiert mit favicon_url)
       setFormData({
         email: result.email || '',
         mandantId: result.mandant_id || '',
@@ -116,6 +118,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
         semrushProjectId: result.semrush_project_id || '',
         semrushTrackingId: result.semrush_tracking_id || '',
         semrushTrackingId02: result.semrush_tracking_id_02 || '',
+        favicon_url: (result as any).favicon_url || '', // ✅ NEUES FELD
       });
       setPassword('');
       setMessage('');
@@ -183,7 +186,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
           />
         </div>
 
-        {/* KORREKTUR: 'Berechtigungen (Klasse)' nur für ADMINS anzeigen */}
+        {/* (Berechtigungen - Unverändert) */}
         {user.role === 'ADMIN' && (
           <div>
             <label className="block text-sm font-medium text-gray-700">Berechtigungen (Klasse)</label>
@@ -202,8 +205,8 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
           </div>
         )}
 
-        {/* --- KORREKTUR: Diese Felder sind jetzt IMMER sichtbar --- */}
-        {/* Domain */}
+        {/* --- Domain & Google Sektion --- */}
+        {/* (Domain - Unverändert) */}
         <div className="border-t pt-4 mt-4">
           <label className="block text-sm font-medium text-gray-700">Domain</label>
           <input
@@ -216,7 +219,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
           />
         </div>
 
-        {/* GSC Site URL */}
+        {/* (GSC Site URL - Unverändert) */}
         <div>
           <label className="block text-sm font-medium text-gray-700">
             GSC Site URL
@@ -237,7 +240,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
           )}
         </div>
 
-        {/* GA4 Property ID */}
+        {/* (GA4 Property ID - Unverändert) */}
         <div>
           <label className="block text-sm font-medium text-gray-700">
             GA4 Property ID
@@ -258,10 +261,32 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
           )}
         </div>
 
+        {/* ✅ NEUES FELD FÜR FAVICON */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700">
+            Favicon URL
+            {formData.favicon_url && (
+              <span className="ml-2 text-xs text-green-600">✓ Gesetzt</span>
+            )}
+          </label>
+          <input
+            type="text"
+            value={formData.favicon_url}
+            onChange={(e) => handleInputChange('favicon_url', e.target.value)}
+            placeholder="Optional: https://example.com/favicon.png"
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
+            disabled={isSubmitting}
+          />
+          {formData.favicon_url && (
+            <p className="mt-1 text-xs text-gray-500">Aktueller Wert: {formData.favicon_url}</p>
+          )}
+        </div>
+
+
         {/* ========== SEMRUSH SECTION ========== */}
         <fieldset className="border-t pt-4 mt-4">
           
-          {/* Semrush Projekt ID */}
+          {/* (Semrush Projekt ID - Unverändert) */}
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700">
               Semrush Projekt ID
@@ -282,7 +307,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
             )}
           </div>
 
-          {/* Semrush Tracking-ID (Kampagne 1) */}
+          {/* (Semrush Tracking-ID (Kampagne 1) - Unverändert) */}
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700">
               Semrush Tracking-ID (Kampagne 1)
@@ -303,7 +328,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
             )}
           </div>
 
-          {/* Semrush Tracking-ID 02 (Kampagne 2) */}
+          {/* (Semrush Tracking-ID 02 (Kampagne 2) - Unverändert) */}
           <div>
             <label className="block text-sm font-medium text-gray-700">
               Semrush Tracking-ID (Kampagne 2)
@@ -351,8 +376,6 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
           </p>
         )}
       </form>
-
-      {/* (Debug Section - Unverändert) */}
     </div>
   );
 }
