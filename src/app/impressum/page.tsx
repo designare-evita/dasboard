@@ -37,10 +37,10 @@ export default function ImpressumPage() {
 
         <section>
           <h2 className="text-xl font-semibold text-gray-800 mb-2">
-            Grundlegende Richtung der Webseite ("Blattlinie"):
+            Grundlegende Richtung der Webseite (&quot;Blattlinie&quot;):
           </h2>
           <p className="text-gray-700">
-            Diese Webseite stellt das "Data Peak" Dashboard, ein privates
+            Diese Webseite stellt das &quot;Data Peak&quot; Dashboard, ein privates
             Projekt zur Analyse und Visualisierung von SEO- und Web-Kennzahlen,
             für registrierte Benutzer bereit.
           </p>
@@ -55,7 +55,7 @@ export default function ImpressumPage() {
             1. Abgrenzung zum Arbeitgeber
           </h3>
           <p className="text-gray-700">
-            Die Webseite "Data Peak" und das darauf angebotene Dashboard sind
+            Die Webseite &quot;Data Peak&quot; und das darauf angebotene Dashboard sind
             rein private Entwicklungen von Michael Kanda. Sie stehen in keinerlei
             Verbindung zum Unternehmen maxonline Marketing hfw GesmbH, meinem
             Arbeitgeber. Alle hier dargestellten Inhalte, Tools und Meinungen
@@ -96,8 +96,8 @@ export default function ImpressumPage() {
             5. Nutzung des Dienstes
           </h3>
           <p className="text-gray-700">
-            Das "Data Peak" Dashboard ist ein unentgeltlicher Dienst für
-            registrierte Benutzer. Der Dienst wird "wie er ist" ("as is") ohne
+            Das &quot;Data Peak&quot; Dashboard ist ein unentgeltlicher Dienst für
+            registrierte Benutzer. Der Dienst wird &quot;wie er ist&quot; (&quot;as is&quot;) ohne
             jegliche Garantie für Verfügbarkeit oder fehlerfreie Funktion zur
             Verfügung gestellt. Es besteht kein Anspruch auf Nutzung oder
             ununterbrochene Verfügbarkeit.
