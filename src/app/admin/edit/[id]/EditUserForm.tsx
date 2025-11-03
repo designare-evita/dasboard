@@ -44,7 +44,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
         semrushProjectId: user.semrush_project_id || '',
         semrushTrackingId: user.semrush_tracking_id || '',
         semrushTrackingId02: user.semrush_tracking_id_02 || '',
-        favicon_url: (user as any).favicon_url || '', // ✅ NEUES FELD (mit 'any' Cast, da Typ noch nicht aktualisiert wurde)
+        favicon_url: user.favicon_url || '', // ✅ Kein 'any' Cast mehr nötig
       });
       setPassword('');
       setMessage('');
@@ -118,7 +118,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
         semrushProjectId: result.semrush_project_id || '',
         semrushTrackingId: result.semrush_tracking_id || '',
         semrushTrackingId02: result.semrush_tracking_id_02 || '',
-        favicon_url: (result as any).favicon_url || '', // ✅ NEUES FELD
+        favicon_url: result.favicon_url || '', // ✅ Kein 'any' Cast mehr nötig
       });
       setPassword('');
       setMessage('');
@@ -186,10 +186,11 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
           />
         </div>
 
-        {/* (Berechtigungen - Unverändert) */}
-        {user.role === 'ADMIN' && (
+        {isSuperAdmin && user.role === 'ADMIN' && (
           <div>
-            <label className="block text-sm font-medium text-gray-700">Berechtigungen (Klasse)</label>
+            <label className="block text-sm font-medium text-gray-700">
+              Admin-Berechtigungen (kommagetrennt)
+            </label>
             <input
               type="text"
               value={formData.permissions}
