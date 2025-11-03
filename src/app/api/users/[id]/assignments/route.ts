@@ -1,14 +1,13 @@
 // src/app/api/users/[id]/assignments/route.ts
-// KORRIGIERT: Ohne sql.begin()
+// KORRIGIERT: Jetzt MIT atomarer Transaktion (sql.begin)
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession, type Session } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { sql } from '@vercel/postgres'; // Nur den Haupt-SQL-Import verwenden
+import { sql } from '@vercel/postgres'; // Importiere das Haupt-SQL-Objekt
 
 /**
  * Berechtigungsprüfung: Darf der eingeloggte Admin Zuweisungen ändern?
- * (Kopiert aus /api/projects/[id]/assign/route.ts)
  */
 async function hasAssignmentPermission(session: Session | null) {
   if (!session?.user) return false;
@@ -38,7 +37,7 @@ export async function PUT(
       `[PUT /api/users/${targetUserId}/assignments] Start Zuweisungs-Update...`
     );
 
-    // 1. Berechtigungsprüfung: Nur Superadmins oder Admins mit Recht
+    // 1. Berechtigungsprüfung
     if (!(await hasAssignmentPermission(session))) {
       console.warn(
         '[PUT assignments] ❌ Nicht autorisiert - Rolle:',
@@ -68,46 +67,54 @@ export async function PUT(
       `[PUT assignments] Aktualisiere ${project_ids.length} Zuweisungen für Admin ${targetUserId}`
     );
 
-    // 3. Datenbank-Operationen (ohne Transaktion)
-
-    // Schritt A: Alle alten Zuweisungen für diesen Admin löschen
-    await sql`
-      DELETE FROM project_assignments
-      WHERE user_id::text = ${targetUserId};
-    `;
-
-    console.log(
-      `[PUT assignments] Alte Zuweisungen für ${targetUserId} gelöscht.`
-    );
-
-    // Schritt B: Neue Zuweisungen einfügen (nur wenn welche übergeben wurden)
-    if (project_ids.length > 0) {
-      // Wir führen alle Inserts parallel aus
-      const insertPromises = project_ids.map((projectId) => {
-        // Kurze Validierung
-        if (typeof projectId === 'string' && projectId.length === 36) {
-          return sql`
-            INSERT INTO project_assignments (user_id, project_id)
-            VALUES (${targetUserId}::uuid, ${projectId}::uuid)
-            ON CONFLICT (user_id, project_id) DO NOTHING;
-          `;
-        }
-        console.warn(
-          `[PUT assignments] Ungültige Projekt-ID übersprungen: ${projectId}`
-        );
-        return Promise.resolve(); // Ungültige ID überspringen
-      });
-
-      await Promise.all(insertPromises);
+    // 3. KORREKTUR: Datenbank-Operationen IN EINER TRANSAKTION
+    // sql.begin() stellt sicher, dass alle Befehle darin
+    // atomar ausgeführt werden (entweder alle oder keiner).
+    await sql.begin(async (tx) => {
+      // Schritt A: Alle alten Zuweisungen löschen (verwende den Transaktions-Client 'tx')
+      await tx`
+        DELETE FROM project_assignments
+        WHERE user_id::text = ${targetUserId};
+      `;
 
       console.log(
-        `[PUT assignments] ${project_ids.length} neue Zuweisungen verarbeitet.`
+        `[PUT assignments] (TX) Alte Zuweisungen für ${targetUserId} gelöscht.`
       );
-    }
 
-    console.log(`[PUT assignments] ✅ Erfolgreich gespeichert.`);
+      // Schritt B: Neue Zuweisungen einfügen (nur wenn welche übergeben wurden)
+      if (project_ids.length > 0) {
+        // Bereite alle Insert-Promises vor
+        const insertPromises = project_ids.map((projectId) => {
+          // Kurze Validierung
+          if (typeof projectId === 'string' && projectId.length === 36) {
+            // Verwende den Transaktions-Client 'tx'
+            return tx`
+              INSERT INTO project_assignments (user_id, project_id)
+              VALUES (${targetUserId}::uuid, ${projectId}::uuid)
+              ON CONFLICT (user_id, project_id) DO NOTHING;
+            `;
+          }
+          console.warn(
+            `[PUT assignments] (TX) Ungültige Projekt-ID übersprungen: ${projectId}`
+          );
+          return Promise.resolve(); // Ungültige ID überspringen
+        });
 
-    // 4. Erfolg zurückmelden (wichtig: eine JSON-Antwort senden)
+        // Führe alle Inserts parallel innerhalb der Transaktion aus
+        await Promise.all(insertPromises);
+
+        console.log(
+          `[PUT assignments] (TX) ${project_ids.length} neue Zuweisungen verarbeitet.`
+        );
+      }
+      
+      // Wenn die Funktion hier ohne Fehler endet, wird die Transaktion
+      // automatisch committet.
+    });
+
+    console.log(`[PUT assignments] ✅ Transaktion erfolgreich abgeschlossen.`);
+
+    // 4. Erfolg zurückmelden
     return NextResponse.json(
       {
         message: 'Projektzuweisungen erfolgreich aktualisiert.',
@@ -118,11 +125,14 @@ export async function PUT(
       },
       { status: 200 }
     );
+    
   } catch (error) {
-    console.error('❌ Fehler bei Zuweisungs-Update:', error);
+    // Wenn in sql.begin() ein Fehler auftritt, wird die Transaktion
+    // automatisch zurückgerollt (ROLLBACK).
+    console.error('❌ Fehler bei Zuweisungs-Update (Rollback wurde durchgeführt):', error);
     return NextResponse.json(
       {
-        message: 'Fehler beim Speichern der Zuweisungen',
+        message: 'Fehler beim Speichern der Zuweisungen. Änderungen wurden zurückgerollt.',
         error:
           error instanceof Error ? error.message : 'Ein unbekannter Fehler',
       },
