@@ -1,4 +1,5 @@
-// src/app/api/users/[id]/route.ts - KORRIGIERT (Mandanten-Logik)
+// src/app/api/users/[id]/route.ts
+// ✅ AKTUALISIERT mit favicon_url
 
 import { NextResponse, NextRequest } from 'next/server';
 import { sql } from '@vercel/postgres';
@@ -50,7 +51,8 @@ export async function GET(
         semrush_tracking_id,
         semrush_tracking_id_02,
         mandant_id,
-        permissions
+        permissions,
+        favicon_url -- ✅ HINZUGEFÜGT
       FROM users
       WHERE id = ${targetUserId}::uuid;
     `;
@@ -127,7 +129,8 @@ export async function PUT(
         semrush_tracking_id_02,
         password,
         mandant_id, // NEU
-        permissions  // NEU (als string[])
+        permissions,  // NEU (als string[])
+        favicon_url // ✅ HINZUGEFÜGT
     } = body;
 
     if (!email) {
@@ -218,13 +221,14 @@ export async function PUT(
             semrush_tracking_id_02 = ${semrush_tracking_id_02 || null},
             mandant_id = ${mandant_id || null},
             permissions = ${permissionsPgString},
+            favicon_url = ${favicon_url || null}, -- ✅ HINZUGEFÜGT
             password = ${await bcrypt.hash(password, 10)}
           WHERE id = ${targetUserId}::uuid
           RETURNING
             id::text as id, email, role, domain, 
             gsc_site_url, ga4_property_id, 
             semrush_project_id, semrush_tracking_id, semrush_tracking_id_02,
-            mandant_id, permissions;
+            mandant_id, permissions, favicon_url; -- ✅ HINZUGEFÜGT
         `
       : // Query OHNE Passwort (password bleibt unverändert!)
         await sql<User>`
@@ -238,13 +242,14 @@ export async function PUT(
             semrush_tracking_id = ${semrush_tracking_id || null},
             semrush_tracking_id_02 = ${semrush_tracking_id_02 || null},
             mandant_id = ${mandant_id || null},
-            permissions = ${permissionsPgString}
+            permissions = ${permissionsPgString},
+            favicon_url = ${favicon_url || null} -- ✅ HINZUGEFÜGT
           WHERE id = ${targetUserId}::uuid
           RETURNING
             id::text as id, email, role, domain, 
             gsc_site_url, ga4_property_id, 
             semrush_project_id, semrush_tracking_id, semrush_tracking_id_02,
-            mandant_id, permissions;
+            mandant_id, permissions, favicon_url; -- ✅ HINZUGEFÜGT
         `;
 
     if (rows.length === 0) {
