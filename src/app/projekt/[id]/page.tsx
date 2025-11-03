@@ -52,6 +52,7 @@ export default function ProjektDetailPage() {
   } = useSWR<{ 
     domain?: string; 
     email?: string;
+    semrush_tracking_id?: string | null; // ✅ HINZUGEFÜGT
     semrush_tracking_id_02?: string | null;
   }>(
     projectId ? `/api/users/${projectId}` : null,
@@ -134,6 +135,7 @@ export default function ProjektDetailPage() {
         onPdfExport={handlePdfExport}
         projectId={projectId}
         domain={userData?.domain}
+        semrushTrackingId={userData?.semrush_tracking_id} // ✅ HINZUGEFÜGT
         semrushTrackingId02={userData?.semrush_tracking_id_02}
       />
     </div>
