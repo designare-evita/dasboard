@@ -1,143 +1,28 @@
-// src/components/KpiCardsGrid.tsx (Version 3 - Mit Sparklines)
-import React from 'react';
+// src/components/KpiCardsGrid.tsx (KORRIGIERT)
+
+// 1. 'React' import ist nicht nötig, stattdessen 'useState' importieren
+import { useState } from 'react';
 import KpiCard from './kpi-card';
-// ✅ NEU: KPI_TAB_META für Farben und ChartPoint für Typ importieren
 import { KPI_TAB_META } from '@/lib/dashboard-shared';
-import type { KPI, ChartPoint } from '@/types/dashboard'; 
+// KORREKTUR: KPI-Typ aus dashboard-shared importieren
+import { ProjectDashboardData } from '@/lib/dashboard-shared';
+import type { ChartPoint } from '@/types/dashboard';
 import { InfoCircle } from 'react-bootstrap-icons';
 
-interface KpiCardsGridProps {
-  kpis: {
-    clicks: KPI;
-    impressions: KPI;
-    sessions: KPI;
-    totalUsers: KPI;
-  };
-  isLoading?: boolean;
-  // ✅ NEU: allChartData Prop hinzufügen
-  allChartData?: {
-    clicks?: ChartPoint[];
-    impressions?: ChartPoint[];
-    sessions?: ChartPoint[];
-    totalUsers?: ChartPoint[];
-  };
-}
+// 2. InfoTooltip-Komponente WURDE HERAUSGEZOGEN
+// (Stand vorher innerhalb der KpiCardsGrid-Funktion)
 
 /**
- * KpiCardsGrid - Grid-Layout für die 4 Standard-KPI-Karten
- */
-export default function KpiCardsGrid({ kpis, isLoading = false, allChartData }: KpiCardsGridProps) {
-  
-  // (kpiInfo bleibt gleich)
-  const kpiInfo = {
-    clicks: {
-      title: "Was sind Klicks?",
-      description: "Die Anzahl der Klicks auf Ihre Website-Links in den Google-Suchergebnissen..."
-    },
-    impressions: {
-      title: "Was sind Impressionen?",
-      description: "Wie oft ein Link zu Ihrer Website in den Google-Suchergebnissen angezeigt wurde..."
-    },
-    sessions: {
-      title: "Was sind Sitzungen?",
-      description: "Eine Sitzung ist eine Gruppe von Interaktionen, die ein Nutzer innerhalb eines bestimmten Zeitraums..."
-    },
-    totalUsers: {
-      title: "Was sind Nutzer?",
-      description: "Die Anzahl eindeutiger Besucher Ihrer Website..."
-    }
-  };
-
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-      {/* Klicks */}
-      <div className="relative">
-        <KpiCard 
-          title="Klicks" 
-          isLoading={isLoading} 
-          value={kpis.clicks.value} 
-          change={kpis.clicks.change} 
-          // ✅ NEU: Daten & Farbe übergeben
-          data={allChartData?.clicks}
-          color={KPI_TAB_META.clicks.color}
-        />
-        {!isLoading && (
-          <InfoTooltip 
-            title={kpiInfo.clicks.title}
-            description={kpiInfo.clicks.description}
-          />
-        )}
-      </div>
-
-      {/* Impressionen */}
-      <div className="relative">
-        <KpiCard 
-          title="Impressionen" 
-          isLoading={isLoading} 
-          value={kpis.impressions.value} 
-          change={kpis.impressions.change} 
-          // ✅ NEU: Daten & Farbe übergeben
-          data={allChartData?.impressions}
-          color={KPI_TAB_META.impressions.color}
-        />
-        {!isLoading && (
-          <InfoTooltip 
-            title={kpiInfo.impressions.title}
-            description={kpiInfo.impressions.description}
-          />
-        )}
-      </div>
-
-      {/* Sitzungen */}
-      <div className="relative">
-        <KpiCard 
-          title="Sitzungen" 
-          isLoading={isLoading} 
-          value={kpis.sessions.value} 
-          change={kpis.sessions.change} 
-          // ✅ NEU: Daten & Farbe übergeben
-          data={allChartData?.sessions}
-          color={KPI_TAB_META.sessions.color}
-        />
-        {!isLoading && (
-          <InfoTooltip 
-            title={kpiInfo.sessions.title}
-            description={kpiInfo.sessions.description}
-          />
-        )}
-      </div>
-
-      {/* Nutzer */}
-      <div className="relative">
-        <KpiCard 
-          title="Nutzer" 
-          isLoading={isLoading} 
-          value={kpis.totalUsers.value} 
-          change={kpis.totalUsers.change} 
-          // ✅ NEU: Daten & Farbe übergeben
-          data={allChartData?.totalUsers}
-          color={KPI_TAB_META.totalUsers.color}
-        />
-        {!isLoading && (
-          <InfoTooltip 
-            title={kpiInfo.totalUsers.title}
-            description={kpiInfo.totalUsers.description}
-          />
-        )}
-      </div>
-    </div>
-  );
-}
-
-/**
- * InfoTooltip - (Diese Funktion bleibt unverändert)
+ * InfoTooltip - Zeigt Details zu einer KPI an
  */
 function InfoTooltip({ title, description }: { title: string; description: string }) {
-  const [isVisible, setIsVisible] = React.useState(false);
+  // 3. 'React.useState' zu 'useState' korrigiert
+  const [isVisible, setIsVisible] = useState(false);
 
   return (
-    <div className="absolute top-3 right-3 z-10">
-      <div 
+    // 4. 'print:hidden' hinzugefügt, um es im PDF auszublenden
+    <div className="absolute top-3 right-3 z-10 print:hidden">
+      <div
         className="relative"
         onMouseEnter={() => setIsVisible(true)}
         onMouseLeave={() => setIsVisible(false)}
@@ -148,9 +33,9 @@ function InfoTooltip({ title, description }: { title: string; description: strin
           className="p-1 rounded-full hover:bg-gray-100 transition-colors cursor-help"
           aria-label="Mehr Informationen"
         >
-          <InfoCircle 
-            size={18} 
-            className="text-gray-400 hover:text-indigo-600 transition-colors" 
+          <InfoCircle
+            size={18}
+            className="text-gray-400 hover:text-indigo-600 transition-colors"
           />
         </button>
 
@@ -161,6 +46,121 @@ function InfoTooltip({ title, description }: { title: string; description: strin
             <h4 className="text-sm font-semibold text-gray-900 mb-2">{title}</h4>
             <p className="text-xs text-gray-600 leading-relaxed">{description}</p>
           </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Props-Interface (angepasst an dashboard-shared Typen)
+interface KpiCardsGridProps {
+  kpis: Required<ProjectDashboardData['kpis']>; // Stellt sicher, dass alle KPIs vorhanden sind
+  isLoading?: boolean;
+  allChartData?: ProjectDashboardData['charts'];
+}
+
+/**
+ * KpiCardsGrid - Grid-Layout für die 4 Standard-KPI-Karten
+ */
+export default function KpiCardsGrid({
+  kpis,
+  isLoading = false,
+  allChartData,
+}: KpiCardsGridProps) {
+  // Das kpiInfo-Objekt (unverändert, da es kein JSX ist)
+  const kpiInfo = {
+    clicks: {
+      title: 'Was sind Klicks?',
+      description:
+        'Die Anzahl der Klicks auf Ihre Website-Links in den Google-Suchergebnissen...',
+    },
+    impressions: {
+      title: 'Was sind Impressionen?',
+      description:
+        'Wie oft ein Link zu Ihrer Website in den Google-Suchergebnissen angezeigt wurde...',
+    },
+    sessions: {
+      title: 'Was sind Sitzungen?',
+      description:
+        'Eine Sitzung ist eine Gruppe von Interaktionen, die ein Nutzer innerhalb eines bestimmten Zeitraums...',
+    },
+    totalUsers: {
+      title: 'Was sind Nutzer?',
+      description: 'Die Anzahl eindeutiger Besucher Ihrer Website...',
+    },
+  };
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* Klicks */}
+      <div className="relative kpi-card-wrapper">
+        <KpiCard
+          title="Klicks"
+          isLoading={isLoading}
+          value={kpis.clicks.value}
+          change={kpis.clicks.change}
+          data={allChartData?.clicks}
+          color={KPI_TAB_META.clicks.color}
+        />
+        {!isLoading && (
+          <InfoTooltip
+            title={kpiInfo.clicks.title}
+            description={kpiInfo.clicks.description}
+          />
+        )}
+      </div>
+
+      {/* Impressionen */}
+      <div className="relative kpi-card-wrapper">
+        <KpiCard
+          title="Impressionen"
+          isLoading={isLoading}
+          value={kpis.impressions.value}
+          change={kpis.impressions.change}
+          data={allChartData?.impressions}
+          color={KPI_TAB_META.impressions.color}
+        />
+        {!isLoading && (
+          <InfoTooltip
+            title={kpiInfo.impressions.title}
+            description={kpiInfo.impressions.description}
+          />
+        )}
+      </div>
+
+      {/* Sitzungen */}
+      <div className="relative kpi-card-wrapper">
+        <KpiCard
+          title="Sitzungen"
+          isLoading={isLoading}
+          value={kpis.sessions.value}
+          change={kpis.sessions.change}
+          data={allChartData?.sessions}
+          color={KPI_TAB_META.sessions.color}
+        />
+        {!isLoading && (
+          <InfoTooltip
+            title={kpiInfo.sessions.title}
+            description={kpiInfo.sessions.description}
+          />
+        )}
+      </div>
+
+      {/* Nutzer */}
+      <div className="relative kpi-card-wrapper">
+        <KpiCard
+          title="Nutzer"
+          isLoading={isLoading}
+          value={kpis.totalUsers.value}
+          change={kpis.totalUsers.change}
+          data={allChartData?.totalUsers}
+          color={KPI_TAB_META.totalUsers.color}
+        />
+        {!isLoading && (
+          <InfoTooltip
+            title={kpiInfo.totalUsers.title}
+            description={kpiInfo.totalUsers.description}
+          />
         )}
       </div>
     </div>
