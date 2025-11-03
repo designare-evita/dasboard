@@ -251,6 +251,16 @@ export default function AdminPage() {
                     disabled={isSubmitting}
                   />
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Favicon URL</label>
+                  <input
+                    name="favicon_url"
+                    type="text"
+                    placeholder="Optional: https://example.com/favicon.png"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
+                    disabled={isSubmitting}
+                  />
+                </div>
                 {/* ... (andere Kundenfelder: gsc_site_url, ga4_property_id, etc.) ... */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700">GSC Site URL (z. B. https://kundendomain.at/)</label>
