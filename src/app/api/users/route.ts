@@ -1,5 +1,6 @@
 // src/app/api/users/route.ts
 // (FINALE KORREKTUR der GET-Logik basierend auf Ihren Regeln)
+// ✅ AKTUALISIERT mit favicon_url
 
 import { NextResponse, NextRequest } from 'next/server';
 import { sql } from '@vercel/postgres';
@@ -32,7 +33,7 @@ export async function GET(request: NextRequest) {
       if (onlyCustomers) {
         // Redaktionsplan: Alle Kunden
         result = await sql`
-          SELECT id::text as id, email, role, domain, mandant_id, permissions
+          SELECT id::text as id, email, role, domain, mandant_id, permissions, favicon_url
           FROM users
           WHERE role = 'BENUTZER'
           ORDER BY mandant_id ASC, domain ASC, email ASC
@@ -40,7 +41,7 @@ export async function GET(request: NextRequest) {
       } else {
         // Admin-Panel: Alle außer Superadmins
         result = await sql`
-          SELECT id::text as id, email, role, domain, mandant_id, permissions
+          SELECT id::text as id, email, role, domain, mandant_id, permissions, favicon_url
           FROM users
           WHERE role != 'SUPERADMIN'
           ORDER BY mandant_id ASC, role DESC, email ASC
@@ -62,7 +63,7 @@ export async function GET(request: NextRequest) {
         // Zeige nur explizit zugewiesene Kunden (Benutzer)
         console.log(`[/api/users] ADMIN - Lade zugewiesene Kunden für Redaktionsplan`);
         result = await sql`
-          SELECT u.id::text as id, u.email, u.role, u.domain, u.mandant_id, u.permissions
+          SELECT u.id::text as id, u.email, u.role, u.domain, u.mandant_id, u.permissions, u.favicon_url
           FROM users u
           INNER JOIN project_assignments pa ON u.id = pa.project_id
           WHERE pa.user_id::text = ${adminId} AND u.role = 'BENUTZER'
@@ -78,7 +79,7 @@ export async function GET(request: NextRequest) {
 
       // 1. Hole immer die explizit zugewiesenen KUNDEN
       const kundenQuery = sql`
-        SELECT u.id::text as id, u.email, u.role, u.domain, u.mandant_id, u.permissions
+        SELECT u.id::text as id, u.email, u.role, u.domain, u.mandant_id, u.permissions, u.favicon_url
         FROM users u
         INNER JOIN project_assignments pa ON u.id = pa.project_id
         WHERE pa.user_id::text = ${adminId} AND u.role = 'BENUTZER'
@@ -88,7 +89,7 @@ export async function GET(request: NextRequest) {
         // 2. Admin (Klasse 1) - Hole KUNDEN + ANDERE ADMINS (im selben Label)
         console.log(`[/api/users] Admin (Klasse 1) lädt Admins + zugewiesene Kunden für Mandant: ${adminMandantId}`);
         const adminsQuery = sql`
-          SELECT id::text as id, email, role, domain, mandant_id, permissions
+          SELECT id::text as id, email, role, domain, mandant_id, permissions, favicon_url
           FROM users
           WHERE mandant_id = ${adminMandantId}
             AND role = 'ADMIN'
@@ -128,8 +129,6 @@ export async function GET(request: NextRequest) {
 }
 
 // POST: Neuen Benutzer erstellen
-// (Diese Funktion ist bereits korrekt aus unserem letzten Schritt, 
-// sie legt den User an UND erstellt die Zuweisung in 'project_assignments', wenn ein Admin einen Kunden erstellt)
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
 
@@ -151,7 +150,8 @@ export async function POST(req: NextRequest) {
       ga4_property_id, 
       semrush_project_id, 
       semrush_tracking_id, 
-      semrush_tracking_id_02 
+      semrush_tracking_id_02,
+      favicon_url // ✅ HINZUGEFÜGT: favicon_url aus dem Body lesen
     } = body;
 
     if (!email || !password || !role) {
@@ -202,6 +202,7 @@ export async function POST(req: NextRequest) {
         email, password, role, mandant_id, permissions,
         domain, gsc_site_url, ga4_property_id,
         semrush_project_id, semrush_tracking_id, semrush_tracking_id_02,
+        favicon_url, -- ✅ HINZUGEFÜGT
         "createdByAdminId"
       )
       VALUES (
@@ -210,9 +211,10 @@ export async function POST(req: NextRequest) {
         ${permissionsPgString},
         ${domain || null}, ${gsc_site_url || null}, ${ga4_property_id || null},
         ${semrush_project_id || null}, ${semrush_tracking_id || null}, ${semrush_tracking_id_02 || null},
+        ${favicon_url || null}, -- ✅ HINZUGEFÜGT
         ${createdByAdminId}
       )
-      RETURNING id, email, role, domain, mandant_id, permissions`;
+      RETURNING id, email, role, domain, mandant_id, permissions, favicon_url`; // ✅ HINZUGEFÜGT
       
     const newUser = newUsers[0];
 
