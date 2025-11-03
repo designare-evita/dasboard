@@ -41,7 +41,7 @@ export default function DatenschutzPage() {
             Ich verarbeite Ihre Daten daher ausschließlich auf Grundlage der
             gesetzlichen Bestimmungen (DSGVO, TKG 2021). Diese
             Datenschutzerklärung informiert Sie über die Verarbeitung Ihrer
-            personenbezogenen Daten im Rahmen der Nutzung des "Data Peak"
+            personenbezogenen Daten im Rahmen der Nutzung des &quot;Data Peak&quot;
             Dashboards.
           </p>
         </section>
@@ -172,7 +172,7 @@ export default function DatenschutzPage() {
           </h2>
           <p className="text-gray-700">
             Ihre Bestands- und Konfigurationsdaten werden gespeichert, solange
-            Ihr Benutzerkonto für das "Data Peak" Dashboard besteht. Daten in
+            Ihr Benutzerkonto für das &quot;Data Peak&quot; Dashboard besteht. Daten in
             Caches (z.B. Google-Daten) werden periodisch, spätestens nach 48
             Stunden, erneuert. Protokolldaten werden aus administrativen Gründen
             für einen begrenzten Zeitraum aufbewahrt.
