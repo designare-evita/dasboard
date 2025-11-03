@@ -37,6 +37,9 @@ export default function DashboardHeader({
             <p className="text-xs text-gray-400 mt-1">
               ID: {projectId}
             </p>
+        <span className="text-gray-500 text-sm hidden lg:block">
+                💡 GOOGLE Datenaktualisierung alle 48 Stunden | SEMRUSH Datenaktualisierung alle 14 Tage.
+              </span>
           )}
         </div>
         
