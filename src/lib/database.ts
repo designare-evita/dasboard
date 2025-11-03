@@ -24,6 +24,7 @@ export async function createTables() {
         semrush_project_id VARCHAR(255),
         semrush_tracking_id VARCHAR(255),       // Für Kampagne 1
         semrush_tracking_id_02 VARCHAR(255),    // Für Kampagne 2
+        favicon_url TEXT NULL,
         
         "createdByAdminId" UUID REFERENCES users(id),
         "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
