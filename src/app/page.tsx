@@ -153,7 +153,7 @@ async function CustomerDashboard({ session, dateRange }: { session: Session; dat
 export default async function HomePage({
   searchParams
 }: {
-  searchParams?: { [key: string]: string | string[] | undefined };
+  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const session = await getServerSession(authOptions);
 
@@ -161,7 +161,8 @@ export default async function HomePage({
     redirect('/login');
   }
 
-  const dateRange = (searchParams?.dateRange || '30d') as DateRangeOption;
+  const resolvedSearchParams = await searchParams;
+  const dateRange = (resolvedSearchParams?.dateRange || '30d') as DateRangeOption;
   const userRole = session.user.role;
 
   // Ladezustand wird jetzt von Suspense auf Ebene der Kind-Komponenten gehandhabt
