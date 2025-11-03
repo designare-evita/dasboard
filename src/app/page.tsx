@@ -1,11 +1,11 @@
-// src/app/page.tsx (MIT PDF-EXPORT)
+// src/app/page.tsx (KORRIGIERT - Domain-Übergabe Debug)
 'use client';
 
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { User } from '@/types'; // ✅ User-Typ importieren
+import { User } from '@/types';
 import {
   ArrowRepeat,
   ExclamationTriangleFill,
@@ -29,16 +29,13 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<DateRangeOption>('30d');
   
-  // ✅ WIR LADEN DAS GESAMTE USER-OBJEKT, nicht nur die Domain
   const [customerUser, setCustomerUser] = useState<User | null>(null);
-  // ✅ Neuer Ladezustand für Kundendaten
-  const [isLoadingCustomer, setIsLoadingCustomer] = useState(true); 
+  const [isLoadingCustomer, setIsLoadingCustomer] = useState(true);
 
   const fetchData = useCallback(async (range: DateRangeOption = dateRange) => {
     setIsLoading(true);
     setError(null);
     try {
-      // Nur Google-Daten laden - Semrush lädt jede Komponente selbst
       const googleResponse = await fetch(`/api/data?dateRange=${range}`);
 
       if (!googleResponse.ok) {
@@ -59,8 +56,8 @@ export default function HomePage() {
   useEffect(() => {
     if (status === 'authenticated') {
       if (session.user.role === 'ADMIN' || session.user.role === 'SUPERADMIN') {
-        setIsLoading(true); // Gilt für Projektliste
-        setIsLoadingCustomer(false); // Nicht relevant für Admin
+        setIsLoading(true);
+        setIsLoadingCustomer(false);
         fetch('/api/projects')
           .then(res => res.json())
           .then(data => {
@@ -72,19 +69,26 @@ export default function HomePage() {
             setIsLoading(false);
           });
       } else if (session.user.role === 'BENUTZER') {
-        setIsLoadingCustomer(true); // ✅ Starten des Ladens der Kundendaten
-        // ✅ Lade das volle User-Objekt (inkl. domain, semrush-IDs etc.)
+        setIsLoadingCustomer(true);
+        
+        // ✅ DEBUG: Logge User-ID
+        console.log('[HomePage] Lade User-Daten für ID:', session.user.id);
+        
         fetch(`/api/users/${session.user.id}`)
           .then(res => res.json())
           .then(userData => {
-            setCustomerUser(userData); // ✅ Setze das volle User-Objekt
+            // ✅ DEBUG: Logge geladene Daten
+            console.log('[HomePage] User-Daten geladen:', userData);
+            console.log('[HomePage] Domain:', userData.domain);
+            
+            setCustomerUser(userData);
           })
           .catch(err => {
-            console.error('Fehler beim Laden der User-Daten:', err);
-            setError(err.message); // Zeige Fehler an, wenn User-Daten nicht laden
+            console.error('[HomePage] Fehler beim Laden der User-Daten:', err);
+            setError(err.message);
           })
           .finally(() => {
-            setIsLoadingCustomer(false); // ✅ Beenden des Ladens der Kundendaten
+            setIsLoadingCustomer(false);
           });
         
         fetchData(dateRange);
@@ -98,14 +102,12 @@ export default function HomePage() {
     setDateRange(range);
   };
 
-  // PDF-Export Handler
   const handlePdfExport = () => {
     if (typeof window !== 'undefined') {
       window.print();
     }
   };
 
-  // ✅ Wir müssen warten auf: session, google-daten (isLoading) UND customerUser (isLoadingCustomer)
   if (status === 'loading' || (isLoading && !dashboardData && !error) || (session?.user.role === 'BENUTZER' && isLoadingCustomer && !error)) {
     return (
       <div className="flex justify-center items-center min-h-screen bg-gray-50">
@@ -135,20 +137,21 @@ export default function HomePage() {
     );
   }
 
-  // ✅ Hier sind dashboardData UND customerUser (falls vorhanden) geladen
   if (session?.user.role === 'BENUTZER' && dashboardData) {
-    // Falls customerUser aus irgendeinem Grund nicht geladen werden konnte (aber kein Fehler auftrat),
-    // verwenden wir einen Fallback (obwohl das dank Fehlerbehandlung unwahrscheinlich ist)
-    const user = customerUser || { id: session.user.id } as User; 
+    const user = customerUser || { id: session.user.id } as User;
+    
+    // ✅ DEBUG: Logge finale User-Daten vor Übergabe
+    console.log('[HomePage] Übergebe User an CustomerDashboard:', user);
+    console.log('[HomePage] Domain wird übergeben:', user.domain);
     
     return (
       <CustomerDashboard
         data={dashboardData}
-        isLoading={isLoading} // isLoading ist jetzt nur noch für Google-Daten relevant
+        isLoading={isLoading}
         dateRange={dateRange}
         onDateRangeChange={handleDateRangeChange}
         onPdfExport={handlePdfExport}
-        user={user} // ✅ Übergebe das (potenziell geladene) User-Objekt
+        user={user}
       />
     );
   }
@@ -160,7 +163,6 @@ export default function HomePage() {
   );
 }
 
-// AdminDashboard bleibt unverändert
 function AdminDashboard({ projects, isLoading }: { projects: User[], isLoading: boolean }) {
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
@@ -198,29 +200,28 @@ function AdminDashboard({ projects, isLoading }: { projects: User[], isLoading: 
   );
 }
 
-// ✅ CustomerDashboard vereinfacht: nimmt 'user' statt 'domain' und 'userId'
 function CustomerDashboard({
   data,
   isLoading,
   dateRange,
   onDateRangeChange,
   onPdfExport,
-  user // ✅ Nimmt das volle User-Objekt entgegen
+  user
 }: {
   data: ProjectDashboardData;
   isLoading: boolean;
   dateRange: DateRangeOption;
   onDateRangeChange: (range: DateRangeOption) => void;
   onPdfExport: () => void;
-  user: User; // ✅ User ist jetzt erforderlich (oder zumindest teilweise)
+  user: User;
 }) {
 
-  // ❌ Kein lokaler State oder useEffect für 'user' mehr nötig
-  // const [user, setUser] = useState<User | null>(null);
-  // useEffect(() => { ... }, [userId]);
+  // ✅ DEBUG: Logge User-Daten in CustomerDashboard
+  console.log('[CustomerDashboard] Erhaltene User-Daten:', user);
+  console.log('[CustomerDashboard] Domain:', user.domain);
 
   return (
-<div className="p-4 md:p-8 bg-gray-50 min-h-screen">
+    <div className="p-4 md:p-8 bg-gray-50 min-h-screen">
       <main>
         <ProjectDashboard
           data={data}
@@ -228,10 +229,10 @@ function CustomerDashboard({
           dateRange={dateRange}
           onDateRangeChange={onDateRangeChange}
           onPdfExport={onPdfExport}
-          projectId={user.id} // ✅ Direkt von user
-          domain={user.domain} // ✅ Direkt von user
-          semrushTrackingId={user.semrush_tracking_id} // ✅ Direkt von user
-          semrushTrackingId02={user.semrush_tracking_id_02} // ✅ Direkt von user
+          projectId={user.id}
+          domain={user.domain}
+          semrushTrackingId={user.semrush_tracking_id}
+          semrushTrackingId02={user.semrush_tracking_id_02}
         />
 
         <div className="mt-8">
