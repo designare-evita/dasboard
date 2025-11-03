@@ -5,8 +5,11 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
   try {
+    // KORREKTUR: "IF NOT EXISTS" hinzugefügt.
+    // Dadurch kann die Route beliebig oft aufgerufen werden,
+    // ohne einen Fehler zu werfen, falls die Tabelle schon existiert.
     const result = await sql`
-      CREATE TABLE landingpages (
+      CREATE TABLE IF NOT EXISTS landingpages (
           id SERIAL PRIMARY KEY,
           user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
           url TEXT NOT NULL,
@@ -18,7 +21,7 @@ export async function GET() {
           created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
     `;
-    return NextResponse.json({ message: "Tabelle 'landingpages' erfolgreich erstellt!", result }, { status: 200 });
+    return NextResponse.json({ message: "Tabelle 'landingpages' erfolgreich geprüft/erstellt!", result }, { status: 200 });
   } catch (error) {
     return NextResponse.json({ error }, { status: 500 });
   }
