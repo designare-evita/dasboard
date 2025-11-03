@@ -131,7 +131,7 @@ async function CustomerDashboard({ session, dateRange }: { session: Session; dat
     <div className="p-4 md:p-8 bg-gray-50 min-h-screen">
       <main>
         <ProjectDashboard
-          initialData={googleData}
+          data={googleData}
           isLoading={false}
           dateRange={dateRange}
           projectId={userId}
