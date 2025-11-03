@@ -11,7 +11,7 @@ import { getOrFetchGoogleData } from '@/lib/google-data-loader';
 interface UserRow {
   id: string;
   email: string;
-  role: string;
+  role: 'BENUTZER' | 'ADMIN' | 'SUPERADMIN';
   domain: string | null;
   gsc_site_url: string | null;
   ga4_property_id: string | null;
