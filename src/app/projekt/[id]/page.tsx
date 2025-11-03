@@ -1,4 +1,4 @@
-// src/app/projekt/[id]/page.tsx (MIT PDF-EXPORT)
+// src/app/projekt/[id]/page.tsx (KORRIGIERT - Domain Debug)
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -12,12 +12,10 @@ import ProjectDashboard from '@/components/ProjectDashboard';
 import { ArrowRepeat, ExclamationTriangleFill } from 'react-bootstrap-icons';
 import { useSession } from 'next-auth/react';
 
-// Fehler-Typ mit status-Property definieren
 interface FetchError extends Error {
   status?: number;
 }
 
-// Einfache Fetcher-Funktion für useSWR
 const fetcher = (url: string) => fetch(url).then(async (res) => {
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({ message: res.statusText }));
@@ -33,10 +31,9 @@ export default function ProjektDetailPage() {
   const projectId = params?.id;
   const { data: session, status: sessionStatus } = useSession();
 
-  // State für den Zeitraum
   const [dateRange, setDateRange] = useState<DateRangeOption>('30d');
 
-  // 1. SWR-Hook für Google-Daten (kritisch)
+  // Google-Daten (kritisch)
   const { 
     data: googleData, 
     isLoading: isLoadingGoogle, 
@@ -46,41 +43,44 @@ export default function ProjektDetailPage() {
     fetcher
   );
 
-  // 2. SWR-Hook für User/Domain-Daten (inkl. semrush_tracking_id_02)
+  // User/Domain-Daten
   const { 
-    data: userData 
+    data: userData,
+    isLoading: isLoadingUser 
   } = useSWR<{ 
     domain?: string; 
     email?: string;
-    semrush_tracking_id?: string | null; // ✅ HINZUGEFÜGT
+    semrush_tracking_id?: string | null;
     semrush_tracking_id_02?: string | null;
   }>(
     projectId ? `/api/users/${projectId}` : null,
     fetcher
   );
 
-  // Kombinierter Ladezustand - nur Google-Daten sind kritisch
+  // ✅ DEBUG: Logge userData wenn geladen
+  useEffect(() => {
+    if (userData) {
+      console.log('[ProjektPage] User-Daten geladen:', userData);
+      console.log('[ProjektPage] Domain:', userData.domain);
+    }
+  }, [userData]);
+
   const isLoading = isLoadingGoogle || sessionStatus === 'loading';
 
-  // --- PDF-Export Handler ---
   const handlePdfExport = () => {
     if (typeof window !== 'undefined') {
       window.print();
     }
   };
 
-  // --- Berechtigungsprüfung (wichtig für Admins) ---
   useEffect(() => {
     if (sessionStatus === 'authenticated' && session?.user && 
         session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN' &&
         session.user.id !== projectId) {
        console.error("Zugriffsversuch auf fremdes Projekt durch Benutzer:", session.user.id, "auf Projekt:", projectId);
-       // redirect('/'); // Optional: Redirect implementieren
     }
   }, [sessionStatus, session, projectId]);
 
-
-  // --- Ladezustand ---
   if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-[calc(100vh-200px)]">
@@ -90,8 +90,6 @@ export default function ProjektDetailPage() {
     );
   }
 
-  // --- Fehlerzustand ---
-  // Nur Google-Fehler sind kritisch, Semrush-Fehler werden ignoriert
   const error = errorGoogle as FetchError | undefined;
   if (error) {
     console.error("Fehler beim Laden der Projektdaten:", error);
@@ -118,12 +116,18 @@ export default function ProjektDetailPage() {
     );
   }
   
-  // --- Erfolgszustand ---
   const finalGoogleData: ProjectDashboardData = googleData ?? { 
     kpis: {}, 
     aiTraffic: undefined, 
     topQueries: [] 
   }; 
+
+  // ✅ DEBUG: Logge finale Daten vor Übergabe
+  console.log('[ProjektPage] Finale Daten:', {
+    domain: userData?.domain,
+    semrushTrackingId: userData?.semrush_tracking_id,
+    semrushTrackingId02: userData?.semrush_tracking_id_02
+  });
 
   return (
    <div className="p-4 sm:p-6 md:p-8">
@@ -135,7 +139,7 @@ export default function ProjektDetailPage() {
         onPdfExport={handlePdfExport}
         projectId={projectId}
         domain={userData?.domain}
-        semrushTrackingId={userData?.semrush_tracking_id} // ✅ HINZUGEFÜGT
+        semrushTrackingId={userData?.semrush_tracking_id}
         semrushTrackingId02={userData?.semrush_tracking_id_02}
       />
     </div>
