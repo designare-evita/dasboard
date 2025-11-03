@@ -1,10 +1,10 @@
 // src/app/api/users/[id]/assignments/route.ts
-// KORRIGIERT: Jetzt MIT atomarer Transaktion (sql.begin)
+// KORRIGIERT: Verwendet manuelle Transaktionen (BEGIN/COMMIT/ROLLBACK)
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession, type Session } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { sql } from '@vercel/postgres'; // Importiere das Haupt-SQL-Objekt
+import { sql } from '@vercel/postgres'; // Nur den Haupt-SQL-Import verwenden
 
 /**
  * Berechtigungsprüfung: Darf der eingeloggte Admin Zuweisungen ändern?
@@ -28,6 +28,9 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // KORREKTUR: Wir holen uns einen Client aus dem Pool
+  const client = await sql.connect();
+
   try {
     // Die ID des Admins, der bearbeitet wird
     const { id: targetUserId } = await params;
@@ -67,50 +70,50 @@ export async function PUT(
       `[PUT assignments] Aktualisiere ${project_ids.length} Zuweisungen für Admin ${targetUserId}`
     );
 
-    // 3. KORREKTUR: Datenbank-Operationen IN EINER TRANSAKTION
-    // sql.begin() stellt sicher, dass alle Befehle darin
-    // atomar ausgeführt werden (entweder alle oder keiner).
-    await sql.begin(async (tx) => {
-      // Schritt A: Alle alten Zuweisungen löschen (verwende den Transaktions-Client 'tx')
-      await tx`
-        DELETE FROM project_assignments
-        WHERE user_id::text = ${targetUserId};
-      `;
+    // 3. KORREKTUR: Datenbank-Operationen IN EINER MANUELLEN TRANSAKTION
+    
+    // Starte Transaktion
+    await client.query('BEGIN');
+
+    // Schritt A: Alle alten Zuweisungen löschen
+    await client.query(
+      `DELETE FROM project_assignments WHERE user_id::text = $1`,
+      [targetUserId]
+    );
+
+    console.log(
+      `[PUT assignments] (TX) Alte Zuweisungen für ${targetUserId} gelöscht.`
+    );
+
+    // Schritt B: Neue Zuweisungen einfügen (nur wenn welche übergeben wurden)
+    if (project_ids.length > 0) {
+      // Bereite alle Insert-Promises vor
+      const insertPromises = project_ids.map((projectId) => {
+        // Kurze Validierung
+        if (typeof projectId === 'string' && projectId.length === 36) {
+          return client.query(
+            `INSERT INTO project_assignments (user_id, project_id)
+             VALUES ($1::uuid, $2::uuid)
+             ON CONFLICT (user_id, project_id) DO NOTHING;`,
+            [targetUserId, projectId]
+          );
+        }
+        console.warn(
+          `[PUT assignments] (TX) Ungültige Projekt-ID übersprungen: ${projectId}`
+        );
+        return Promise.resolve(); // Ungültige ID überspringen
+      });
+
+      // Führe alle Inserts parallel innerhalb der Transaktion aus
+      await Promise.all(insertPromises);
 
       console.log(
-        `[PUT assignments] (TX) Alte Zuweisungen für ${targetUserId} gelöscht.`
+        `[PUT assignments] (TX) ${project_ids.length} neue Zuweisungen verarbeitet.`
       );
-
-      // Schritt B: Neue Zuweisungen einfügen (nur wenn welche übergeben wurden)
-      if (project_ids.length > 0) {
-        // Bereite alle Insert-Promises vor
-        const insertPromises = project_ids.map((projectId) => {
-          // Kurze Validierung
-          if (typeof projectId === 'string' && projectId.length === 36) {
-            // Verwende den Transaktions-Client 'tx'
-            return tx`
-              INSERT INTO project_assignments (user_id, project_id)
-              VALUES (${targetUserId}::uuid, ${projectId}::uuid)
-              ON CONFLICT (user_id, project_id) DO NOTHING;
-            `;
-          }
-          console.warn(
-            `[PUT assignments] (TX) Ungültige Projekt-ID übersprungen: ${projectId}`
-          );
-          return Promise.resolve(); // Ungültige ID überspringen
-        });
-
-        // Führe alle Inserts parallel innerhalb der Transaktion aus
-        await Promise.all(insertPromises);
-
-        console.log(
-          `[PUT assignments] (TX) ${project_ids.length} neue Zuweisungen verarbeitet.`
-        );
-      }
-      
-      // Wenn die Funktion hier ohne Fehler endet, wird die Transaktion
-      // automatisch committet.
-    });
+    }
+    
+    // Schließe Transaktion erfolgreich ab
+    await client.query('COMMIT');
 
     console.log(`[PUT assignments] ✅ Transaktion erfolgreich abgeschlossen.`);
 
@@ -127,9 +130,11 @@ export async function PUT(
     );
     
   } catch (error) {
-    // Wenn in sql.begin() ein Fehler auftritt, wird die Transaktion
-    // automatisch zurückgerollt (ROLLBACK).
-    console.error('❌ Fehler bei Zuweisungs-Update (Rollback wurde durchgeführt):', error);
+    // KORREKTUR: Bei Fehler, Rollback durchführen
+    console.error('❌ Fehler bei Zuweisungs-Update:', error);
+    await client.query('ROLLBACK');
+    console.log('[PUT assignments] 롤백 (Rollback) durchgeführt.');
+    
     return NextResponse.json(
       {
         message: 'Fehler beim Speichern der Zuweisungen. Änderungen wurden zurückgerollt.',
@@ -138,5 +143,9 @@ export async function PUT(
       },
       { status: 500 }
     );
+  } finally {
+    // KORREKTUR: Client IMMER freigeben
+    client.release();
+    console.log('[PUT assignments] Client-Verbindung freigegeben.');
   }
 }
