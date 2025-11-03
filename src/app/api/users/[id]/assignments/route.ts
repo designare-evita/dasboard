@@ -1,9 +1,10 @@
 // src/app/api/users/[id]/assignments/route.ts
+// KORRIGIERT: Ohne sql.begin()
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession, type Session } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { sql } from '@vercel/postgres';
+import { sql } from '@vercel/postgres'; // Nur den Haupt-SQL-Import verwenden
 
 /**
  * Berechtigungsprüfung: Darf der eingeloggte Admin Zuweisungen ändern?
@@ -67,45 +68,42 @@ export async function PUT(
       `[PUT assignments] Aktualisiere ${project_ids.length} Zuweisungen für Admin ${targetUserId}`
     );
 
-    // 3. Datenbank-Transaktion ausführen
-    // Wir löschen zuerst alle bestehenden Zuweisungen und fügen dann die neuen hinzu.
-    const result = await sql.begin(async (sql) => {
-      // Schritt A: Alle alten Zuweisungen für diesen Admin löschen
-      await sql`
-        DELETE FROM project_assignments
-        WHERE user_id::text = ${targetUserId};
-      `;
+    // 3. Datenbank-Operationen (ohne Transaktion)
 
-      console.log(`[PUT assignments] Alte Zuweisungen für ${targetUserId} gelöscht.`);
+    // Schritt A: Alle alten Zuweisungen für diesen Admin löschen
+    await sql`
+      DELETE FROM project_assignments
+      WHERE user_id::text = ${targetUserId};
+    `;
 
-      // Schritt B: Neue Zuweisungen einfügen (nur wenn welche übergeben wurden)
-      if (project_ids.length > 0) {
-        // Erzeuge die VALUES-Liste für den Insert
-        // Beispiel: ('admin-uuid', 'projekt1-uuid'), ('admin-uuid', 'projekt2-uuid')
-        const values = project_ids
-          .map(
-            (projectId) =>
-              `(${sql.string(targetUserId)}::uuid, ${sql.string(
-                projectId
-              )}::uuid)`
-          )
-          .join(',');
+    console.log(
+      `[PUT assignments] Alte Zuweisungen für ${targetUserId} gelöscht.`
+    );
 
-        // Führe einen einzigen, effizienten INSERT-Befehl aus
-        await sql.unsafe(
-          `
-          INSERT INTO project_assignments (user_id, project_id)
-          VALUES ${values}
-          ON CONFLICT (user_id, project_id) DO NOTHING;
-        `
+    // Schritt B: Neue Zuweisungen einfügen (nur wenn welche übergeben wurden)
+    if (project_ids.length > 0) {
+      // Wir führen alle Inserts parallel aus
+      const insertPromises = project_ids.map((projectId) => {
+        // Kurze Validierung
+        if (typeof projectId === 'string' && projectId.length === 36) {
+          return sql`
+            INSERT INTO project_assignments (user_id, project_id)
+            VALUES (${targetUserId}::uuid, ${projectId}::uuid)
+            ON CONFLICT (user_id, project_id) DO NOTHING;
+          `;
+        }
+        console.warn(
+          `[PUT assignments] Ungültige Projekt-ID übersprungen: ${projectId}`
         );
-      }
+        return Promise.resolve(); // Ungültige ID überspringen
+      });
 
-      return {
-        updatedUserId: targetUserId,
-        assignedCount: project_ids.length,
-      };
-    });
+      await Promise.all(insertPromises);
+
+      console.log(
+        `[PUT assignments] ${project_ids.length} neue Zuweisungen verarbeitet.`
+      );
+    }
 
     console.log(`[PUT assignments] ✅ Erfolgreich gespeichert.`);
 
@@ -113,7 +111,10 @@ export async function PUT(
     return NextResponse.json(
       {
         message: 'Projektzuweisungen erfolgreich aktualisiert.',
-        data: result,
+        data: {
+          updatedUserId: targetUserId,
+          assignedCount: project_ids.length,
+        },
       },
       { status: 200 }
     );
