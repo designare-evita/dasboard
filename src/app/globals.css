@@ -3,7 +3,6 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
-  /* ✅ NEU: Globale Highlight-Farbe hinzugefügt */
   --primary-highlight: #188BDB; 
 }
 
@@ -18,8 +17,6 @@
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
-    /* Du könntest hier auch eine dunkle Version der Highlight-Farbe definieren */
-    /* --primary-highlight: #SOME_DARKER_BLUE; */
   }
 }
 
@@ -30,192 +27,240 @@ body {
 }
 
 
-/* --- START: OPTIMIERTE PRINT STYLES FÜR PDF-EXPORT --- */
+/* --- START: PROFESSIONELLE PRINT STYLES FÜR PDF-EXPORT --- */
 @media print {
   
-  /* 1. Seiten-Setup */
+  /* ========================================
+     1. GRUNDLEGENDE SEITEN-KONFIGURATION
+     ======================================== */
   @page {
     size: A4 portrait;
-    margin: 12mm 10mm; /* Ausgewogene Ränder */
+    margin: 15mm 12mm;
   }
 
-  /* 2. Grund-Layout */
   * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+    box-sizing: border-box;
   }
 
   body {
     background: #fff !important;
     color: #000 !important;
     font-size: 9pt !important;
-    line-height: 1.3 !important;
+    line-height: 1.4 !important;
     margin: 0 !important;
     padding: 0 !important;
   }
 
-  /* 3. Container-Reset */
-  main, 
-  .p-4, .p-6, .p-8,
-  .px-4, .px-6, .px-8,
-  .py-4, .py-6, .py-8,
-  .max-w-7xl, .max-w-6xl, .max-w-5xl, .max-w-4xl, .max-w-3xl,
-  .container {
-    max-width: 100% !important;
-    width: 100% !important;
-    margin: 0 !important;
-    padding: 0 !important;
-  }
-
-  /* 4. Verstecke UI-Elemente */
-  header, 
+  /* ========================================
+     2. VERSTECKE UI-ELEMENTE
+     ======================================== */
+  header:not(.print\\:block), 
   nav, 
-  footer, 
+  footer:not(.print\\:block), 
   button:not(.print\\:block),
   .print\\:hidden,
   [role="tooltip"],
-  .absolute.top-3.right-3.z-10,
-  .hover\\:shadow-lg,
-  [class*="transition-"] {
+  .absolute.top-3.right-3.z-10 {
     display: none !important;
   }
 
-  /* 5. Dashboard-Header optimieren */
-  .bg-white.rounded-lg.shadow-md.border.border-gray-200:first-child {
-    display: block !important;
-    box-shadow: none !important;
+  /* ========================================
+     3. CONTAINER & LAYOUT
+     ======================================== */
+  main {
+    max-width: 100% !important;
+    width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Container mit Padding behalten für besseres Layout */
+  .max-w-7xl,
+  .container {
+    max-width: 100% !important;
+    padding: 0 8px !important;
+  }
+
+  /* ========================================
+     4. DASHBOARD HEADER
+     ======================================== */
+  /* Erstes Element = Dashboard Header */
+  main > div:first-child {
     border: none !important;
-    border-bottom: 2px solid #333 !important;
-    padding: 0 0 8px 0 !important;
-    margin: 0 0 12px 0 !important;
+    border-bottom: 3px solid #333 !important;
+    box-shadow: none !important;
+    padding: 0 0 10px 0 !important;
+    margin-bottom: 15px !important;
     page-break-after: avoid !important;
   }
 
-  /* Dashboard-Titel */
+  /* ========================================
+     5. TYPOGRAPHIE
+     ======================================== */
   h1 {
-    font-size: 18pt !important;
-    margin: 0 0 4px 0 !important;
-    color: #000 !important;
+    font-size: 20pt !important;
+    margin: 0 0 6px 0 !important;
+    font-weight: 700 !important;
   }
 
   h2 {
-    font-size: 13pt !important;
-    margin: 8px 0 4px 0 !important;
+    font-size: 14pt !important;
+    margin: 10px 0 6px 0 !important;
+    font-weight: 600 !important;
   }
 
   h3 {
     font-size: 11pt !important;
-    margin: 6px 0 4px 0 !important;
+    margin: 8px 0 5px 0 !important;
+    font-weight: 600 !important;
   }
 
   h4 {
-    font-size: 10pt !important;
-    margin: 4px 0 3px 0 !important;
+    font-size: 9pt !important;
+    margin: 6px 0 4px 0 !important;
+    font-weight: 600 !important;
   }
 
-  /* 6. Karten & Sektionen */
+  p {
+    margin: 4px 0 !important;
+    line-height: 1.4 !important;
+  }
+
+  /* ========================================
+     6. GRID-LAYOUTS
+     ======================================== */
+  
+  /* KPI Cards Grid - 2x2 Layout beibehalten */
+  .grid.grid-cols-1.md\\:grid-cols-2.lg\\:grid-cols-4 {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+    margin-bottom: 12px !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* AI Traffic + Top Queries Grid */
+  .grid.grid-cols-1.xl\\:grid-cols-3 {
+    display: grid !important;
+    grid-template-columns: 1fr 2fr !important;
+    gap: 10px !important;
+    margin-bottom: 12px !important;
+  }
+
+  /* Semrush Keywords Grid */
+  .grid.grid-cols-1.lg\\:grid-cols-2 {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+    margin-bottom: 12px !important;
+  }
+
+  /* Fallback: Andere Grids */
+  .grid:not(.grid-cols-1):not([class*="md:grid-cols"]):not([class*="lg:grid-cols"]):not([class*="xl:grid-cols"]) {
+    display: block !important;
+  }
+
+  /* ========================================
+     7. KARTEN & SEKTIONEN
+     ======================================== */
   .bg-white,
-  .bg-gray-50,
+  .rounded-lg,
   .shadow-md,
-  .shadow-lg,
-  .border,
-  .rounded-lg {
-    box-shadow: none !important;
-    border: 1px solid #ddd !important;
-    border-radius: 4px !important;
+  .border {
     background: #fff !important;
-    overflow: visible !important;
+    border: 1px solid #ddd !important;
+    border-radius: 6px !important;
+    box-shadow: none !important;
+    page-break-inside: avoid !important;
     margin-bottom: 10px !important;
   }
 
-  /* Padding für Karten reduzieren */
+  /* Padding anpassen aber nicht zu stark reduzieren */
   .p-6 {
-    padding: 8px !important;
+    padding: 10px !important;
   }
 
   .p-4 {
-    padding: 6px !important;
+    padding: 8px !important;
   }
 
-  /* 7. Grid-Layout auflösen */
-  .grid,
-  [class*="grid-cols"],
-  [class*="md:grid-cols"],
-  [class*="lg:grid-cols"],
-  [class*="xl:grid-cols"],
-  [class*="col-span"] {
-    display: block !important;
-    grid-template-columns: 1fr !important;
-    width: 100% !important;
-    gap: 0 !important;
-  }
-
-  /* Gap zwischen Grid-Items */
-  .gap-6, .gap-4 {
-    gap: 0 !important;
-  }
-
-  /* Grid-Kinder: Volle Breite + Abstand */
-  .grid > * {
-    width: 100% !important;
-    margin-bottom: 10px !important;
+  /* ========================================
+     8. KPI CARDS SPEZIELL
+     ======================================== */
+  .kpi-card-wrapper {
+    break-inside: avoid !important;
     page-break-inside: avoid !important;
   }
 
-  /* 8. KPI-Cards speziell optimieren */
-  .kpi-card-wrapper,
-  [class*="kpi-card"] {
-    page-break-inside: avoid !important;
-    margin-bottom: 8px !important;
-    height: auto !important;
-    min-height: 0 !important;
+  /* KPI Werte lesbar halten */
+  .text-3xl {
+    font-size: 18pt !important;
+    line-height: 1.2 !important;
   }
 
-  /* KPI-Cards: Kompaktes Layout */
-  .kpi-card-wrapper .text-3xl {
-    font-size: 20pt !important;
+  .text-2xl {
+    font-size: 14pt !important;
   }
 
-  .kpi-card-wrapper .text-sm {
+  .text-xl {
+    font-size: 12pt !important;
+  }
+
+  .text-lg {
+    font-size: 10pt !important;
+  }
+
+  .text-sm {
     font-size: 8pt !important;
   }
 
-  /* 9. Seitenumbrüche kontrollieren */
-  .bg-white.rounded-lg.shadow-md,
-  .kpi-card-wrapper,
-  section,
-  article {
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
+  .text-xs {
+    font-size: 7pt !important;
   }
 
-  /* Spezielle Seitenumbrüche */
-  .page-break-before {
-    page-break-before: always !important;
-  }
-
-  .page-break-after {
-    page-break-after: always !important;
-  }
-
-  /* 10. Charts optimieren */
+  /* ========================================
+     9. CHARTS & GRAFIKEN
+     ======================================== */
   .recharts-responsive-container {
     width: 100% !important;
-    height: 180px !important; /* Kompakter für PDF */
-    min-height: 180px !important;
-    max-height: 180px !important;
+    height: 150px !important;
+    min-height: 150px !important;
   }
 
-  /* Chart-Wrapper */
-  [class*="h-[200px]"],
+  /* Spezielle Höhen */
+  [class*="h-[60px]"] {
+    height: 50px !important;
+  }
+
+  [class*="h-[200px]"] {
+    height: 150px !important;
+  }
+
   [class*="h-[250px]"],
   [class*="h-[300px]"] {
     height: 180px !important;
-    min-height: 180px !important;
-    max-height: 180px !important;
   }
 
-  /* 11. Tabellen optimieren */
+  /* SVG Charts */
+  svg {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+
+  /* ========================================
+     10. TABELLEN
+     ======================================== */
+  .overflow-x-auto,
+  .overflow-y-auto {
+    overflow: visible !important;
+  }
+
+  .max-h-\[600px\] {
+    max-height: none !important;
+  }
+
   table {
     width: 100% !important;
     border-collapse: collapse !important;
@@ -225,7 +270,6 @@ body {
 
   thead {
     display: table-header-group !important;
-    background-color: #f3f4f6 !important;
   }
 
   tbody {
@@ -237,109 +281,198 @@ body {
     break-inside: avoid !important;
   }
 
-  th, td {
-    border: 1px solid #d1d5db !important;
-    padding: 3px 5px !important;
-    font-size: 7pt !important;
-    line-height: 1.2 !important;
-  }
-
   th {
+    background-color: #4f46e5 !important;
+    color: white !important;
+    padding: 4px 6px !important;
+    font-size: 7pt !important;
     font-weight: 600 !important;
-    background-color: #f3f4f6 !important;
+    border: 1px solid rgba(255,255,255,0.2) !important;
+    text-align: left !important;
   }
 
-  /* Tabellen-Container */
-  .overflow-x-auto,
-  .overflow-y-auto {
-    overflow: visible !important;
-    max-height: none !important;
+  td {
+    padding: 3px 6px !important;
+    font-size: 7pt !important;
+    border: 1px solid #e5e7eb !important;
   }
 
-  /* Scrollbare Bereiche */
-  .max-h-\[600px\] {
-    max-height: none !important;
+  /* Zebrastreifen */
+  tbody tr:nth-child(even) {
+    background-color: #f9fafb !important;
   }
 
-  /* 12. Gradient-Header (z.B. AI-Traffic, Top Queries) */
-  [class*="bg-gradient-to-r"] {
-    background: #4f46e5 !important; /* Feste Farbe statt Gradient */
-    color: #fff !important;
-    padding: 6px 8px !important;
-    border-radius: 4px 4px 0 0 !important;
+  tbody tr:nth-child(odd) {
+    background-color: #ffffff !important;
   }
 
+  /* ========================================
+     11. FARBIGE HEADER (Gradients)
+     ======================================== */
+  .bg-gradient-to-r.from-indigo-600 {
+    background: #4f46e5 !important;
+  }
+
+  .bg-gradient-to-r.from-orange-600 {
+    background: #ea580c !important;
+  }
+
+  .bg-gradient-to-r.from-purple-600 {
+    background: #9333ea !important;
+  }
+
+  /* Header Text weiß halten */
   [class*="bg-gradient-to-r"] * {
-    color: #fff !important;
+    color: white !important;
   }
 
-  /* 13. Text & Links */
-  p {
-    margin: 4px 0 !important;
+  /* ========================================
+     12. BADGES & STATUS-INDIKATOREN
+     ======================================== */
+  .bg-green-100 { background: #d1fae5 !important; color: #065f46 !important; }
+  .bg-green-600 { background: #059669 !important; color: white !important; }
+  
+  .bg-blue-100 { background: #dbeafe !important; color: #1e40af !important; }
+  .bg-blue-600 { background: #2563eb !important; color: white !important; }
+  
+  .bg-orange-100 { background: #fed7aa !important; color: #9a3412 !important; }
+  .bg-orange-600 { background: #ea580c !important; color: white !important; }
+  
+  .bg-yellow-100 { background: #fef3c7 !important; color: #92400e !important; }
+  
+  .bg-purple-50 { background: #faf5ff !important; }
+  .bg-purple-100 { background: #e9d5ff !important; color: #6b21a8 !important; }
+  .bg-purple-600 { background: #9333ea !important; color: white !important; }
+  
+  .bg-red-100 { background: #fee2e2 !important; color: #991b1b !important; }
+  .bg-red-600 { background: #dc2626 !important; color: white !important; }
+  
+  .bg-gray-50 { background: #f9fafb !important; }
+  .bg-gray-100 { background: #f3f4f6 !important; color: #374151 !important; }
+
+  /* Badge Padding */
+  .rounded-full {
+    padding: 2px 8px !important;
+    font-size: 7pt !important;
+    border-radius: 12px !important;
   }
 
+  [class*="px-2"][class*="py-1"] {
+    padding: 2px 6px !important;
+  }
+
+  [class*="px-3"][class*="py-1"] {
+    padding: 2px 8px !important;
+  }
+
+  /* ========================================
+     13. FLEX-LAYOUTS
+     ======================================== */
+  /* Wichtige Flex-Layouts beibehalten */
+  .flex.items-center,
+  .flex.justify-between {
+    display: flex !important;
+  }
+
+  /* Flex mit Items-Baseline für KPI-Werte */
+  .flex.items-baseline {
+    display: flex !important;
+    align-items: baseline !important;
+  }
+
+  /* Flex-Gaps reduzieren */
+  .gap-2 { gap: 4px !important; }
+  .gap-3 { gap: 6px !important; }
+  .gap-4 { gap: 8px !important; }
+  .gap-6 { gap: 10px !important; }
+
+  /* ========================================
+     14. SPACING & MARGINS
+     ======================================== */
+  .mt-6, .my-6 { margin-top: 12px !important; }
+  .mb-6 { margin-bottom: 12px !important; }
+  .mt-4, .my-4 { margin-top: 8px !important; }
+  .mb-4 { margin-bottom: 8px !important; }
+  .mt-3, .my-3 { margin-top: 6px !important; }
+  .mb-3 { margin-bottom: 6px !important; }
+  .mt-2, .my-2 { margin-top: 4px !important; }
+  .mb-2 { margin-bottom: 4px !important; }
+
+  .space-y-4 > * + * { margin-top: 8px !important; }
+  .space-y-3 > * + * { margin-top: 6px !important; }
+  .space-y-2 > * + * { margin-top: 4px !important; }
+
+  /* ========================================
+     15. LINKS & TEXT
+     ======================================== */
   a {
-    color: #000 !important;
+    color: #2563eb !important;
     text-decoration: none !important;
-    word-break: break-all !important;
   }
 
   a[href]:after {
     content: "" !important;
   }
 
-  /* 14. Flex-Layouts vereinfachen */
-  .flex,
-  [class*="flex-col"],
-  [class*="flex-row"] {
-    display: block !important;
+  /* URLs umbrechen */
+  [class*="break-all"] {
+    word-break: break-all !important;
   }
 
-  /* Flex-Items */
-  .flex > * {
-    width: 100% !important;
-    margin-bottom: 4px !important;
+  /* ========================================
+     16. ICONS
+     ======================================== */
+  svg:not(.recharts-surface) {
+    width: 14px !important;
+    height: 14px !important;
+    flex-shrink: 0 !important;
   }
 
-  /* 15. Badges und Tags */
-  [class*="rounded-full"],
-  [class*="px-2"],
-  [class*="py-1"] {
-    padding: 2px 6px !important;
-    font-size: 7pt !important;
-    display: inline-block !important;
+  /* ========================================
+     17. SPEZIELLE KOMPONENTEN
+     ======================================== */
+  
+  /* AI Traffic Card - 2-Spalten-Layout erhalten */
+  .grid.grid-cols-2 {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
   }
 
-  /* 16. Spezial: AI-Traffic Card */
-  [class*="xl:col-span-1"],
-  [class*="xl:col-span-2"] {
-    width: 100% !important;
-    max-width: 100% !important;
-  }
-
-  /* 17. Footer-Bereiche kompakter */
+  /* Top Queries Footer */
   .bg-gray-50.border-t {
-    padding: 4px 6px !important;
+    background: #f9fafb !important;
+    padding: 6px 8px !important;
     font-size: 7pt !important;
   }
 
-  /* 18. Icons und SVGs verkleinern */
-  svg {
-    width: 12px !important;
-    height: 12px !important;
+  /* ========================================
+     18. SEITENUMBRUCH-KONTROLLE
+     ======================================== */
+  
+  /* Verhindere Umbrüche in wichtigen Bereichen */
+  .bg-white.rounded-lg.shadow-md,
+  .kpi-card-wrapper,
+  section,
+  article {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
-  /* 19. Margins und Spacing global reduzieren */
-  .mt-6, .my-6 { margin-top: 8px !important; }
-  .mb-6 { margin-bottom: 8px !important; }
-  .mt-4, .my-4 { margin-top: 6px !important; }
-  .mb-4 { margin-bottom: 6px !important; }
-  .mt-3, .my-3 { margin-top: 4px !important; }
-  .mb-3 { margin-bottom: 4px !important; }
-  .mt-2, .my-2 { margin-top: 3px !important; }
-  .mb-2 { margin-bottom: 3px !important; }
+  /* Dashboard Header soll zusammenbleiben */
+  main > div:first-child {
+    page-break-after: avoid !important;
+  }
 
-  /* 20. Keine Animationen */
+  /* KPI Grid zusammenhalten */
+  .grid.grid-cols-1.md\\:grid-cols-2.lg\\:grid-cols-4 {
+    page-break-inside: avoid !important;
+    page-break-after: auto !important;
+  }
+
+  /* ========================================
+     19. ANIMATIONEN & TRANSITIONS
+     ======================================== */
   *,
   *::before,
   *::after {
@@ -347,52 +480,37 @@ body {
     transition: none !important;
   }
 
-  /* 21. Spezielle Anpassungen für AI-Traffic Card */
-  .bg-purple-50 {
-    background: #f5f3ff !important;
-    border: 1px solid #e9d5ff !important;
+  /* ========================================
+     20. OPACITY & VISIBILITY
+     ======================================== */
+  [class*="opacity-"] {
+    opacity: 1 !important;
   }
 
-  /* 22. Top Queries Tabelle - kompakter */
-  .bg-indigo-600 {
-    background: #4f46e5 !important;
-  }
-
-  /* 23. Semrush Tabellen */
-  .bg-orange-600 {
-    background: #ea580c !important;
-  }
-
-  .bg-purple-600 {
-    background: #9333ea !important;
-  }
-
-  /* 24. Position Badges kompakter */
-  .bg-green-100 {
-    background: #dcfce7 !important;
-    padding: 1px 4px !important;
-  }
-
-  .bg-blue-100 {
-    background: #dbeafe !important;
-    padding: 1px 4px !important;
-  }
-
-  .bg-orange-100 {
-    background: #ffedd5 !important;
-    padding: 1px 4px !important;
-  }
-
-  .bg-gray-100 {
-    background: #f3f4f6 !important;
-    padding: 1px 4px !important;
-  }
-
-  /* 25. Verstecke leere Bereiche */
-  .space-y-4:empty,
-  .space-y-3:empty,
-  .space-y-2:empty {
+  /* ========================================
+     21. ZUSÄTZLICHE OPTIMIERUNGEN
+     ======================================== */
+  
+  /* Verstecke Scrollbar-Indikatoren */
+  ::-webkit-scrollbar {
     display: none !important;
   }
+
+  /* Maximal-Breiten aufheben */
+  .max-w-xs,
+  .max-w-sm,
+  .max-w-md,
+  .max-w-lg,
+  .max-w-xl,
+  .max-w-2xl {
+    max-width: 100% !important;
+  }
+
+  /* Word-Break für lange Wörter */
+  .truncate {
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: normal !important;
+  }
 }
-/* --- ENDE: OPTIMIERTE PRINT STYLES --- */
+/* --- ENDE: PROFESSIONELLE PRINT STYLES --- */
