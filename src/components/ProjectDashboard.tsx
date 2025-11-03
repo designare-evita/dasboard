@@ -1,7 +1,7 @@
-// src/components/ProjectDashboard.tsx 
+// src/components/ProjectDashboard.tsx (KORRIGIERT - Domain Debug)
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   ProjectDashboardData, 
   ActiveKpi, 
@@ -24,7 +24,7 @@ interface ProjectDashboardProps {
   onDateRangeChange: (range: DateRangeOption) => void;
   projectId?: string;
   domain?: string;
-  semrushTrackingId?: string | null; // ✅ HINZUGEFÜGT
+  semrushTrackingId?: string | null;
   semrushTrackingId02?: string | null;
   onPdfExport?: () => void;
 }
@@ -36,11 +36,20 @@ export default function ProjectDashboard({
   onDateRangeChange,
   projectId,
   domain,
-  semrushTrackingId, // ✅ HINZUGEFÜGT
+  semrushTrackingId,
   semrushTrackingId02,
   onPdfExport
 }: ProjectDashboardProps) {
   
+  // ✅ DEBUG: Logge Props beim Rendering
+  useEffect(() => {
+    console.log('[ProjectDashboard] Rendering mit Props:', {
+      domain,
+      projectId,
+      semrushTrackingId,
+      semrushTrackingId02
+    });
+  }, [domain, projectId, semrushTrackingId, semrushTrackingId02]);
 
   const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
   
@@ -49,8 +58,6 @@ export default function ProjectDashboard({
 
   const normalizedKpis = normalizeFlatKpis(data.kpis);
 
-  // ✅ KORREKTUR: Die Logik prüft jetzt beide Kampagnen-IDs.
-  // Der gesamte Block wird nur angezeigt, wenn mind. eine ID vorhanden ist.
   const hasKampagne1Config = !!semrushTrackingId;
   const hasKampagne2Config = !!semrushTrackingId02;
   const hasSemrushConfig = hasKampagne1Config || hasKampagne2Config;
@@ -59,6 +66,7 @@ export default function ProjectDashboard({
     <>
       <DashboardHeader 
         domain={domain}
+        projectId={projectId}
         dateRange={dateRange}
         onDateRangeChange={onDateRangeChange}
         onPdfExport={onPdfExport || (() => {
@@ -66,7 +74,7 @@ export default function ProjectDashboard({
         })}
       />
 
-    {/* KPI Cards */}
+      {/* KPI Cards */}
       <div className="mt-6">
         <KpiCardsGrid
           kpis={normalizedKpis}
@@ -84,7 +92,7 @@ export default function ProjectDashboard({
         />
       </div>
 
-      {/* AI Traffic & Top Queries (bleibt gleich) */}
+      {/* AI Traffic & Top Queries */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mt-6">
         <div className="xl:col-span-1">
           <AiTrafficCard 
@@ -112,28 +120,21 @@ export default function ProjectDashboard({
         </div>
       </div>
 
-      {/* ✅ KORREKTUR: Semrush Keywords (rendert jetzt nur, wenn konfiguriert) */}
+      {/* Semrush Keywords */}
       {hasSemrushConfig && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
           
-          {/* Kampagne 1 - Wird nur angezeigt, wenn konfiguriert */}
           {hasKampagne1Config && (
             <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-gray-200">
               <SemrushTopKeywords projectId={projectId} />
             </div>
           )}
 
-          {/* Kampagne 2 - Wird nur angezeigt, wenn konfiguriert */}
           {hasKampagne2Config && (
             <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-gray-200">
               <SemrushTopKeywords02 projectId={projectId} />
             </div>
           )}
-
-          {/* HINWEIS: Wenn nur eine Kampagne konfiguriert ist, 
-            wird nur eine Karte angezeigt (im 2-Spalten-Layout auf lg:).
-            Die Platzhalter für Admins werden entfernt.
-          */}
 
         </div>
       )}
