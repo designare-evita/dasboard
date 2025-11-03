@@ -67,6 +67,11 @@ export default function KpiCardsGrid({
   isLoading = false,
   allChartData,
 }: KpiCardsGridProps) {
+  // Frühe Rückgabe, falls kpis nicht vorhanden
+  if (!kpis) {
+    return null;
+  }
+
   // Das kpiInfo-Objekt (unverändert, da es kein JSX ist)
   const kpiInfo = {
     clicks: {
