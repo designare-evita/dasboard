@@ -1,6 +1,6 @@
 // src/app/page.tsx
 
-import { getServerSession } from 'next-auth/react';
+import { getServerSession } from 'next-auth';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { User } from '@/types';
