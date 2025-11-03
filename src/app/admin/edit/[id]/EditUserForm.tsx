@@ -220,6 +220,26 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
           />
         </div>
 
+        <div>
+          <label className="block text-sm font-medium text-gray-700">
+            Favicon URL
+            {formData.favicon_url && (
+              <span className="ml-2 text-xs text-green-600">✓ Gesetzt</span>
+            )}
+          </label>
+          <input
+            type="text"
+            value={formData.favicon_url}
+            onChange={(e) => handleInputChange('favicon_url', e.target.value)}
+            placeholder="Optional: https://example.com/favicon.png"
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
+            disabled={isSubmitting}
+          />
+          {formData.favicon_url && (
+            <p className="mt-1 text-xs text-gray-500">Aktueller Wert: {formData.favicon_url}</p>
+          )}
+        </div>
+
         {/* (GSC Site URL - Unverändert) */}
         <div>
           <label className="block text-sm font-medium text-gray-700">
@@ -259,27 +279,6 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
           />
           {formData.ga4PropertyId && (
             <p className="mt-1 text-xs text-gray-500">Aktueller Wert: {formData.ga4PropertyId}</p>
-          )}
-        </div>
-
-        {/* ✅ NEUES FELD FÜR FAVICON */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700">
-            Favicon URL
-            {formData.favicon_url && (
-              <span className="ml-2 text-xs text-green-600">✓ Gesetzt</span>
-            )}
-          </label>
-          <input
-            type="text"
-            value={formData.favicon_url}
-            onChange={(e) => handleInputChange('favicon_url', e.target.value)}
-            placeholder="Optional: https://example.com/favicon.png"
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
-            disabled={isSubmitting}
-          />
-          {formData.favicon_url && (
-            <p className="mt-1 text-xs text-gray-500">Aktueller Wert: {formData.favicon_url}</p>
           )}
         </div>
 
