@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { User } from '@/types';
+import { User } from '@/types'; // ✅ User-Typ importieren
 import {
   ArrowRepeat,
   ExclamationTriangleFill,
@@ -28,7 +28,11 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<DateRangeOption>('30d');
-  const [userDomain, setUserDomain] = useState<string | undefined>(undefined);
+  
+  // ✅ WIR LADEN DAS GESAMTE USER-OBJEKT, nicht nur die Domain
+  const [customerUser, setCustomerUser] = useState<User | null>(null);
+  // ✅ Neuer Ladezustand für Kundendaten
+  const [isLoadingCustomer, setIsLoadingCustomer] = useState(true); 
 
   const fetchData = useCallback(async (range: DateRangeOption = dateRange) => {
     setIsLoading(true);
@@ -55,7 +59,8 @@ export default function HomePage() {
   useEffect(() => {
     if (status === 'authenticated') {
       if (session.user.role === 'ADMIN' || session.user.role === 'SUPERADMIN') {
-        setIsLoading(true);
+        setIsLoading(true); // Gilt für Projektliste
+        setIsLoadingCustomer(false); // Nicht relevant für Admin
         fetch('/api/projects')
           .then(res => res.json())
           .then(data => {
@@ -67,14 +72,19 @@ export default function HomePage() {
             setIsLoading(false);
           });
       } else if (session.user.role === 'BENUTZER') {
-        // Lade Domain für Kunde
+        setIsLoadingCustomer(true); // ✅ Starten des Ladens der Kundendaten
+        // ✅ Lade das volle User-Objekt (inkl. domain, semrush-IDs etc.)
         fetch(`/api/users/${session.user.id}`)
           .then(res => res.json())
           .then(userData => {
-            setUserDomain(userData.domain);
+            setCustomerUser(userData); // ✅ Setze das volle User-Objekt
           })
           .catch(err => {
             console.error('Fehler beim Laden der User-Daten:', err);
+            setError(err.message); // Zeige Fehler an, wenn User-Daten nicht laden
+          })
+          .finally(() => {
+            setIsLoadingCustomer(false); // ✅ Beenden des Ladens der Kundendaten
           });
         
         fetchData(dateRange);
@@ -95,7 +105,8 @@ export default function HomePage() {
     }
   };
 
-  if (status === 'loading' || (isLoading && !dashboardData && !error)) {
+  // ✅ Wir müssen warten auf: session, google-daten (isLoading) UND customerUser (isLoadingCustomer)
+  if (status === 'loading' || (isLoading && !dashboardData && !error) || (session?.user.role === 'BENUTZER' && isLoadingCustomer && !error)) {
     return (
       <div className="flex justify-center items-center min-h-screen bg-gray-50">
         <ArrowRepeat className="animate-spin text-indigo-600" size={40} />
@@ -124,16 +135,20 @@ export default function HomePage() {
     );
   }
 
+  // ✅ Hier sind dashboardData UND customerUser (falls vorhanden) geladen
   if (session?.user.role === 'BENUTZER' && dashboardData) {
+    // Falls customerUser aus irgendeinem Grund nicht geladen werden konnte (aber kein Fehler auftrat),
+    // verwenden wir einen Fallback (obwohl das dank Fehlerbehandlung unwahrscheinlich ist)
+    const user = customerUser || { id: session.user.id } as User; 
+    
     return (
       <CustomerDashboard
         data={dashboardData}
-        isLoading={isLoading}
+        isLoading={isLoading} // isLoading ist jetzt nur noch für Google-Daten relevant
         dateRange={dateRange}
         onDateRangeChange={handleDateRangeChange}
         onPdfExport={handlePdfExport}
-        domain={userDomain}
-        userId={session.user.id}
+        user={user} // ✅ Übergebe das (potenziell geladene) User-Objekt
       />
     );
   }
@@ -145,6 +160,7 @@ export default function HomePage() {
   );
 }
 
+// AdminDashboard bleibt unverändert
 function AdminDashboard({ projects, isLoading }: { projects: User[], isLoading: boolean }) {
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
@@ -182,33 +198,26 @@ function AdminDashboard({ projects, isLoading }: { projects: User[], isLoading: 
   );
 }
 
+// ✅ CustomerDashboard vereinfacht: nimmt 'user' statt 'domain' und 'userId'
 function CustomerDashboard({
   data,
   isLoading,
   dateRange,
   onDateRangeChange,
   onPdfExport,
-  domain,
-  userId
+  user // ✅ Nimmt das volle User-Objekt entgegen
 }: {
   data: ProjectDashboardData;
   isLoading: boolean;
   dateRange: DateRangeOption;
   onDateRangeChange: (range: DateRangeOption) => void;
   onPdfExport: () => void;
-  domain?: string;
-  userId?: string;
+  user: User; // ✅ User ist jetzt erforderlich (oder zumindest teilweise)
 }) {
-  const [user, setUser] = useState<User | null>(null);
 
-  useEffect(() => {
-    if (userId) {
-      fetch(`/api/users/${userId}`)
-        .then(res => res.json())
-        .then(userData => setUser(userData))
-        .catch(err => console.error('Fehler beim Laden der User-Daten:', err));
-    }
-  }, [userId]);
+  // ❌ Kein lokaler State oder useEffect für 'user' mehr nötig
+  // const [user, setUser] = useState<User | null>(null);
+  // useEffect(() => { ... }, [userId]);
 
   return (
 <div className="p-4 md:p-8 bg-gray-50 min-h-screen">
@@ -219,10 +228,10 @@ function CustomerDashboard({
           dateRange={dateRange}
           onDateRangeChange={onDateRangeChange}
           onPdfExport={onPdfExport}
-          projectId={userId}
-          domain={user?.domain || domain}
-          semrushTrackingId={user?.semrush_tracking_id} // ✅ HINZUGEFÜGT
-          semrushTrackingId02={user?.semrush_tracking_id_02}
+          projectId={user.id} // ✅ Direkt von user
+          domain={user.domain} // ✅ Direkt von user
+          semrushTrackingId={user.semrush_tracking_id} // ✅ Direkt von user
+          semrushTrackingId02={user.semrush_tracking_id_02} // ✅ Direkt von user
         />
 
         <div className="mt-8">
