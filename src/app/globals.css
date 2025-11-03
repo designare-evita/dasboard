@@ -28,11 +28,10 @@ body {
 
 
 /* ============================================================
-   PDF-EXPORT STYLES - OPTIMIERTES LAYOUT
+   PDF-EXPORT STYLES - FINALE LÖSUNG
    ============================================================ */
 @media print {
   
-  /* === 1. SEITEN-SETUP === */
   @page {
     size: A4 portrait;
     margin: 10mm 8mm;
@@ -52,230 +51,112 @@ body {
     padding: 0 !important;
   }
 
-  /* === 2. VERSTECKE UI-ELEMENTE === */
-  body > header,
-  header[class*="bg-white"],
-  body > footer,
-  footer,
-  nav,
-  button,
-  .inline-flex.rounded-lg.border,
-  [role="tooltip"],
-  .absolute.top-3.right-3,
-  /* Verstecke auch den PDF Button explizit */
-  [class*="print:hidden"] {
+  /* VERSTECKE UI */
+  header, footer, nav, button, [role="tooltip"] {
     display: none !important;
   }
 
-  /* === 3. MAIN CONTAINER === */
+  /* MAIN CONTAINER */
   main {
     width: 100% !important;
-    max-width: 100% !important;
     padding: 0 !important;
     margin: 0 !important;
-  }
-
-  main > div {
-    padding: 0 !important;
-    margin: 0 !important;
-  }
-
-  /* === 4. DASHBOARD HEADER (100% Breite) === */
-  main > div > div:first-child {
-    border: none !important;
-    border-bottom: 2px solid #000 !important;
-    box-shadow: none !important;
-    padding: 0 0 8px 0 !important;
-    margin: 0 0 12px 0 !important;
-    page-break-after: avoid !important;
-    width: 100% !important;
-  }
-
-  /* === 5. TYPOGRAPHIE === */
-  h1 {
-    font-size: 18pt !important;
-    margin: 0 0 4px 0 !important;
-    font-weight: 700 !important;
-  }
-
-  h2 {
-    font-size: 12pt !important;
-    margin: 8px 0 4px 0 !important;
-  }
-
-  h3 {
-    font-size: 10pt !important;
-    margin: 6px 0 4px 0 !important;
-  }
-
-  h4 {
-    font-size: 9pt !important;
-    margin: 4px 0 3px 0 !important;
   }
 
   /* ============================================================
-     LAYOUT-STRUKTUR - GENAU WIE GEWÜNSCHT
+     KRITISCH: GRID-LAYOUTS MIT DIREKTEN SELEKTOREN
      ============================================================ */
 
-  /* === 6. KPI CARDS: 2x2 GRID (50% / 50%) === */
-  .grid.md\\:grid-cols-2.lg\\:grid-cols-4 {
+  /* KPI CARDS: 2. Kind von main > div (nach Header) */
+  main > div > div:nth-child(2) {
     display: grid !important;
-    grid-template-columns: repeat(2, 1fr) !important;
+    grid-template-columns: 1fr 1fr !important;
     gap: 8px !important;
     margin-bottom: 10px !important;
-    page-break-inside: avoid !important;
   }
 
-  .grid.md\\:grid-cols-2.lg\\:grid-cols-4 > div {
-    display: block !important;
-    width: 100% !important;
-    break-inside: avoid !important;
-  }
-
-  /* === 7. KPI TREND CHART: 100% BREITE === */
-  /* Dieser Container kommt nach den KPI Cards */
+  /* KPI TREND: 3. Kind */
   main > div > div:nth-child(3) {
     width: 100% !important;
     margin-bottom: 10px !important;
-    page-break-inside: avoid !important;
   }
 
-  /* === 8. AI TRAFFIC + TOP QUERIES: 50% / 50% === */
-  .grid.xl\\:grid-cols-3 {
+  /* AI TRAFFIC + TOP QUERIES: 4. Kind */
+  main > div > div:nth-child(4) {
     display: grid !important;
-    grid-template-columns: repeat(2, 1fr) !important; /* 50% / 50% */
+    grid-template-columns: 1fr 1fr !important;
     gap: 10px !important;
     margin-bottom: 10px !important;
   }
 
-  /* AI Traffic Card - linke Spalte (50%) */
-  .xl\\:col-span-1 {
-    width: 100% !important;
-  }
-
-  /* Top Queries Card - rechte Spalte (50%) */
-  .xl\\:col-span-2 {
-    width: 100% !important;
-  }
-
-  /* === 9. SEMRUSH KEYWORDS: BEIDE 100% BREITE === */
-  .grid.lg\\:grid-cols-2 {
-    display: block !important; /* Kein Grid, untereinander */
-  }
-
-  .grid.lg\\:grid-cols-2 > div {
+  /* SEMRUSH: 5. und 6. Kind - Untereinander */
+  main > div > div:nth-child(5),
+  main > div > div:nth-child(6) {
+    display: block !important;
     width: 100% !important;
     margin-bottom: 10px !important;
-    page-break-inside: avoid !important;
+  }
+
+  main > div > div:nth-child(5) > div,
+  main > div > div:nth-child(6) > div {
+    width: 100% !important;
+    display: block !important;
   }
 
   /* ============================================================
-     KOMPONENTEN-STYLING
+     KOMPONENTEN
      ============================================================ */
 
-  /* === 10. KARTEN ALLGEMEIN === */
+  /* KARTEN */
   .bg-white.rounded-lg.shadow-md,
-  .bg-white.p-6.rounded-lg.shadow-md,
-  .bg-white.rounded-lg.shadow-md.border {
+  .bg-white.p-6.rounded-lg,
+  .bg-white.rounded-lg.border {
     background: white !important;
     border: 1px solid #ddd !important;
     border-radius: 4px !important;
-    padding: 8px !important;
     box-shadow: none !important;
-    page-break-inside: avoid !important;
+    padding: 8px !important;
   }
 
-  .p-6 { padding: 8px !important; }
-  .p-4 { padding: 6px !important; }
-
-  /* === 11. KPI CARD CONTENT === */
-  .text-3xl {
-    font-size: 16pt !important;
-    font-weight: 700 !important;
-    line-height: 1.2 !important;
+  /* DASHBOARD HEADER */
+  main > div > div:first-child {
+    border: none !important;
+    border-bottom: 2px solid #000 !important;
+    padding: 0 0 8px 0 !important;
+    margin: 0 0 12px 0 !important;
   }
 
-  .text-sm.font-medium.text-gray-500 {
-    font-size: 8pt !important;
-    margin-bottom: 3px !important;
-  }
+  /* TYPOGRAPHIE */
+  h1 { font-size: 18pt !important; margin: 0 0 4px 0 !important; }
+  h2 { font-size: 12pt !important; margin: 8px 0 4px 0 !important; }
+  h3 { font-size: 10pt !important; margin: 6px 0 4px 0 !important; }
 
-  .text-green-600,
-  .text-red-600 {
-    font-size: 7pt !important;
-  }
+  .text-3xl { font-size: 16pt !important; }
+  .text-2xl { font-size: 12pt !important; }
+  .text-xl { font-size: 10pt !important; }
+  .text-lg { font-size: 9pt !important; }
+  .text-sm { font-size: 7pt !important; }
+  .text-xs { font-size: 6pt !important; }
 
-  /* Sparklines in KPI Cards */
-  .mt-4.h-\[60px\] {
-    height: 40px !important;
-    margin-top: 6px !important;
-  }
-
-  /* === 12. AI TRAFFIC CARD - INTERNES LAYOUT === */
-  /* Sitzungen & Nutzer nebeneinander */
-  .xl\\:col-span-1 .grid.grid-cols-2 {
-    display: grid !important;
-    grid-template-columns: repeat(2, 1fr) !important;
-    gap: 6px !important;
-  }
-
-  /* Top KI-Quellen Liste */
-  .xl\\:col-span-1 .space-y-2 {
-    margin-top: 8px !important;
-  }
-
-  /* Sitzungs-Trend Chart - volle Breite */
-  .xl\\:col-span-1 .h-\[200px\] {
-    height: 100px !important;
-    margin-top: 8px !important;
-  }
-
-  /* === 13. CHARTS ALLGEMEIN === */
+  /* CHARTS */
   .recharts-responsive-container {
     width: 100% !important;
     height: 120px !important;
   }
 
-  /* KPI Trend Chart größer */
+  /* KPI Trend größer */
   main > div > div:nth-child(3) .recharts-responsive-container {
     height: 140px !important;
   }
 
-  [class*="h-[200px]"],
-  [class*="h-[250px]"],
-  [class*="h-[300px]"] {
-    height: 120px !important;
-  }
-
-  /* === 14. TABELLEN === */
-  .overflow-x-auto,
-  .overflow-y-auto {
-    overflow: visible !important;
-  }
-
-  .max-h-\[600px\] {
-    max-height: none !important;
-    overflow: visible !important;
-  }
+  /* TABELLEN */
+  .overflow-x-auto { overflow: visible !important; }
+  .max-h-\[600px\] { max-height: none !important; }
 
   table {
     width: 100% !important;
     border-collapse: collapse !important;
     font-size: 6pt !important;
-    page-break-inside: auto !important;
-  }
-
-  thead {
-    display: table-header-group !important;
-  }
-
-  tbody {
-    display: table-row-group !important;
-  }
-
-  tr {
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
   }
 
   th {
@@ -283,7 +164,6 @@ body {
     color: white !important;
     padding: 3px 4px !important;
     font-size: 6pt !important;
-    font-weight: 600 !important;
     border: 1px solid rgba(255,255,255,0.2) !important;
   }
 
@@ -291,297 +171,58 @@ body {
     padding: 2px 4px !important;
     font-size: 6pt !important;
     border: 1px solid #e5e7eb !important;
-    line-height: 1.2 !important;
   }
 
-  /* Zebrastreifen */
-  tbody tr:nth-child(even) {
-    background: #f9fafb !important;
-  }
+  tbody tr:nth-child(even) { background: #f9fafb !important; }
+  tbody tr:nth-child(odd) { background: white !important; }
 
-  tbody tr:nth-child(odd) {
-    background: white !important;
-  }
-
-  /* === 15. COLORED HEADERS === */
-  .bg-gradient-to-r {
-    border-radius: 4px 4px 0 0 !important;
+  /* HEADERS */
+  [class*="bg-gradient"] {
     padding: 6px 8px !important;
+    border-radius: 4px 4px 0 0 !important;
   }
 
-  .bg-gradient-to-r.from-indigo-600 {
-    background: #4f46e5 !important;
-  }
+  [class*="from-indigo"] { background: #4f46e5 !important; }
+  [class*="from-orange"] { background: #ea580c !important; }
+  [class*="from-purple"] { background: #9333ea !important; }
+  [class*="bg-gradient"] * { color: white !important; }
 
-  .bg-gradient-to-r.from-orange-600 {
-    background: #ea580c !important;
-  }
-
-  .bg-gradient-to-r.from-purple-600 {
-    background: #9333ea !important;
-  }
-
-  [class*="bg-gradient"] * {
-    color: white !important;
-  }
-
-  /* === 16. BADGES & COLORS === */
-  .bg-green-100 { 
-    background: #d1fae5 !important; 
-    color: #065f46 !important; 
-    padding: 1px 4px !important;
-    border-radius: 3px !important;
-  }
-  
-  .bg-blue-100 { 
-    background: #dbeafe !important; 
-    color: #1e40af !important; 
-    padding: 1px 4px !important;
-    border-radius: 3px !important;
-  }
-  
-  .bg-orange-100 { 
-    background: #fed7aa !important; 
-    color: #9a3412 !important; 
-    padding: 1px 4px !important;
-    border-radius: 3px !important;
-  }
-  
-  .bg-yellow-100 { 
-    background: #fef3c7 !important; 
-    color: #92400e !important; 
-    padding: 1px 4px !important;
-    border-radius: 3px !important;
-  }
-  
-  .bg-purple-50 { background: #faf5ff !important; }
-  .bg-purple-100 { background: #e9d5ff !important; color: #6b21a8 !important; }
-  .bg-red-100 { background: #fee2e2 !important; color: #991b1b !important; }
+  /* FARBEN */
+  .bg-green-100 { background: #d1fae5 !important; color: #065f46 !important; }
+  .bg-blue-100 { background: #dbeafe !important; color: #1e40af !important; }
+  .bg-orange-100 { background: #fed7aa !important; color: #9a3412 !important; }
+  .bg-yellow-100 { background: #fef3c7 !important; color: #92400e !important; }
   .bg-gray-50 { background: #f9fafb !important; }
-  .bg-gray-100 { background: #f3f4f6 !important; }
 
-  .rounded-full {
-    padding: 2px 6px !important;
-    font-size: 6pt !important;
-    border-radius: 10px !important;
-  }
-
-  /* === 17. SPACING === */
-  .mt-6, .my-6 { margin-top: 10px !important; }
-  .mb-6 { margin-bottom: 10px !important; }
-  .mt-4, .my-4 { margin-top: 8px !important; }
-  .mb-4 { margin-bottom: 8px !important; }
-  .mt-3, .my-3 { margin-top: 6px !important; }
-  .mb-3 { margin-bottom: 6px !important; }
-  .mt-2, .my-2 { margin-top: 4px !important; }
-  .mb-2 { margin-bottom: 4px !important; }
-
+  /* SPACING */
+  .mt-6, .mb-6 { margin-top: 10px !important; margin-bottom: 10px !important; }
+  .mt-4, .mb-4 { margin-top: 8px !important; margin-bottom: 8px !important; }
   .gap-6 { gap: 8px !important; }
   .gap-4 { gap: 6px !important; }
-  .gap-3 { gap: 5px !important; }
-  .gap-2 { gap: 4px !important; }
 
-  .space-y-4 > * + * { margin-top: 6px !important; }
-  .space-y-3 > * + * { margin-top: 5px !important; }
-  .space-y-2 > * + * { margin-top: 4px !important; }
+  /* FLEXBOX */
+  .flex { display: flex !important; }
+  .items-center { align-items: center !important; }
+  .justify-between { justify-content: space-between !important; }
 
-  /* === 18. ICONS === */
+  /* ICONS */
   svg:not(.recharts-surface) {
     width: 12px !important;
     height: 12px !important;
-    flex-shrink: 0 !important;
   }
 
-  /* === 19. TEXT SIZES === */
-  .text-xs { font-size: 6pt !important; }
-  .text-sm { font-size: 7pt !important; }
-  .text-base { font-size: 8pt !important; }
-  .text-lg { font-size: 9pt !important; }
-  .text-xl { font-size: 10pt !important; }
-  .text-2xl { font-size: 12pt !important; }
+  /* LINKS */
+  a { color: #2563eb !important; text-decoration: none !important; }
+  a[href]:after { content: "" !important; }
 
-  /* === 20. LINKS === */
-  a {
-    color: #2563eb !important;
-    text-decoration: none !important;
-  }
+  /* KEINE ANIMATIONEN */
+  * { animation: none !important; transition: none !important; }
 
-  a[href]:after {
-    content: "" !important;
-  }
-
-  /* Lange URLs umbrechen */
-  .break-all,
-  [class*="break-all"] {
-    word-break: break-all !important;
-  }
-
-  /* === 21. FLEXBOX === */
-  .flex.items-center {
-    display: flex !important;
-    align-items: center !important;
-  }
-
-  .flex.items-baseline {
-    display: flex !important;
-    align-items: baseline !important;
-  }
-
-  .flex.justify-between {
-    display: flex !important;
-    justify-content: space-between !important;
-  }
-
-  /* Einige Flex-Container müssen Block werden */
-  .flex.flex-col:not(.items-center):not(.items-baseline) {
-    display: block !important;
-  }
-
-  /* === 22. SEITENUMBRÜCHE === */
-  .kpi-card-wrapper,
-  section,
-  article {
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
-  }
-
-  /* Dashboard Header zusammenhalten */
-  main > div > div:first-child {
-    page-break-after: avoid !important;
-  }
-
-  /* KPI Grid zusammenhalten */
-  .grid.md\\:grid-cols-2.lg\\:grid-cols-4 {
-    page-break-inside: avoid !important;
-    page-break-after: auto !important;
-  }
-
-  /* === 23. KEINE ANIMATIONEN === */
-  *,
-  *::before,
-  *::after {
-    animation: none !important;
-    transition: none !important;
-  }
-
-  /* === 24. BORDERS === */
-  .border { border: 1px solid #ddd !important; }
-  .border-t { border-top: 1px solid #ddd !important; }
-  .border-b { border-bottom: 1px solid #ddd !important; }
-  .border-r { border-right: 1px solid #ddd !important; }
-  .border-gray-200 { border-color: #e5e7eb !important; }
-
-  /* === 25. ROUNDED === */
-  .rounded-lg { border-radius: 4px !important; }
-  .rounded-t-lg { border-radius: 4px 4px 0 0 !important; }
-  .rounded-b-lg { border-radius: 0 0 4px 4px !important; }
-
-  /* === 26. SHADOWS === */
-  .shadow-md,
-  .shadow-lg,
-  .shadow {
-    box-shadow: none !important;
-  }
-
-  /* === 27. OPACITY === */
-  [class*="opacity-"] {
-    opacity: 1 !important;
-  }
-
-  /* === 28. MAX-WIDTH === */
-  .max-w-xs,
-  .max-w-sm,
-  .max-w-md,
-  .max-w-lg,
-  .max-w-xl,
-  .max-w-2xl,
-  .max-w-3xl,
-  .max-w-4xl,
-  .max-w-5xl,
-  .max-w-6xl,
-  .max-w-7xl {
-    max-width: 100% !important;
-  }
-
-  /* === 29. TRUNCATE === */
-  .truncate {
-    overflow: visible !important;
-    text-overflow: clip !important;
-    white-space: normal !important;
-  }
-
-  /* === 30. FOOTER BEREICHE === */
-  .bg-gray-50.border-t {
-    background: #f9fafb !important;
-    padding: 4px 6px !important;
-    font-size: 6pt !important;
-    border-top: 1px solid #e5e7eb !important;
-  }
-
-  /* === 31. VERSTECKE FOOTER AM ENDE === */
-  main ~ footer,
-  [class*="bg-gray-900"],
-  body > div:last-child {
-    display: none !important;
-  }
-
-  /* === 32. SEMRUSH TABELLEN - SPEZIELLE ANPASSUNGEN === */
-  /* Orange Header für Kampagne 1 */
-  .bg-orange-600 {
-    background: #ea580c !important;
-    color: white !important;
-  }
-
-  /* Purple Header für Kampagne 2 */
-  .bg-purple-600 {
-    background: #9333ea !important;
-    color: white !important;
-  }
-
-  /* Semrush Tabellen-Sticky-Header */
-  .sticky {
-    position: relative !important;
-  }
-
-  /* === 33. ZUSÄTZLICHE OPTIMIERUNGEN === */
-  
-  /* Scrollbar verstecken */
-  ::-webkit-scrollbar {
-    display: none !important;
-  }
-
-  /* Word-Break für lange Keywords */
-  .max-w-xs {
-    max-width: 100% !important;
-    word-break: break-word !important;
-  }
-
-  /* Keine Box-Schatten */
-  *[class*="shadow"] {
-    box-shadow: none !important;
-  }
-
-  /* Absolute Positionierung aufheben */
-  .absolute {
-    position: static !important;
-  }
-
-  /* Fixed Positionierung aufheben */
-  .fixed {
-    position: static !important;
-  }
-
-  /* === 34. TOP QUERIES FOOTER === */
-  .xl\\:col-span-2 .bg-gray-50.border-t {
-    font-size: 6pt !important;
-    padding: 4px 6px !important;
-  }
-
-  /* === 35. AI TRAFFIC INFO TEXT === */
-  .xl\\:col-span-1 .border-t.border-gray-100 {
-    border-top: 1px solid #e5e7eb !important;
-    padding-top: 6px !important;
-    margin-top: 6px !important;
+  /* AI TRAFFIC INNEN */
+  main > div > div:nth-child(4) > div:first-child .grid {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 6px !important;
   }
 }
-/* === ENDE PDF STYLES === */
+/* === ENDE === */
