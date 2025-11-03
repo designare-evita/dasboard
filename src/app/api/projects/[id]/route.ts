@@ -1,6 +1,6 @@
 // src/app/api/projects/[id]/route.ts (KORRIGIERT - Mit Google Cache)
 
-import { NextResponse, NextRequest } from 'next/request';
+import { NextResponse, NextRequest } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { sql } from '@vercel/postgres';
