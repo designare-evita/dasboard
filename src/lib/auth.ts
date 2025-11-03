@@ -86,6 +86,11 @@ export const authOptions: NextAuthOptions = {
   ],
   session: {
     strategy: 'jwt', // Wir verwenden JWTs, um die Session zu verwalten
+    
+    // ✅ HINZUGEFÜGT: Automatischer Logout nach 5 Minuten (300 Sekunden)
+    // NextAuth prüft bei Interaktionen, ob die Session älter als maxAge ist.
+    // Wenn ja, wird der Benutzer beim nächsten API-Aufruf oder Seitenwechsel ausgeloggt.
+    maxAge: 5 * 60, // 5 Minuten in Sekunden
   },
   secret: process.env.NEXTAUTH_SECRET,
   pages: {
