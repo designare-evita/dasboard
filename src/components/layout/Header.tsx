@@ -52,6 +52,9 @@ export default function Header() {
             <span className="text-gray-600 underline underline-offset-6 hidden md:block">
               Hallo, {session.user?.name ?? session.user?.email}
             </span>
+       <div className="text-gray-500">
+            💡 GOOGLE Datenaktualisierung alle 48 Stunden | SEMRUSH Datenaktualisierung alle 14 Tage.
+          </div>
           )}
         </div>
 
