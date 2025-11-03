@@ -13,12 +13,14 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
-  title: "Data Peak",
-  description: "SEO Dashboard - Design & Entwicklung von Michael Kanda & Evita",
+  title: 'Data Peak | SEO & Analytics Dashboard',
+  description:
+    'Data Peak ist das zentrale Dashboard zur Analyse Ihrer Web-Performance. Verbinden Sie Google Search Console, Analytics & Semrush für einheitliches KPI-Reporting.',
   icons: {
     icon: '/favicon.ico',
   },
 };
+
 
 export default function RootLayout({
   children,
