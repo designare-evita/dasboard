@@ -24,6 +24,7 @@ interface ProjectDashboardProps {
   onDateRangeChange: (range: DateRangeOption) => void;
   projectId?: string;
   domain?: string;
+  semrushTrackingId?: string | null; // ✅ HINZUGEFÜGT
   semrushTrackingId02?: string | null;
   onPdfExport?: () => void;
 }
@@ -35,6 +36,7 @@ export default function ProjectDashboard({
   onDateRangeChange,
   projectId,
   domain,
+  semrushTrackingId, // ✅ HINZUGEFÜGT
   semrushTrackingId02,
   onPdfExport
 }: ProjectDashboardProps) {
@@ -47,7 +49,11 @@ export default function ProjectDashboard({
 
   const normalizedKpis = normalizeFlatKpis(data.kpis);
 
-  const hasSemrushConfig = userRole === 'ADMIN' || userRole === 'SUPERADMIN' || !!semrushTrackingId02;
+  // ✅ KORREKTUR: Die Logik prüft jetzt beide Kampagnen-IDs.
+  // Der gesamte Block wird nur angezeigt, wenn mind. eine ID vorhanden ist.
+  const hasKampagne1Config = !!semrushTrackingId;
+  const hasKampagne2Config = !!semrushTrackingId02;
+  const hasSemrushConfig = hasKampagne1Config || hasKampagne2Config;
 
   return (
     <>
@@ -106,46 +112,29 @@ export default function ProjectDashboard({
         </div>
       </div>
 
-      {/* Semrush Keywords (bleibt gleich) */}
+      {/* ✅ KORREKTUR: Semrush Keywords (rendert jetzt nur, wenn konfiguriert) */}
       {hasSemrushConfig && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-          <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-gray-200">
-            <SemrushTopKeywords projectId={projectId} />
-          </div>
+          
+          {/* Kampagne 1 - Wird nur angezeigt, wenn konfiguriert */}
+          {hasKampagne1Config && (
+            <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-gray-200">
+              <SemrushTopKeywords projectId={projectId} />
+            </div>
+          )}
 
-          {semrushTrackingId02 ? (
+          {/* Kampagne 2 - Wird nur angezeigt, wenn konfiguriert */}
+          {hasKampagne2Config && (
             <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-gray-200">
               <SemrushTopKeywords02 projectId={projectId} />
             </div>
-          ) : (
-            (userRole === 'ADMIN' || userRole === 'SUPERADMIN') && (
-              <div className="bg-gray-50 rounded-lg border border-gray-200 border-dashed">
-                <div className="flex flex-col items-center justify-center h-full text-center py-12">
-                  <div className="text-gray-400 mb-3">
-                    <svg 
-                      className="w-16 h-16 mx-auto" 
-                      fill="none" 
-                      stroke="currentColor" 
-                      viewBox="0 0 24 24"
-                    >
-                      <path 
-                        strokeLinecap="round" 
-                        strokeLinejoin="round" 
-                        strokeWidth={1.5} 
-                        d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                      />
-                    </svg>
-                  </div>
-                  <h3 className="text-lg font-medium text-gray-700 mb-2">
-                    Zweite Kampagne nicht konfiguriert
-                  </h3>
-                  <p className="text-sm text-gray-500 max-w-sm">
-                    Fügen Sie eine zweite Semrush Tracking-ID hinzu, um hier weitere Keywords zu verfolgen.
-                  </p>
-                </div>
-              </div>
-            )
           )}
+
+          {/* HINWEIS: Wenn nur eine Kampagne konfiguriert ist, 
+            wird nur eine Karte angezeigt (im 2-Spalten-Layout auf lg:).
+            Die Platzhalter für Admins werden entfernt.
+          */}
+
         </div>
       )}
     </>
