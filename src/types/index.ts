@@ -19,4 +19,5 @@ export interface User {
   semrush_organic_keywords?: number;
   semrush_organic_traffic?: number;
   semrush_last_fetched?: string; // Kommt als String/Date von der DB
+  favicon_url?: string;
 }
