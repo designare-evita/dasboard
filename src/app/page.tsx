@@ -221,6 +221,7 @@ function CustomerDashboard({
           onPdfExport={onPdfExport}
           projectId={userId}
           domain={user?.domain || domain}
+          semrushTrackingId={user?.semrush_tracking_id} // ✅ HINZUGEFÜGT
           semrushTrackingId02={user?.semrush_tracking_id_02}
         />
 
