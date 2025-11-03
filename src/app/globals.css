@@ -30,68 +30,138 @@ body {
 }
 
 
-/* Print Styles für PDF-Export */
+/* --- VERBESSERTE PRINT STYLES FÜR PDF-EXPORT --- */
 @media print {
-  /* Verstecke Navigation, Header, Footer etc. */
-  header, nav, footer, .print\\:hidden {
-    display: none !important;
+  /* Seiten-Setup */
+  @page {
+    size: A4 portrait; /* A4 Hochformat */
+    margin: 1.5cm; /* Rand auf allen Seiten */
   }
 
-  /* Optimiere für Druck */
+  /* Grund-Layout */
   body {
     background: white !important;
     color: black !important;
+    font-size: 10pt; /* Konsistente Schriftgröße */
+    -webkit-print-color-adjust: exact !important; /* WICHTIG: Erzwingt das Drucken von Hintergrundfarben (z.B. in Charts) */
+    print-color-adjust: exact !important;
   }
 
-  /* Verhindere Page Breaks in wichtigen Elementen */
-  .dashboard-card {
-    page-break-inside: avoid;
+  /* Alle Inhalte auf volle Breite setzen */
+  main, .container, .max-w-7xl, .max-w-4xl, .max-w-3xl {
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  
+  /* Haupt-Dashboard-Container (entfernt unnötiges Padding) */
+  .p-4, .p-6, .p-8 {
+    padding: 0 !important;
+  }
+  .mt-6, .mt-8 {
+    margin-top: 20px !important; /* Sorgt für Abstand zwischen den Blöcken */
   }
 
-  /* Entferne Schatten und Borders für besseren Druck */
-  .shadow-md, .shadow-lg {
+  /* Elemente ausblenden, die nicht gedruckt werden sollen */
+  header, nav, footer, button, .print\\:hidden, [role="tooltip"] {
+    display: none !important;
+  }
+
+  /* Alle Karten und Sektionen */
+  .bg-white, .bg-gray-50, .shadow-md, .shadow-lg, .border {
+    background: white !important;
     box-shadow: none !important;
+    border: 1px solid #e5e7eb !important; /* Dünne Linie beibehalten für Struktur */
+    padding: 12px !important; /* Einheitliches Padding für gedruckte Karten */
   }
 
-  /* Optimiere Schriftgröße */
-  body {
-    font-size: 12pt;
+  /* Seitenumbrüche kontrollieren (WICHTIG) */
+  .dashboard-card, /* Ihre alte Klasse */
+  .grid, /* Grid-Container */
+  .xl\\:col-span-1, .xl\\:col-span-2, /* Grid-Items */
+  .lg\\:grid-cols-2, .md\\:grid-cols-2, .lg\\:grid-cols-4, /* Grid-Eltern */
+  table, thead, tbody, tr, /* Tabellen */
+  .recharts-wrapper /* Charts */
+  {
+    page-break-inside: avoid !important; /* Verhindert Umbrüche INNERHALB von Elementen */
+  }
+  
+  /* Erzwingt einen Umbruch VOR dem nächsten Grid, wenn nötig */
+  .grid {
+    page-break-before: auto;
+  }
+  
+  /* Layout-Anpassungen für Druck */
+  
+  /* Grid-Layouts im Druck auflösen -> Blöcke untereinander */
+  .grid {
+    display: block !important;
+  }
+  .grid > * {
+    width: 100% !important;
+    margin-top: 20px !important; /* Abstand zwischen Blöcken */
+  }
+  
+  /* Spezifisch für KPI-Karten-Grid */
+  .md\\:grid-cols-2, .lg\\:grid-cols-4 {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important; /* 2 Spalten im Druck */
+    gap: 10px !important;
   }
 
-  h1 {
-    font-size: 20pt;
+  /* Spezifisch für AI-Traffic & Top-Queries Grid */
+  .xl\\:grid-cols-3 {
+     display: block !important; /* Untereinander anordnen */
+  }
+  
+  /* Spezifisch für Semrush-Grid */
+  .lg\\:grid-cols-2 {
+    display: block !important; /* Untereinander anordnen */
   }
 
-  h2 {
-    font-size: 16pt;
+  /* Charts */
+  .recharts-wrapper {
+    width: 100% !important;
+    height: auto !important;
+  }
+  .recharts-wrapper svg {
+    width: 100% !important;
+    height: auto !important;
+  }
+  .recharts-responsive-container {
+    width: 100% !important;
+    height: 300px !important; /* Feste Höhe für Druck */
   }
 
-  h3 {
-    font-size: 14pt;
+  /* Tabellen */
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
   }
-
-  /* Zeige URLs bei Links */
+  thead {
+    display: table-header-group !important; /* Wichtig: Tabellenkopf auf jeder Seite wiederholen */
+    background-color: #f9fafb !important;
+  }
+  th, td {
+    border: 1px solid #e5e7eb !important;
+    padding: 6px 8px !important;
+    font-size: 9pt !important;
+  }
+  
+  /* Links im Druck (optional) */
   a[href]:after {
-    content: " (" attr(href) ")";
+    /* content: " (" attr(href) ")"; */ /* Zeigt URLs an - oft störend */
     font-size: 0.8em;
     color: #666;
   }
-
-  /* Optimiere Tabellen */
-  table {
-    page-break-inside: auto;
+  a {
+    color: #188BDB !important;
+    text-decoration: none !important;
   }
 
-  tr {
-    page-break-inside: avoid;
-    page-break-after: auto;
-  }
-
-  thead {
-    display: table-header-group;
-  }
-
-  tfoot {
-    display: table-footer-group;
-  }
+  /* Überschriften */
+  h1 { font-size: 20pt !important; }
+  h2 { font-size: 16pt !important; }
+  h3 { font-size: 14pt !important; }
 }
