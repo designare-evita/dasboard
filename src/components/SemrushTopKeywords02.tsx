@@ -27,7 +27,7 @@ export default function SemrushTopKeywords02({ projectId }: SemrushTopKeywords02
     <SemrushKeywordTableBase
       projectId={projectId}
       campaign="kampagne_2"
-      title="Top 20 Organische Keywords - USA"
+      title="Keyword Tracking - USA"
       logContext="SemrushTopKeywords02"
       errorContext="Kampagne 2"
       keyPrefix="kampagne-2"
