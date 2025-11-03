@@ -10,12 +10,12 @@ import ProjectDashboard from '@/components/ProjectDashboard';
 import LandingpageApproval from '@/components/LandingpageApproval';
 import { authOptions } from '@/lib/auth';
 import { sql } from '@vercel/postgres';
-import { Suspense } from 'react'; // Suspense importieren
+import { Suspense } from 'react';
+import { Session } from 'next-auth';
 
 // Importiere unsere Caching-Funktion
 import { getOrFetchGoogleData } from '@/lib/google-data-loader';
 
-// (Du kannst dieselben Loading- und Error-Komponenten wie oben wiederverwenden)
 function DashboardLoading() {
   return (
     <div className="flex justify-center items-center min-h-screen bg-gray-50">
@@ -40,7 +40,7 @@ function DashboardError({ message }: { message: string }) {
  * AdminDashboard (Server Component)
  * Lädt die Projektliste für Admins
  */
-async function AdminDashboard({ session }: { session: any }) {
+async function AdminDashboard({ session }: { session: Session }) {
   let projects: User[] = [];
   try {
     if (session.user.role === 'SUPERADMIN') {
@@ -91,7 +91,7 @@ async function AdminDashboard({ session }: { session: any }) {
  * CustomerDashboard (Server Component)
  * Lädt die Daten für den eingeloggten Kunden
  */
-async function CustomerDashboard({ session, dateRange }: { session: any, dateRange: DateRangeOption }) {
+async function CustomerDashboard({ session, dateRange }: { session: Session; dateRange: DateRangeOption }) {
   const userId = session.user.id;
   
   // 1. Lade Benutzerdaten (Domain, Semrush IDs)
