@@ -117,7 +117,7 @@ async function CustomerDashboard({ session, dateRange }: { session: Session; dat
   // 2. Lade Google-Daten (über unseren neuen Cache)
   let googleData: (ProjectDashboardData & { fromCache?: boolean }) | null = null;
   try {
-    googleData = await getOrFetchGoogleData(userData, dateRange);
+    googleData = await getOrFetchGoogleData(userData, dateRange) as (ProjectDashboardData & { fromCache?: boolean }) | null;
   } catch (e) {
     return <DashboardError message={e instanceof Error ? e.message : 'Fehler beim Laden der Google-Daten'} />;
   }
