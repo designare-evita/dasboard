@@ -1,4 +1,4 @@
-// src/app/page.tsx (KORRIGIERT - Domain-Übergabe Debug)
+// src/app/page.tsx (FINALE KORREKTUR - Domain wird immer geladen)
 'use client';
 
 import { useSession } from 'next-auth/react';
@@ -57,7 +57,7 @@ export default function HomePage() {
     if (status === 'authenticated') {
       if (session.user.role === 'ADMIN' || session.user.role === 'SUPERADMIN') {
         setIsLoading(true);
-        setIsLoadingCustomer(false);
+        setIsLoadingCustomer(false); // Nicht relevant für Admin
         fetch('/api/projects')
           .then(res => res.json())
           .then(data => {
@@ -71,35 +71,34 @@ export default function HomePage() {
       } else if (session.user.role === 'BENUTZER') {
         setIsLoadingCustomer(true);
         
-        // ✅ DEBUG: Logge User-ID
-        console.log('[HomePage] Lade User-Daten für ID:', session.user.id);
-        
+        // ✅ KORREKTUR: Lade User-Daten ZUERST
         fetch(`/api/users/${session.user.id}`)
           .then(res => res.json())
           .then(userData => {
-            // ✅ DEBUG: Logge geladene Daten
-            console.log('[HomePage] User-Daten geladen:', userData);
-            console.log('[HomePage] Domain:', userData.domain);
-            
+            console.log('[HomePage] ✅ User-Daten geladen:', userData.email, 'Domain:', userData.domain);
             setCustomerUser(userData);
+            // Erst NACH dem Laden der User-Daten die Google-Daten laden
+            return fetchData(dateRange);
           })
           .catch(err => {
-            console.error('[HomePage] Fehler beim Laden der User-Daten:', err);
+            console.error('[HomePage] ❌ Fehler beim Laden der User-Daten:', err);
             setError(err.message);
           })
           .finally(() => {
             setIsLoadingCustomer(false);
           });
-        
-        fetchData(dateRange);
       }
     } else if (status === 'unauthenticated') {
       router.push('/login');
     }
-  }, [status, session, router, fetchData, dateRange]);
+  }, [status, session, router, dateRange]); // ✅ fetchData aus Dependencies entfernt
 
   const handleDateRangeChange = (range: DateRangeOption) => {
     setDateRange(range);
+    // ✅ Trigger explizit einen neuen Fetch
+    if (session?.user.role === 'BENUTZER') {
+      fetchData(range);
+    }
   };
 
   const handlePdfExport = () => {
@@ -108,7 +107,10 @@ export default function HomePage() {
     }
   };
 
-  if (status === 'loading' || (isLoading && !dashboardData && !error) || (session?.user.role === 'BENUTZER' && isLoadingCustomer && !error)) {
+  // ✅ KORREKTUR: Warte bis BEIDE geladen sind (Google-Daten UND customerUser)
+  if (status === 'loading' || 
+      (session?.user.role === 'BENUTZER' && isLoadingCustomer) ||
+      (session?.user.role === 'BENUTZER' && isLoading && !dashboardData && !error)) {
     return (
       <div className="flex justify-center items-center min-h-screen bg-gray-50">
         <ArrowRepeat className="animate-spin text-indigo-600" size={40} />
@@ -137,12 +139,9 @@ export default function HomePage() {
     );
   }
 
-  if (session?.user.role === 'BENUTZER' && dashboardData) {
-    const user = customerUser || { id: session.user.id } as User;
-    
-    // ✅ DEBUG: Logge finale User-Daten vor Übergabe
-    console.log('[HomePage] Übergebe User an CustomerDashboard:', user);
-    console.log('[HomePage] Domain wird übergeben:', user.domain);
+  if (session?.user.role === 'BENUTZER' && dashboardData && customerUser) {
+    // ✅ KORREKTUR: customerUser ist jetzt GARANTIERT vorhanden
+    console.log('[HomePage] 🎯 Rendering CustomerDashboard mit Domain:', customerUser.domain);
     
     return (
       <CustomerDashboard
@@ -151,14 +150,14 @@ export default function HomePage() {
         dateRange={dateRange}
         onDateRangeChange={handleDateRangeChange}
         onPdfExport={handlePdfExport}
-        user={user}
+        user={customerUser}
       />
     );
   }
 
   return (
     <div className="flex justify-center items-center min-h-screen bg-gray-50">
-      <p>Unbekannter Status oder keine Daten.</p>
+      <p>Lädt Dashboard...</p>
     </div>
   );
 }
@@ -215,10 +214,6 @@ function CustomerDashboard({
   onPdfExport: () => void;
   user: User;
 }) {
-
-  // ✅ DEBUG: Logge User-Daten in CustomerDashboard
-  console.log('[CustomerDashboard] Erhaltene User-Daten:', user);
-  console.log('[CustomerDashboard] Domain:', user.domain);
 
   return (
     <div className="p-4 md:p-8 bg-gray-50 min-h-screen">
