@@ -114,7 +114,18 @@ export async function GET(
     console.log('[/api/projects/[id]] Rufe Google-Daten mit Cache-Logik ab...');
     
     try {
-      const dashboardData = await getOrFetchGoogleData(project, dateRange);
+      // Konvertiere null zu undefined für User-Typ-Kompatibilität
+      const projectData: Partial<User> = {
+        ...project,
+        domain: project.domain ?? undefined,
+        gsc_site_url: project.gsc_site_url ?? undefined,
+        ga4_property_id: project.ga4_property_id ?? undefined,
+        semrush_project_id: project.semrush_project_id ?? undefined,
+        semrush_tracking_id: project.semrush_tracking_id ?? undefined,
+        semrush_tracking_id_02: project.semrush_tracking_id_02 ?? undefined,
+      };
+      
+      const dashboardData = await getOrFetchGoogleData(projectData, dateRange);
 
       if (!dashboardData) {
         console.warn('[/api/projects/[id]] ⚠️ Keine Google-Daten verfügbar (weder GSC noch GA4 konfiguriert)');
