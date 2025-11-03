@@ -30,138 +30,128 @@ body {
 }
 
 
-/* --- VERBESSERTE PRINT STYLES FÜR PDF-EXPORT --- */
+/* --- START: VERBESSERTE PRINT STYLES FÜR PDF-EXPORT --- */
 @media print {
-  /* Seiten-Setup */
+  
+  /* 1. Seiten-Setup */
   @page {
     size: A4 portrait; /* A4 Hochformat */
-    margin: 1.5cm; /* Rand auf allen Seiten */
+    margin: 1cm; /* Kleinerer Rand */
   }
 
-  /* Grund-Layout */
+  /* 2. Grund-Layout */
   body {
-    background: white !important;
-    color: black !important;
-    font-size: 10pt; /* Konsistente Schriftgröße */
-    -webkit-print-color-adjust: exact !important; /* WICHTIG: Erzwingt das Drucken von Hintergrundfarben (z.B. in Charts) */
+    background: #fff !important;
+    color: #000 !important;
+    font-size: 9pt; /* Kleinere Schrift für mehr Inhalt */
+    -webkit-print-color-adjust: exact !important; /* Erzwingt Farbdruck */
     print-color-adjust: exact !important;
   }
 
-  /* Alle Inhalte auf volle Breite setzen */
-  main, .container, .max-w-7xl, .max-w-4xl, .max-w-3xl {
+  /* 3. Layout-Container zurücksetzen (volle Breite) */
+  main, 
+  .p-4, .p-6, .p-8, 
+  .max-w-7xl, .max-w-4xl, .max-w-3xl,
+  .container {
     max-width: 100% !important;
     width: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
   }
-  
-  /* Haupt-Dashboard-Container (entfernt unnötiges Padding) */
-  .p-4, .p-6, .p-8 {
-    padding: 0 !important;
-  }
-  .mt-6, .mt-8 {
-    margin-top: 20px !important; /* Sorgt für Abstand zwischen den Blöcken */
-  }
 
-  /* Elemente ausblenden, die nicht gedruckt werden sollen */
-  header, nav, footer, button, .print\\:hidden, [role="tooltip"] {
+  /* 4. ALLES ausblenden, was nicht gedruckt werden soll */
+  header, 
+  nav, 
+  footer, 
+  button, 
+  .print\\:hidden, 
+  [role="tooltip"],
+  .absolute.top-3.right-3.z-10 /* Info-Tooltips auf KPI-Karten */
+  {
     display: none !important;
   }
-
-  /* Alle Karten und Sektionen */
-  .bg-white, .bg-gray-50, .shadow-md, .shadow-lg, .border {
-    background: white !important;
+  
+  /* 5. Dashboard-Header (Titel) explizit anzeigen, aber optimieren */
+  /* Zielt auf den Header in ProjectDashboard.tsx & page.tsx */
+  .bg-white.rounded-lg.shadow-md.border.border-gray-200.p-6 {
+     display: block !important;
+     box-shadow: none !important;
+     border: none !important;
+     border-bottom: 2px solid #ccc !important; /* Saubere Trennlinie */
+     padding: 0 !important;
+     margin-bottom: 10px !important;
+     page-break-after: avoid !important; /* Nicht vom ersten Grid trennen */
+  }
+  
+  /* 6. Alle Karten & Sektionen (Generische Stile) */
+  .bg-white, .bg-gray-50, 
+  .shadow-md, .shadow-lg, 
+  .border, .rounded-lg, .rounded-t-lg, .rounded-b-lg {
     box-shadow: none !important;
-    border: 1px solid #e5e7eb !important; /* Dünne Linie beibehalten für Struktur */
-    padding: 12px !important; /* Einheitliches Padding für gedruckte Karten */
+    border: 1px solid #ddd !important;
+    background: #fff !important;
+    overflow: hidden; /* Verhindert seltsames Überlappen */
   }
 
-  /* Seitenumbrüche kontrollieren (WICHTIG) */
-  .dashboard-card, /* Ihre alte Klasse */
-  .grid, /* Grid-Container */
-  .xl\\:col-span-1, .xl\\:col-span-2, /* Grid-Items */
-  .lg\\:grid-cols-2, .md\\:grid-cols-2, .lg\\:grid-cols-4, /* Grid-Eltern */
-  table, thead, tbody, tr, /* Tabellen */
-  .recharts-wrapper /* Charts */
+  /* 7. Grid-Layouts aggressiv auflösen (Das ist der wichtigste Fix) */
+  .grid, 
+  .grid-cols-1, 
+  .md\\:grid-cols-2, 
+  .lg\\:grid-cols-2, 
+  .lg\\:grid-cols-4, 
+  .xl\\:grid-cols-3,
+  .xl\\:col-span-1,
+  .xl\\:col-span-2 {
+    display: block !important; /* ALLES untereinander anordnen */
+    grid-template-columns: 1fr !important; /* Sicherheitshalber */
+    width: 100% !important;
+  }
+
+  /* 8. Seitenumbrüche KONTROLLIEREN */
+  
+  /* Jede "Sektion" (Karte, Chart) soll nicht zerrissen werden */
+  .bg-white.rounded-lg.shadow-md,
+  .bg-white.p-4.rounded-lg.shadow-md,
+  .bg-white.p-6.rounded-lg.shadow-md,
+  .bg-white.rounded-lg.shadow-md.border,
+  .bg-white.rounded-lg.shadow-md.border.border-gray-200,
+  .kpi-card-wrapper /* Wir fügen diese Klasse gleich hinzu */
   {
-    page-break-inside: avoid !important; /* Verhindert Umbrüche INNERHALB von Elementen */
-  }
-  
-  /* Erzwingt einen Umbruch VOR dem nächsten Grid, wenn nötig */
-  .grid {
-    page-break-before: auto;
-  }
-  
-  /* Layout-Anpassungen für Druck */
-  
-  /* Grid-Layouts im Druck auflösen -> Blöcke untereinander */
-  .grid {
-    display: block !important;
-  }
-  .grid > * {
-    width: 100% !important;
-    margin-top: 20px !important; /* Abstand zwischen Blöcken */
-  }
-  
-  /* Spezifisch für KPI-Karten-Grid */
-  .md\\:grid-cols-2, .lg\\:grid-cols-4 {
-    display: grid !important;
-    grid-template-columns: repeat(2, 1fr) !important; /* 2 Spalten im Druck */
-    gap: 10px !important;
+    page-break-inside: avoid !important;
+    margin-top: 15px !important; /* Abstand zwischen den Blöcken im Druck */
   }
 
-  /* Spezifisch für AI-Traffic & Top-Queries Grid */
-  .xl\\:grid-cols-3 {
-     display: block !important; /* Untereinander anordnen */
-  }
-  
-  /* Spezifisch für Semrush-Grid */
-  .lg\\:grid-cols-2 {
-    display: block !important; /* Untereinander anordnen */
-  }
-
-  /* Charts */
-  .recharts-wrapper {
-    width: 100% !important;
-    height: auto !important;
-  }
-  .recharts-wrapper svg {
-    width: 100% !important;
-    height: auto !important;
-  }
+  /* 9. Charts */
   .recharts-responsive-container {
     width: 100% !important;
-    height: 300px !important; /* Feste Höhe für Druck */
+    height: 250px !important; /* Feste, kleinere Höhe für Druck */
   }
 
-  /* Tabellen */
+  /* 10. Tabellen */
   table {
     width: 100% !important;
     border-collapse: collapse !important;
   }
   thead {
-    display: table-header-group !important; /* Wichtig: Tabellenkopf auf jeder Seite wiederholen */
+    display: table-header-group !important; /* Tabellenkopf auf jeder Seite wiederholen */
     background-color: #f9fafb !important;
   }
   th, td {
-    border: 1px solid #e5e7eb !important;
-    padding: 6px 8px !important;
-    font-size: 9pt !important;
+    border: 1px solid #ddd !important;
+    padding: 4px 6px !important;
+    font-size: 8pt !important; /* Kleiner für Tabellen */
   }
   
-  /* Links im Druck (optional) */
-  a[href]:after {
-    /* content: " (" attr(href) ")"; */ /* Zeigt URLs an - oft störend */
-    font-size: 0.8em;
-    color: #666;
-  }
-  a {
-    color: #188BDB !important;
-    text-decoration: none !important;
-  }
-
-  /* Überschriften */
+  /* 11. Text und Links */
   h1 { font-size: 20pt !important; }
   h2 { font-size: 16pt !important; }
   h3 { font-size: 14pt !important; }
+  a {
+    color: #000 !important;
+    text-decoration: none !important;
+  }
+  a[href]:after {
+    content: "" !important; /* Keine URLs anzeigen */
+  }
 }
+/* --- ENDE: PRINT STYLES --- */
