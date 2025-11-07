@@ -2,7 +2,6 @@
 'use client';
 
 import React from 'react';
-// ✅ NEU: Image von next/image importieren
 import Image from 'next/image';
 import { Download } from 'react-bootstrap-icons';
 import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector';
@@ -32,22 +31,22 @@ export default function DashboardHeader({
         
         {/* Linke Seite: Titel und ID */}
         <div>
-          {/* ✅ START: h1-Tag angepasst für Favicon */}
+         {/* ✅ START: h1-Tag angepasst (Doppelpunkt entfernt) */}
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2.5">
-            <span>Dashboard</span>
+          
             {faviconUrl && (
               <Image
                 src={faviconUrl}
                 alt="Projekt-Favicon"
-                width={24} 
+                width={24} // 24x24 Pixel
                 height={24}
                 className="w-6 h-6 rounded" // Stellt sicher, dass es 24px ist
                 // Versteckt das Icon, wenn es nicht geladen werden kann
-                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                onError={(e) => { (e.G.target as HTMLImageElement).style.display = 'none'; }}
               />
             )}
-            {/* Zeigt die Domain mit Doppelpunkt an, wenn vorhanden */}
-            {domain ? <span>: {domain}</span> : ''}
+            {/* Zeigt die Domain OHNE Doppelpunkt an, wenn vorhanden */}
+            {domain ? <span>{domain}</span> : ''}
           </h1>
           {/* ✅ ENDE: h1-Tag Anpassung */}
 
