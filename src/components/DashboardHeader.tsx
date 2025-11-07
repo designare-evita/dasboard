@@ -39,7 +39,7 @@ export default function DashboardHeader({
               <Image
                 src={faviconUrl}
                 alt="Projekt-Favicon"
-                width={24} // 24x24 Pixel
+                width={24} 
                 height={24}
                 className="w-6 h-6 rounded" // Stellt sicher, dass es 24px ist
                 // Versteckt das Icon, wenn es nicht geladen werden kann
