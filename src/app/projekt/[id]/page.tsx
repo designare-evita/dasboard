@@ -1,4 +1,4 @@
-// src/app/projekt/[id]/page.tsx (KORRIGIERT - Domain Debug)
+// src/app/projekt/[id]/page.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -43,7 +43,7 @@ export default function ProjektDetailPage() {
     fetcher
   );
 
-  // User/Domain-Daten
+  // ✅ NEU: User/Domain-Daten SWR-Typ erweitert
   const { 
     data: userData,
     isLoading: isLoadingUser 
@@ -52,12 +52,14 @@ export default function ProjektDetailPage() {
     email?: string;
     semrush_tracking_id?: string | null;
     semrush_tracking_id_02?: string | null;
+    favicon_url?: string | null; // ✅ NEU: favicon_url hinzugefügt
   }>(
     projectId ? `/api/users/${projectId}` : null,
     fetcher
   );
 
-  // ✅ DEBUG: Logge userData wenn geladen
+  // ... (Restlicher Code der Komponente bleibt gleich) ...
+  
   useEffect(() => {
     if (userData) {
       console.log('[ProjektPage] User-Daten geladen:', userData);
@@ -125,6 +127,7 @@ export default function ProjektDetailPage() {
   // ✅ DEBUG: Logge finale Daten vor Übergabe
   console.log('[ProjektPage] Finale Daten:', {
     domain: userData?.domain,
+    faviconUrl: userData?.favicon_url, // ✅ NEU
     semrushTrackingId: userData?.semrush_tracking_id,
     semrushTrackingId02: userData?.semrush_tracking_id_02
   });
@@ -139,6 +142,7 @@ export default function ProjektDetailPage() {
         onPdfExport={handlePdfExport}
         projectId={projectId}
         domain={userData?.domain}
+        faviconUrl={userData?.favicon_url} // ✅ NEU: Prop weitergeben
         semrushTrackingId={userData?.semrush_tracking_id}
         semrushTrackingId02={userData?.semrush_tracking_id_02}
       />
