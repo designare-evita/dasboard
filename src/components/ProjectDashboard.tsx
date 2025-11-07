@@ -1,4 +1,4 @@
-// src/components/ProjectDashboard.tsx (KORRIGIERT - Domain Debug)
+// src/components/ProjectDashboard.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -24,6 +24,7 @@ interface ProjectDashboardProps {
   onDateRangeChange: (range: DateRangeOption) => void;
   projectId?: string;
   domain?: string;
+  faviconUrl?: string | null; // ✅ NEU: Favicon-URL hinzugefügt
   semrushTrackingId?: string | null;
   semrushTrackingId02?: string | null;
   onPdfExport?: () => void;
@@ -36,28 +37,16 @@ export default function ProjectDashboard({
   onDateRangeChange,
   projectId,
   domain,
+  faviconUrl, // ✅ NEU: Prop hier entgegennehmen
   semrushTrackingId,
   semrushTrackingId02,
   onPdfExport
 }: ProjectDashboardProps) {
   
-  // ✅ DEBUG: Logge Props beim Rendering
-  useEffect(() => {
-    console.log('[ProjectDashboard] Rendering mit Props:', {
-      domain,
-      projectId,
-      semrushTrackingId,
-      semrushTrackingId02
-    });
-  }, [domain, projectId, semrushTrackingId, semrushTrackingId02]);
-
+  // (Rest der Komponente bleibt gleich...)
   const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
-  
   const { data: session } = useSession();
-  const userRole = session?.user?.role;
-
   const normalizedKpis = normalizeFlatKpis(data.kpis);
-
   const hasKampagne1Config = !!semrushTrackingId;
   const hasKampagne2Config = !!semrushTrackingId02;
   const hasSemrushConfig = hasKampagne1Config || hasKampagne2Config;
@@ -67,6 +56,7 @@ export default function ProjectDashboard({
       <DashboardHeader 
         domain={domain}
         projectId={projectId}
+        faviconUrl={faviconUrl} // ✅ NEU: Prop an Header weitergeben
         dateRange={dateRange}
         onDateRangeChange={onDateRangeChange}
         onPdfExport={onPdfExport || (() => {
@@ -74,6 +64,8 @@ export default function ProjectDashboard({
         })}
       />
 
+      {/* (Restliches JSX bleibt unverändert) */}
+      
       {/* KPI Cards */}
       <div className="mt-6">
         <KpiCardsGrid
