@@ -1,11 +1,11 @@
-// src/app/page.tsx
+// src/app/page.tsx (FINALE KORREKTUR - Domain & Favicon wird geladen)
 'use client';
 
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { User } from '@/types'; // Stellt sicher, dass User-Typ favicon_url enthält
+import { User } from '@/types';
 import {
   ArrowRepeat,
   ExclamationTriangleFill,
@@ -19,11 +19,7 @@ import ProjectDashboard from '@/components/ProjectDashboard';
 import LandingpageApproval from '@/components/LandingpageApproval';
 import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector';
 
-// (Alles oberhalb von CustomerDashboard bleibt gleich)
-// ... (Code für HomePage, AdminDashboard etc.) ...
-
 export default function HomePage() {
-  // ... (bestehender Code in HomePage) ...
   const { data: session, status } = useSession();
   const router = useRouter();
 
@@ -36,7 +32,8 @@ export default function HomePage() {
   const [customerUser, setCustomerUser] = useState<User | null>(null);
   const [isLoadingCustomer, setIsLoadingCustomer] = useState(true);
 
-  const fetchData = useCallback(async (range: DateRangeOption = dateRange) => {
+  // KORREKTUR: fetchData hängt von dateRange ab
+  const fetchData = useCallback(async (range: DateRangeOption) => {
     setIsLoading(true);
     setError(null);
     try {
@@ -55,7 +52,7 @@ export default function HomePage() {
     } finally {
       setIsLoading(false);
     }
-  }, [dateRange]);
+  }, []); // dateRange wird als Argument übergeben, muss nicht in die Deps
 
   useEffect(() => {
     if (status === 'authenticated') {
@@ -82,7 +79,7 @@ export default function HomePage() {
             console.log('[HomePage] ✅ User-Daten geladen:', userData.email, 'Domain:', userData.domain);
             setCustomerUser(userData);
             // Erst NACH dem Laden der User-Daten die Google-Daten laden
-            return fetchData(dateRange);
+            return fetchData(dateRange); // Rufe fetchData mit dem aktuellen dateRange auf
           })
           .catch(err => {
             console.error('[HomePage] ❌ Fehler beim Laden der User-Daten:', err);
@@ -95,7 +92,8 @@ export default function HomePage() {
     } else if (status === 'unauthenticated') {
       router.push('/login');
     }
-  }, [status, session, router, dateRange, fetchData]); // fetchData hinzugefügt
+  // KORREKTUR: fetchData und dateRange in die Abhängigkeitsliste
+  }, [status, session, router, dateRange, fetchData]); 
 
   const handleDateRangeChange = (range: DateRangeOption) => {
     setDateRange(range);
@@ -154,7 +152,7 @@ export default function HomePage() {
         dateRange={dateRange}
         onDateRangeChange={handleDateRangeChange}
         onPdfExport={handlePdfExport}
-        user={customerUser}
+        user={customerUser} // Übergibt das gesamte User-Objekt
       />
     );
   }
@@ -165,7 +163,8 @@ export default function HomePage() {
     </div>
   );
 }
-// ... (Code für AdminDashboard) ...
+
+// (AdminDashboard bleibt unverändert)
 function AdminDashboard({ projects, isLoading }: { projects: User[], isLoading: boolean }) {
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
@@ -203,7 +202,7 @@ function AdminDashboard({ projects, isLoading }: { projects: User[], isLoading: 
   );
 }
 
-
+// (CustomerDashboard korrigiert, um favicon_url zu übergeben)
 function CustomerDashboard({
   data,
   isLoading,
@@ -217,7 +216,7 @@ function CustomerDashboard({
   dateRange: DateRangeOption;
   onDateRangeChange: (range: DateRangeOption) => void;
   onPdfExport: () => void;
-  user: User; // Das User-Objekt enthält jetzt auch favicon_url
+  user: User;
 }) {
 
   return (
@@ -231,7 +230,7 @@ function CustomerDashboard({
           onPdfExport={onPdfExport}
           projectId={user.id}
           domain={user.domain}
-          faviconUrl={user.favicon_url} // ✅ NEU: favicon_url weitergeben
+          faviconUrl={user.favicon_url} // ✅ KORREKTUR: Favicon-URL hinzugefügt
           semrushTrackingId={user.semrush_tracking_id}
           semrushTrackingId02={user.semrush_tracking_id_02}
         />
