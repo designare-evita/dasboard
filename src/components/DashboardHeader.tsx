@@ -1,7 +1,9 @@
-// src/components/DashboardHeader.tsx (KORRIGIERT - Domain-Fallback)
+// src/components/DashboardHeader.tsx
 'use client';
 
 import React from 'react';
+// ✅ NEU: Image von next/image importieren
+import Image from 'next/image';
 import { Download } from 'react-bootstrap-icons';
 import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector';
 import { Button } from "@/components/ui/button";
@@ -9,6 +11,7 @@ import { Button } from "@/components/ui/button";
 interface DashboardHeaderProps {
   domain?: string;
   projectId?: string;
+  faviconUrl?: string | null; // ✅ NEU: Favicon-URL hinzugefügt
   dateRange: DateRangeOption;
   onDateRangeChange: (range: DateRangeOption) => void;
   onPdfExport: () => void;
@@ -17,6 +20,7 @@ interface DashboardHeaderProps {
 export default function DashboardHeader({
   domain,
   projectId,
+  faviconUrl, // ✅ NEU: Prop hier entgegennehmen
   dateRange,
   onDateRangeChange,
   onPdfExport
@@ -28,10 +32,25 @@ export default function DashboardHeader({
         
         {/* Linke Seite: Titel und ID */}
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            {/* ✅ KORREKTUR: Zeige nur "Dashboard" wenn domain fehlt */}
-            Dashboard{domain ? `: ${domain}` : ''}
+          {/* ✅ START: h1-Tag angepasst für Favicon */}
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2.5">
+            <span>Dashboard</span>
+            {faviconUrl && (
+              <Image
+                src={faviconUrl}
+                alt="Projekt-Favicon"
+                width={24} // 24x24 Pixel
+                height={24}
+                className="w-6 h-6 rounded" // Stellt sicher, dass es 24px ist
+                // Versteckt das Icon, wenn es nicht geladen werden kann
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              />
+            )}
+            {/* Zeigt die Domain mit Doppelpunkt an, wenn vorhanden */}
+            {domain ? <span>: {domain}</span> : ''}
           </h1>
+          {/* ✅ ENDE: h1-Tag Anpassung */}
+
           {projectId && (
             <p className="text-xs text-gray-400 mt-1">
               ID: {projectId}
