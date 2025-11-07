@@ -1,11 +1,11 @@
-// src/app/page.tsx (FINALE KORREKTUR - Domain wird immer geladen)
+// src/app/page.tsx
 'use client';
 
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { User } from '@/types';
+import { User } from '@/types'; // Stellt sicher, dass User-Typ favicon_url enthält
 import {
   ArrowRepeat,
   ExclamationTriangleFill,
@@ -19,7 +19,11 @@ import ProjectDashboard from '@/components/ProjectDashboard';
 import LandingpageApproval from '@/components/LandingpageApproval';
 import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector';
 
+// (Alles oberhalb von CustomerDashboard bleibt gleich)
+// ... (Code für HomePage, AdminDashboard etc.) ...
+
 export default function HomePage() {
+  // ... (bestehender Code in HomePage) ...
   const { data: session, status } = useSession();
   const router = useRouter();
 
@@ -91,7 +95,7 @@ export default function HomePage() {
     } else if (status === 'unauthenticated') {
       router.push('/login');
     }
-  }, [status, session, router, dateRange]); // ✅ fetchData aus Dependencies entfernt
+  }, [status, session, router, dateRange, fetchData]); // fetchData hinzugefügt
 
   const handleDateRangeChange = (range: DateRangeOption) => {
     setDateRange(range);
@@ -161,7 +165,7 @@ export default function HomePage() {
     </div>
   );
 }
-
+// ... (Code für AdminDashboard) ...
 function AdminDashboard({ projects, isLoading }: { projects: User[], isLoading: boolean }) {
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
@@ -199,6 +203,7 @@ function AdminDashboard({ projects, isLoading }: { projects: User[], isLoading: 
   );
 }
 
+
 function CustomerDashboard({
   data,
   isLoading,
@@ -212,7 +217,7 @@ function CustomerDashboard({
   dateRange: DateRangeOption;
   onDateRangeChange: (range: DateRangeOption) => void;
   onPdfExport: () => void;
-  user: User;
+  user: User; // Das User-Objekt enthält jetzt auch favicon_url
 }) {
 
   return (
@@ -226,6 +231,7 @@ function CustomerDashboard({
           onPdfExport={onPdfExport}
           projectId={user.id}
           domain={user.domain}
+          faviconUrl={user.favicon_url} // ✅ NEU: favicon_url weitergeben
           semrushTrackingId={user.semrush_tracking_id}
           semrushTrackingId02={user.semrush_tracking_id_02}
         />
