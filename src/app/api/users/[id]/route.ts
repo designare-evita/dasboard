@@ -7,7 +7,7 @@ import bcrypt from 'bcryptjs';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { User } from '@/types';
-
+export const revalidate = 0;
 // Handler zum Abrufen eines einzelnen Benutzers
 export async function GET(
   request: NextRequest,
