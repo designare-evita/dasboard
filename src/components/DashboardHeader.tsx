@@ -31,9 +31,10 @@ export default function DashboardHeader({
         
         {/* Linke Seite: Titel und ID */}
         <div>
-         {/* ✅ START: h1-Tag angepasst (Doppelpunkt entfernt) */}
+        {/* ✅ START: h1-Tag angepasst ("Dashboard" entfernt) */}
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2.5">
-          
+            {/* Das Wort "Dashboard" wurde entfernt */}
+            
             {faviconUrl && (
               <Image
                 src={faviconUrl}
@@ -42,14 +43,14 @@ export default function DashboardHeader({
                 height={24}
                 className="w-6 h-6 rounded" // Stellt sicher, dass es 24px ist
                 // Versteckt das Icon, wenn es nicht geladen werden kann
-                onError={(e) => { (e.G.target as HTMLImageElement).style.display = 'none'; }}
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
               />
             )}
-            {/* Zeigt die Domain OHNE Doppelpunkt an, wenn vorhanden */}
+            
+            {/* Zeigt die Domain (ohne Doppelpunkt), wenn vorhanden */}
             {domain ? <span>{domain}</span> : ''}
           </h1>
           {/* ✅ ENDE: h1-Tag Anpassung */}
-
           {projectId && (
             <p className="text-xs text-gray-400 mt-1">
               ID: {projectId}
