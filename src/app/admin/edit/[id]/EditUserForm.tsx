@@ -206,150 +206,155 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
           </div>
         )}
 
-        {/* --- Domain & Google Sektion --- */}
-        {/* (Domain - Unverändert) */}
-        <div className="border-t pt-4 mt-4">
-          <label className="block text-sm font-medium text-gray-700">Domain</label>
-          <input
-            type="text"
-            value={formData.domain}
-            onChange={(e) => handleInputChange('domain', e.target.value)}
-            placeholder="z.B. www.kundendomain.at"
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
-            disabled={isSubmitting}
-          />
-        </div>
+        {/* --- ✅ KORREKTUR: Wrapper für BENUTZER-spezifische Felder --- */}
+        {user.role === 'BENUTZER' && (
+          <>
+            {/* --- Domain & Google Sektion --- */}
+            <div className="border-t pt-4 mt-4">
+              <label className="block text-sm font-medium text-gray-700">Domain</label>
+              <input
+                type="text"
+                value={formData.domain}
+                onChange={(e) => handleInputChange('domain', e.target.value)}
+                placeholder="z.B. www.kundendomain.at"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
+                disabled={isSubmitting}
+              />
+            </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700">
-            Favicon URL
-            {formData.favicon_url && (
-              <span className="ml-2 text-xs text-green-600">✓ Gesetzt</span>
-            )}
-          </label>
-          <input
-            type="text"
-            value={formData.favicon_url}
-            onChange={(e) => handleInputChange('favicon_url', e.target.value)}
-            placeholder="Optional: https://example.com/favicon.png"
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
-            disabled={isSubmitting}
-          />
-          {formData.favicon_url && (
-            <p className="mt-1 text-xs text-gray-500">Aktueller Wert: {formData.favicon_url}</p>
-          )}
-        </div>
-
-        {/* (GSC Site URL - Unverändert) */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700">
-            GSC Site URL
-            {formData.gscSiteUrl && (
-              <span className="ml-2 text-xs text-green-600">✓ Gesetzt</span>
-            )}
-          </label>
-          <input
-            type="text"
-            value={formData.gscSiteUrl}
-            onChange={(e) => handleInputChange('gscSiteUrl', e.target.value)}
-            placeholder="z.B. sc-domain:kundendomain.at"
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
-            disabled={isSubmitting}
-          />
-          {formData.gscSiteUrl && (
-            <p className="mt-1 text-xs text-gray-500">Aktueller Wert: {formData.gscSiteUrl}</p>
-          )}
-        </div>
-
-        {/* (GA4 Property ID - Unverändert) */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700">
-            GA4 Property ID
-            {formData.ga4PropertyId && (
-              <span className="ml-2 text-xs text-green-600">✓ Gesetzt</span>
-            )}
-          </label>
-          <input
-            type="text"
-            value={formData.ga4PropertyId}
-            onChange={(e) => handleInputChange('ga4PropertyId', e.target.value)}
-            placeholder="z.B. 123456789"
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
-            disabled={isSubmitting}
-          />
-          {formData.ga4PropertyId && (
-            <p className="mt-1 text-xs text-gray-500">Aktueller Wert: {formData.ga4PropertyId}</p>
-          )}
-        </div>
-
-
-        {/* ========== SEMRUSH SECTION ========== */}
-        <fieldset className="border-t pt-4 mt-4">
-          
-          {/* (Semrush Projekt ID - Unverändert) */}
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700">
-              Semrush Projekt ID
-              {formData.semrushProjectId && (
-                <span className="ml-2 text-xs text-green-600">✓ Gesetzt</span>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Favicon URL
+                {formData.favicon_url && (
+                  <span className="ml-2 text-xs text-green-600">✓ Gesetzt</span>
+                )}
+              </label>
+              <input
+                type="text"
+                value={formData.favicon_url}
+                onChange={(e) => handleInputChange('favicon_url', e.target.value)}
+                placeholder="Optional: https://example.com/favicon.png"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
+                disabled={isSubmitting}
+              />
+              {formData.favicon_url && (
+                <p className="mt-1 text-xs text-gray-500">Aktueller Wert: {formData.favicon_url}</p>
               )}
-            </label>
-            <input
-              type="text"
-              value={formData.semrushProjectId}
-              onChange={(e) => handleInputChange('semrushProjectId', e.target.value)}
-              placeholder="z.B. 12920575"
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
-              disabled={isSubmitting}
-            />
-            {formData.semrushProjectId && (
-              <p className="mt-1 text-xs text-gray-500">Aktueller Wert: {formData.semrushProjectId}</p>
-            )}
-          </div>
+            </div>
 
-          {/* (Semrush Tracking-ID (Kampagne 1) - Unverändert) */}
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700">
-              Semrush Tracking-ID (Kampagne 1)
-              {formData.semrushTrackingId && (
-                <span className="ml-2 text-xs text-green-600">✓ Gesetzt</span>
+            {/* (GSC Site URL) */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                GSC Site URL
+                {formData.gscSiteUrl && (
+                  <span className="ml-2 text-xs text-green-600">✓ Gesetzt</span>
+                )}
+              </label>
+              <input
+                type="text"
+                value={formData.gscSiteUrl}
+                onChange={(e) => handleInputChange('gscSiteUrl', e.target.value)}
+                placeholder="z.B. sc-domain:kundendomain.at"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
+                disabled={isSubmitting}
+              />
+              {formData.gscSiteUrl && (
+                <p className="mt-1 text-xs text-gray-500">Aktueller Wert: {formData.gscSiteUrl}</p>
               )}
-            </label>
-            <input
-              type="text"
-              value={formData.semrushTrackingId}
-              onChange={(e) => handleInputChange('semrushTrackingId', e.target.value)}
-              placeholder="z.B. 1209408"
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
-              disabled={isSubmitting}
-            />
-            {formData.semrushTrackingId && (
-              <p className="mt-1 text-xs text-gray-500">Aktueller Wert: {formData.semrushTrackingId}</p>
-            )}
-          </div>
+            </div>
 
-          {/* (Semrush Tracking-ID 02 (Kampagne 2) - Unverändert) */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Semrush Tracking-ID (Kampagne 2)
-              {formData.semrushTrackingId02 && (
-                <span className="ml-2 text-xs text-green-600">✓ Gesetzt</span>
+            {/* (GA4 Property ID) */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                GA4 Property ID
+                {formData.ga4PropertyId && (
+                  <span className="ml-2 text-xs text-green-600">✓ Gesetzt</span>
+                )}
+              </label>
+              <input
+                type="text"
+                value={formData.ga4PropertyId}
+                onChange={(e) => handleInputChange('ga4PropertyId', e.target.value)}
+                placeholder="z.B. 123456789"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
+                disabled={isSubmitting}
+              />
+              {formData.ga4PropertyId && (
+                <p className="mt-1 text-xs text-gray-500">Aktueller Wert: {formData.ga4PropertyId}</p>
               )}
-            </label>
-            <input
-              type="text"
-              value={formData.semrushTrackingId02}
-              onChange={(e) => handleInputChange('semrushTrackingId02', e.target.value)}
-              placeholder="z.B. 1209491"
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
-              disabled={isSubmitting}
-            />
-            {formData.semrushTrackingId02 && (
-              <p className="mt-1 text-xs text-gray-500">Aktueller Wert: {formData.semrushTrackingId02}</p>
-            )}
-            <p className="mt-1 text-xs text-gray-400">Optional: Für eine zweite Kampagne/Tracking</p>
-          </div>
-        </fieldset>
+            </div>
+
+
+            {/* ========== SEMRUSH SECTION ========== */}
+            <fieldset className="border-t pt-4 mt-4">
+              
+              {/* (Semrush Projekt ID) */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700">
+                  Semrush Projekt ID
+                  {formData.semrushProjectId && (
+                    <span className="ml-2 text-xs text-green-600">✓ Gesetzt</span>
+                  )}
+                </label>
+                <input
+                  type="text"
+                  value={formData.semrushProjectId}
+                  onChange={(e) => handleInputChange('semrushProjectId', e.target.value)}
+                  placeholder="z.B. 12920575"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
+                  disabled={isSubmitting}
+                />
+                {formData.semrushProjectId && (
+                  <p className="mt-1 text-xs text-gray-500">Aktueller Wert: {formData.semrushProjectId}</p>
+                )}
+              </div>
+
+              {/* (Semrush Tracking-ID (Kampagne 1)) */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700">
+                  Semrush Tracking-ID (Kampagne 1)
+                  {formData.semrushTrackingId && (
+                    <span className="ml-2 text-xs text-green-600">✓ Gesetzt</span>
+                  )}
+                </label>
+                <input
+                  type="text"
+                  value={formData.semrushTrackingId}
+                  onChange={(e) => handleInputChange('semrushTrackingId', e.target.value)}
+                  placeholder="z.B. 1209408"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
+                  disabled={isSubmitting}
+                />
+                {formData.semrushTrackingId && (
+                  <p className="mt-1 text-xs text-gray-500">Aktueller Wert: {formData.semrushTrackingId}</p>
+                )}
+              </div>
+
+              {/* (Semrush Tracking-ID 02 (Kampagne 2)) */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Semrush Tracking-ID (Kampagne 2)
+                  {formData.semrushTrackingId02 && (
+                    <span className="ml-2 text-xs text-green-600">✓ Gesetzt</span>
+                  )}
+                </label>
+                <input
+                  type="text"
+                  value={formData.semrushTrackingId02}
+                  onChange={(e) => handleInputChange('semrushTrackingId02', e.target.value)}
+                  placeholder="z.B. 1209491"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
+                  disabled={isSubmitting}
+                />
+                {formData.semrushTrackingId02 && (
+                  <p className="mt-1 text-xs text-gray-500">Aktueller Wert: {formData.semrushTrackingId02}</p>
+                )}
+                <p className="mt-1 text-xs text-gray-400">Optional: Für eine zweite Kampagne/Tracking</p>
+              </div>
+            </fieldset>
+          </>
+        )}
+        {/* --- ✅ ENDE KORREKTUR-Wrapper --- */}
         
         {/* (Button & Messages - Unverändert) */}
         <button
