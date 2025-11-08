@@ -4,6 +4,8 @@
 import { useSession } from 'next-auth/react';
 import useSWR from 'swr';
 import { ReactNode } from 'react';
+import { cn } from '@/lib/utils'; // Importiert für GscChangeIndicator
+
 // Icons importieren
 import {
   FileEarmarkText,
@@ -13,19 +15,28 @@ import {
   InfoCircle,
   ExclamationTriangleFill,
   ArrowRepeat,
-  InfoCircleFill,
+  ArrowUp, // NEU
+  ArrowDown, // NEU
 } from 'react-bootstrap-icons';
 
-// --- Typdefinitionen ---
+// --- Typdefinitionen (AKTUALISIERT) ---
 
 interface Landingpage {
   id: number;
   url: string;
   status: 'Offen' | 'In Prüfung' | 'Gesperrt' | 'Freigegeben';
   haupt_keyword?: string;
-  aktuelle_position?: number;
-  suchvolumen?: number;
   weitere_keywords?: string;
+
+  // NEUE GSC-Felder:
+  gsc_klicks: number | null;
+  gsc_klicks_change: number | null;
+  gsc_impressionen: number | null;
+  gsc_impressionen_change: number | null;
+  gsc_position: number | string | null; // Kann als String (Decimal) kommen
+  gsc_position_change: number | string | null; // Kann als String (Decimal) kommen
+  gsc_last_updated: string | null;
+  gsc_last_range: string | null;
 }
 
 type LandingpageStatus = Landingpage['status'];
@@ -47,6 +58,47 @@ const fetcher = async (url: string): Promise<Landingpage[]> => {
   throw new Error("Die von der API erhaltenen Daten waren kein Array.");
 };
 
+// --- NEU: Helper-Komponente für GSC-Vergleichswerte ---
+const GscChangeIndicator = ({ change, isPosition = false }: { 
+  change: number | string | null | undefined, 
+  isPosition?: boolean 
+}) => {
+  
+  const numChange = (change === null || change === undefined || change === '') 
+    ? 0 
+    : parseFloat(String(change));
+
+  if (numChange === 0) {
+    return null;
+  }
+  
+  let isPositive: boolean;
+  if (isPosition) {
+    isPositive = numChange < 0; // Negative Zahl ist gut
+  } else {
+    isPositive = numChange > 0; // Positive Zahl ist gut
+  }
+  
+  let text: string;
+  if (isPosition) {
+    text = (numChange > 0 ? `+${numChange.toFixed(2)}` : numChange.toFixed(2));
+  } else {
+    text = (numChange > 0 ? `+${numChange.toLocaleString('de-DE')}` : numChange.toLocaleString('de-DE'));
+  }
+  
+  const colorClasses = isPositive 
+    ? 'text-green-700 bg-green-100' 
+    : 'text-red-700 bg-red-100';
+  const Icon = isPositive ? ArrowUp : ArrowDown;
+
+  return (
+    <span className={cn('ml-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-bold', colorClasses)}>
+      <Icon size={12} />
+      {text}
+    </span>
+  );
+};
+
 
 // --- Hauptkomponente ---
 
@@ -57,15 +109,14 @@ export default function LandingpageApproval() {
 
   const { data: landingpages, error, isLoading, mutate } = useSWR<Landingpage[]>(apiUrl, fetcher);
 
-  // --- Event Handler ---
+  // --- Event Handler (unverändert) ---
   const handleStatusChange = async (id: number, newStatus: 'Freigegeben' | 'Gesperrt') => {
-    // Optimistic Update: Aktualisiert die UI sofort, bevor die API antwortet
+    // Optimistic Update
     const optimisticData = landingpages?.map((lp): Landingpage =>
       lp.id === id ? { ...lp, status: newStatus } : lp
     );
 
     if (optimisticData) {
-      // 'mutate' aktualisiert den SWR-Cache. 'false' verhindert erneutes Fetchen.
       mutate(optimisticData, false);
     }
 
@@ -80,20 +131,17 @@ export default function LandingpageApproval() {
         throw new Error('Fehler bei der Aktualisierung.');
       }
 
-      // Bei Erfolg: SWR neu validieren (optional, da optimistic update schon lief)
-      mutate();
+      mutate(); // Erneutes Fetchen nach Erfolg
 
     } catch (err) {
       console.error("Fehler beim Status-Update:", err);
-      // Bei Fehler: Rollback zum vorherigen Zustand
+      // Rollback
       mutate(landingpages, false);
-      // Optional: Fehlermeldung anzeigen
     }
   };
 
-  // ---- Hilfsfunktionen für die UI ----
+  // ---- Hilfsfunktionen für die UI (unverändert) ----
 
-  // Gibt die Styling-Klassen für Status-Badges zurück (minimalistisch)
   const getStatusStyle = (status: LandingpageStatus) => {
     switch (status) {
       case 'Offen': return 'text-blue-700 border-blue-300 bg-blue-50';
@@ -104,7 +152,6 @@ export default function LandingpageApproval() {
     }
   };
 
-  // Gibt das passende Icon für den Status zurück
   const getStatusIcon = (status: LandingpageStatus): ReactNode => {
     switch (status) {
       case 'Offen': return <FileEarmarkText className="inline-block" size={16} />;
@@ -141,7 +188,6 @@ export default function LandingpageApproval() {
     );
   }
 
-  // Zeige nichts an, wenn keine Landingpages vorhanden sind
   if (!Array.isArray(landingpages) || landingpages.length === 0) {
     return null;
   }
@@ -151,9 +197,8 @@ export default function LandingpageApproval() {
   const approvedPages = landingpages.filter(lp => lp.status === 'Freigegeben');
   const blockedPages = landingpages.filter(lp => lp.status === 'Gesperrt');
 
-  // Zeige die Komponente nur an, wenn es relevante Seiten gibt (optional)
   if (pendingPages.length === 0 && approvedPages.length === 0 && blockedPages.length === 0) {
-    return null; // Oder eine Meldung wie "Keine zu verwaltenden Landingpages"
+    return null;
   }
 
   return (
@@ -184,15 +229,45 @@ export default function LandingpageApproval() {
                     >
                       {lp.url}
                     </a>
+                    
+                    {/* AKTUALISIERT: GSC-Daten anzeigen */}
                     <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">
-                      {lp.aktuelle_position != null && (
-                        <span>Position: <span className="font-medium">{lp.aktuelle_position}</span></span>
+                      {lp.gsc_position != null && (
+                        <span className="flex items-center">
+                          Position: 
+                          <span className="font-medium text-gray-800 ml-1">
+                            {parseFloat(String(lp.gsc_position)).toFixed(2)}
+                          </span>
+                          <GscChangeIndicator change={lp.gsc_position_change} isPosition={true} />
+                        </span>
                       )}
-                      {lp.suchvolumen != null && (
-                        <span>Suchvolumen: <span className="font-medium">{lp.suchvolumen.toLocaleString('de-DE')}</span></span>
+                      {lp.gsc_klicks != null && (
+                        <span className="flex items-center">
+                          Klicks: 
+                          <span className="font-medium text-gray-800 ml-1">
+                            {lp.gsc_klicks.toLocaleString('de-DE')}
+                          </span>
+                          <GscChangeIndicator change={lp.gsc_klicks_change} />
+                        </span>
+                      )}
+                      {lp.gsc_impressionen != null && (
+                         <span className="flex items-center">
+                          Impr.: 
+                          <span className="font-medium text-gray-800 ml-1">
+                            {lp.gsc_impressionen.toLocaleString('de-DE')}
+                          </span>
+                          <GscChangeIndicator change={lp.gsc_impressionen_change} />
+                        </span>
                       )}
                     </div>
+                    {/* GSC-Datum */}
+                    {lp.gsc_last_updated && (
+                     <div className="text-[10px] text-gray-500 mt-2">
+                       GSC-Daten ({lp.gsc_last_range}): {new Date(lp.gsc_last_updated).toLocaleDateString('de-DE')}
+                     </div>
+                    )}
                   </div>
+                  
                   {/* Rechte Seite: Aktionen */}
                   <div className="flex gap-2 flex-shrink-0 mt-2 sm:mt-0">
                     <button
@@ -215,7 +290,7 @@ export default function LandingpageApproval() {
         </div>
       )}
 
-      {/* Freigegebene Landingpages */}
+      {/* Freigegebene Landingpages (unverändert) */}
       {approvedPages.length > 0 && (
         <div className="mb-8">
           <h4 className="text-lg font-semibold text-green-800 mb-4 flex items-center gap-2">
@@ -250,7 +325,7 @@ export default function LandingpageApproval() {
         </div>
       )}
 
-      {/* Gesperrte Landingpages */}
+      {/* Gesperrte Landingpages (unverändert) */}
       {blockedPages.length > 0 && (
         <div>
           <h4 className="text-lg font-semibold text-red-800 mb-4 flex items-center gap-2">
