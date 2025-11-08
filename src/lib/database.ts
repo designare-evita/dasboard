@@ -22,8 +22,8 @@ export async function createTables() {
         gsc_site_url VARCHAR(255),
         ga4_property_id VARCHAR(255),
         semrush_project_id VARCHAR(255),
-        semrush_tracking_id VARCHAR(255),       // Für Kampagne 1
-        semrush_tracking_id_02 VARCHAR(255),    // Für Kampagne 2
+        semrush_tracking_id VARCHAR(255),       -- KORREKTUR: Für Kampagne 1
+        semrush_tracking_id_02 VARCHAR(255),    -- KORREKTUR: Für Kampagne 2
         favicon_url TEXT NULL,
         
         "createdByAdminId" UUID REFERENCES users(id),
@@ -44,7 +44,7 @@ export async function createTables() {
         status VARCHAR(50) DEFAULT 'Offen',
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         
-        -- GSC-Daten-Spalten
+        -- GSC-Daten-Spalten (Diese waren schon korrekt als SQL-Kommentar)
         gsc_klicks INTEGER,
         gsc_klicks_change INTEGER,
         gsc_impressionen INTEGER,
@@ -121,7 +121,7 @@ export async function createTables() {
     `;
     console.log('Tabelle "google_data_cache" erfolgreich geprüft/erstellt.');
 
-    // 8. ✅ NEU: Mandanten/Label Logo-Tabelle
+    // 8. Mandanten/Label Logo-Tabelle
     await sql`
       CREATE TABLE IF NOT EXISTS mandanten_logos (
         mandant_id VARCHAR(255) PRIMARY KEY,
