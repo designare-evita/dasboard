@@ -6,6 +6,9 @@ import useSWR from 'swr';
 import { ReactNode } from 'react';
 import { cn } from '@/lib/utils'; // Importiert für GscChangeIndicator
 
+// NEU: Typen werden aus der zentralen Datei importiert
+import { Landingpage, LandingpageStatus } from '@/types';
+
 // Icons importieren
 import {
   FileEarmarkText,
@@ -15,33 +18,21 @@ import {
   InfoCircle,
   ExclamationTriangleFill,
   ArrowRepeat,
-  ArrowUp, // NEU
-  ArrowDown, // NEU
+  ArrowUp,
+  ArrowDown,
 } from 'react-bootstrap-icons';
 
-// --- Typdefinitionen (AKTUALISIERT) ---
-
-interface Landingpage {
-  id: number;
-  url: string;
-  status: 'Offen' | 'In Prüfung' | 'Gesperrt' | 'Freigegeben';
-  haupt_keyword?: string;
-  weitere_keywords?: string;
-
-  // NEUE GSC-Felder:
-  gsc_klicks: number | null;
-  gsc_klicks_change: number | null;
-  gsc_impressionen: number | null;
-  gsc_impressionen_change: number | null;
-  gsc_position: number | string | null; // Kann als String (Decimal) kommen
-  gsc_position_change: number | string | null; // Kann als String (Decimal) kommen
-  gsc_last_updated: string | null;
-  gsc_last_range: string | null;
-}
-
-type LandingpageStatus = Landingpage['status'];
+/*
+ * GELÖSCHT: Die folgenden Typdefinitionen wurden entfernt,
+ * da sie jetzt aus @/types importiert werden.
+ *
+ * interface Landingpage { ... }
+ * type LandingpageStatus = Landingpage['status'];
+ *
+ */
 
 // --- Datenabruf-Funktion (Fetcher) ---
+// Landingpage[] verwendet jetzt den importierten Typ
 const fetcher = async (url: string): Promise<Landingpage[]> => {
   const res = await fetch(url);
 
@@ -107,11 +98,13 @@ export default function LandingpageApproval() {
   const userId = session?.user?.id;
   const apiUrl = userId ? `/api/users/${userId}/landingpages` : null;
 
+  // useSWR<Landingpage[]> verwendet jetzt den importierten Typ
   const { data: landingpages, error, isLoading, mutate } = useSWR<Landingpage[]>(apiUrl, fetcher);
 
   // --- Event Handler (unverändert) ---
   const handleStatusChange = async (id: number, newStatus: 'Freigegeben' | 'Gesperrt') => {
     // Optimistic Update
+    // Landingpage verwendet jetzt den importierten Typ
     const optimisticData = landingpages?.map((lp): Landingpage =>
       lp.id === id ? { ...lp, status: newStatus } : lp
     );
@@ -142,6 +135,7 @@ export default function LandingpageApproval() {
 
   // ---- Hilfsfunktionen für die UI (unverändert) ----
 
+  // LandingpageStatus verwendet jetzt den importierten Typ
   const getStatusStyle = (status: LandingpageStatus) => {
     switch (status) {
       case 'Offen': return 'text-blue-700 border-blue-300 bg-blue-50';
@@ -152,6 +146,7 @@ export default function LandingpageApproval() {
     }
   };
 
+  // LandingpageStatus verwendet jetzt den importierten Typ
   const getStatusIcon = (status: LandingpageStatus): ReactNode => {
     switch (status) {
       case 'Offen': return <FileEarmarkText className="inline-block" size={16} />;
