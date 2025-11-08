@@ -1,12 +1,12 @@
 // src/app/admin/redaktionsplan/page.tsx
 'use client';
 
-import { useState, useEffect, ReactNode, useCallback } from 'react'; // useCallback hinzugefügt
+import { useState, useEffect, ReactNode, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import type { User } from '@/types';
-import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector'; // NEU
-import { cn } from '@/lib/utils'; // NEU
+import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector';
+import { cn } from '@/lib/utils'; 
 
 // Icons importieren
 import {
@@ -21,8 +21,8 @@ import {
   ListTask,
   Filter,
   Trash,
-  ArrowUp, // NEU
-  ArrowDown, // NEU
+  ArrowUp,
+  ArrowDown,
 } from 'react-bootstrap-icons';
 
 // Typdefinition für Landingpage (AKTUALISIERT)
@@ -31,20 +31,17 @@ type Landingpage = {
   url: string;
   haupt_keyword: string | null;
   weitere_keywords: string | null;
-  // VERALTET:
-  // suchvolumen: number | null; 
-  // aktuelle_position: number | null;
   status: 'Offen' | 'In Prüfung' | 'Gesperrt' | 'Freigegeben';
   user_id: string;
   created_at: string;
   
-  // NEUE GSC-Felder:
+  // NEUE GSC-Felder (Typen an DB-Rückgabe angepasst)
   gsc_klicks: number | null;
   gsc_klicks_change: number | null;
   gsc_impressionen: number | null;
   gsc_impressionen_change: number | null;
-  gsc_position: number | null;
-  gsc_position_change: number | null;
+  gsc_position: number | string | null; // Kann als String (Decimal) kommen
+  gsc_position_change: number | string | null; // Kann als String (Decimal) kommen
   gsc_last_updated: string | null;
   gsc_last_range: string | null;
 };
@@ -52,29 +49,38 @@ type Landingpage = {
 // Typdefinition für erlaubte Statuswerte
 type LandingpageStatus = Landingpage['status'];
 
-// NEU: Helper-Komponente für GSC-Vergleichswerte
-const GscChangeIndicator = ({ change, isPosition = false }: { change: number | null | undefined, isPosition?: boolean }) => {
-  if (change === null || change === undefined || change === 0) {
+// NEU: Helper-Komponente für GSC-Vergleichswerte (KORRIGIERT)
+const GscChangeIndicator = ({ change, isPosition = false }: { 
+  change: number | string | null | undefined, 
+  isPosition?: boolean 
+}) => {
+  
+  // KORREKTUR: Explizite Konvertierung zu einer Zahl
+  const numChange = (change === null || change === undefined || change === '') 
+    ? 0 
+    : parseFloat(String(change));
+
+  if (numChange === 0) {
     return null;
   }
   
   let isPositive: boolean;
   // Bei Position ist eine negative Veränderung (z.B. -1.5) GUT
   if (isPosition) {
-    isPositive = change < 0; 
+    isPositive = numChange < 0; 
   } else {
     // Bei Klicks/Impressions ist eine positive Veränderung GUT
-    isPositive = change > 0;
+    isPositive = numChange > 0;
   }
   
   // Formatierung der Zahl
   let text: string;
   if (isPosition) {
     // Positionen immer mit Vorzeichen und 2 Nachkommastellen
-    text = (change > 0 ? `+${change.toFixed(2)}` : change.toFixed(2));
+    text = (numChange > 0 ? `+${numChange.toFixed(2)}` : numChange.toFixed(2));
   } else {
     // Klicks/Impressions als ganze Zahl mit Vorzeichen
-    text = (change > 0 ? `+${change.toLocaleString('de-DE')}` : change.toLocaleString('de-DE'));
+    text = (numChange > 0 ? `+${numChange.toLocaleString('de-DE')}` : numChange.toLocaleString('de-DE'));
   }
   
   const colorClasses = isPositive 
@@ -104,7 +110,6 @@ export default function RedaktionsplanPage() {
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
   const [message, setMessage] = useState('');
   
-  // NEUE STATES
   const [dateRange, setDateRange] = useState<DateRangeOption>('30d');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -115,7 +120,7 @@ export default function RedaktionsplanPage() {
     }
   }, [authStatus]);
 
-  // NEU: loadLandingpages mit useCallback umhüllt
+  // loadLandingpages mit useCallback
   const loadLandingpages = useCallback(async (userId: string) => {
     setIsLoading(true);
     setMessage('');
@@ -144,7 +149,7 @@ export default function RedaktionsplanPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []); // Diese Funktion hat keine Abhängigkeiten zum Component-State
+  }, []); // Keine Abhängigkeiten
 
   // Landingpages laden, wenn Projekt ausgewählt wird
   useEffect(() => {
@@ -155,7 +160,7 @@ export default function RedaktionsplanPage() {
       setFilteredPages([]);
     }
     setFilterStatus('alle');
-  }, [selectedProject, loadLandingpages]); // loadLandingpages als Abhängigkeit
+  }, [selectedProject, loadLandingpages]);
 
   // Filter anwenden, wenn sich Filter oder Landingpages ändern
   useEffect(() => {
@@ -235,7 +240,7 @@ export default function RedaktionsplanPage() {
     }
   };
 
-  // NEUE Funktion: GSC-Daten-Abgleich
+  // GSC-Daten-Abgleich
   const handleGscRefresh = async () => {
     if (!selectedProject) {
       setMessage("Bitte zuerst ein Projekt auswählen.");
@@ -356,7 +361,7 @@ export default function RedaktionsplanPage() {
         {/* Bereich wird nur angezeigt, wenn ein Projekt ausgewählt wurde */}
         {selectedProject && (
           <>
-            {/* NEU: GSC-Abgleich-Box */}
+            {/* GSC-Abgleich-Box */}
             <div className="bg-white p-6 rounded-lg shadow-md mb-6">
               <h3 className="text-lg font-semibold text-gray-800 mb-4">GSC-Daten Abgleich</h3>
               <div className="flex flex-col sm:flex-row gap-4">
@@ -485,10 +490,13 @@ export default function RedaktionsplanPage() {
                            </div>
                          </td>
                          
-                         {/* GSC Position (NEU) */}
+                         {/* GSC Position (KORRIGIERT) */}
                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right">
                            <div className="flex items-center justify-end">
-                             <span>{lp.gsc_position ? lp.gsc_position.toFixed(2) : '-'}</span>
+                             {/* HIER IST DIE KORREKTUR: parseFloat(String(...)) */}
+                             <span>
+                               {lp.gsc_position ? parseFloat(String(lp.gsc_position)).toFixed(2) : '-'}
+                             </span>
                              <GscChangeIndicator change={lp.gsc_position_change} isPosition={true} />
                            </div>
                          </td>
