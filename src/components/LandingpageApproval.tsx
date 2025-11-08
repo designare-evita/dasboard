@@ -3,10 +3,11 @@
 
 import { useSession } from 'next-auth/react';
 import useSWR from 'swr';
-import { ReactNode } from 'react';
-import { cn } from '@/lib/utils'; // Importiert für GscChangeIndicator
+import { ReactNode, useState } from 'react';
+import { cn } from '@/lib/utils';
+import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector';
 
-// NEU: Typen werden aus der zentralen Datei importiert
+// Typen aus zentraler Datei importieren
 import { Landingpage, LandingpageStatus } from '@/types';
 
 // Icons importieren
@@ -22,17 +23,7 @@ import {
   ArrowDown,
 } from 'react-bootstrap-icons';
 
-/*
- * GELÖSCHT: Die folgenden Typdefinitionen wurden entfernt,
- * da sie jetzt aus @/types importiert werden.
- *
- * interface Landingpage { ... }
- * type LandingpageStatus = Landingpage['status'];
- *
- */
-
 // --- Datenabruf-Funktion (Fetcher) ---
-// Landingpage[] verwendet jetzt den importierten Typ
 const fetcher = async (url: string): Promise<Landingpage[]> => {
   const res = await fetch(url);
 
@@ -49,7 +40,7 @@ const fetcher = async (url: string): Promise<Landingpage[]> => {
   throw new Error("Die von der API erhaltenen Daten waren kein Array.");
 };
 
-// --- NEU: Helper-Komponente für GSC-Vergleichswerte ---
+// --- Helper-Komponente für GSC-Vergleichswerte ---
 const GscChangeIndicator = ({ change, isPosition = false }: { 
   change: number | string | null | undefined, 
   isPosition?: boolean 
@@ -65,9 +56,9 @@ const GscChangeIndicator = ({ change, isPosition = false }: {
   
   let isPositive: boolean;
   if (isPosition) {
-    isPositive = numChange < 0; // Negative Zahl ist gut
+    isPositive = numChange < 0;
   } else {
-    isPositive = numChange > 0; // Positive Zahl ist gut
+    isPositive = numChange > 0;
   }
   
   let text: string;
@@ -90,21 +81,60 @@ const GscChangeIndicator = ({ change, isPosition = false }: {
   );
 };
 
-
 // --- Hauptkomponente ---
-
 export default function LandingpageApproval() {
   const { data: session } = useSession();
   const userId = session?.user?.id;
   const apiUrl = userId ? `/api/users/${userId}/landingpages` : null;
 
-  // useSWR<Landingpage[]> verwendet jetzt den importierten Typ
+  // ✅ NEU: State für DateRange und GSC-Refresh
+  const [dateRange, setDateRange] = useState<DateRangeOption>('30d');
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [gscMessage, setGscMessage] = useState('');
+
   const { data: landingpages, error, isLoading, mutate } = useSWR<Landingpage[]>(apiUrl, fetcher);
 
-  // --- Event Handler (unverändert) ---
+  // ✅ NEU: GSC-Daten-Abgleich Handler
+  const handleGscRefresh = async () => {
+    if (!userId) {
+      setGscMessage("Fehler: Sitzung nicht gefunden.");
+      return;
+    }
+    
+    setIsRefreshing(true);
+    setGscMessage(`Starte GSC-Abgleich für Zeitraum: ${dateRange}...`);
+    
+    try {
+      const response = await fetch('/api/landingpages/refresh-gsc', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId: userId,
+          dateRange: dateRange
+        })
+      });
+      
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.message || 'GSC-Abgleich fehlgeschlagen');
+      }
+      
+      setGscMessage(result.message || 'Daten erfolgreich abgeglichen!');
+      await mutate(); // ✅ Lade die Landingpages neu
+      
+      // Erfolgsmeldung nach 3 Sekunden ausblenden
+      setTimeout(() => setGscMessage(''), 3000);
+      
+    } catch (error) {
+      console.error('Fehler beim GSC-Abgleich:', error);
+      setGscMessage(error instanceof Error ? `❌ Fehler: ${error.message}` : 'Fehler beim Abgleich');
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  // --- Event Handler ---
   const handleStatusChange = async (id: number, newStatus: 'Freigegeben' | 'Gesperrt') => {
-    // Optimistic Update
-    // Landingpage verwendet jetzt den importierten Typ
     const optimisticData = landingpages?.map((lp): Landingpage =>
       lp.id === id ? { ...lp, status: newStatus } : lp
     );
@@ -124,18 +154,15 @@ export default function LandingpageApproval() {
         throw new Error('Fehler bei der Aktualisierung.');
       }
 
-      mutate(); // Erneutes Fetchen nach Erfolg
+      mutate();
 
     } catch (err) {
       console.error("Fehler beim Status-Update:", err);
-      // Rollback
       mutate(landingpages, false);
     }
   };
 
-  // ---- Hilfsfunktionen für die UI (unverändert) ----
-
-  // LandingpageStatus verwendet jetzt den importierten Typ
+  // ---- Hilfsfunktionen für die UI ----
   const getStatusStyle = (status: LandingpageStatus) => {
     switch (status) {
       case 'Offen': return 'text-blue-700 border-blue-300 bg-blue-50';
@@ -146,7 +173,6 @@ export default function LandingpageApproval() {
     }
   };
 
-  // LandingpageStatus verwendet jetzt den importierten Typ
   const getStatusIcon = (status: LandingpageStatus): ReactNode => {
     switch (status) {
       case 'Offen': return <FileEarmarkText className="inline-block" size={16} />;
@@ -157,9 +183,7 @@ export default function LandingpageApproval() {
     }
   };
 
-
   // --- Render-Logik ---
-
   if (isLoading) {
     return (
       <div className="mt-8 bg-white p-6 rounded-lg shadow-md border border-gray-200">
@@ -187,7 +211,6 @@ export default function LandingpageApproval() {
     return null;
   }
 
-  // Filtern der Landingpages nach Status
   const pendingPages = landingpages.filter(lp => lp.status === 'In Prüfung');
   const approvedPages = landingpages.filter(lp => lp.status === 'Freigegeben');
   const blockedPages = landingpages.filter(lp => lp.status === 'Gesperrt');
@@ -200,6 +223,47 @@ export default function LandingpageApproval() {
     <div className="mt-8 bg-white p-6 rounded-lg shadow-md border border-gray-200">
       <h3 className="text-xl font-bold mb-6 text-gray-800 border-b pb-3">Redaktionsplan</h3>
 
+      {/* ✅ NEU: GSC-Abgleich-Box */}
+      <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <h4 className="text-sm font-semibold text-blue-900 mb-3">GSC-Daten Abgleich</h4>
+        <p className="text-xs text-blue-700 mb-3">
+          Aktualisieren Sie die GSC-Daten (Klicks, Impressionen, Position) für Ihre Landingpages.
+        </p>
+        
+        <div className="flex flex-col sm:flex-row gap-3">
+          <DateRangeSelector
+            value={dateRange}
+            onChange={setDateRange}
+            className="w-full sm:w-auto"
+          />
+          <button
+            onClick={handleGscRefresh}
+            disabled={isRefreshing || isLoading}
+            className="px-4 py-2 text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-wait flex items-center justify-center gap-2 w-full sm:w-auto"
+          >
+            {isRefreshing ? (
+              <ArrowRepeat className="animate-spin" size={16} />
+            ) : (
+              <Search size={16} />
+            )}
+            <span>{isRefreshing ? 'Wird abgeglichen...' : 'GSC-Daten abgleichen'}</span>
+          </button>
+        </div>
+
+        {/* ✅ GSC-Nachricht */}
+        {gscMessage && (
+          <div className={`mt-3 p-2 rounded text-xs ${
+            gscMessage.startsWith('❌') 
+              ? 'bg-red-100 text-red-800 border border-red-300' 
+              : gscMessage.includes('erfolgreich')
+                ? 'bg-green-100 text-green-800 border border-green-300'
+                : 'bg-blue-100 text-blue-800 border border-blue-300'
+          }`}>
+            {gscMessage}
+          </div>
+        )}
+      </div>
+
       {/* Zur Freigabe (In Prüfung) */}
       {pendingPages.length > 0 && (
         <div className="mb-8">
@@ -210,12 +274,11 @@ export default function LandingpageApproval() {
             {pendingPages.map((lp) => (
               <div key={lp.id} className="p-4 border rounded-md bg-yellow-50 border-yellow-200 hover:shadow-sm transition-shadow">
                 <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-4">
-                  {/* Linke Seite: Details */}
                   <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-gray-800 mb-1 truncate" title={lp.haupt_keyword}>
+                    <p className="font-semibold text-gray-800 mb-1 truncate" title={lp.haupt_keyword || undefined}>
                       {lp.haupt_keyword || <span className="italic text-gray-500">Kein Haupt-Keyword</span>}
                     </p>
-                    <a
+                    
                       href={lp.url}
                       target="_blank"
                       rel="noopener noreferrer"
@@ -225,7 +288,6 @@ export default function LandingpageApproval() {
                       {lp.url}
                     </a>
                     
-                    {/* AKTUALISIERT: GSC-Daten anzeigen */}
                     <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">
                       {lp.gsc_position != null && (
                         <span className="flex items-center">
@@ -255,7 +317,7 @@ export default function LandingpageApproval() {
                         </span>
                       )}
                     </div>
-                    {/* GSC-Datum */}
+                    
                     {lp.gsc_last_updated && (
                      <div className="text-[10px] text-gray-500 mt-2">
                        GSC-Daten ({lp.gsc_last_range}): {new Date(lp.gsc_last_updated).toLocaleDateString('de-DE')}
@@ -263,7 +325,6 @@ export default function LandingpageApproval() {
                     )}
                   </div>
                   
-                  {/* Rechte Seite: Aktionen */}
                   <div className="flex gap-2 flex-shrink-0 mt-2 sm:mt-0">
                     <button
                       onClick={() => handleStatusChange(lp.id, 'Gesperrt')}
@@ -285,7 +346,7 @@ export default function LandingpageApproval() {
         </div>
       )}
 
-      {/* Freigegebene Landingpages (unverändert) */}
+      {/* Freigegebene Landingpages */}
       {approvedPages.length > 0 && (
         <div className="mb-8">
           <h4 className="text-lg font-semibold text-green-800 mb-4 flex items-center gap-2">
@@ -295,10 +356,10 @@ export default function LandingpageApproval() {
             {approvedPages.map((lp) => (
               <div key={lp.id} className="p-3 border rounded-md flex justify-between items-center bg-green-50 border-green-200">
                 <div className="min-w-0">
-                  <p className="font-semibold text-gray-800 text-sm truncate" title={lp.haupt_keyword}>
+                  <p className="font-semibold text-gray-800 text-sm truncate" title={lp.haupt_keyword || undefined}>
                     {lp.haupt_keyword || <span className="italic text-gray-500">Kein Haupt-Keyword</span>}
                   </p>
-                  <a
+                  
                     href={lp.url}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -320,7 +381,7 @@ export default function LandingpageApproval() {
         </div>
       )}
 
-      {/* Gesperrte Landingpages (unverändert) */}
+      {/* Gesperrte Landingpages */}
       {blockedPages.length > 0 && (
         <div>
           <h4 className="text-lg font-semibold text-red-800 mb-4 flex items-center gap-2">
@@ -330,10 +391,10 @@ export default function LandingpageApproval() {
             {blockedPages.map((lp) => (
               <div key={lp.id} className="p-3 border rounded-md flex justify-between items-center bg-red-50 border-red-200 opacity-80">
                  <div className="min-w-0">
-                  <p className="font-semibold text-gray-800 text-sm truncate" title={lp.haupt_keyword}>
+                  <p className="font-semibold text-gray-800 text-sm truncate" title={lp.haupt_keyword || undefined}>
                     {lp.haupt_keyword || <span className="italic text-gray-500">Kein Haupt-Keyword</span>}
                   </p>
-                  <a
+                  
                     href={lp.url}
                     target="_blank"
                     rel="noopener noreferrer"
