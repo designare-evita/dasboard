@@ -39,20 +39,22 @@ export default function Header() {
         {/* Linke Seite: Logo und Begrüßung */}
         <div className="flex items-center space-x-4">
           <Link href="/" onClick={handleLinkClick}>
-            <Image
-              src={logoSrc}
-              alt="Dashboard Logo"
-              width={180}
-              height={45}
-              priority={priorityLoad}
-              onError={(e) => { 
-                if (logoSrc !== defaultLogo) {
-                  (e.target as HTMLImageElement).src = defaultLogo;
-                }
-              }}
-              className="object-contain max-h-[45px] w-auto" // ✅ KRITISCHE ÄNDERUNG
-              style={{ maxHeight: '45px' }} // ✅ ZUSÄTZLICHE SICHERHEIT
-            />
+            {/* ✅ LÖSUNG: Container mit fester Höhe + fill-Modus für flexible Logos */}
+            <div className="relative h-[45px] w-[180px]">
+              <Image
+                src={logoSrc}
+                alt="Dashboard Logo"
+                fill
+                priority={priorityLoad}
+                onError={(e) => { 
+                  if (logoSrc !== defaultLogo) {
+                    (e.target as HTMLImageElement).src = defaultLogo;
+                  }
+                }}
+                className="object-contain"
+                sizes="180px"
+              />
+            </div>
           </Link>
 
           {status === 'authenticated' && (
