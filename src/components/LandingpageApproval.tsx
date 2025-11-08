@@ -87,14 +87,14 @@ export default function LandingpageApproval() {
   const userId = session?.user?.id;
   const apiUrl = userId ? `/api/users/${userId}/landingpages` : null;
 
-  // ✅ NEU: State für DateRange und GSC-Refresh
+  // State für DateRange und GSC-Refresh
   const [dateRange, setDateRange] = useState<DateRangeOption>('30d');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [gscMessage, setGscMessage] = useState('');
 
   const { data: landingpages, error, isLoading, mutate } = useSWR<Landingpage[]>(apiUrl, fetcher);
 
-  // ✅ NEU: GSC-Daten-Abgleich Handler
+  // GSC-Daten-Abgleich Handler
   const handleGscRefresh = async () => {
     if (!userId) {
       setGscMessage("Fehler: Sitzung nicht gefunden.");
@@ -120,9 +120,8 @@ export default function LandingpageApproval() {
       }
       
       setGscMessage(result.message || 'Daten erfolgreich abgeglichen!');
-      await mutate(); // ✅ Lade die Landingpages neu
+      await mutate();
       
-      // Erfolgsmeldung nach 3 Sekunden ausblenden
       setTimeout(() => setGscMessage(''), 3000);
       
     } catch (error) {
@@ -133,7 +132,7 @@ export default function LandingpageApproval() {
     }
   };
 
-  // --- Event Handler ---
+  // Event Handler
   const handleStatusChange = async (id: number, newStatus: 'Freigegeben' | 'Gesperrt') => {
     const optimisticData = landingpages?.map((lp): Landingpage =>
       lp.id === id ? { ...lp, status: newStatus } : lp
@@ -162,7 +161,7 @@ export default function LandingpageApproval() {
     }
   };
 
-  // ---- Hilfsfunktionen für die UI ----
+  // Hilfsfunktionen für die UI
   const getStatusStyle = (status: LandingpageStatus) => {
     switch (status) {
       case 'Offen': return 'text-blue-700 border-blue-300 bg-blue-50';
@@ -183,7 +182,7 @@ export default function LandingpageApproval() {
     }
   };
 
-  // --- Render-Logik ---
+  // Render-Logik
   if (isLoading) {
     return (
       <div className="mt-8 bg-white p-6 rounded-lg shadow-md border border-gray-200">
@@ -223,13 +222,12 @@ export default function LandingpageApproval() {
     <div className="mt-8 bg-white p-6 rounded-lg shadow-md border border-gray-200">
       <h3 className="text-xl font-bold mb-6 text-gray-800 border-b pb-3">Redaktionsplan</h3>
 
-      {/* ✅ NEU: GSC-Abgleich-Box */}
+      {/* GSC-Abgleich-Box */}
       <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
         <h4 className="text-sm font-semibold text-blue-900 mb-3">GSC-Daten Abgleich</h4>
         <p className="text-xs text-blue-700 mb-3">
           Aktualisieren Sie die GSC-Daten (Klicks, Impressionen, Position) für Ihre Landingpages.
         </p>
-        
         <div className="flex flex-col sm:flex-row gap-3">
           <DateRangeSelector
             value={dateRange}
@@ -249,8 +247,6 @@ export default function LandingpageApproval() {
             <span>{isRefreshing ? 'Wird abgeglichen...' : 'GSC-Daten abgleichen'}</span>
           </button>
         </div>
-
-        {/* ✅ GSC-Nachricht */}
         {gscMessage && (
           <div className={`mt-3 p-2 rounded text-xs ${
             gscMessage.startsWith('❌') 
@@ -278,7 +274,7 @@ export default function LandingpageApproval() {
                     <p className="font-semibold text-gray-800 mb-1 truncate" title={lp.haupt_keyword || undefined}>
                       {lp.haupt_keyword || <span className="italic text-gray-500">Kein Haupt-Keyword</span>}
                     </p>
-                    
+                    <a
                       href={lp.url}
                       target="_blank"
                       rel="noopener noreferrer"
@@ -287,7 +283,6 @@ export default function LandingpageApproval() {
                     >
                       {lp.url}
                     </a>
-                    
                     <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">
                       {lp.gsc_position != null && (
                         <span className="flex items-center">
@@ -308,7 +303,7 @@ export default function LandingpageApproval() {
                         </span>
                       )}
                       {lp.gsc_impressionen != null && (
-                         <span className="flex items-center">
+                        <span className="flex items-center">
                           Impr.: 
                           <span className="font-medium text-gray-800 ml-1">
                             {lp.gsc_impressionen.toLocaleString('de-DE')}
@@ -317,14 +312,12 @@ export default function LandingpageApproval() {
                         </span>
                       )}
                     </div>
-                    
                     {lp.gsc_last_updated && (
-                     <div className="text-[10px] text-gray-500 mt-2">
-                       GSC-Daten ({lp.gsc_last_range}): {new Date(lp.gsc_last_updated).toLocaleDateString('de-DE')}
-                     </div>
+                      <div className="text-[10px] text-gray-500 mt-2">
+                        GSC-Daten ({lp.gsc_last_range}): {new Date(lp.gsc_last_updated).toLocaleDateString('de-DE')}
+                      </div>
                     )}
                   </div>
-                  
                   <div className="flex gap-2 flex-shrink-0 mt-2 sm:mt-0">
                     <button
                       onClick={() => handleStatusChange(lp.id, 'Gesperrt')}
@@ -350,7 +343,7 @@ export default function LandingpageApproval() {
       {approvedPages.length > 0 && (
         <div className="mb-8">
           <h4 className="text-lg font-semibold text-green-800 mb-4 flex items-center gap-2">
-             {getStatusIcon('Freigegeben')} Freigegeben ({approvedPages.length})
+            {getStatusIcon('Freigegeben')} Freigegeben ({approvedPages.length})
           </h4>
           <div className="space-y-3">
             {approvedPages.map((lp) => (
@@ -359,7 +352,7 @@ export default function LandingpageApproval() {
                   <p className="font-semibold text-gray-800 text-sm truncate" title={lp.haupt_keyword || undefined}>
                     {lp.haupt_keyword || <span className="italic text-gray-500">Kein Haupt-Keyword</span>}
                   </p>
-                  
+                  <a
                     href={lp.url}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -373,7 +366,7 @@ export default function LandingpageApproval() {
                   onClick={() => handleStatusChange(lp.id, 'Gesperrt')}
                   className="px-3 py-1 text-xs font-medium rounded border border-red-600 text-red-700 hover:bg-red-50 transition-colors flex items-center gap-1 ml-4 flex-shrink-0"
                 >
-                   <SlashCircleFill size={14} /> Sperren
+                  <SlashCircleFill size={14} /> Sperren
                 </button>
               </div>
             ))}
@@ -390,11 +383,11 @@ export default function LandingpageApproval() {
           <div className="space-y-3">
             {blockedPages.map((lp) => (
               <div key={lp.id} className="p-3 border rounded-md flex justify-between items-center bg-red-50 border-red-200 opacity-80">
-                 <div className="min-w-0">
+                <div className="min-w-0">
                   <p className="font-semibold text-gray-800 text-sm truncate" title={lp.haupt_keyword || undefined}>
                     {lp.haupt_keyword || <span className="italic text-gray-500">Kein Haupt-Keyword</span>}
                   </p>
-                  
+                  <a
                     href={lp.url}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -408,7 +401,7 @@ export default function LandingpageApproval() {
                   onClick={() => handleStatusChange(lp.id, 'Freigegeben')}
                   className="px-3 py-1 text-xs font-medium rounded border border-green-600 text-green-700 hover:bg-green-50 transition-colors flex items-center gap-1 ml-4 flex-shrink-0"
                 >
-                   <CheckCircleFill size={14} /> Freigeben
+                  <CheckCircleFill size={14} /> Freigeben
                 </button>
               </div>
             ))}
