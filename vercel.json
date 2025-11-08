@@ -1,0 +1,10 @@
+// vercel.json
+
+{
+  "crons": [
+    {
+      "path": "/api/cron/refresh-all-gsc",
+      "schedule": "0 0 */2 * *"
+    }
+  ]
+}
