@@ -18,6 +18,7 @@ declare module 'next-auth' {
       role: 'BENUTZER' | 'ADMIN' | 'SUPERADMIN';
       mandant_id?: string | null; // NEU
       permissions?: string[]; // NEU
+      logo_url?: string | null; // ✅ NEU: Logo-URL für den Mandanten
     } & DefaultSession['user'];
   }
 }
@@ -33,5 +34,6 @@ declare module 'next-auth/jwt' {
     role: 'BENUTZER' | 'ADMIN' | 'SUPERADMIN';
     mandant_id?: string | null; // NEU
     permissions?: string[]; // NEU
+    logo_url?: string | null; // ✅ NEU: Logo-URL für den Mandanten
   }
 }
