@@ -7,6 +7,8 @@ import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 // Icons für den neuen Stil hinzugefügt
 import { BoxArrowInRight, ExclamationTriangleFill } from 'react-bootstrap-icons';
+// ✅ NEU: Framer Motion importieren
+import { motion } from 'framer-motion';
 
 export default function LoginForm() {
   const searchParams = useSearchParams();
@@ -40,8 +42,14 @@ export default function LoginForm() {
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
-      {/* KORREKTUR: Leichterer Rahmen für die Login-Box */}
-      <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-lg shadow-xl border border-gray-200">
+      
+      {/* ✅ KORREKTUR: Wrapper in motion.div geändert + Animations-Props */}
+      <motion.div 
+        className="w-full max-w-md p-8 space-y-8 bg-white rounded-lg shadow-xl border border-gray-200"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: "easeOut" }}
+      >
         <div className="text-center">
           <Image
             src="/logo-data-peak.webp"
@@ -122,7 +130,9 @@ export default function LoginForm() {
             </button>
           </div>
         </form>
-      </div>
+      </motion.div>
+      {/* ✅ ENDE KORREKTUR */}
+
     </div>
   );
 }
