@@ -18,6 +18,9 @@ import {
   FileText // Icon für Redaktionsplan
 } from 'react-bootstrap-icons'; // Icons importiert
 
+// ✅ NEU: LogoManager importieren
+import LogoManager from './LogoManager';
+
 export default function AdminPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -76,7 +79,6 @@ export default function AdminPage() {
     const payload = { 
       ...rawData, 
       role: selectedRole,
-      // KORREKTUR: Sende 'permissions' nur, wenn Superadmin (obwohl Backend dies auch prüft)
       permissions: isSuperAdmin ? permissionsArray : []
     };
 
@@ -123,7 +125,7 @@ export default function AdminPage() {
     }
   };
 
-  // Authentication and authorization check
+  // (Auth-Check - Unverändert)
   if (status === 'loading') {
     return (
         <div className="p-8 text-center flex items-center justify-center min-h-screen">
@@ -159,8 +161,9 @@ export default function AdminPage() {
         </div>
       )}
 
+      {/* --- User Management Grid --- */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-6">
-        {/* User Creation Form */}
+        {/* User Creation Form (Unverändert) */}
         <div className="bg-white p-6 rounded-lg shadow-md h-fit border border-gray-200">
           <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
             <PersonPlus size={22} /> Neuen Nutzer anlegen
@@ -176,7 +179,6 @@ export default function AdminPage() {
                 disabled={isSubmitting}
               >
                 <option value="BENUTZER">Kunde (Benutzer)</option>
-                {/* Nur Superadmin kann Admin-Rolle zuweisen */}
                 {isSuperAdmin && <option value="ADMIN">Admin</option>}
               </select>
             </div>
@@ -203,7 +205,6 @@ export default function AdminPage() {
               />
             </div>
             
-            {/* Mandant-ID (Label) - Nur sichtbar wenn Superadmin ODER Admin (für eigene Erstellung) */}
             {(isSuperAdmin || selectedRole === 'BENUTZER') && (
               <div>
                 <label className="block text-sm font-medium text-gray-700">Mandant-ID (Label)</label>
@@ -211,7 +212,6 @@ export default function AdminPage() {
                   name="mandant_id"
                   type="text"
                   required
-                  // Superadmin kann frei tippen, Admin erbt sein eigenes Label
                   readOnly={!isSuperAdmin}
                   value={!isSuperAdmin ? session?.user?.mandant_id || '' : undefined}
                   placeholder={isSuperAdmin ? "z.B. max-online (Gruppe)" : "Wird von Ihrem Konto geerbt"}
@@ -221,7 +221,6 @@ export default function AdminPage() {
               </div>
             )}
 
-            {/* KORREKTUR: Berechtigungen (Klasse) - Nur für SUPERADMIN sichtbar */}
             {isSuperAdmin && (
               <div>
                 <label className="block text-sm font-medium text-gray-700">Berechtigungen (Klasse)</label>
@@ -238,7 +237,6 @@ export default function AdminPage() {
               </div>
             )}
 
-            {/* (Restliche Felder für BENUTZER - Unverändert) */}
             {selectedRole === 'BENUTZER' && (
               <>
                 <div>
@@ -261,7 +259,6 @@ export default function AdminPage() {
                     disabled={isSubmitting}
                   />
                 </div>
-                {/* ... (andere Kundenfelder: gsc_site_url, ga4_property_id, etc.) ... */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700">GSC Site URL (z. B. https://kundendomain.at/)</label>
                   <input
@@ -305,7 +302,7 @@ export default function AdminPage() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Semrush Tracking ID 02</label>
                   <input
-                    name="semrush_tracking_id_02" // Name der zweiten ID
+                    name="semrush_tracking_id_02"
                     type="text"
                     placeholder="Optional (z.B. für USA)"
                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
@@ -354,10 +351,8 @@ export default function AdminPage() {
             <ul className="space-y-3">
               {users.map((user) => (
                   <li key={user.id} className="p-3 border rounded-md flex flex-col sm:flex-row justify-between sm:items-center gap-3 transition-colors hover:bg-gray-50">
-                    {/* User Info */}
                     <div className="flex-1 overflow-hidden">
                       <p className="font-semibold truncate" title={user.email}>{user.email}</p>
-                      {/* Zeige Mandant-ID (Label) an */}
                       {user.mandant_id && (
                         <p className="text-xs text-indigo-600 font-medium truncate" title={`Mandant: ${user.mandant_id}`}>
                           Label: {user.mandant_id}
@@ -367,7 +362,6 @@ export default function AdminPage() {
                         <p className="text-sm text-blue-600 font-medium truncate">{user.domain}</p>
                       )}
                       <p className="text-xs uppercase font-medium text-gray-500">{user.role}</p>
-                      {/* Zeige Berechtigungen (Klasse) an, wenn vorhanden */}
                       {user.permissions && user.permissions.length > 0 && (
                         <p className="text-xs text-green-700 truncate" title={`Klasse: ${user.permissions.join(', ')}`}>
                           Klasse: {user.permissions.join(', ')}
@@ -375,7 +369,6 @@ export default function AdminPage() {
                       )}
                     </div>
 
-                    {/* Action Buttons */}
                     <div className="flex gap-2 flex-shrink-0 w-full sm:w-auto">
                       <Link
                         href={`/admin/edit/${user.id}`}
@@ -383,7 +376,6 @@ export default function AdminPage() {
                       >
                         <Pencil size={14} /> Bearbeiten
                       </Link>
-                      {/* Nur SUPERADMIN darf löschen */}
                       {isSuperAdmin && (
                         <button
                           onClick={() => void handleDelete(user.id)}
@@ -399,6 +391,11 @@ export default function AdminPage() {
           )}
         </div>
       </div>
+
+      {/* ✅ NEU: LogoManager-Komponente, nur für Superadmin sichtbar */}
+      {isSuperAdmin && (
+        <LogoManager />
+      )}
     </div>
   );
 }
