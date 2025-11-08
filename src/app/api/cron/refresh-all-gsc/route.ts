@@ -1,7 +1,7 @@
 // src/app/api/cron/refresh-all-gsc/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import { sql } from '@vercel/postgres';
+import { sql, type QueryResult } from '@vercel/postgres';
 import { getGscDataForPagesWithComparison } from '@/lib/google-api';
 import type { User } from '@/types';
 
@@ -18,7 +18,7 @@ function formatDate(date: Date): string {
  * Berechnet Start- und Enddatum für den aktuellen und vorherigen Zeitraum.
  * (Hardcoded auf '30d' für den Cron-Job)
  */
-function calculateDateRanges(dateRange: '30d'): {
+function calculateDateRanges(): {
   currentRange: { startDate: string, endDate: string },
   previousRange: { startDate: string, endDate: string }
 } {
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
 
   console.log('[CRON GSC] 🚀 Starte automatischen GSC-Abgleich...');
   const dateRange = '30d';
-  const { currentRange, previousRange } = calculateDateRanges(dateRange);
+  const { currentRange, previousRange } = calculateDateRanges();
 
   let totalUsersProcessed = 0;
   let totalPagesUpdated = 0;
@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
         // 6. Transaktion starten und Daten aktualisieren
         await client.query('BEGIN');
 
-        const updatePromises: Promise<any>[] = [];
+        const updatePromises: Promise<QueryResult>[] = [];
         let updatedCountForUser = 0;
 
         for (const [url, data] of gscDataMap.entries()) {
