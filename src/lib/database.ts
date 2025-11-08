@@ -41,10 +41,19 @@ export async function createTables() {
         url TEXT NOT NULL,
         haupt_keyword TEXT,
         weitere_keywords TEXT,
-        suchvolumen INTEGER,
-        aktuelle_position INTEGER,
         status VARCHAR(50) DEFAULT 'Offen',
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        
+        -- GSC-Daten-Spalten
+        gsc_klicks INTEGER,
+        gsc_klicks_change INTEGER,
+        gsc_impressionen INTEGER,
+        gsc_impressionen_change INTEGER,
+        gsc_position DECIMAL(5, 2),
+        gsc_position_change DECIMAL(5, 2),
+        gsc_last_updated TIMESTAMP WITH TIME ZONE,
+        gsc_last_range VARCHAR(10),
+
         UNIQUE(url, user_id)
       );
     `;
@@ -111,6 +120,17 @@ export async function createTables() {
       );
     `;
     console.log('Tabelle "google_data_cache" erfolgreich geprüft/erstellt.');
+
+    // 8. ✅ NEU: Mandanten/Label Logo-Tabelle
+    await sql`
+      CREATE TABLE IF NOT EXISTS mandanten_logos (
+        mandant_id VARCHAR(255) PRIMARY KEY,
+        logo_url TEXT NOT NULL,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+    console.log('Tabelle "mandanten_logos" erfolgreich geprüft/erstellt.');
+
 
     // (Indizes für Performance hinzufügen)
     await sql`CREATE INDEX IF NOT EXISTS idx_landingpages_user_id ON landingpages(user_id);`;
