@@ -1,289 +1,364 @@
-// src/app/api/users/[id]/landingpages/route.ts
+// src/components/LandingpageApproval.tsx
+'use client';
 
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { sql } from '@vercel/postgres';
-import * as xlsx from 'xlsx';
+import { useSession } from 'next-auth/react';
+import useSWR from 'swr';
+import { ReactNode } from 'react';
+import { cn } from '@/lib/utils'; // Importiert für GscChangeIndicator
 
-export const runtime = 'nodejs';
+// Icons importieren
+import {
+  FileEarmarkText,
+  Search,
+  SlashCircleFill,
+  CheckCircleFill,
+  InfoCircle,
+  ExclamationTriangleFill,
+  ArrowRepeat,
+  ArrowUp, // NEU
+  ArrowDown, // NEU
+} from 'react-bootstrap-icons';
 
-// ——— Hilfsfunktionen ———
+// --- Typdefinitionen (AKTUALISIERT) ---
 
-const toStr = (v: unknown): string => {
-  if (v === null || v === undefined) return '';
-  return String(v).trim();
-};
+interface Landingpage {
+  id: number;
+  url: string;
+  status: 'Offen' | 'In Prüfung' | 'Gesperrt' | 'Freigegeben';
+  haupt_keyword?: string;
+  weitere_keywords?: string;
 
-const toNum = (v: unknown): number | null => {
-  if (v === null || v === undefined || v === '') return null;
-  if (typeof v === 'number') return v;
-  const str = String(v).replace(',', '.').trim();
-  const parsed = parseFloat(str);
-  return isNaN(parsed) ? null : parsed;
-};
-
-const normalizeKey = (key: string) =>
-  key
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^\w]/g, '');
-
-// GET: Landingpages eines Benutzers abrufen
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params;
-  const session = await getServerSession(authOptions);
-
-  console.log('[GET /api/users/[id]/landingpages] Request für User:', id);
-  console.log('[GET] Angemeldet als:', session?.user?.email, 'Rolle:', session?.user?.role);
-
-  if (!session?.user?.id) {
-    console.warn('[GET] Nicht autorisiert - keine Session');
-    return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 }); 
-  }
-
-  // ✅ WICHTIGE ÄNDERUNG: Berechtigungsprüfung erweitern
-  const isSuperAdmin = session.user.role === 'SUPERADMIN';
-  const isAdmin = session.user.role === 'ADMIN';
-  const isOwner = session.user.id === id;
-
-  console.log('[GET] Berechtigungen:', { isSuperAdmin, isAdmin, isOwner });
-
-  // Superadmin darf alles sehen
-  if (isSuperAdmin) {
-    console.log('[GET] ✅ Superadmin-Zugriff gewährt');
-  }
-  // Admin darf nur zugewiesene Projekte sehen
-  else if (isAdmin) {
-    console.log('[GET] Prüfe Admin-Zugriff für Projekt:', id);
-    
-    const { rows: accessCheck } = await sql`
-      SELECT 1 
-      FROM project_assignments 
-      WHERE user_id::text = ${session.user.id} 
-      AND project_id::text = ${id};
-    `;
-
-    if (accessCheck.length === 0) {
-      console.warn('[GET] ❌ Admin hat keinen Zugriff auf dieses Projekt');
-      return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
-    }
-    
-    console.log('[GET] ✅ Admin-Zugriff gewährt');
-  }
-  // Benutzer darf nur seine eigenen Landingpages sehen
-  else if (!isOwner) {
-    console.warn('[GET] ❌ Benutzer hat keinen Zugriff (nicht Owner)');
-    return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 }); 
-  }
-
-  try {
-    console.log('[GET] Lade Landingpages aus Datenbank...');
-    
-    const { rows } = await sql`
-      SELECT * 
-      FROM landingpages 
-      WHERE user_id::text = ${id}
-      ORDER BY created_at DESC;
-    `;
-    
-    console.log('[GET] ✅ Gefunden:', rows.length, 'Landingpages für User:', id);
-    
-    return NextResponse.json(rows, { status: 200 });
-
-  } catch (error) {
-    console.error('[GET] ❌ Datenbankfehler:', error);
-    return NextResponse.json(
-      { message: 'Datenbankfehler beim Laden der Landingpages' }, 
-      { status: 500 }
-    );
-  }
+  // NEUE GSC-Felder:
+  gsc_klicks: number | null;
+  gsc_klicks_change: number | null;
+  gsc_impressionen: number | null;
+  gsc_impressionen_change: number | null;
+  gsc_position: number | string | null; // Kann als String (Decimal) kommen
+  gsc_position_change: number | string | null; // Kann als String (Decimal) kommen
+  gsc_last_updated: string | null;
+  gsc_last_range: string | null;
 }
 
-// POST: Excel-Datei hochladen und Landingpages importieren
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id: userId } = await params;
-    const session = await getServerSession(authOptions);
-    
-    if (!session?.user?.email) {
-      return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
+type LandingpageStatus = Landingpage['status'];
+
+// --- Datenabruf-Funktion (Fetcher) ---
+const fetcher = async (url: string): Promise<Landingpage[]> => {
+  const res = await fetch(url);
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({ message: 'Ein unbekannter Fehler ist aufgetreten.' }));
+    const error = new Error(errorData.message || `Ein Fehler ist aufgetreten: ${res.statusText}`);
+    throw error;
+  }
+
+  const data = await res.json();
+  if (Array.isArray(data)) {
+    return data;
+  }
+  throw new Error("Die von der API erhaltenen Daten waren kein Array.");
+};
+
+// --- NEU: Helper-Komponente für GSC-Vergleichswerte ---
+const GscChangeIndicator = ({ change, isPosition = false }: { 
+  change: number | string | null | undefined, 
+  isPosition?: boolean 
+}) => {
+  
+  const numChange = (change === null || change === undefined || change === '') 
+    ? 0 
+    : parseFloat(String(change));
+
+  if (numChange === 0) {
+    return null;
+  }
+  
+  let isPositive: boolean;
+  if (isPosition) {
+    isPositive = numChange < 0; // Negative Zahl ist gut
+  } else {
+    isPositive = numChange > 0; // Positive Zahl ist gut
+  }
+  
+  let text: string;
+  if (isPosition) {
+    text = (numChange > 0 ? `+${numChange.toFixed(2)}` : numChange.toFixed(2));
+  } else {
+    text = (numChange > 0 ? `+${numChange.toLocaleString('de-DE')}` : numChange.toLocaleString('de-DE'));
+  }
+  
+  const colorClasses = isPositive 
+    ? 'text-green-700 bg-green-100' 
+    : 'text-red-700 bg-red-100';
+  const Icon = isPositive ? ArrowUp : ArrowDown;
+
+  return (
+    <span className={cn('ml-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-bold', colorClasses)}>
+      <Icon size={12} />
+      {text}
+    </span>
+  );
+};
+
+
+// --- Hauptkomponente ---
+
+export default function LandingpageApproval() {
+  const { data: session } = useSession();
+  const userId = session?.user?.id;
+  const apiUrl = userId ? `/api/users/${userId}/landingpages` : null;
+
+  const { data: landingpages, error, isLoading, mutate } = useSWR<Landingpage[]>(apiUrl, fetcher);
+
+  // --- Event Handler (unverändert) ---
+  const handleStatusChange = async (id: number, newStatus: 'Freigegeben' | 'Gesperrt') => {
+    // Optimistic Update
+    const optimisticData = landingpages?.map((lp): Landingpage =>
+      lp.id === id ? { ...lp, status: newStatus } : lp
+    );
+
+    if (optimisticData) {
+      mutate(optimisticData, false);
     }
 
-    if (!userId) {
-      return NextResponse.json({ message: 'Ungültige Benutzer-ID' }, { status: 400 });
-    }
-
-    const formData = await request.formData();
-    const file = formData.get('file') as File;
-
-    if (!file) {
-      return NextResponse.json({ message: 'Keine Datei hochgeladen.' }, { status: 400 });
-    }
-
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const workbook = xlsx.read(buffer, { type: 'buffer' });
-    const sheetName = workbook.SheetNames[0];
-    const sheet = workbook.Sheets[sheetName];
-    
-    const rawData = xlsx.utils.sheet_to_json<unknown[]>(sheet, { 
-      header: 1, 
-      defval: '',
-      raw: false
-    });
-    
-    console.log(`📊 Excel-Import: ${rawData.length} Zeilen gelesen`);
-
-    if (rawData.length < 2) {
-      return NextResponse.json({ message: 'Die Excel-Datei enthält nicht genug Daten.' }, { status: 400 });
-    }
-
-    // Suche nach Header-Zeile
-    let headerRowIndex = -1;
-    let headerRow: unknown[] = [];
-
-    for (let i = 0; i < Math.min(10, rawData.length); i++) {
-      const row = rawData[i];
-      const hasUrlColumn = row.some(cell => {
-        const str = normalizeKey(String(cell));
-        return (str.includes('landingpage') && str.includes('url')) || 
-               str === 'url' || 
-               str === 'landingpageurl';
+    try {
+      const response = await fetch(`/api/landingpages/${id}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
       });
 
-      if (hasUrlColumn) {
-        headerRowIndex = i;
-        headerRow = row;
-        console.log(`✅ Header gefunden in Zeile ${i + 1}`);
-        break;
+      if (!response.ok) {
+        throw new Error('Fehler bei der Aktualisierung.');
       }
+
+      mutate(); // Erneutes Fetchen nach Erfolg
+
+    } catch (err) {
+      console.error("Fehler beim Status-Update:", err);
+      // Rollback
+      mutate(landingpages, false);
     }
+  };
 
-    if (headerRowIndex === -1) {
-      return NextResponse.json({ 
-        message: 'Keine Header-Zeile gefunden.'
-      }, { status: 400 });
+  // ---- Hilfsfunktionen für die UI (unverändert) ----
+
+  const getStatusStyle = (status: LandingpageStatus) => {
+    switch (status) {
+      case 'Offen': return 'text-blue-700 border-blue-300 bg-blue-50';
+      case 'In Prüfung': return 'text-yellow-700 border-yellow-300 bg-yellow-50';
+      case 'Gesperrt': return 'text-red-700 border-red-300 bg-red-50';
+      case 'Freigegeben': return 'text-green-700 border-green-300 bg-green-50';
+      default: return 'text-gray-700 border-gray-300 bg-gray-50';
     }
+  };
 
-    // Erstelle Spalten-Mapping
-    const columnIndices = {
-      url: -1,
-      hauptKeyword: -1,
-      weitereKeywords: -1,
-      suchvolumen: -1,
-      position: -1
-    };
-
-    headerRow.forEach((header, idx) => {
-      const normalized = normalizeKey(String(header));
-      
-      if ((normalized.includes('landingpage') && normalized.includes('url')) || normalized === 'url') {
-        columnIndices.url = idx;
-      }
-      
-      if ((normalized.includes('haupt') && normalized.includes('keyword')) || normalized === 'hauptkeyword') {
-        columnIndices.hauptKeyword = idx;
-      }
-      
-      if ((normalized.includes('weitere') && normalized.includes('keyword')) || normalized === 'weiterekeywords') {
-        columnIndices.weitereKeywords = idx;
-      }
-      
-      if (normalized.includes('suchvolumen') || normalized.includes('searchvolume') || normalized === 'volume') {
-        columnIndices.suchvolumen = idx;
-      }
-      
-      if ((normalized.includes('aktuelle') && normalized.includes('pos')) || normalized === 'position' || normalized === 'aktuellepos') {
-        columnIndices.position = idx;
-      }
-    });
-
-    if (columnIndices.url === -1) {
-      return NextResponse.json({ 
-        message: `URL-Spalte nicht gefunden!`
-      }, { status: 400 });
+  const getStatusIcon = (status: LandingpageStatus): ReactNode => {
+    switch (status) {
+      case 'Offen': return <FileEarmarkText className="inline-block" size={16} />;
+      case 'In Prüfung': return <Search className="inline-block" size={16} />;
+      case 'Gesperrt': return <SlashCircleFill className="inline-block" size={16} />;
+      case 'Freigegeben': return <CheckCircleFill className="inline-block" size={16} />;
+      default: return <InfoCircle className="inline-block" size={16} />;
     }
+  };
 
-    // Verarbeite Datenzeilen
-    const dataRows = rawData.slice(headerRowIndex + 1);
-    let importedCount = 0;
-    let skippedCount = 0;
-    const errors: string[] = [];
 
-    for (let i = 0; i < dataRows.length; i++) {
-      const row = dataRows[i];
-      const excelRowNum = headerRowIndex + i + 2;
-      
-      const hasContent = row.some(cell => cell && String(cell).trim() !== '');
-      if (!hasContent) {
-        skippedCount++;
-        continue;
-      }
+  // --- Render-Logik ---
 
-      const urlValue = toStr(row[columnIndices.url]);
-      const hauptKeyword = columnIndices.hauptKeyword !== -1 ? toStr(row[columnIndices.hauptKeyword]) : null;
-      const weitereKeywords = columnIndices.weitereKeywords !== -1 ? toStr(row[columnIndices.weitereKeywords]) : '';
-      const suchvolumen = columnIndices.suchvolumen !== -1 ? toNum(row[columnIndices.suchvolumen]) : null;
-      const aktuellePosition = columnIndices.position !== -1 ? toNum(row[columnIndices.position]) : null;
-
-      // Validierung
-      if (!urlValue || urlValue.length < 5) {
-        skippedCount++;
-        errors.push(`Zeile ${excelRowNum}: Ungültige URL`);
-        continue;
-      }
-
-      if (!urlValue.startsWith('http://') && !urlValue.startsWith('https://')) {
-        skippedCount++;
-        errors.push(`Zeile ${excelRowNum}: URL muss mit http(s):// beginnen`);
-        continue;
-      }
-
-      // Datenbank-Insert
-      try {
-        await sql`
-          INSERT INTO landingpages (user_id, url, haupt_keyword, weitere_keywords, suchvolumen, aktuelle_position)
-          VALUES (${userId}, ${urlValue}, ${hauptKeyword}, ${weitereKeywords}, ${suchvolumen}, ${aktuellePosition})
-          ON CONFLICT (url, user_id) DO UPDATE SET
-            haupt_keyword = EXCLUDED.haupt_keyword,
-            weitere_keywords = EXCLUDED.weitere_keywords,
-            suchvolumen = EXCLUDED.suchvolumen,
-            aktuelle_position = EXCLUDED.aktuelle_position;
-        `;
-        importedCount++;
-      } catch (dbError) {
-        console.error(`❌ DB-Fehler bei Zeile ${excelRowNum}:`, dbError);
-        errors.push(`Zeile ${excelRowNum}: Datenbankfehler`);
-        skippedCount++;
-      }
-    }
-
-    const message = importedCount > 0 
-      ? `✅ ${importedCount} Landingpage(s) erfolgreich importiert${skippedCount > 0 ? ` (${skippedCount} übersprungen)` : ''}.`
-      : `⚠️ Keine Daten importiert. ${skippedCount} Zeile(n) übersprungen.`;
-    
-    return NextResponse.json({
-      message,
-      imported: importedCount,
-      skipped: skippedCount,
-      total: dataRows.length,
-      errors: errors.length > 0 ? errors.slice(0, 10) : undefined
-    });
-  } catch (error) {
-    console.error('❌ Upload Fehler:', error);
-    return NextResponse.json(
-      { 
-        message: 'Fehler beim Verarbeiten der Datei.',
-        error: error instanceof Error ? error.message : 'Unbekannter Fehler'
-      },
-      { status: 500 }
+  if (isLoading) {
+    return (
+      <div className="mt-8 bg-white p-6 rounded-lg shadow-md border border-gray-200">
+        <h3 className="text-xl font-bold mb-4 text-gray-800">Redaktionsplan</h3>
+        <div className="flex items-center justify-center py-10">
+          <ArrowRepeat className="animate-spin text-indigo-600 mr-2" size={24} />
+          <p className="text-gray-500">Lade Redaktionsplan...</p>
+        </div>
+      </div>
     );
   }
+
+  if (error) {
+    return (
+      <div className="mt-8 bg-red-50 p-6 rounded-lg shadow-md border border-red-200">
+        <h3 className="text-xl font-bold mb-2 text-red-800 flex items-center gap-2">
+          <ExclamationTriangleFill size={20}/> Fehler im Redaktionsplan
+        </h3>
+        <p className="text-red-700 text-sm">{error.message}</p>
+      </div>
+    );
+  }
+
+  if (!Array.isArray(landingpages) || landingpages.length === 0) {
+    return null;
+  }
+
+  // Filtern der Landingpages nach Status
+  const pendingPages = landingpages.filter(lp => lp.status === 'In Prüfung');
+  const approvedPages = landingpages.filter(lp => lp.status === 'Freigegeben');
+  const blockedPages = landingpages.filter(lp => lp.status === 'Gesperrt');
+
+  if (pendingPages.length === 0 && approvedPages.length === 0 && blockedPages.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="mt-8 bg-white p-6 rounded-lg shadow-md border border-gray-200">
+      <h3 className="text-xl font-bold mb-6 text-gray-800 border-b pb-3">Redaktionsplan</h3>
+
+      {/* Zur Freigabe (In Prüfung) */}
+      {pendingPages.length > 0 && (
+        <div className="mb-8">
+          <h4 className="text-lg font-semibold text-yellow-800 mb-4 flex items-center gap-2">
+            {getStatusIcon('In Prüfung')} Zur Freigabe ({pendingPages.length})
+          </h4>
+          <div className="space-y-4">
+            {pendingPages.map((lp) => (
+              <div key={lp.id} className="p-4 border rounded-md bg-yellow-50 border-yellow-200 hover:shadow-sm transition-shadow">
+                <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-4">
+                  {/* Linke Seite: Details */}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-gray-800 mb-1 truncate" title={lp.haupt_keyword}>
+                      {lp.haupt_keyword || <span className="italic text-gray-500">Kein Haupt-Keyword</span>}
+                    </p>
+                    <a
+                      href={lp.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-indigo-600 hover:text-indigo-800 text-sm break-all underline block mb-2"
+                      title={lp.url}
+                    >
+                      {lp.url}
+                    </a>
+                    
+                    {/* AKTUALISIERT: GSC-Daten anzeigen */}
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">
+                      {lp.gsc_position != null && (
+                        <span className="flex items-center">
+                          Position: 
+                          <span className="font-medium text-gray-800 ml-1">
+                            {parseFloat(String(lp.gsc_position)).toFixed(2)}
+                          </span>
+                          <GscChangeIndicator change={lp.gsc_position_change} isPosition={true} />
+                        </span>
+                      )}
+                      {lp.gsc_klicks != null && (
+                        <span className="flex items-center">
+                          Klicks: 
+                          <span className="font-medium text-gray-800 ml-1">
+                            {lp.gsc_klicks.toLocaleString('de-DE')}
+                          </span>
+                          <GscChangeIndicator change={lp.gsc_klicks_change} />
+                        </span>
+                      )}
+                      {lp.gsc_impressionen != null && (
+                         <span className="flex items-center">
+                          Impr.: 
+                          <span className="font-medium text-gray-800 ml-1">
+                            {lp.gsc_impressionen.toLocaleString('de-DE')}
+                          </span>
+                          <GscChangeIndicator change={lp.gsc_impressionen_change} />
+                        </span>
+                      )}
+                    </div>
+                    {/* GSC-Datum */}
+                    {lp.gsc_last_updated && (
+                     <div className="text-[10px] text-gray-500 mt-2">
+                       GSC-Daten ({lp.gsc_last_range}): {new Date(lp.gsc_last_updated).toLocaleDateString('de-DE')}
+                     </div>
+                    )}
+                  </div>
+                  
+                  {/* Rechte Seite: Aktionen */}
+                  <div className="flex gap-2 flex-shrink-0 mt-2 sm:mt-0">
+                    <button
+                      onClick={() => handleStatusChange(lp.id, 'Gesperrt')}
+                      className="px-3 py-1.5 text-xs font-medium rounded border border-red-600 text-red-700 hover:bg-red-50 transition-colors flex items-center gap-1 whitespace-nowrap"
+                    >
+                      <SlashCircleFill size={14} /> Sperren
+                    </button>
+                    <button
+                      onClick={() => handleStatusChange(lp.id, 'Freigegeben')}
+                      className="px-3 py-1.5 text-xs font-medium rounded bg-green-600 border border-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1 whitespace-nowrap"
+                    >
+                      <CheckCircleFill size={14} /> Freigeben
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Freigegebene Landingpages (unverändert) */}
+      {approvedPages.length > 0 && (
+        <div className="mb-8">
+          <h4 className="text-lg font-semibold text-green-800 mb-4 flex items-center gap-2">
+             {getStatusIcon('Freigegeben')} Freigegeben ({approvedPages.length})
+          </h4>
+          <div className="space-y-3">
+            {approvedPages.map((lp) => (
+              <div key={lp.id} className="p-3 border rounded-md flex justify-between items-center bg-green-50 border-green-200">
+                <div className="min-w-0">
+                  <p className="font-semibold text-gray-800 text-sm truncate" title={lp.haupt_keyword}>
+                    {lp.haupt_keyword || <span className="italic text-gray-500">Kein Haupt-Keyword</span>}
+                  </p>
+                  <a
+                    href={lp.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-indigo-600 hover:text-indigo-800 text-xs break-all underline block"
+                    title={lp.url}
+                  >
+                    {lp.url}
+                  </a>
+                </div>
+                <button
+                  onClick={() => handleStatusChange(lp.id, 'Gesperrt')}
+                  className="px-3 py-1 text-xs font-medium rounded border border-red-600 text-red-700 hover:bg-red-50 transition-colors flex items-center gap-1 ml-4 flex-shrink-0"
+                >
+                   <SlashCircleFill size={14} /> Sperren
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Gesperrte Landingpages (unverändert) */}
+      {blockedPages.length > 0 && (
+        <div>
+          <h4 className="text-lg font-semibold text-red-800 mb-4 flex items-center gap-2">
+            {getStatusIcon('Gesperrt')} Gesperrt ({blockedPages.length})
+          </h4>
+          <div className="space-y-3">
+            {blockedPages.map((lp) => (
+              <div key={lp.id} className="p-3 border rounded-md flex justify-between items-center bg-red-50 border-red-200 opacity-80">
+                 <div className="min-w-0">
+                  <p className="font-semibold text-gray-800 text-sm truncate" title={lp.haupt_keyword}>
+                    {lp.haupt_keyword || <span className="italic text-gray-500">Kein Haupt-Keyword</span>}
+                  </p>
+                  <a
+                    href={lp.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-indigo-600 hover:text-indigo-800 text-xs break-all underline block"
+                    title={lp.url}
+                  >
+                    {lp.url}
+                  </a>
+                </div>
+                <button
+                  onClick={() => handleStatusChange(lp.id, 'Freigegeben')}
+                  className="px-3 py-1 text-xs font-medium rounded border border-green-600 text-green-700 hover:bg-green-50 transition-colors flex items-center gap-1 ml-4 flex-shrink-0"
+                >
+                   <CheckCircleFill size={14} /> Freigeben
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
