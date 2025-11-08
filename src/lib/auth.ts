@@ -104,32 +104,29 @@ export const authOptions: NextAuthOptions = {
   pages: {
     signIn: '/login',
   },
-  callbacks: {
-    // JWT mit Benutzerdaten anreichern
-    async jwt({ token, user }) {
-      if (user) {
-        token.id = user.id;
-        // @ts-expect-error
-        token.role = user.role;
-        // @ts-expect-error
-        token.mandant_id = user.mandant_id;
-        // @ts-expect-error
-        token.permissions = user.permissions;
-        // @ts-expect-error ✅ NEU: Logo-URL zum Token hinzufügen
-        token.logo_url = user.logo_url;
-      }
-      return token;
-    },
-    // Session mit den Daten aus dem JWT anreichern
-    async session({ session, token }) {
-      if (session.user) {
-        session.user.id = token.id as string;
-        session.user.role = token.role as 'BENUTZER' | 'ADMIN' | 'SUPERADMIN';
-        session.user.mandant_id = token.mandant_id as string | null | undefined;
-        session.user.permissions = token.permissions as string[] | undefined;
-        session.user.logo_url = token.logo_url as string | null | undefined; // ✅ NEU
-      }
-      return session;
-    },
+ callbacks: {
+  // JWT mit Benutzerdaten anreichern
+  async jwt({ token, user }) {
+    if (user) {
+      token.id = user.id;
+      // @ts-expect-error - Das 'user'-Objekt wird im 'authorize'-Callback erweitert
+      token.role = user.role;
+      // @ts-expect-error - Das 'user'-Objekt wird im 'authorize'-Callback erweitert
+      token.mandant_id = user.mandant_id; // NEU
+      // @ts-expect-error - Das 'user'-Objekt wird im 'authorize'-Callback erweitert
+      token.permissions = user.permissions; // NEU
+    }
+    return token;
   },
-};
+  // Session mit den Daten aus dem JWT anreichern
+  async session({ session, token }) {
+    if (session.user) {
+      session.user.id = token.id as string;
+      // Stellen sicher, dass die Rolle korrekt typisiert ist
+      session.user.role = token.role as 'BENUTZER' | 'ADMIN' | 'SUPERADMIN';
+      session.user.mandant_id = token.mandant_id as string | null | undefined; // NEU
+      session.user.permissions = token.permissions as string[] | undefined; // NEU
+    }
+    return session;
+  },
+},
