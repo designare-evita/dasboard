@@ -1,10 +1,10 @@
 // src/app/api/landingpages/refresh-gsc/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession, type Session } from 'next-auth';
+import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { sql } from '@vercel/postgres'; // SQL-Client
-import { getGscDataForPagesWithComparison, GscPageData } from '@/lib/google-api'; // Unsere GSC-Funktion
+import { sql, type QueryResult } from '@vercel/postgres'; // SQL-Client
+import { getGscDataForPagesWithComparison } from '@/lib/google-api'; // Unsere GSC-Funktion
 import type { User } from '@/types';
 
 // === Hilfsfunktionen zur Datumsberechnung ===
@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
     await client.query('BEGIN');
     
     let updatedCount = 0;
-    const updatePromises: Promise<any>[] = [];
+    const updatePromises: Promise<QueryResult>[] = [];
 
     // 8. Daten in die Datenbank schreiben
     for (const [url, data] of gscDataMap.entries()) {
