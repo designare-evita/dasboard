@@ -21,9 +21,11 @@ interface TopQueryData {
   impressions: number;
   ctr: number;
   position: number;
-}
+} // <-- Die schließende Klammer ist hier (Zeile 24)
 
-export interface AiTrafficData {
+// <-- Zeile 25 ist leer
+
+export interface AiTrafficData { // <-- Zeile 26, auf die der Fehler zeigt
   totalSessions: number;
   totalUsers: number;
 
