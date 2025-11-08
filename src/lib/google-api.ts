@@ -33,7 +33,7 @@ export interface AiTrafficData { // <-- Zeile 26, auf die der Fehler zeigt
   totalUsersChange?: number;
   
   sessionsBySource: {
-    : number;
+    [source: string]: number;
   };
   topAiSources: Array<{
     source: string;
