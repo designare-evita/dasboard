@@ -18,8 +18,6 @@ export const authOptions: NextAuthOptions = {
       // Diese Funktion wird bei jedem Anmeldeversuch ausgeführt
       async authorize(credentials) {
         // NEU: Verhindert das Caching der Benutzerabfrage.
-        // Dies stellt sicher, dass immer frische Daten aus der DB gelesen werden
-        // und löst das Problem, dass Logins nach 10 Min. fehlschlagen.
         noStore();
 
         if (!credentials?.email || !credentials.password) {
@@ -27,12 +25,11 @@ export const authOptions: NextAuthOptions = {
           return null; // Keine Anmeldedaten vorhanden
         }
 
-        // Normalisiert die E-Mail, um Caching-Inkonsistenzen oder Eingabefehler zu vermeiden
         const normalizedEmail = credentials.email.toLowerCase().trim();
         console.log('[Authorize] Suche Benutzer:', normalizedEmail);
 
         try {
-          // 1. Benutzer in der Datenbank suchen (INKLUSIVE mandant_id und permissions)
+          // 1. Benutzer in der Datenbank suchen
           const { rows } = await sql`
             SELECT id, email, password, role, mandant_id, permissions 
             FROM users 
@@ -42,7 +39,6 @@ export const authOptions: NextAuthOptions = {
 
           if (!user) {
             console.log('[Authorize] Benutzer nicht gefunden:', normalizedEmail);
-            // WICHTIG: Wir werfen einen Error, damit NextAuth weiß, dass es fehlgeschlagen ist
             throw new Error('Nicht autorisiert');
           }
 
@@ -53,31 +49,47 @@ export const authOptions: NextAuthOptions = {
             throw new Error('Serverkonfigurationsfehler');
           }
 
-          // 2. Eingegebenes Passwort mit dem Hash in der Datenbank vergleichen
+          // 2. Passwort vergleichen
           const passwordsMatch = await bcrypt.compare(credentials.password, user.password);
 
           if (!passwordsMatch) {
             console.log('[Authorize] Passwort-Vergleich fehlgeschlagen für:', normalizedEmail);
-            // WICHTIG: Wir werfen denselben Error, damit das Frontend die Meldung anzeigen kann
             throw new Error('Nicht autorisiert');
           }
 
           console.log('[Authorize] Login erfolgreich für:', user.email);
+
+          // ✅ NEU: Logo-URL für den Mandanten abrufen
+          let logo_url: string | null = null;
+          if (user.mandant_id) {
+            try {
+              const { rows: logoRows } = await sql`
+                SELECT logo_url FROM mandanten_logos WHERE mandant_id = ${user.mandant_id}
+              `;
+              if (logoRows.length > 0) {
+                logo_url = logoRows[0].logo_url;
+                console.log('[Authorize] Mandanten-Logo gefunden:', logo_url);
+              }
+            } catch (logoError) {
+              console.error('[Authorize] Fehler beim Abrufen des Logos:', logoError);
+            }
+          }
+          // ✅ ENDE NEU
+
           // 3. Bei Erfolg das Benutzerobjekt zurückgeben
           return {
             id: user.id,
             email: user.email,
             role: user.role,
-            mandant_id: user.mandant_id, // NEU
-            permissions: user.permissions || [], // NEU
+            mandant_id: user.mandant_id,
+            permissions: user.permissions || [],
+            logo_url: logo_url, // ✅ NEU
           };
         } catch (error) {
-          // Leitet die spezifische Fehlermeldung an NextAuth weiter
           if (error instanceof Error) {
             console.warn(`[Authorize] Fehler: ${error.message}`);
-            throw error; // Den Fehler (z.B. "Nicht autorisiert") weiterwerfen
+            throw error;
           }
-          // Fallback für unerwartete Fehler
           console.error("[Authorize] Unerwarteter Fehler:", error);
           throw new Error('Authentifizierungsfehler');
         }
@@ -85,31 +97,26 @@ export const authOptions: NextAuthOptions = {
     })
   ],
   session: {
-    strategy: 'jwt', // Wir verwenden JWTs, um die Session zu verwalten
-    
-    // ✅ KORREKTUR: Automatischer Logout nach 60 Minuten (3600 Sekunden)
-    // NextAuth prüft bei Interaktionen, ob die Session älter als maxAge ist.
-    // Wenn ja, wird der Benutzer beim nächsten API-Aufruf oder Seitenwechsel ausgeloggt.
-    maxAge: 60 * 60, // 60 Minuten in Sekunden
+    strategy: 'jwt',
+    maxAge: 60 * 60, // 60 Minuten
   },
   secret: process.env.NEXTAUTH_SECRET,
   pages: {
-    signIn: '/login', // Leitet Benutzer zur neuen Login-Seite
+    signIn: '/login',
   },
   callbacks: {
     // JWT mit Benutzerdaten anreichern
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        // KORREKTUR: Beschreibung hinzugefügt
-        // @ts-expect-error Das 'user'-Objekt wird im 'authorize'-Callback erweitert
+        // @ts-expect-error
         token.role = user.role;
-        // KORREKTUR: Beschreibung hinzugefügt
-        // @ts-expect-error Das 'user'-Objekt wird im 'authorize'-Callback erweitert
-        token.mandant_id = user.mandant_id; // NEU
-        // KORREKTUR: Beschreibung hinzugefügt
-        // @ts-expect-error Das 'user'-Objekt wird im 'authorize'-Callback erweitert
-        token.permissions = user.permissions; // NEU
+        // @ts-expect-error
+        token.mandant_id = user.mandant_id;
+        // @ts-expect-error
+        token.permissions = user.permissions;
+        // @ts-expect-error ✅ NEU: Logo-URL zum Token hinzufügen
+        token.logo_url = user.logo_url;
       }
       return token;
     },
@@ -117,10 +124,10 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.id as string;
-        // Stellen sicher, dass die Rolle korrekt typisiert ist
         session.user.role = token.role as 'BENUTZER' | 'ADMIN' | 'SUPERADMIN';
-        session.user.mandant_id = token.mandant_id as string | null | undefined; // NEU
-        session.user.permissions = token.permissions as string[] | undefined; // NEU
+        session.user.mandant_id = token.mandant_id as string | null | undefined;
+        session.user.permissions = token.permissions as string[] | undefined;
+        session.user.logo_url = token.logo_url as string | null | undefined; // ✅ NEU
       }
       return session;
     },
