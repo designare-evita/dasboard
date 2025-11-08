@@ -4,6 +4,9 @@
 import { useState, useEffect, ReactNode, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector'; // NEU
+import { cn } from '@/lib/utils'; // NEU
+
 // Icons importieren
 import {
   FileEarmarkText,
@@ -16,22 +19,76 @@ import {
   InfoCircleFill,
   ListTask,
   Filter,
+  ArrowUp, // NEU
+  ArrowDown, // NEU
 } from 'react-bootstrap-icons';
 
-// Typdefinition für Landingpage
+// Typdefinition für Landingpage (AKTUALISIERT)
 type Landingpage = {
   id: number;
   url: string;
   haupt_keyword: string | null;
-  weitere_keywords: string | null;
-  suchvolumen: number | null;
-  aktuelle_position: number | null;
+  weitere_keywords: string | null; // Behalten wir bei, falls es noch genutzt wird
   status: 'Offen' | 'In Prüfung' | 'Gesperrt' | 'Freigegeben';
+  user_id: string;
   created_at: string;
+  
+  // NEUE GSC-Felder:
+  gsc_klicks: number | null;
+  gsc_klicks_change: number | null;
+  gsc_impressionen: number | null;
+  gsc_impressionen_change: number | null;
+  gsc_position: number | string | null; // Kann als String (Decimal) kommen
+  gsc_position_change: number | string | null; // Kann als String (Decimal) kommen
+  gsc_last_updated: string | null;
+  gsc_last_range: string | null;
 };
+
 
 // Typdefinition für erlaubte Statuswerte
 type LandingpageStatus = Landingpage['status'];
+
+// NEU: Helper-Komponente für GSC-Vergleichswerte
+const GscChangeIndicator = ({ change, isPosition = false }: { 
+  change: number | string | null | undefined, 
+  isPosition?: boolean 
+}) => {
+  
+  const numChange = (change === null || change === undefined || change === '') 
+    ? 0 
+    : parseFloat(String(change));
+
+  if (numChange === 0) {
+    return null;
+  }
+  
+  let isPositive: boolean;
+  if (isPosition) {
+    isPositive = numChange < 0; // Negative Zahl ist gut
+  } else {
+    isPositive = numChange > 0; // Positive Zahl ist gut
+  }
+  
+  let text: string;
+  if (isPosition) {
+    text = (numChange > 0 ? `+${numChange.toFixed(2)}` : numChange.toFixed(2));
+  } else {
+    text = (numChange > 0 ? `+${numChange.toLocaleString('de-DE')}` : numChange.toLocaleString('de-DE'));
+  }
+  
+  const colorClasses = isPositive 
+    ? 'text-green-700 bg-green-100' 
+    : 'text-red-700 bg-red-100';
+  const Icon = isPositive ? ArrowUp : ArrowDown;
+
+  return (
+    <span className={cn('ml-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-bold', colorClasses)}>
+      <Icon size={12} />
+      {text}
+    </span>
+  );
+};
+
 
 export default function FreigabePage() {
   const { data: session, status: authStatus } = useSession();
@@ -42,14 +99,17 @@ export default function FreigabePage() {
   const [filterStatus, setFilterStatus] = useState<LandingpageStatus | 'alle'>('alle');
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState('');
+  
+  // NEUE STATES
+  const [dateRange, setDateRange] = useState<DateRangeOption>('30d');
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Funktion zum Laden der Landingpages
-  // KORREKTUR: Mit useCallback umschlossen
+  // Funktion zum Laden der Landingpages (mit useCallback)
   const loadLandingpages = useCallback(async () => {
+    if (!session?.user?.id) return;
+    
     // isLoading nur beim ersten Laden setzen, nicht bei Refresh
     if (landingpages.length === 0) setIsLoading(true);
-
-    if (!session?.user?.id) return;
 
     try {
       const response = await fetch(`/api/users/${session.user.id}/landingpages`);
@@ -59,25 +119,25 @@ export default function FreigabePage() {
       }
       const data: Landingpage[] = await response.json();
       setLandingpages(data);
-      setMessage(''); // Erfolgreich geladen, Nachricht zurücksetzen
+      if(message.startsWith('Starte')) setMessage(''); // Lade-Nachricht löschen
     } catch (error) {
       console.error('[Freigabe] Fehler:', error);
       setMessage(error instanceof Error ? error.message : 'Fehler beim Laden der Landingpages');
     } finally {
       setIsLoading(false);
     }
-  }, [session?.user?.id, landingpages.length]); // Abhängigkeiten für useCallback
+  }, [session?.user?.id, landingpages.length, message]); // message hinzugefügt, um Lade-Status zu löschen
 
   // Landingpages laden und Auto-Refresh einrichten
   useEffect(() => {
     if (authStatus === 'authenticated' && session?.user?.id) {
       loadLandingpages(); // Initiales Laden
 
-      // Auto-Refresh alle 30 Sekunden
+      // Auto-Refresh (nur für Status, nicht GSC)
       const interval = setInterval(loadLandingpages, 30000);
       return () => clearInterval(interval); // Aufräumen bei Unmount
     }
-  }, [authStatus, session?.user?.id, loadLandingpages]); // KORREKTUR: loadLandingpages hinzugefügt
+  }, [authStatus, session?.user?.id, loadLandingpages]);
 
   // Filter anwenden, wenn sich Filter oder Landingpages ändern
   useEffect(() => {
@@ -117,10 +177,47 @@ export default function FreigabePage() {
       setMessage(error instanceof Error ? error.message : 'Fehler beim Ändern des Status');
     }
   };
+  
+  // NEU: GSC-Daten-Abgleich-Handler
+  const handleGscRefresh = async () => {
+    if (!session?.user?.id) {
+      setMessage("Fehler: Sitzung nicht gefunden.");
+      return;
+    }
+    
+    setIsRefreshing(true);
+    setMessage(`Starte GSC-Abgleich für Zeitraum: ${dateRange}...`);
+    
+    try {
+      const response = await fetch('/api/landingpages/refresh-gsc', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId: session.user.id, // Für Kunden ist die User-ID die Projekt-ID
+          dateRange: dateRange
+        })
+      });
+      
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.message || 'GSC-Abgleich fehlgeschlagen');
+      }
+      
+      setMessage(result.message || 'Daten erfolgreich abgeglichen!');
+      // Lade die Tabelle neu, um die frischen GSC-Daten anzuzeigen
+      await loadLandingpages(); 
+      
+    } catch (error) {
+      console.error('Fehler beim GSC-Abgleich:', error);
+      setMessage(error instanceof Error ? `❌ Fehler: ${error.message}` : 'Fehler beim Abgleich');
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
 
   // ---- Hilfsfunktionen für die UI ----
 
-  // Gibt die Styling-Klassen für Status-Badges zurück
   const getStatusStyle = (status: LandingpageStatus) => {
     switch (status) {
       case 'Offen': return 'text-blue-700 border-blue-300 bg-blue-50';
@@ -131,7 +228,6 @@ export default function FreigabePage() {
     }
   };
 
-  // Gibt das passende Icon für den Status zurück
   const getStatusIcon = (status: LandingpageStatus): ReactNode => {
     switch (status) {
       case 'Offen': return <FileEarmarkText className="inline-block" size={18} />;
@@ -142,8 +238,7 @@ export default function FreigabePage() {
     }
   };
 
-  // Definiert die Filter-Buttons
-   const filterOptions: { label: string; value: LandingpageStatus | 'alle'; icon: ReactNode }[] = [
+  const filterOptions: { label: string; value: LandingpageStatus | 'alle'; icon: ReactNode }[] = [
     { label: 'Alle', value: 'alle', icon: <ListTask className="inline-block mr-1" size={16}/> },
     { label: 'Offen', value: 'Offen', icon: <FileEarmarkText className="inline-block mr-1" size={16}/> },
     { label: 'In Prüfung', value: 'In Prüfung', icon: <Search className="inline-block mr-1" size={16}/> },
@@ -156,10 +251,9 @@ export default function FreigabePage() {
     return <div className="p-8 text-center">Lade Sitzung...</div>;
   }
 
-  // Sicherstellen, dass der Nutzer die richtige Rolle hat
   if (authStatus === 'unauthenticated' || session?.user?.role !== 'BENUTZER') {
-    router.push('/'); // Zurück zur Startseite oder Loginseite
-    return null; // Rendert nichts, während umgeleitet wird
+    router.push('/'); 
+    return null;
   }
 
   const pendingReviewCount = landingpages.filter(lp => lp.status === 'In Prüfung').length;
@@ -180,11 +274,40 @@ export default function FreigabePage() {
 
         {/* Nachrichtenanzeige */}
         {message && (
-          <div className={`mb-6 p-4 border rounded-md ${message.startsWith('Fehler') ? 'bg-red-50 border-red-200 text-red-800' : 'bg-green-50 border-green-200 text-green-800'} flex items-center gap-2`}>
-            {message.startsWith('Fehler') ? <ExclamationTriangleFill size={18}/> : <InfoCircleFill size={18}/>}
+          <div className={`mb-6 p-4 border rounded-md ${message.startsWith('Fehler') || message.startsWith('❌') ? 'bg-red-50 border-red-200 text-red-800' : 'bg-blue-50 border-blue-200 text-blue-800'} flex items-center gap-2`}>
+            {message.startsWith('Fehler') || message.startsWith('❌') ? <ExclamationTriangleFill size={18}/> : <InfoCircleFill size={18}/>}
             {message}
           </div>
         )}
+
+        {/* NEU: GSC-Abgleich-Box */}
+        <div className="bg-white p-6 rounded-lg shadow-md mb-6">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">GSC-Daten Abgleich</h3>
+          <p className="text-sm text-gray-600 mb-4">
+            Klicken Sie hier, um die GSC-Daten (Klicks, Impressionen, Position) für die untenstehenden Landingpages manuell abzurufen. 
+            Der Abgleich passiert sonst automatisch alle 48 Stunden.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4">
+            <DateRangeSelector
+              value={dateRange}
+              onChange={setDateRange}
+              className="w-full sm:w-auto"
+            />
+            <button
+              onClick={handleGscRefresh}
+              disabled={isRefreshing || isLoading}
+              className="px-4 py-2 font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-wait flex items-center justify-center gap-2 w-full sm:w-auto"
+            >
+              {isRefreshing ? (
+                <ArrowRepeat className="animate-spin" size={18} />
+              ) : (
+                <Search size={16} />
+              )}
+              <span>{isRefreshing ? 'Wird abgeglichen...' : 'GSC-Daten abgleichen'}</span>
+            </button>
+          </div>
+        </div>
+
 
         {/* Benachrichtigung für wartende Freigaben */}
         {pendingReviewCount > 0 && (
@@ -251,16 +374,23 @@ export default function FreigabePage() {
                 key={lp.id}
                 className="bg-white rounded-lg shadow-md border border-gray-200 hover:shadow-lg transition-shadow overflow-hidden"
               >
+                {/* Header der Karte (Status) */}
                 <div className={`p-4 border-b ${getStatusStyle(lp.status)} flex items-center justify-between`}>
                   <div className="flex items-center gap-2 font-semibold">
                      {getStatusIcon(lp.status)}
                      {lp.status}
                   </div>
-                  <span className="text-xs text-gray-500">
-                     ID: {lp.id}
-                  </span>
+                  {/* GSC-Datum anzeigen, falls vorhanden */}
+                  {lp.gsc_last_updated && (
+                     <span className="text-xs text-gray-600 opacity-80" title={new Date(lp.gsc_last_updated).toLocaleString('de-DE')}>
+                       GSC-Daten ({lp.gsc_last_range}): {new Date(lp.gsc_last_updated).toLocaleDateString('de-DE')}
+                     </span>
+                  )}
                 </div>
+                
+                {/* Inhalt der Karte */}
                 <div className="p-5 space-y-4">
+                  {/* Titel/URL */}
                   <div>
                     <h3 className="text-lg font-semibold text-gray-800 mb-1">
                       {lp.haupt_keyword || <span className="italic text-gray-500">Kein Haupt-Keyword</span>}
@@ -275,32 +405,46 @@ export default function FreigabePage() {
                       {lp.url}
                     </a>
                   </div>
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                    {lp.suchvolumen != null && (
-                      <div>
-                        <span className="text-gray-500">Suchvolumen:</span>
-                        <p className="font-medium text-gray-900">
-                          {lp.suchvolumen.toLocaleString('de-DE')}
-                        </p>
-                      </div>
-                    )}
-                    {lp.aktuelle_position != null && (
-                      <div>
-                        <span className="text-gray-500">Position:</span>
-                        <p className="font-medium text-gray-900">
-                          {lp.aktuelle_position}
-                        </p>
-                      </div>
-                    )}
-                    {lp.weitere_keywords && (
-                      <div className="col-span-2">
-                        <span className="text-gray-500">Weitere Keywords:</span>
-                        <p className="font-medium text-gray-900 text-xs mt-1 bg-gray-50 p-2 rounded border">
-                          {lp.weitere_keywords}
-                        </p>
-                      </div>
-                    )}
+                  
+                  {/* AKTUALISIERT: GSC-Daten statt alter Felder */}
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm border-t border-b py-4">
+                    {/* Klicks */}
+                    <div>
+                      <span className="text-gray-500">GSC Klicks:</span>
+                      <p className="font-medium text-gray-900 flex items-center">
+                        {lp.gsc_klicks?.toLocaleString('de-DE') || '-'}
+                        <GscChangeIndicator change={lp.gsc_klicks_change} />
+                      </p>
+                    </div>
+                    {/* Impressionen */}
+                    <div>
+                      <span className="text-gray-500">GSC Impressionen:</span>
+                      <p className="font-medium text-gray-900 flex items-center">
+                        {lp.gsc_impressionen?.toLocaleString('de-DE') || '-'}
+                        <GscChangeIndicator change={lp.gsc_impressionen_change} />
+                      </p>
+                    </div>
+                    {/* Position (KORRIGIERT) */}
+                    <div>
+                      <span className="text-gray-500">GSC Position:</span>
+                      <p className="font-medium text-gray-900 flex items-center">
+                        {lp.gsc_position ? parseFloat(String(lp.gsc_position)).toFixed(2) : '-'}
+                        <GscChangeIndicator change={lp.gsc_position_change} isPosition={true} />
+                      </p>
+                    </div>
                   </div>
+                  
+                  {/* Weitere Keywords (falls vorhanden) */}
+                  {lp.weitere_keywords && (
+                    <div className="col-span-2">
+                      <span className="text-gray-500 text-sm">Weitere Keywords:</span>
+                      <p className="font-medium text-gray-900 text-xs mt-1 bg-gray-50 p-2 rounded border">
+                        {lp.weitere_keywords}
+                      </p>
+                    </div>
+                  )}
+                  
+                  {/* Aktionen (Freigabe/Sperren) */}
                   <div className="pt-4 border-t border-gray-100 flex gap-2 justify-end">
                     {lp.status === 'In Prüfung' && (
                       <>
