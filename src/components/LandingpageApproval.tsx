@@ -260,7 +260,7 @@ export default function LandingpageApproval() {
         )}
       </div>
 
-      {/* Zur Freigabe (In Prüfung) */}
+      {/* Zur Freigabe (In Prüfung) - ✅ KORRIGIERT */}
       {pendingPages.length > 0 && (
         <div className="mb-8">
           <h4 className="text-lg font-semibold text-yellow-800 mb-4 flex items-center gap-2">
@@ -283,34 +283,29 @@ export default function LandingpageApproval() {
                     >
                       {lp.url}
                     </a>
+                    {/* ✅ KORREKTUR: Zeige GSC-Daten IMMER an (auch bei 0) */}
                     <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">
-                      {lp.gsc_position != null && (
-                        <span className="flex items-center">
-                          Position: 
-                          <span className="font-medium text-gray-800 ml-1">
-                            {parseFloat(String(lp.gsc_position)).toFixed(2)}
-                          </span>
-                          <GscChangeIndicator change={lp.gsc_position_change} isPosition={true} />
+                      <span className="flex items-center">
+                        Position: 
+                        <span className="font-medium text-gray-800 ml-1">
+                          {lp.gsc_position != null ? parseFloat(String(lp.gsc_position)).toFixed(2) : '-'}
                         </span>
-                      )}
-                      {lp.gsc_klicks != null && (
-                        <span className="flex items-center">
-                          Klicks: 
-                          <span className="font-medium text-gray-800 ml-1">
-                            {lp.gsc_klicks.toLocaleString('de-DE')}
-                          </span>
-                          <GscChangeIndicator change={lp.gsc_klicks_change} />
+                        {lp.gsc_position != null && <GscChangeIndicator change={lp.gsc_position_change} isPosition={true} />}
+                      </span>
+                      <span className="flex items-center">
+                        Klicks: 
+                        <span className="font-medium text-gray-800 ml-1">
+                          {lp.gsc_klicks != null ? lp.gsc_klicks.toLocaleString('de-DE') : '-'}
                         </span>
-                      )}
-                      {lp.gsc_impressionen != null && (
-                        <span className="flex items-center">
-                          Impr.: 
-                          <span className="font-medium text-gray-800 ml-1">
-                            {lp.gsc_impressionen.toLocaleString('de-DE')}
-                          </span>
-                          <GscChangeIndicator change={lp.gsc_impressionen_change} />
+                        {lp.gsc_klicks != null && <GscChangeIndicator change={lp.gsc_klicks_change} />}
+                      </span>
+                      <span className="flex items-center">
+                        Impr.: 
+                        <span className="font-medium text-gray-800 ml-1">
+                          {lp.gsc_impressionen != null ? lp.gsc_impressionen.toLocaleString('de-DE') : '-'}
                         </span>
-                      )}
+                        {lp.gsc_impressionen != null && <GscChangeIndicator change={lp.gsc_impressionen_change} />}
+                      </span>
                     </div>
                     {lp.gsc_last_updated && (
                       <div className="text-[10px] text-gray-500 mt-2">
@@ -339,7 +334,7 @@ export default function LandingpageApproval() {
         </div>
       )}
 
-      {/* Freigegebene Landingpages */}
+      {/* Freigegebene Landingpages - ✅ KORRIGIERT */}
       {approvedPages.length > 0 && (
         <div className="mb-8">
           <h4 className="text-lg font-semibold text-green-800 mb-4 flex items-center gap-2">
@@ -347,34 +342,42 @@ export default function LandingpageApproval() {
           </h4>
           <div className="space-y-3">
             {approvedPages.map((lp) => (
-              <div key={lp.id} className="p-3 border rounded-md flex justify-between items-center bg-green-50 border-green-200">
-                <div className="min-w-0">
-                  <p className="font-semibold text-gray-800 text-sm truncate" title={lp.haupt_keyword || undefined}>
-                    {lp.haupt_keyword || <span className="italic text-gray-500">Kein Haupt-Keyword</span>}
-                  </p>
-                  <a
-                    href={lp.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-indigo-600 hover:text-indigo-800 text-xs break-all underline block"
-                    title={lp.url}
+              <div key={lp.id} className="p-3 border rounded-md bg-green-50 border-green-200">
+                <div className="flex justify-between items-start gap-4">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-gray-800 text-sm truncate mb-1" title={lp.haupt_keyword || undefined}>
+                      {lp.haupt_keyword || <span className="italic text-gray-500">Kein Haupt-Keyword</span>}
+                    </p>
+                    <a
+                      href={lp.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-indigo-600 hover:text-indigo-800 text-xs break-all underline block mb-2"
+                      title={lp.url}
+                    >
+                      {lp.url}
+                    </a>
+                    {/* ✅ KORREKTUR: Zeige GSC-Daten IMMER an */}
+                    <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-gray-600">
+                      <span>Pos: {lp.gsc_position != null ? parseFloat(String(lp.gsc_position)).toFixed(2) : '-'}</span>
+                      <span>Klicks: {lp.gsc_klicks != null ? lp.gsc_klicks.toLocaleString('de-DE') : '-'}</span>
+                      <span>Impr: {lp.gsc_impressionen != null ? lp.gsc_impressionen.toLocaleString('de-DE') : '-'}</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleStatusChange(lp.id, 'Gesperrt')}
+                    className="px-3 py-1 text-xs font-medium rounded border border-red-600 text-red-700 hover:bg-red-50 transition-colors flex items-center gap-1 flex-shrink-0"
                   >
-                    {lp.url}
-                  </a>
+                    <SlashCircleFill size={14} /> Sperren
+                  </button>
                 </div>
-                <button
-                  onClick={() => handleStatusChange(lp.id, 'Gesperrt')}
-                  className="px-3 py-1 text-xs font-medium rounded border border-red-600 text-red-700 hover:bg-red-50 transition-colors flex items-center gap-1 ml-4 flex-shrink-0"
-                >
-                  <SlashCircleFill size={14} /> Sperren
-                </button>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* Gesperrte Landingpages */}
+      {/* Gesperrte Landingpages - ✅ KORRIGIERT */}
       {blockedPages.length > 0 && (
         <div>
           <h4 className="text-lg font-semibold text-red-800 mb-4 flex items-center gap-2">
@@ -382,27 +385,35 @@ export default function LandingpageApproval() {
           </h4>
           <div className="space-y-3">
             {blockedPages.map((lp) => (
-              <div key={lp.id} className="p-3 border rounded-md flex justify-between items-center bg-red-50 border-red-200 opacity-80">
-                <div className="min-w-0">
-                  <p className="font-semibold text-gray-800 text-sm truncate" title={lp.haupt_keyword || undefined}>
-                    {lp.haupt_keyword || <span className="italic text-gray-500">Kein Haupt-Keyword</span>}
-                  </p>
-                  <a
-                    href={lp.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-indigo-600 hover:text-indigo-800 text-xs break-all underline block"
-                    title={lp.url}
+              <div key={lp.id} className="p-3 border rounded-md bg-red-50 border-red-200 opacity-80">
+                <div className="flex justify-between items-start gap-4">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-gray-800 text-sm truncate mb-1" title={lp.haupt_keyword || undefined}>
+                      {lp.haupt_keyword || <span className="italic text-gray-500">Kein Haupt-Keyword</span>}
+                    </p>
+                    <a
+                      href={lp.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-indigo-600 hover:text-indigo-800 text-xs break-all underline block mb-2"
+                      title={lp.url}
+                    >
+                      {lp.url}
+                    </a>
+                    {/* ✅ KORREKTUR: Zeige GSC-Daten IMMER an */}
+                    <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-gray-600">
+                      <span>Pos: {lp.gsc_position != null ? parseFloat(String(lp.gsc_position)).toFixed(2) : '-'}</span>
+                      <span>Klicks: {lp.gsc_klicks != null ? lp.gsc_klicks.toLocaleString('de-DE') : '-'}</span>
+                      <span>Impr: {lp.gsc_impressionen != null ? lp.gsc_impressionen.toLocaleString('de-DE') : '-'}</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleStatusChange(lp.id, 'Freigegeben')}
+                    className="px-3 py-1 text-xs font-medium rounded border border-green-600 text-green-700 hover:bg-green-50 transition-colors flex items-center gap-1 flex-shrink-0"
                   >
-                    {lp.url}
-                  </a>
+                    <CheckCircleFill size={14} /> Freigeben
+                  </button>
                 </div>
-                <button
-                  onClick={() => handleStatusChange(lp.id, 'Freigegeben')}
-                  className="px-3 py-1 text-xs font-medium rounded border border-green-600 text-green-700 hover:bg-green-50 transition-colors flex items-center gap-1 ml-4 flex-shrink-0"
-                >
-                  <CheckCircleFill size={14} /> Freigeben
-                </button>
               </div>
             ))}
           </div>
