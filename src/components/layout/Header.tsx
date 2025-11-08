@@ -19,12 +19,9 @@ export default function Header() {
   const isAdmin = session?.user?.role === 'ADMIN' || session?.user?.role === 'SUPERADMIN'; 
   const isUser = session?.user?.role === 'BENUTZER'; 
 
-  // ✅ NEU: Logo-Logik
-  // 1. Standard-Logo-Pfad
+  // ✅ Logo-Logik
   const defaultLogo = "/logo-data-peak.webp";
-  // 2. Logo aus der Session holen, sonst Standard-Logo
   const logoSrc = session?.user?.logo_url || defaultLogo;
-  // 3. 'priority' nur setzen, wenn es das Standard-Logo ist (optimiert LCP)
   const priorityLoad = logoSrc === defaultLogo;
 
   if (pathname === '/login') { 
@@ -42,20 +39,19 @@ export default function Header() {
         {/* Linke Seite: Logo und Begrüßung */}
         <div className="flex items-center space-x-4">
           <Link href="/" onClick={handleLinkClick}>
-            {/* ✅ NEU: Image-Tag mit dynamischem 'src' und 'priority' */}
             <Image
               src={logoSrc}
               alt="Dashboard Logo"
               width={180}
               height={45}
-              priority={priorityLoad} // Dynamische Priorität
-              // Fallback, falls das Mandanten-Logo fehlschlägt
+              priority={priorityLoad}
               onError={(e) => { 
                 if (logoSrc !== defaultLogo) {
                   (e.target as HTMLImageElement).src = defaultLogo;
                 }
               }}
-              className="object-contain" // Stellt sicher, dass das Logo passt
+              className="object-contain max-h-[45px] w-auto" // ✅ KRITISCHE ÄNDERUNG
+              style={{ maxHeight: '45px' }} // ✅ ZUSÄTZLICHE SICHERHEIT
             />
           </Link>
 
@@ -68,7 +64,7 @@ export default function Header() {
           )}
         </div>
 
-        {/* Rechte Seite (Desktop) - (Keine Änderungen hier) */}
+        {/* Rechte Seite (Desktop) */}
         <div className="hidden md:flex items-center space-x-4">
           {status === 'authenticated' && (
             <>
@@ -120,7 +116,7 @@ export default function Header() {
           )}
         </div>
 
-        {/* Hamburger-Button (Mobilgeräte) - (Keine Änderungen hier) */}
+        {/* Hamburger-Button (Mobilgeräte) */}
         <div className="md:hidden flex items-center">
           {status === 'authenticated' && <NotificationBell />}
           
@@ -134,7 +130,7 @@ export default function Header() {
         </div>
       </nav>
 
-      {/* Mobiles Dropdown-Menü - (Keine Änderungen hier) */}
+      {/* Mobiles Dropdown-Menü */}
       {isMobileMenuOpen && status === 'authenticated' && (
         <div 
           className="md:hidden absolute top-full left-0 w-full bg-white shadow-lg border-t border-gray-100 z-50"
