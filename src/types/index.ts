@@ -21,3 +21,23 @@ export interface User {
   semrush_last_fetched?: string; // Kommt als String/Date von der DB
   favicon_url?: string;
 }
+
+export interface Landingpage {
+  id: number;
+  url: string;
+  status: 'Offen' | 'In Prüfung' | 'Gesperrt' | 'Freigegeben';
+  haupt_keyword?: string;
+  weitere_keywords?: string;
+
+  // GSC-Felder:
+  gsc_klicks: number | null;
+  gsc_klicks_change: number | null;
+  gsc_impressionen: number | null;
+  gsc_impressionen_change: number | null;
+  gsc_position: number | string | null; 
+  gsc_position_change: number | string | null; 
+  gsc_last_updated: string | null;
+  gsc_last_range: string | null;
+}
+
+export type LandingpageStatus = Landingpage['status'];
