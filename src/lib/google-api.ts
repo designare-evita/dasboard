@@ -1,4 +1,4 @@
-// src/lib/google-api.ts (KORRIGIERT & VOLLSTÄNDIG)
+// src/lib/google-api.ts (VOLLSTÄNDIG & KORRIGIERT)
 // Behebt das Problem mit der Groß-/Kleinschreibung beim URL-Abgleich.
 
 import { google } from 'googleapis';
@@ -42,7 +42,7 @@ export interface AiTrafficData {
   }>;
   trend: Array<{
     date: string;
-    value: number;
+    value: number; // Sicherstellen, dass 'value' verwendet wird
   }>;
 }
 
@@ -198,7 +198,6 @@ export async function getSearchConsoleData(
   startDate: string,
   endDate: string
 ): Promise<{ clicks: DateRangeData; impressions: DateRangeData }> {
-  // (Code unverändert)
   const auth = createAuth();
   const searchconsole = google.searchconsole({ version: 'v1', auth });
 
@@ -259,7 +258,6 @@ export async function getTopQueries(
   startDate: string,
   endDate: string
 ): Promise<TopQueryData[]> {
-  // (Code unverändert)
   const auth = createAuth();
   const searchconsole = google.searchconsole({ version: "v1", auth });
 
@@ -304,7 +302,6 @@ export async function getAnalyticsData(
   startDate: string,
   endDate: string
 ): Promise<{ sessions: DateRangeData; totalUsers: DateRangeData }> {
-  // (Code unverändert)
   const formattedPropertyId = propertyId.startsWith('properties/')
     ? propertyId
     : `properties/${propertyId}`;
@@ -373,7 +370,6 @@ export async function getAiTrafficData(
   startDate: string,
   endDate: string
 ): Promise<AiTrafficData> {
-  // (Code unverändert)
   const formattedPropertyId = propertyId.startsWith('properties/')
     ? propertyId
     : `properties/${propertyId}`;
@@ -455,7 +451,7 @@ export async function getAiTrafficData(
         sessionsBySource[cleanName] = (sessionsBySource[cleanName] || 0) + sessions;
         usersBySource[cleanName] = (usersBySource[cleanName] || 0) + users;
         
-        console.log('[AI-Traffic] KI-Quelle gefunden:', cleanName, '- Sitzungen:', sessions);
+        // console.log('[AI-Traffic] KI-Quelle gefunden:', cleanName, '- Sitzungen:', sessions); // (Für Debugging)
       }
     }
 
@@ -488,7 +484,7 @@ export async function getAiTrafficData(
       .sort((a, b) => b.sessions - a.sessions)
       .slice(0, 5);
 
-    console.log('[AI-Traffic] Top AI Sources:', topAiSources);
+    // console.log('[AI-Traffic] Top AI Sources:', topAiSources); // (Für Debugging)
 
     // Trend-Daten formatieren
     const trend = Object.entries(trendMap)
@@ -528,7 +524,7 @@ export async function getAiTrafficData(
 }
 
 
-// --- ⭐️ NEUE FUNKTIONEN FÜR REDAKTIONSPLAN-ABGLEICH ---
+// --- ⭐️ NEUE FUNKTIONEN FÜR REDAKTIONSPLAN-ABGLEICH (KORRIGIERT) ---
 
 /**
  * ⭐️ (INTERN) Hilfsfunktion: Ruft GSC-Daten für URLs für EINEN Zeitraum ab.
@@ -540,7 +536,7 @@ async function getGscDataForPagesInternal(
   startDate: string,
   endDate: string,
   pageUrls: string[]
-) {
+): Promise<Map<string, { clicks: number; impressions: number; position: number }>> {
   const auth = createAuth();
   const searchconsole = google.searchconsole({ version: 'v1', auth });
 
@@ -564,7 +560,7 @@ async function getGscDataForPagesInternal(
           }
         ],
         // Setze ein hohes Limit, um alle URLs abzudecken
-        rowLimit: Math.min(pageUrls.length, 5000) 
+        rowLimit: Math.min(pageUrls.length, 5000) // GSC-Limit ist 25k, 5k ist sicher
       },
     });
 
