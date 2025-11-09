@@ -15,6 +15,7 @@ interface DateRangeData {
   daily: DailyDataPoint[];
 }
 
+// ✅ DIESES INTERFACE HATTE ICH FEHLERHAFT GELÖSCHT
 interface TopQueryData {
   query: string;
   clicks: number;
@@ -473,7 +474,7 @@ export async function getAiTrafficData(
   const analytics = google.analyticsdata({ version: 'v1beta', auth });
 
   try {
-    console.log('[AI-Traffic] Starte Abruf für Property:', formattedPropertyId);
+    // console.log('[AI-Traffic] Starte Abruf für Property:', formattedPropertyId); // Zu verbose
 
     // Query 1: Traffic nach Quelle/Medium gruppiert
     const sourceResponse = await analytics.properties.runReport({
@@ -520,8 +521,8 @@ export async function getAiTrafficData(
     const sourceRows = sourceResponse.data.rows || [];
     const trendRows = trendResponse.data.rows || [];
 
-    console.log('[AI-Traffic] Quellen-Zeilen:', sourceRows.length);
-    console.log('[AI-Traffic] Trend-Zeilen:', trendRows.length);
+    // console.log('[AI-Traffic] Quellen-Zeilen:', sourceRows.length); // Zu verbose
+    // console.log('[AI-Traffic] Trend-Zeilen:', trendRows.length); // Zu verbose
 
     // Verarbeite Quellen-Daten
     let totalSessions = 0;
@@ -545,12 +546,10 @@ export async function getAiTrafficData(
         
         sessionsBySource[cleanName] = (sessionsBySource[cleanName] || 0) + sessions;
         usersBySource[cleanName] = (usersBySource[cleanName] || 0) + users;
-        
-        // console.log('[AI-Traffic] KI-Quelle gefunden:', cleanName, '- Sitzungen:', sessions); // (Zu verbose)
       }
     }
 
-    console.log('[AI-Traffic] Gesamt KI-Sitzungen:', totalSessions);
+    // console.log('[AI-Traffic] Gesamt KI-Sitzungen:', totalSessions); // Zu verbose
 
     // Verarbeite Trend-Daten
     const trendMap: { [date: string]: number } = {};
@@ -579,17 +578,15 @@ export async function getAiTrafficData(
       .sort((a, b) => b.sessions - a.sessions)
       .slice(0, 5);
 
-    // console.log('[AI-Traffic] Top AI Sources:', topAiSources); // (Zu verbose)
-
     // Trend-Daten formatieren
     const trend = Object.entries(trendMap)
       .map(([date, sessions]) => ({
         date: date,
-        value: sessions, // KORREKTUR: 'value' statt 'sessions'
+        value: sessions,
       }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
-    console.log('[AI-Traffic] Trend-Datenpunkte:', trend.length);
+    // console.log('[AI-Traffic] Trend-Datenpunkte:', trend.length); // Zu verbose
 
     return {
       totalSessions,
@@ -715,13 +712,13 @@ async function queryGscDataForPages(
           dimensions: ['page'],
           type: 'web',
           aggregationType: 'byPage',
-          // Verwende 'or' Gruppe mit 'equals'
+          // ✅ KORREKT: groupType: 'or'
           dimensionFilterGroups: [
             {
               groupType: 'or',
               filters: chunk.map(pageUrl => ({
                 dimension: 'page',
-                operator: 'equals', // Präziser Abgleich
+                operator: 'equals', // ✅ KORREKT: 'equals' für Präzision
                 expression: pageUrl  // Volle URL-Variante
               }))
             }
@@ -783,7 +780,6 @@ async function queryGscDataForPages(
         });
         
       } else {
-        // Diese URL wurde von GSC zurückgegeben, passt aber zu keiner unserer DB-URLs
         // console.log(`[GSC] ⚠️ Keine Zuordnung für GSC-URL: ${gscUrl.substring(0, 60)}...`); // (Zu verbose)
       }
     }
