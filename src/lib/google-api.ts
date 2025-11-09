@@ -1,5 +1,4 @@
-// src/lib/google-api.ts (VOLLSTÄNDIG & KORRIGIERT)
-// Behebt das Problem mit der Groß-/Kleinschreibung beim URL-Abgleich.
+// src/lib/google-api.ts
 
 import { google } from 'googleapis';
 import { JWT } from 'google-auth-library';
@@ -32,7 +31,7 @@ export interface AiTrafficData {
   totalUsersChange?: number;
   
   sessionsBySource: {
-    : number;
+    [source: string]: number;
   };
   topAiSources: Array<{
     source: string;
@@ -42,21 +41,8 @@ export interface AiTrafficData {
   }>;
   trend: Array<{
     date: string;
-    value: number; // Sicherstellen, dass 'value' verwendet wird
+    value: number;
   }>;
-}
-
-// ⭐️ NEU: Typ für die GSC-Vergleichsdaten (basierend auf Prompt 2)
-export interface GscPageData {
-  clicks: number;
-  clicks_prev: number;
-  clicks_change: number;
-  impressions: number;
-  impressions_prev: number;
-  impressions_change: number;
-  position: number;
-  position_prev: number;
-  position_change: number;
 }
 
 // --- Authentifizierung ---
@@ -135,6 +121,84 @@ function formatDateToISO(dateStr: string): string {
 }
 
 /**
+ * ✅ NEU: Normalisiert URLs für konsistenten Vergleich
+ * - Konvertiert zu Kleinbuchstaben
+ * - Entfernt trailing slashes
+ * - Entfernt URL-Fragmente (#)
+ * - Behält Query-Parameter bei
+ */
+function normalizeUrl(url: string): string {
+  if (!url) return '';
+  
+  try {
+    const urlObj = new URL(url);
+    
+    // Normalisierung:
+    // 1. Hostname zu Kleinbuchstaben
+    urlObj.hostname = urlObj.hostname.toLowerCase();
+    
+    // 2. Pathname zu Kleinbuchstaben (für case-insensitive Matching)
+    urlObj.pathname = urlObj.pathname.toLowerCase();
+    
+    // 3. Entferne trailing slash (außer bei Root-URL)
+    if (urlObj.pathname !== '/' && urlObj.pathname.endsWith('/')) {
+      urlObj.pathname = urlObj.pathname.slice(0, -1);
+    }
+    
+    // 4. Entferne Fragment (#)
+    urlObj.hash = '';
+    
+    // 5. Sortiere Query-Parameter alphabetisch (optional, für Konsistenz)
+    const params = Array.from(urlObj.searchParams.entries())
+      .sort(([a], [b]) => a.localeCompare(b));
+    urlObj.search = new URLSearchParams(params).toString();
+    
+    return urlObj.toString();
+  } catch (error) {
+    console.error('[normalizeUrl] Ungültige URL:', url, error);
+    // Fallback: Einfache Normalisierung
+    return url.toLowerCase().replace(/\/$/, '').split('#')[0];
+  }
+}
+
+/**
+ * ✅ NEU: Erstellt Varianten einer URL für besseres Matching
+ * GSC gibt URLs manchmal mit unterschiedlichen Formaten zurück
+ */
+function createUrlVariants(url: string): string[] {
+  const variants: Set<string> = new Set();
+  
+  try {
+    const urlObj = new URL(url);
+    const base = `${urlObj.protocol}//${urlObj.hostname}${urlObj.pathname}`;
+    
+    // Variante 1: Ohne Query-Parameter
+    variants.add(normalizeUrl(base));
+    
+    // Variante 2: Mit Query-Parametern
+    if (urlObj.search) {
+      variants.add(normalizeUrl(url));
+    }
+    
+    // Variante 3: Mit trailing slash
+    const withSlash = urlObj.pathname.endsWith('/') ? base : base + '/';
+    variants.add(normalizeUrl(withSlash));
+    
+    // Variante 4: Ohne trailing slash
+    const withoutSlash = urlObj.pathname.endsWith('/') 
+      ? base.slice(0, -1) 
+      : base;
+    variants.add(normalizeUrl(withoutSlash));
+    
+  } catch (error) {
+    // Fallback
+    variants.add(normalizeUrl(url));
+  }
+  
+  return Array.from(variants);
+}
+
+/**
  * Prüft, ob eine Quelle ein bekannter KI-Bot ist
  */
 function isAiSource(source: string): boolean {
@@ -188,7 +252,7 @@ function cleanAiSourceName(source: string): string {
   return parts.length > 30 ? parts.substring(0, 27) + '...' : parts;
 }
 
-// --- API-Funktionen (Bestehend) ---
+// --- API-Funktionen ---
 
 /**
  * Ruft aggregierte Klick- und Impressionsdaten von der Google Search Console ab
@@ -275,380 +339,244 @@ export async function getTopQueries(
       },
     });
 
-    const allQueries = res.data.rows?.map((row) => ({
-      query: row.keys?.[0] || "N/A",
-      clicks: row.clicks || 0,
-      impressions: row.impressions || 0,
-      ctr: row.ctr || 0,
-      position: row.position || 0,
-    })) || [];
-
-    return allQueries
+    const rows = res.data.rows || [];
+    const queries: TopQueryData[] = rows
+      .map((row) => ({
+        query: row.keys?.[0] || "",
+        clicks: row.clicks || 0,
+        impressions: row.impressions || 0,
+        ctr: row.ctr || 0,
+        position: row.position || 0,
+      }))
       .sort((a, b) => b.clicks - a.clicks)
-      .slice(0, 100);
+      .slice(0, 5);
 
+    return queries;
   } catch (error: unknown) {
     console.error("[GSC] Fehler beim Abrufen der Top Queries:", error);
     console.error("[GSC] Request Details:", { siteUrl, startDate, endDate });
-    return [];
+    throw new Error("Fehler bei Google Search Console Top Queries API");
   }
 }
 
+// ==================================================================
+// --- NEUER CODE FÜR LANDINGPAGE-DATEN ---
+// ==================================================================
+
 /**
- * Ruft aggregierte Sitzungs- und Nutzerdaten von Google Analytics 4 ab
+ * Typ für die GSC-Daten einer einzelnen Landingpage mit Vergleichswerten.
  */
-export async function getAnalyticsData(
-  propertyId: string,
-  startDate: string,
-  endDate: string
-): Promise<{ sessions: DateRangeData; totalUsers: DateRangeData }> {
-  const formattedPropertyId = propertyId.startsWith('properties/')
-    ? propertyId
-    : `properties/${propertyId}`;
-
-  const auth = createAuth();
-  const analytics = google.analyticsdata({ version: 'v1beta', auth });
-
-  try {
-    const response = await analytics.properties.runReport({
-      property: formattedPropertyId,
-      requestBody: {
-        dateRanges: [{ startDate, endDate }],
-        dimensions: [{ name: 'date' }],
-        metrics: [{ name: 'sessions' }, { name: 'totalUsers' }],
-        orderBys: [{
-          dimension: { dimensionName: 'date' },
-          desc: false,
-        }],
-      },
-    });
-
-    const rows = response.data.rows || [];
-    const sessionsDaily: DailyDataPoint[] = [];
-    const usersDaily: DailyDataPoint[] = [];
-    let totalSessions = 0;
-    let totalUsers = 0;
-
-    for (const row of rows) {
-      const rawDate = row.dimensionValues?.[0]?.value;
-      const date = rawDate?.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3') ?? '';
-      const sessions = parseInt(row.metricValues?.[0]?.value || '0', 10);
-      const users = parseInt(row.metricValues?.[1]?.value || '0', 10);
-
-      if (date) {
-        sessionsDaily.push({ date, value: sessions });
-        usersDaily.push({ date, value: users });
-        totalSessions += sessions;
-        totalUsers += users;
-      }
-    }
-
-    return {
-      sessions: {
-        total: totalSessions,
-        daily: sessionsDaily,
-      },
-      totalUsers: {
-        total: totalUsers,
-        daily: usersDaily,
-      },
-    };
-  } catch (error: unknown) {
-    console.error('[GA4] Fehler beim Abrufen der Daten:', error);
-    console.error('[GA4] Request Details:', { propertyId: formattedPropertyId, startDate, endDate });
-    const errorMessage = error instanceof Error ? error.message : 'Unbekannter API-Fehler';
-    throw new Error(`Fehler bei Google Analytics API: ${errorMessage}`);
-  }
+export interface GscPageData {
+  clicks: number;
+  clicks_prev: number;
+  clicks_change: number;
+  impressions: number;
+  impressions_prev: number;
+  impressions_change: number;
+  position: number;
+  position_prev: number;
+  position_change: number;
 }
 
 /**
- * Ruft KI-Traffic-Daten aus Google Analytics 4 ab
- * Identifiziert Traffic von bekannten KI-Bots und Crawlern
+ * ✅ VERBESSERT: Interne Hilfsfunktion mit besserer URL-Verarbeitung und Logging
  */
-export async function getAiTrafficData(
-  propertyId: string,
-  startDate: string,
-  endDate: string
-): Promise<AiTrafficData> {
-  const formattedPropertyId = propertyId.startsWith('properties/')
-    ? propertyId
-    : `properties/${propertyId}`;
-
-  const auth = createAuth();
-  const analytics = google.analyticsdata({ version: 'v1beta', auth });
-
-  try {
-    console.log('[AI-Traffic] Starte Abruf für Property:', formattedPropertyId);
-
-    // Query 1: Traffic nach Quelle/Medium gruppiert
-    const sourceResponse = await analytics.properties.runReport({
-      property: formattedPropertyId,
-      requestBody: {
-        dateRanges: [{ startDate, endDate }],
-        dimensions: [
-          { name: 'sessionSource' },
-          { name: 'sessionMedium' },
-        ],
-        metrics: [
-          { name: 'sessions' },
-          { name: 'totalUsers' },
-        ],
-        orderBys: [{ 
-          metric: { metricName: 'sessions' }, 
-          desc: true 
-        }],
-        limit: '1000', // String statt Number
-      },
-    });
-
-    // Query 2: Täglicher KI-Traffic-Trend
-    const trendResponse = await analytics.properties.runReport({
-      property: formattedPropertyId,
-      requestBody: {
-        dateRanges: [{ startDate, endDate }],
-        dimensions: [
-          { name: 'date' },
-          { name: 'sessionSource' },
-          { name: 'sessionMedium' },
-        ],
-        metrics: [
-          { name: 'sessions' },
-        ],
-        orderBys: [{ 
-          dimension: { dimensionName: 'date' }, 
-          desc: false 
-        }],
-        limit: '10000', // String statt Number
-      },
-    });
-
-    const sourceRows = sourceResponse.data.rows || [];
-    const trendRows = trendResponse.data.rows || [];
-
-    console.log('[AI-Traffic] Quellen-Zeilen:', sourceRows.length);
-    console.log('[AI-Traffic] Trend-Zeilen:', trendRows.length);
-
-    // Verarbeite Quellen-Daten
-    let totalSessions = 0;
-    let totalUsers = 0;
-    const sessionsBySource: { [key: string]: number } = {};
-    const usersBySource: { [key: string]: number } = {};
-
-    for (const row of sourceRows) {
-      const source = row.dimensionValues?.[0]?.value || 'Unknown';
-      const medium = row.dimensionValues?.[1]?.value || '';
-      const sessions = parseInt(row.metricValues?.[0]?.value || '0', 10);
-      const users = parseInt(row.metricValues?.[1]?.value || '0', 10);
-
-      const fullSource = `${source}${medium ? `/${medium}` : ''}`;
-      
-      if (isAiSource(fullSource) || isAiSource(source)) {
-        const cleanName = cleanAiSourceName(source);
-        
-        totalSessions += sessions;
-        totalUsers += users;
-        
-        sessionsBySource[cleanName] = (sessionsBySource[cleanName] || 0) + sessions;
-        usersBySource[cleanName] = (usersBySource[cleanName] || 0) + users;
-        
-        // console.log('[AI-Traffic] KI-Quelle gefunden:', cleanName, '- Sitzungen:', sessions); // (Für Debugging)
-      }
-    }
-
-    console.log('[AI-Traffic] Gesamt KI-Sitzungen:', totalSessions);
-
-    // Verarbeite Trend-Daten
-    const trendMap: { [date: string]: number } = {};
-
-    for (const row of trendRows) {
-      const rawDate = row.dimensionValues?.[0]?.value || '';
-      const source = row.dimensionValues?.[1]?.value || '';
-      const medium = row.dimensionValues?.[2]?.value || '';
-      const sessions = parseInt(row.metricValues?.[0]?.value || '0', 10);
-      const fullSource = `${source}${medium ? `/${medium}` : ''}`; 
-
-      if (isAiSource(fullSource) || isAiSource(source)) {
-        const date = formatDateToISO(rawDate);
-        trendMap[date] = (trendMap[date] || 0) + sessions;
-      }
-    }
-
-    // Top AI Sources erstellen
-    const topAiSources = Object.entries(sessionsBySource)
-      .map(([source, sessions]) => ({
-        source,
-        sessions,
-        users: usersBySource[source] || 0,
-        percentage: totalSessions > 0 ? (sessions / totalSessions) * 100 : 0,
-      }))
-      .sort((a, b) => b.sessions - a.sessions)
-      .slice(0, 5);
-
-    // console.log('[AI-Traffic] Top AI Sources:', topAiSources); // (Für Debugging)
-
-    // Trend-Daten formatieren
-    const trend = Object.entries(trendMap)
-      .map(([date, sessions]) => ({
-        date: date, 
-        value: sessions,
-      }))
-      .sort((a, b) => a.date.localeCompare(b.date));
-
-    console.log('[AI-Traffic] Trend-Datenpunkte:', trend.length);
-
-    return {
-      totalSessions,
-      totalUsers,
-      sessionsBySource,
-      topAiSources,
-      trend,
-    };
-
-  } catch (error: unknown) {
-    console.error('[AI-Traffic] Fehler beim Abrufen:', error);
-    console.error('[AI-Traffic] Request Details:', { 
-      propertyId: formattedPropertyId, 
-      startDate, 
-      endDate 
-    });
-
-    // Fallback mit leeren Daten
-    return {
-      totalSessions: 0,
-      totalUsers: 0,
-      sessionsBySource: {},
-      topAiSources: [],
-      trend: [],
-    };
-  }
-}
-
-
-// --- ⭐️ NEUE FUNKTIONEN FÜR REDAKTIONSPLAN-ABGLEICH (KORRIGIERT) ---
-
-/**
- * ⭐️ (INTERN) Hilfsfunktion: Ruft GSC-Daten für URLs für EINEN Zeitraum ab.
- * ✅ KORREKTUR: Normalisiert alle zurückgegebenen URLs auf Kleinbuchstaben,
- * um den Abgleich (case-insensitive) in der API-Route zu ermöglichen.
- */
-async function getGscDataForPagesInternal(
+async function queryGscDataForPages(
   siteUrl: string,
   startDate: string,
   endDate: string,
   pageUrls: string[]
 ): Promise<Map<string, { clicks: number; impressions: number; position: number }>> {
+  
+  // Verhindert API-Aufruf, wenn keine URLs angefordert werden
+  if (pageUrls.length === 0) {
+    console.log('[GSC] Keine URLs zum Abfragen vorhanden');
+    return new Map();
+  }
+
+  console.log(`[GSC] Abfrage von ${pageUrls.length} URLs für Zeitraum ${startDate} - ${endDate}`);
+  console.log('[GSC] Erste 3 URLs (Original):', pageUrls.slice(0, 3));
+
   const auth = createAuth();
   const searchconsole = google.searchconsole({ version: 'v1', auth });
 
   try {
+    // ✅ WICHTIG: Keine URL-Normalisierung beim API-Call!
+    // GSC erwartet die exakten URLs, wie sie indexiert sind
     const response = await searchconsole.searchanalytics.query({
       siteUrl,
       requestBody: {
         startDate,
         endDate,
-        dimensions: ['page'], // Dimension nach Seite
+        dimensions: ['page'],
         type: 'web',
-        dimensionFilterGroups: [ // Filtern auf die URLs aus unserer DB
+        aggregationType: 'byPage',
+        // ✅ GEÄNDERT: Verwende 'contains' statt 'equals' für flexibleres Matching
+        dimensionFilterGroups: [
           {
-            filters: [
-              {
-                dimension: 'page',
-                operator: 'in',
-                expression: pageUrls
+            groupType: 'and',
+            filters: pageUrls.map(pageUrl => {
+              // Extrahiere den Pfad aus der URL (ohne Domain)
+              let urlPath = pageUrl;
+              try {
+                const urlObj = new URL(pageUrl);
+                urlPath = urlObj.pathname + urlObj.search;
+              } catch {
+                // Fallback: behalte die ursprüngliche URL
               }
-            ]
+              
+              return {
+                dimension: 'page',
+                operator: 'contains', // ✅ Flexibler als 'equals'
+                expression: urlPath
+              };
+            })
           }
         ],
-        // Setze ein hohes Limit, um alle URLs abzudecken
-        rowLimit: Math.min(pageUrls.length, 5000) // GSC-Limit ist 25k, 5k ist sicher
+        rowLimit: Math.min(pageUrls.length * 2, 5000) // ✅ Höheres Limit für Varianten
       },
     });
 
     const rows = response.data.rows || [];
-    const pageData = new Map<string, { clicks: number; impressions: number; position: number }>();
+    console.log(`[GSC] ${rows.length} Zeilen von GSC erhalten`);
     
+    // ✅ NEU: Erstelle Mappings für normalisierte URLs
+    const resultMap = new Map<string, { clicks: number; impressions: number; position: number }>();
+    const normalizedToOriginal = new Map<string, string>();
+    
+    // Erstelle Mapping: normalisierte URL -> Original-URL aus Input
+    for (const originalUrl of pageUrls) {
+      const normalized = normalizeUrl(originalUrl);
+      normalizedToOriginal.set(normalized, originalUrl);
+      
+      // Erstelle auch Mappings für URL-Varianten
+      const variants = createUrlVariants(originalUrl);
+      variants.forEach(variant => {
+        if (!normalizedToOriginal.has(variant)) {
+          normalizedToOriginal.set(variant, originalUrl);
+        }
+      });
+    }
+
+    console.log('[GSC] Erste 3 normalisierte URLs:', 
+      Array.from(normalizedToOriginal.keys()).slice(0, 3)
+    );
+
+    // Verarbeite GSC-Ergebnisse
     for (const row of rows) {
-      const url = row.keys?.[0];
-      if (url) {
-        // ✅ KORREKTUR: Speichere den Schlüssel in Kleinbuchstaben
-        pageData.set(url.toLowerCase(), {
-          clicks: row.clicks || 0,
-          impressions: row.impressions || 0,
-          position: row.position || 0,
+      const gscUrl = row.keys?.[0];
+      if (!gscUrl) continue;
+
+      const normalizedGscUrl = normalizeUrl(gscUrl);
+      const originalUrl = normalizedToOriginal.get(normalizedGscUrl);
+      
+      if (originalUrl) {
+        // Aggregiere Daten, falls mehrere GSC-URLs zur selben normalisierten URL gehören
+        const existing = resultMap.get(originalUrl);
+        const clicks = (existing?.clicks || 0) + (row.clicks || 0);
+        const impressions = (existing?.impressions || 0) + (row.impressions || 0);
+        
+        // Position: Nimm den Durchschnitt oder den besseren Wert
+        let position = row.position || 0;
+        if (existing && existing.position > 0 && position > 0) {
+          position = (existing.position + position) / 2;
+        } else if (existing && existing.position > 0) {
+          position = existing.position;
+        }
+
+        resultMap.set(originalUrl, {
+          clicks,
+          impressions,
+          position
         });
+
+        console.log(`[GSC] ✅ Match gefunden: ${originalUrl.substring(0, 50)}... -> Clicks: ${clicks}, Impressions: ${impressions}`);
+      } else {
+        console.log(`[GSC] ⚠️ Keine Zuordnung für GSC-URL: ${gscUrl.substring(0, 60)}...`);
       }
     }
-    return pageData;
 
+    console.log(`[GSC] ${resultMap.size} von ${pageUrls.length} URLs erfolgreich zugeordnet`);
+    
+    // ✅ NEU: Zeige URLs ohne Match für Debugging
+    const unmatchedUrls = pageUrls.filter(url => !resultMap.has(url));
+    if (unmatchedUrls.length > 0) {
+      console.log(`[GSC] ⚠️ ${unmatchedUrls.length} URLs ohne GSC-Daten:`);
+      unmatchedUrls.slice(0, 5).forEach(url => {
+        console.log(`  - ${url.substring(0, 80)}...`);
+      });
+    }
+
+    return resultMap;
+    
   } catch (error: unknown) {
-    console.error(`[GSC] Fehler beim Abrufen der Page-Daten (${startDate} bis ${endDate}):`, error);
-    // Wir werfen den Fehler nicht, sondern geben eine leere Map zurück,
-    // damit ein fehlender Vergleichszeitraum nicht die ganze Anfrage stoppt.
-    return new Map<string, { clicks: number; impressions: number; position: number }>();
+    console.error(`[GSC] ❌ Fehler beim Abrufen der Page-Daten (${startDate} - ${endDate}):`, error);
+    
+    // ✅ NEU: Detaillierteres Error-Logging
+    if (error instanceof Error) {
+      console.error('[GSC] Error Message:', error.message);
+      console.error('[GSC] Error Stack:', error.stack);
+    }
+    
+    console.error('[GSC] Request Details:', { 
+      siteUrl, 
+      startDate, 
+      endDate, 
+      urlCount: pageUrls.length,
+      firstUrl: pageUrls[0]
+    });
+    
+    // Leeres Map zurückgeben, damit Promise.all nicht fehlschlägt
+    return new Map();
   }
 }
 
-
 /**
- * ⭐️ (EXPORT) Ruft GSC-Daten für URLs mit Vergleichszeitraum ab.
- * Vergleicht die Daten und gibt eine Map mit Differenzen zurück.
- * Nutzt `toLowerCase()` für den Abgleich.
+ * ✅ VERBESSERT: Ruft GSC-Daten für Seiten mit verbessertem URL-Matching ab
  */
 export async function getGscDataForPagesWithComparison(
   siteUrl: string,
-  pageUrls: string[], // URLs aus der DB
-  currentRange: { startDate: string; endDate: string },
-  previousRange: { startDate: string; endDate: string }
+  pageUrls: string[],
+  currentRange: { startDate: string, endDate: string },
+  previousRange: { startDate: string, endDate: string }
 ): Promise<Map<string, GscPageData>> {
   
-  // 1. Beide Anfragen parallel starten
-  // Die `pageUrls` werden mit der Original-Groß-/Kleinschreibung an Google gesendet,
-  // da Google (manchmal) darauf besteht.
+  console.log('[GSC] === START: getGscDataForPagesWithComparison ===');
+  console.log(`[GSC] Site URL: ${siteUrl}`);
+  console.log(`[GSC] Anzahl URLs: ${pageUrls.length}`);
+  console.log(`[GSC] Aktueller Zeitraum: ${currentRange.startDate} - ${currentRange.endDate}`);
+  console.log(`[GSC] Vorheriger Zeitraum: ${previousRange.startDate} - ${previousRange.endDate}`);
+  
+  // 1. Parallele Anfragen für beide Zeiträume
   const [currentDataMap, previousDataMap] = await Promise.all([
-    getGscDataForPagesInternal(siteUrl, currentRange.startDate, currentRange.endDate, pageUrls),
-    getGscDataForPagesInternal(siteUrl, previousRange.startDate, previousRange.endDate, pageUrls)
+    queryGscDataForPages(siteUrl, currentRange.startDate, currentRange.endDate, pageUrls),
+    queryGscDataForPages(siteUrl, previousRange.startDate, previousRange.endDate, pageUrls)
   ]);
-
-  // Die `currentDataMap` und `previousDataMap` haben jetzt Schlüssel in Kleinbuchstaben.
 
   const resultMap = new Map<string, GscPageData>();
 
-  // 2. Alle eindeutigen URLs aus *unserer Datenbank* durchgehen und abgleichen
-  //    Wir verwenden `pageUrls` als Quelle der Wahrheit, um Groß-/Kleinschreibung zu finden.
-  
-  const processedUrls = new Set<string>();
-
-  for (const dbUrl of pageUrls) {
-    const lowerCaseUrl = dbUrl.toLowerCase();
-
-    // Verhindere doppelte Verarbeitung, falls die DB-URLs selbst Duplikate
-    // in unterschiedlicher Groß-/Kleinschreibung enthalten
-    if (processedUrls.has(lowerCaseUrl)) {
-      continue;
-    }
-    processedUrls.add(lowerCaseUrl);
-
-    // 3. Daten aus den Maps holen (die bereits lowercase-Schlüssel haben)
-    const current = currentDataMap.get(lowerCaseUrl) || { clicks: 0, impressions: 0, position: 0 };
-    const previous = previousDataMap.get(lowerCaseUrl) || { clicks: 0, impressions: 0, position: 0 };
+  // 2. Daten kombinieren und Differenzen berechnen
+  for (const url of pageUrls) {
+    const current = currentDataMap.get(url) || { clicks: 0, impressions: 0, position: 0 };
+    const previous = previousDataMap.get(url) || { clicks: 0, impressions: 0, position: 0 };
 
     // Spezielle Positionsbehandlung: 0 bedeutet "keine Daten", nicht Position 0
     const currentPos = current.position || 0;
     const prevPos = previous.position || 0;
 
     // Positionsänderung nur berechnen, wenn beide Werte > 0 sind
-    // (Achtung: niedrigere Position ist besser, daher prev - current)
     let posChange = 0;
     if (currentPos > 0 && prevPos > 0) {
-      posChange = prevPos - currentPos;
+      posChange = prevPos - currentPos; // Niedrigere Position ist besser
+    } else if (currentPos > 0 && prevPos === 0) {
+      posChange = 0; // Neu gerankt
+    } else if (currentPos === 0 && prevPos > 0) {
+      posChange = 0; // Ranking verloren
     }
     
-    // Runden der Positionsänderung auf 2 Nachkommastellen
     const roundedPosChange = Math.round(posChange * 100) / 100;
 
-    // Wir verwenden die lowercase-URL als Schlüssel in der finalen Map,
-    // damit die API-Route sie konsistent abrufen kann.
-    resultMap.set(lowerCaseUrl, {
+    resultMap.set(url, {
       clicks: current.clicks,
       clicks_prev: previous.clicks,
       clicks_change: current.clicks - previous.clicks,
@@ -657,12 +585,13 @@ export async function getGscDataForPagesWithComparison(
       impressions_prev: previous.impressions,
       impressions_change: current.impressions - previous.impressions,
       
-      // Wenn Position 0 ist, speichern wir 0 (wird in API-Route zu NULL)
-      position: currentPos, 
-      position_prev: prevPos,
-      position_change: roundedPosChange,
+      position: Math.round(currentPos * 100) / 100,
+      position_prev: Math.round(prevPos * 100) / 100,
+      position_change: roundedPosChange
     });
   }
 
+  console.log(`[GSC] === ENDE: ${resultMap.size} URLs mit Daten versehen ===`);
+  
   return resultMap;
 }
