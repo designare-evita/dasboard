@@ -1,4 +1,5 @@
-// src/lib/google-api.ts
+// src/lib/google-api.ts (KORRIGIERT & VOLLSTÄNDIG)
+// Behebt das Problem mit der Groß-/Kleinschreibung beim URL-Abgleich.
 
 import { google } from 'googleapis';
 import { JWT } from 'google-auth-library';
@@ -21,11 +22,9 @@ interface TopQueryData {
   impressions: number;
   ctr: number;
   position: number;
-} // <-- Die schließende Klammer ist hier (Zeile 24)
+}
 
-// <-- Zeile 25 ist leer
-
-export interface AiTrafficData { // <-- Zeile 26, auf die der Fehler zeigt
+export interface AiTrafficData {
   totalSessions: number;
   totalUsers: number;
 
@@ -33,7 +32,7 @@ export interface AiTrafficData { // <-- Zeile 26, auf die der Fehler zeigt
   totalUsersChange?: number;
   
   sessionsBySource: {
-    [source: string]: number;
+    : number;
   };
   topAiSources: Array<{
     source: string;
@@ -45,6 +44,19 @@ export interface AiTrafficData { // <-- Zeile 26, auf die der Fehler zeigt
     date: string;
     value: number;
   }>;
+}
+
+// ⭐️ NEU: Typ für die GSC-Vergleichsdaten (basierend auf Prompt 2)
+export interface GscPageData {
+  clicks: number;
+  clicks_prev: number;
+  clicks_change: number;
+  impressions: number;
+  impressions_prev: number;
+  impressions_change: number;
+  position: number;
+  position_prev: number;
+  position_change: number;
 }
 
 // --- Authentifizierung ---
@@ -176,7 +188,7 @@ function cleanAiSourceName(source: string): string {
   return parts.length > 30 ? parts.substring(0, 27) + '...' : parts;
 }
 
-// --- API-Funktionen ---
+// --- API-Funktionen (Bestehend) ---
 
 /**
  * Ruft aggregierte Klick- und Impressionsdaten von der Google Search Console ab
@@ -186,6 +198,7 @@ export async function getSearchConsoleData(
   startDate: string,
   endDate: string
 ): Promise<{ clicks: DateRangeData; impressions: DateRangeData }> {
+  // (Code unverändert)
   const auth = createAuth();
   const searchconsole = google.searchconsole({ version: 'v1', auth });
 
@@ -246,6 +259,7 @@ export async function getTopQueries(
   startDate: string,
   endDate: string
 ): Promise<TopQueryData[]> {
+  // (Code unverändert)
   const auth = createAuth();
   const searchconsole = google.searchconsole({ version: "v1", auth });
 
@@ -290,6 +304,7 @@ export async function getAnalyticsData(
   startDate: string,
   endDate: string
 ): Promise<{ sessions: DateRangeData; totalUsers: DateRangeData }> {
+  // (Code unverändert)
   const formattedPropertyId = propertyId.startsWith('properties/')
     ? propertyId
     : `properties/${propertyId}`;
@@ -358,6 +373,7 @@ export async function getAiTrafficData(
   startDate: string,
   endDate: string
 ): Promise<AiTrafficData> {
+  // (Code unverändert)
   const formattedPropertyId = propertyId.startsWith('properties/')
     ? propertyId
     : `properties/${propertyId}`;
@@ -428,7 +444,6 @@ export async function getAiTrafficData(
       const sessions = parseInt(row.metricValues?.[0]?.value || '0', 10);
       const users = parseInt(row.metricValues?.[1]?.value || '0', 10);
 
-      // Prüfe, ob es eine KI-Quelle ist
       const fullSource = `${source}${medium ? `/${medium}` : ''}`;
       
       if (isAiSource(fullSource) || isAiSource(source)) {
@@ -454,7 +469,7 @@ export async function getAiTrafficData(
       const source = row.dimensionValues?.[1]?.value || '';
       const medium = row.dimensionValues?.[2]?.value || '';
       const sessions = parseInt(row.metricValues?.[0]?.value || '0', 10);
-const fullSource = `${source}${medium ? `/${medium}` : ''}`; // ✅ HINZUGEFÜGT
+      const fullSource = `${source}${medium ? `/${medium}` : ''}`; 
 
       if (isAiSource(fullSource) || isAiSource(source)) {
         const date = formatDateToISO(rawDate);
@@ -468,7 +483,7 @@ const fullSource = `${source}${medium ? `/${medium}` : ''}`; // ✅ HINZUGEFÜGT
         source,
         sessions,
         users: usersBySource[source] || 0,
-        percentage: totalSessions > 0 ? (sessions / totalSessions) * 100 : 0, // Anteil am KI-Traffic
+        percentage: totalSessions > 0 ? (sessions / totalSessions) * 100 : 0,
       }))
       .sort((a, b) => b.sessions - a.sessions)
       .slice(0, 5);
@@ -476,10 +491,10 @@ const fullSource = `${source}${medium ? `/${medium}` : ''}`; // ✅ HINZUGEFÜGT
     console.log('[AI-Traffic] Top AI Sources:', topAiSources);
 
     // Trend-Daten formatieren
-   const trend = Object.entries(trendMap)
+    const trend = Object.entries(trendMap)
       .map(([date, sessions]) => ({
-        date: date, // Wichtig: YYYY-MM-DD Format für Recharts beibehalten
-        value: sessions, // ✅ 'sessions' zu 'value' umbenannt
+        date: date, 
+        value: sessions,
       }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
@@ -501,7 +516,7 @@ const fullSource = `${source}${medium ? `/${medium}` : ''}`; // ✅ HINZUGEFÜGT
       endDate 
     });
 
-    // Fallback mit leeren Daten statt Fehler zu werfen
+    // Fallback mit leeren Daten
     return {
       totalSessions: 0,
       totalUsers: 0,
@@ -513,40 +528,19 @@ const fullSource = `${source}${medium ? `/${medium}` : ''}`; // ✅ HINZUGEFÜGT
 }
 
 
-// ==================================================================
-// --- NEUER CODE FÜR LANDINGPAGE-DATEN ---
-// ==================================================================
+// --- ⭐️ NEUE FUNKTIONEN FÜR REDAKTIONSPLAN-ABGLEICH ---
 
 /**
- * Typ für die GSC-Daten einer einzelnen Landingpage mit Vergleichswerten.
+ * ⭐️ (INTERN) Hilfsfunktion: Ruft GSC-Daten für URLs für EINEN Zeitraum ab.
+ * ✅ KORREKTUR: Normalisiert alle zurückgegebenen URLs auf Kleinbuchstaben,
+ * um den Abgleich (case-insensitive) in der API-Route zu ermöglichen.
  */
-export interface GscPageData {
-  clicks: number;
-  clicks_prev: number;
-  clicks_change: number; // (clicks - clicks_prev)
-  impressions: number;
-  impressions_prev: number;
-  impressions_change: number; // (impressions - impressions_prev)
-  position: number;
-  position_prev: number;
-  position_change: number; // (position_prev - position)
-}
-
-/**
- * Interne Hilfsfunktion: Ruft GSC-Daten für eine Liste von Seiten in einem Zeitraum ab
- */
-async function queryGscDataForPages(
+async function getGscDataForPagesInternal(
   siteUrl: string,
   startDate: string,
   endDate: string,
   pageUrls: string[]
-): Promise<Map<string, { clicks: number; impressions: number; position: number }>> {
-  
-  // Verhindert API-Aufruf, wenn keine URLs angefordert werden
-  if (pageUrls.length === 0) {
-    return new Map();
-  }
-
+) {
   const auth = createAuth();
   const searchconsole = google.searchconsole({ version: 'v1', auth });
 
@@ -556,71 +550,91 @@ async function queryGscDataForPages(
       requestBody: {
         startDate,
         endDate,
-        dimensions: ['page'],
+        dimensions: ['page'], // Dimension nach Seite
         type: 'web',
-        aggregationType: 'byPage',
-        // Filtert, um nur die angeforderten URLs abzurufen
-        dimensionFilterGroups: [
+        dimensionFilterGroups: [ // Filtern auf die URLs aus unserer DB
           {
-            filters: pageUrls.map(pageUrl => ({
-              dimension: 'page',
-              operator: 'equals',
-              expression: pageUrl
-            }))
+            filters: [
+              {
+                dimension: 'page',
+                operator: 'in',
+                expression: pageUrls
+              }
+            ]
           }
         ],
-        // Begrenzt die Rückgabe auf die Anzahl der URLs (max 5000)
-        rowLimit: Math.min(pageUrls.length, 5000)
+        // Setze ein hohes Limit, um alle URLs abzudecken
+        rowLimit: Math.min(pageUrls.length, 5000) 
       },
     });
 
     const rows = response.data.rows || [];
-    const resultMap = new Map<string, { clicks: number; impressions: number; position: number }>();
-
+    const pageData = new Map<string, { clicks: number; impressions: number; position: number }>();
+    
     for (const row of rows) {
-      const page = row.keys?.[0];
-      if (page) {
-        resultMap.set(page, {
+      const url = row.keys?.[0];
+      if (url) {
+        // ✅ KORREKTUR: Speichere den Schlüssel in Kleinbuchstaben
+        pageData.set(url.toLowerCase(), {
           clicks: row.clicks || 0,
           impressions: row.impressions || 0,
-          // GSC gibt Position 0 zurück, wenn keine Daten vorhanden sind
-          position: row.position || 0 
+          position: row.position || 0,
         });
       }
     }
-    return resultMap;
+    return pageData;
+
   } catch (error: unknown) {
-    console.error(`[GSC] Fehler beim Abrufen der Page-Daten (${startDate} - ${endDate}):`, error);
-    // Einen leeren Map zurückgeben, damit Promise.all nicht fehlschlägt
-    return new Map();
+    console.error(`[GSC] Fehler beim Abrufen der Page-Daten (${startDate} bis ${endDate}):`, error);
+    // Wir werfen den Fehler nicht, sondern geben eine leere Map zurück,
+    // damit ein fehlender Vergleichszeitraum nicht die ganze Anfrage stoppt.
+    return new Map<string, { clicks: number; impressions: number; position: number }>();
   }
 }
 
+
 /**
- * Ruft GSC-Daten (Klicks, Impressionen, Position) für eine Liste von Seiten
- * für zwei Zeiträume (aktuell und vorher) ab und berechnet die Differenz.
+ * ⭐️ (EXPORT) Ruft GSC-Daten für URLs mit Vergleichszeitraum ab.
+ * Vergleicht die Daten und gibt eine Map mit Differenzen zurück.
+ * Nutzt `toLowerCase()` für den Abgleich.
  */
 export async function getGscDataForPagesWithComparison(
   siteUrl: string,
-  pageUrls: string[],
-  currentRange: { startDate: string, endDate: string },
-  previousRange: { startDate: string, endDate: string }
+  pageUrls: string[], // URLs aus der DB
+  currentRange: { startDate: string; endDate: string },
+  previousRange: { startDate: string; endDate: string }
 ): Promise<Map<string, GscPageData>> {
   
-  // 1. Parallele Anfragen für beide Zeiträume
+  // 1. Beide Anfragen parallel starten
+  // Die `pageUrls` werden mit der Original-Groß-/Kleinschreibung an Google gesendet,
+  // da Google (manchmal) darauf besteht.
   const [currentDataMap, previousDataMap] = await Promise.all([
-    queryGscDataForPages(siteUrl, currentRange.startDate, currentRange.endDate, pageUrls),
-    queryGscDataForPages(siteUrl, previousRange.startDate, previousRange.endDate, pageUrls)
+    getGscDataForPagesInternal(siteUrl, currentRange.startDate, currentRange.endDate, pageUrls),
+    getGscDataForPagesInternal(siteUrl, previousRange.startDate, previousRange.endDate, pageUrls)
   ]);
+
+  // Die `currentDataMap` und `previousDataMap` haben jetzt Schlüssel in Kleinbuchstaben.
 
   const resultMap = new Map<string, GscPageData>();
 
-  // 2. Daten kombinieren und Differenzen berechnen
-  // Wir iterieren über die angeforderten URLs, um sicherzustellen, dass alle enthalten sind,
-  // selbst wenn sie in einem der Zeiträume keine Daten hatten.
-  for (const url of pageUrls) {
-    const current = currentDataMap.get(url) || { clicks: 0, impressions: 0, position: 0 };
-    const previous = previousDataMap.get(url) || { clicks: 0, impressions: 0, position: 0 };
+  // 2. Alle eindeutigen URLs aus *unserer Datenbank* durchgehen und abgleichen
+  //    Wir verwenden `pageUrls` als Quelle der Wahrheit, um Groß-/Kleinschreibung zu finden.
+  
+  const processedUrls = new Set<string>();
+
+  for (const dbUrl of pageUrls) {
+    const lowerCaseUrl = dbUrl.toLowerCase();
+
+    // Verhindere doppelte Verarbeitung, falls die DB-URLs selbst Duplikate
+    // in unterschiedlicher Groß-/Kleinschreibung enthalten
+    if (processedUrls.has(lowerCaseUrl)) {
+      continue;
+    }
+    processedUrls.add(lowerCaseUrl);
+
+    // 3. Daten aus den Maps holen (die bereits lowercase-Schlüssel haben)
+    const current = currentDataMap.get(lowerCaseUrl) || { clicks: 0, impressions: 0, position: 0 };
+    const previous = previousDataMap.get(lowerCaseUrl) || { clicks: 0, impressions: 0, position: 0 };
 
     // Spezielle Positionsbehandlung: 0 bedeutet "keine Daten", nicht Position 0
     const currentPos = current.position || 0;
@@ -631,16 +645,14 @@ export async function getGscDataForPagesWithComparison(
     let posChange = 0;
     if (currentPos > 0 && prevPos > 0) {
       posChange = prevPos - currentPos;
-    } else if (currentPos > 0 && prevPos === 0) {
-      posChange = 0; // Neu gerankt (könnte auch als +Infinity interpretiert werden)
-    } else if (currentPos === 0 && prevPos > 0) {
-      posChange = 0; // Ranking verloren (könnte auch als -Infinity interpretiert werden)
     }
     
     // Runden der Positionsänderung auf 2 Nachkommastellen
     const roundedPosChange = Math.round(posChange * 100) / 100;
 
-    resultMap.set(url, {
+    // Wir verwenden die lowercase-URL als Schlüssel in der finalen Map,
+    // damit die API-Route sie konsistent abrufen kann.
+    resultMap.set(lowerCaseUrl, {
       clicks: current.clicks,
       clicks_prev: previous.clicks,
       clicks_change: current.clicks - previous.clicks,
@@ -649,9 +661,10 @@ export async function getGscDataForPagesWithComparison(
       impressions_prev: previous.impressions,
       impressions_change: current.impressions - previous.impressions,
       
-      position: Math.round(currentPos * 100) / 100, // Position auf 2 Nachkommastellen runden
-      position_prev: Math.round(prevPos * 100) / 100,
-      position_change: roundedPosChange
+      // Wenn Position 0 ist, speichern wir 0 (wird in API-Route zu NULL)
+      position: currentPos, 
+      position_prev: prevPos,
+      position_change: roundedPosChange,
     });
   }
 
