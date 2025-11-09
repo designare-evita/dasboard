@@ -1,9 +1,12 @@
-// src/lib/google-api.ts (FINAL KORRIGIERT - Mit robustem URL-Matching & Chunking)
+// src/lib/google-api.ts
+// Vollständig korrigierte Version mit robustem URL-Matching und API-Fix
 
 import { google } from 'googleapis';
 import { JWT } from 'google-auth-library';
 
-// --- Typdefinitionen ---
+// =============================================================================
+// TYPDEFINITIONEN
+// =============================================================================
 
 interface DailyDataPoint {
   date: string;
@@ -15,8 +18,7 @@ interface DateRangeData {
   daily: DailyDataPoint[];
 }
 
-// ✅ DIESES INTERFACE HATTE ICH FEHLERHAFT GELÖSCHT
-interface TopQueryData {
+export interface TopQueryData {
   query: string;
   clicks: number;
   impressions: number;
@@ -27,27 +29,36 @@ interface TopQueryData {
 export interface AiTrafficData {
   totalSessions: number;
   totalUsers: number;
-
   totalSessionsChange?: number;
   totalUsersChange?: number;
-
-  // Variante 1: Record
   sessionsBySource: Record<string, number>;
-
   topAiSources: Array<{
     source: string;
     sessions: number;
     users: number;
     percentage: number;
   }>;
-
   trend: Array<{
     date: string;
-    value: number; // Muss 'value' sein, um mit AiTrafficCard übereinzustimmen
+    value: number;
   }>;
 }
 
-// --- Authentifizierung ---
+export interface GscPageData {
+  clicks: number;
+  clicks_prev: number;
+  clicks_change: number;
+  impressions: number;
+  impressions_prev: number;
+  impressions_change: number;
+  position: number;
+  position_prev: number;
+  position_change: number;
+}
+
+// =============================================================================
+// AUTHENTIFIZIERUNG
+// =============================================================================
 
 function createAuth(): JWT {
   // Option 1: Komplettes JSON in GOOGLE_CREDENTIALS
@@ -63,7 +74,7 @@ function createAuth(): JWT {
         ],
       });
     } catch (e) {
-      console.error("Fehler beim Parsen von GOOGLE_CREDENTIALS:", e);
+      console.error('[Google API] Fehler beim Parsen von GOOGLE_CREDENTIALS:', e);
       // Fallback zu Option 2
     }
   }
@@ -91,12 +102,14 @@ function createAuth(): JWT {
       ],
     });
   } catch (error) {
-    console.error("Fehler beim Erstellen der JWT-Auth:", error);
-    throw new Error("Fehler beim Initialisieren der Google API Authentifizierung.");
+    console.error('[Google API] Fehler beim Erstellen der JWT-Auth:', error);
+    throw new Error('Fehler beim Initialisieren der Google API Authentifizierung.');
   }
 }
 
-// --- Hilfsfunktionen ---
+// =============================================================================
+// HILFSFUNKTIONEN
+// =============================================================================
 
 /**
  * Formatiert GA4-Datum (YYYYMMDD) zu lesbarem Format (DD.MM)
@@ -120,7 +133,7 @@ function formatDateToISO(dateStr: string): string {
 }
 
 /**
- * ✅ KORREKTUR: Normalisiert URLs für einen robusten Abgleich.
+ * ✅ Normalisiert URLs für robusten Abgleich.
  * Entfernt Protokoll, www. und trailing slashes.
  * Behält Pfad und Query-Parameter bei.
  */
@@ -128,20 +141,21 @@ function normalizeUrl(url: string): string {
   if (!url) return '';
   try {
     let parsedUrl: URL;
-    // Füge ein Dummy-Protokoll hinzu, falls es fehlt (z.B. bei relativen Pfaden)
+    
+    // Füge Dummy-Protokoll hinzu, falls es fehlt
     if (!url.startsWith('http://') && !url.startsWith('https://')) {
       const dummyBase = 'https://dummy-base.com';
       parsedUrl = new URL(url, dummyBase);
       
-      // Wenn der Hostname der Dummy-Base entspricht, hatten wir nur einen Pfad
+      // Wenn Hostname der Dummy-Base entspricht, hatten wir nur einen Pfad
       if (parsedUrl.hostname === 'dummy-base.com') {
-         let path = parsedUrl.pathname.toLowerCase();
-         // Trailing slash entfernen
-         if (path !== '/' && path.endsWith('/')) {
-           path = path.slice(0, -1);
-         }
-         // Wir geben NUR Pfad + Query zurück, da kein Host vorhanden war
-         return path + parsedUrl.search;
+        let path = parsedUrl.pathname.toLowerCase();
+        // Trailing slash entfernen
+        if (path !== '/' && path.endsWith('/')) {
+          path = path.slice(0, -1);
+        }
+        // Nur Pfad + Query zurückgeben
+        return path + parsedUrl.search;
       }
     } else {
       parsedUrl = new URL(url);
@@ -171,17 +185,17 @@ function normalizeUrl(url: string): string {
     console.warn(`[normalizeUrl] Fallback für URL: ${url}`, error);
     // Einfacher Fallback
     return url
-      .replace(/^https?:\/\//, '') // Protokoll entfernen
-      .replace(/^www\./, '')      // www. entfernen
+      .replace(/^https?:\/\//, '')
+      .replace(/^www\./, '')
       .toLowerCase()
-      .replace(/\/$/, '')       // Trailing slash entfernen
-      .split('#')[0];           // Fragment entfernen
+      .replace(/\/$/, '')
+      .split('#')[0];
   }
 }
 
 /**
- * ✅ KORREKTUR: Erstellt alle 8 Varianten (http/s, www/non-www, mit/ohne /)
- * Behält die ursprüngliche Groß/Kleinschreibung des Pfades bei, da GSC dies tut.
+ * ✅ Erstellt alle 8 URL-Varianten (http/s, www/non-www, mit/ohne /)
+ * Behält die ursprüngliche Groß/Kleinschreibung des Pfades bei.
  */
 function createUrlVariants(url: string): string[] {
   const variants: Set<string> = new Set();
@@ -189,8 +203,8 @@ function createUrlVariants(url: string): string[] {
   try {
     const urlObj = new URL(url);
     const host = urlObj.hostname.toLowerCase();
-    const path = urlObj.pathname; // Pfad (case-sensitive) beibehalten
-    const search = urlObj.search; // Query beibehalten
+    const path = urlObj.pathname; // Pfad case-sensitive beibehalten
+    const search = urlObj.search;
     
     // 1. Host-Varianten (www und non-www)
     const hosts: string[] = [];
@@ -211,7 +225,7 @@ function createUrlVariants(url: string): string[] {
       paths.push(path + '/');
     }
 
-    // 3. Protokoll-Varianten (http und https)
+    // 3. Protokoll-Varianten
     const protocols = ['https://', 'http://'];
 
     // 4. Alle 8 Kombinationen erstellen
@@ -223,13 +237,12 @@ function createUrlVariants(url: string): string[] {
       }
     }
   } catch (error) {
-    // Fallback für ungültige URLs (z.B. relative Pfade)
+    // Fallback für ungültige URLs
     variants.add(url);
   }
   
   return Array.from(variants);
 }
-
 
 /**
  * Prüft, ob eine Quelle ein bekannter KI-Bot ist
@@ -238,24 +251,17 @@ function isAiSource(source: string): boolean {
   if (!source) return false;
   
   const aiPatterns = [
-    // KI-Chatbots
     'chatgpt', 'gpt', 'openai',
     'claude', 'anthropic',
     'bard', 'gemini',
     'perplexity',
     'bing chat', 'copilot',
-    
-    // KI-Crawler
     'gptbot', 'claudebot',
-    'google-extended', // Google's AI Training Bot
+    'google-extended',
     'cohere-ai',
     'ai2bot',
-    
-    // Suchmaschinen-KI
     'you.com', 'neeva',
     'phind', 'metaphor',
-    
-    // Zusätzliche KI-Dienste
     'notion ai', 'jasper',
     'copy.ai', 'writesonic',
   ];
@@ -272,7 +278,6 @@ function cleanAiSourceName(source: string): string {
   
   const sourceLower = source.toLowerCase();
   
-  // Gruppiere ähnliche Quellen
   if (sourceLower.includes('chatgpt') || sourceLower.includes('gptbot')) return 'ChatGPT';
   if (sourceLower.includes('claude')) return 'Claude AI';
   if (sourceLower.includes('bard') || sourceLower.includes('gemini')) return 'Google Gemini';
@@ -280,15 +285,16 @@ function cleanAiSourceName(source: string): string {
   if (sourceLower.includes('bing') || sourceLower.includes('copilot')) return 'Bing Copilot';
   if (sourceLower.includes('you.com')) return 'You.com';
   
-  // Fallback: Ersten Teil des Quellennamens verwenden
   const parts = source.split('/')[0].split('?')[0];
   return parts.length > 30 ? parts.substring(0, 27) + '...' : parts;
 }
 
-// --- API-Funktionen ---
+// =============================================================================
+// GOOGLE SEARCH CONSOLE API
+// =============================================================================
 
 /**
- * Ruft aggregierte Klick- und Impressionsdaten von der Google Search Console ab
+ * Ruft aggregierte Klick- und Impressionsdaten von der GSC ab
  */
 export async function getSearchConsoleData(
   siteUrl: string,
@@ -348,7 +354,7 @@ export async function getSearchConsoleData(
 }
 
 /**
- * Ruft die Top Suchanfragen von der Google Search Console ab
+ * Ruft die Top Suchanfragen von der GSC ab
  */
 export async function getTopQueries(
   siteUrl: string,
@@ -356,7 +362,7 @@ export async function getTopQueries(
   endDate: string
 ): Promise<TopQueryData[]> {
   const auth = createAuth();
-  const searchconsole = google.searchconsole({ version: "v1", auth });
+  const searchconsole = google.searchconsole({ version: 'v1', auth });
 
   try {
     const res = await searchconsole.searchanalytics.query({
@@ -364,16 +370,16 @@ export async function getTopQueries(
       requestBody: {
         startDate,
         endDate,
-        dimensions: ["query"],
-        type: "web",
+        dimensions: ['query'],
+        type: 'web',
         rowLimit: 100,
-        dataState: "all",
-        aggregationType: "byProperty",
+        dataState: 'all',
+        aggregationType: 'byProperty',
       },
     });
 
     const allQueries = res.data.rows?.map((row) => ({
-      query: row.keys?.[0] || "N/A",
+      query: row.keys?.[0] || 'N/A',
       clicks: row.clicks || 0,
       impressions: row.impressions || 0,
       ctr: row.ctr || 0,
@@ -385,14 +391,18 @@ export async function getTopQueries(
       .slice(0, 100);
 
   } catch (error: unknown) {
-    console.error("[GSC] Fehler beim Abrufen der Top Queries:", error);
-    console.error("[GSC] Request Details:", { siteUrl, startDate, endDate });
+    console.error('[GSC] Fehler beim Abrufen der Top Queries:', error);
+    console.error('[GSC] Request Details:', { siteUrl, startDate, endDate });
     return [];
   }
 }
 
+// =============================================================================
+// GOOGLE ANALYTICS 4 API
+// =============================================================================
+
 /**
- * Ruft aggregierte Sitzungs- und Nutzerdaten von Google Analytics 4 ab
+ * Ruft aggregierte Sitzungs- und Nutzerdaten von GA4 ab
  */
 export async function getAnalyticsData(
   propertyId: string,
@@ -459,8 +469,7 @@ export async function getAnalyticsData(
 }
 
 /**
- * Ruft KI-Traffic-Daten aus Google Analytics 4 ab
- * Identifiziert Traffic von bekannten KI-Bots und Crawlern
+ * Ruft KI-Traffic-Daten aus GA4 ab
  */
 export async function getAiTrafficData(
   propertyId: string,
@@ -475,8 +484,6 @@ export async function getAiTrafficData(
   const analytics = google.analyticsdata({ version: 'v1beta', auth });
 
   try {
-    // console.log('[AI-Traffic] Starte Abruf für Property:', formattedPropertyId); // Zu verbose
-
     // Query 1: Traffic nach Quelle/Medium gruppiert
     const sourceResponse = await analytics.properties.runReport({
       property: formattedPropertyId,
@@ -522,9 +529,6 @@ export async function getAiTrafficData(
     const sourceRows = sourceResponse.data.rows || [];
     const trendRows = trendResponse.data.rows || [];
 
-    // console.log('[AI-Traffic] Quellen-Zeilen:', sourceRows.length); // Zu verbose
-    // console.log('[AI-Traffic] Trend-Zeilen:', trendRows.length); // Zu verbose
-
     // Verarbeite Quellen-Daten
     let totalSessions = 0;
     let totalUsers = 0;
@@ -549,8 +553,6 @@ export async function getAiTrafficData(
         usersBySource[cleanName] = (usersBySource[cleanName] || 0) + users;
       }
     }
-
-    // console.log('[AI-Traffic] Gesamt KI-Sitzungen:', totalSessions); // Zu verbose
 
     // Verarbeite Trend-Daten
     const trendMap: { [date: string]: number } = {};
@@ -587,8 +589,6 @@ export async function getAiTrafficData(
       }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
-    // console.log('[AI-Traffic] Trend-Datenpunkte:', trend.length); // Zu verbose
-
     return {
       totalSessions,
       totalUsers,
@@ -605,7 +605,7 @@ export async function getAiTrafficData(
       endDate 
     });
 
-    // Fallback mit leeren Daten statt Fehler zu werfen
+    // Fallback mit leeren Daten
     return {
       totalSessions: 0,
       totalUsers: 0,
@@ -616,33 +616,18 @@ export async function getAiTrafficData(
   }
 }
 
-// ==================================================================
-// --- KORRIGIERTER CODE FÜR LANDINGPAGE-DATEN ---
-// ==================================================================
+// =============================================================================
+// GSC LANDINGPAGE-DATEN MIT VERGLEICH
+// =============================================================================
 
 /**
- * Typ für die GSC-Daten einer einzelnen Landingpage mit Vergleichswerten.
- */
-export interface GscPageData {
-  clicks: number;
-  clicks_prev: number;
-  clicks_change: number;
-  impressions: number;
-  impressions_prev: number;
-  impressions_change: number;
-  position: number;
-  position_prev: number;
-  position_change: number;
-}
-
-/**
- * ✅ KORRIGIERT: Interne Hilfsfunktion mit Chunking und robustem Matching
+ * ✅ KORRIGIERT: Interne Hilfsfunktion mit Chunking und korrektem dimensionFilterGroups
  */
 async function queryGscDataForPages(
   siteUrl: string,
   startDate: string,
   endDate: string,
-  pageUrls: string[] // Original-URLs aus der DB
+  pageUrls: string[]
 ): Promise<Map<string, { clicks: number; impressions: number; position: number }>> {
   
   if (pageUrls.length === 0) {
@@ -655,133 +640,133 @@ async function queryGscDataForPages(
   const auth = createAuth();
   const searchconsole = google.searchconsole({ version: 'v1', auth });
   
-  // Map [Key: Normalisierte URL (ohne Protokoll/www)] -> [Value: Original-URL]
+  // Map [Key: Normalisierte URL] -> [Value: Original-URL]
   const normalizedToOriginal = new Map<string, string>();
   
-  // Set aller einzigartigen URL-Varianten (http/s, www/non-www, /), die an die API gesendet werden
+  // Set aller URL-Varianten für API
   const apiFilterUrls = new Set<string>();
 
   for (const originalUrl of pageUrls) {
-    // Erstelle alle 8 Varianten (http://domain.de, https://www.domain.de, etc.)
     const variants = createUrlVariants(originalUrl);
-    
-    // Normalisiere die Original-URL für die ZUORDNUNG
     const normalizedKey = normalizeUrl(originalUrl);
+    
     if (!normalizedToOriginal.has(normalizedKey)) {
-        normalizedToOriginal.set(normalizedKey, originalUrl);
+      normalizedToOriginal.set(normalizedKey, originalUrl);
     }
     
-    // Füge auch Normalisierungen der Varianten hinzu, falls sie unterschiedlich sind
     variants.forEach(variant => {
       const normalizedVariantKey = normalizeUrl(variant);
       if (!normalizedToOriginal.has(normalizedVariantKey)) {
-          normalizedToOriginal.set(normalizedVariantKey, originalUrl);
+        normalizedToOriginal.set(normalizedVariantKey, originalUrl);
       }
-      // Füge die (nicht-normalisierte) API-Variante dem Filter hinzu
-      apiFilterUrls.add(variant); 
+      apiFilterUrls.add(variant);
     });
   }
   
   console.log(`[GSC] Erstellt: ${normalizedToOriginal.size} Normalisierungs-Mappings`);
   console.log(`[GSC] Sende ${apiFilterUrls.size} URL-Varianten an die API`);
 
-  // API-Limit (500 Filter) beachten
-  const MAX_FILTERS = 450; // Sicherer Puffer
-  const urlChunks: string[][] = [];
+  // API-Limit beachten (25 Filter pro dimensionFilterGroups laut Google Docs)
+  const MAX_FILTERS_PER_GROUP = 20; // Sicherer Puffer
   const allApiUrls = Array.from(apiFilterUrls);
+  const urlChunks: string[][] = [];
 
-  for (let i = 0; i < allApiUrls.length; i += MAX_FILTERS) {
-    urlChunks.push(allApiUrls.slice(i, i + MAX_FILTERS));
+  for (let i = 0; i < allApiUrls.length; i += MAX_FILTERS_PER_GROUP) {
+    urlChunks.push(allApiUrls.slice(i, i + MAX_FILTERS_PER_GROUP));
   }
 
   console.log(`[GSC] Aufruf wird in ${urlChunks.length} Chunks aufgeteilt.`);
 
-  // Aggregiert Ergebnisse über alle Chunks
-  // [Key: Original-URL], [Value: aggregierte Daten]
-  const aggregatedResultMap = new Map<string, { clicks: number; impressions: number; position: number; count: number }>();
+  // Aggregierte Ergebnisse
+  const aggregatedResultMap = new Map<string, { 
+    clicks: number; 
+    impressions: number; 
+    position: number; 
+    count: number 
+  }>();
   
   try {
-    // Führe API-Aufrufe für jeden Chunk parallel aus
-    const chunkPromises = urlChunks.map(async (chunk, index) => {
-      console.log(`[GSC] Chunk ${index + 1}/${urlChunks.length} wird verarbeitet (${chunk.length} URLs)`);
+    // Chunks sequenziell verarbeiten (um Rate Limits zu vermeiden)
+    for (let i = 0; i < urlChunks.length; i++) {
+      const chunk = urlChunks[i];
+      console.log(`[GSC] Verarbeite Chunk ${i + 1}/${urlChunks.length} (${chunk.length} URLs)`);
       
-      const response = await searchconsole.searchanalytics.query({
-        siteUrl,
-        requestBody: {
-          startDate,
-          endDate,
-          dimensions: ['page'],
-          type: 'web',
-          aggregationType: 'byPage',
-          // ✅ KORREKT: groupType: 'or'
-          dimensionFilterGroups: [
-            {
-              groupType: 'or',
+      try {
+        // ✅✅✅ KORREKTUR: Korrekte dimensionFilterGroups Struktur
+        const response = await searchconsole.searchanalytics.query({
+          siteUrl,
+          requestBody: {
+            startDate,
+            endDate,
+            dimensions: ['page'],
+            type: 'web',
+            aggregationType: 'byPage',
+            // ✅ WICHTIG: Jede URL einzeln als Filter
+            dimensionFilterGroups: [{
               filters: chunk.map(pageUrl => ({
                 dimension: 'page',
-                operator: 'equals', // ✅ KORREKT: 'equals' für Präzision
-                expression: pageUrl  // Volle URL-Variante
+                operator: 'equals',
+                expression: pageUrl
               }))
+            }],
+            rowLimit: 5000
+          },
+        });
+
+        const rows = response.data.rows || [];
+        console.log(`[GSC] Chunk ${i + 1}: ${rows.length} Zeilen empfangen`);
+
+        // Verarbeite Ergebnisse
+        for (const row of rows) {
+          const gscUrl = row.keys?.[0];
+          if (!gscUrl) continue;
+
+          const normalizedGscUrl = normalizeUrl(gscUrl);
+          const originalUrl = normalizedToOriginal.get(normalizedGscUrl);
+          
+          if (originalUrl) {
+            const existing = aggregatedResultMap.get(originalUrl) || { 
+              clicks: 0, 
+              impressions: 0, 
+              position: 0, 
+              count: 0 
+            };
+            
+            const clicks = row.clicks || 0;
+            const impressions = row.impressions || 0;
+            const position = row.position || 0;
+            const newImpressions = existing.impressions + impressions;
+            
+            // Position gewichtet nach Impressionen mitteln
+            let newPosition = existing.position;
+            if (position > 0) {
+              if (existing.position === 0) {
+                newPosition = position;
+              } else {
+                const totalImpressions = existing.impressions + impressions;
+                if (totalImpressions > 0) {
+                  newPosition = ((existing.position * existing.impressions) + (position * impressions)) / totalImpressions;
+                }
+              }
             }
-          ],
-          rowLimit: 5000 
-        },
-      });
-      return response.data.rows || [];
-    });
 
-    const allChunkResults = await Promise.all(chunkPromises);
-    const rows = allChunkResults.flat(); // Alle Ergebnisse kombinieren
-
-    console.log(`[GSC] ${rows.length} Zeilen von GSC (alle Chunks) erhalten`);
-
-    // Verarbeite GSC-Ergebnisse
-    for (const row of rows) {
-      const gscUrl = row.keys?.[0]; // z.B. http://domain.de/seite/
-      if (!gscUrl) continue;
-
-      // Normalisiere die GSC-URL (wird zu: domain.de/seite)
-      const normalizedGscUrl = normalizeUrl(gscUrl);
-      
-      // Finde die Original-DB-URL (z.B. https://www.domain.de/Seite/)
-      const originalUrl = normalizedToOriginal.get(normalizedGscUrl);
-      
-      if (originalUrl) {
-        // Aggregiere Daten (falls mehrere GSC-Varianten zur selben Original-URL gehören)
-        const existing = aggregatedResultMap.get(originalUrl) || { clicks: 0, impressions: 0, position: 0, count: 0 };
-        
-        const clicks = row.clicks || 0;
-        const impressions = row.impressions || 0;
-        const position = row.position || 0;
-
-        const newImpressions = existing.impressions + impressions;
-        
-        // Position gewichtet nach Impressionen mitteln
-        let newPosition = existing.position;
-        if (position > 0) {
-          if (existing.position === 0) {
-            newPosition = position; // Erster gültiger Wert
-          } else {
-            // Gewichteter Durchschnitt
-            const totalImpressions = existing.impressions + impressions;
-            if (totalImpressions > 0) {
-                newPosition = ((existing.position * existing.impressions) + (position * impressions)) / totalImpressions;
-            } else {
-                // Fallback, wenn beide 0 Impressionen haben
-                newPosition = (existing.position + position) / 2;
-            }
+            aggregatedResultMap.set(originalUrl, {
+              clicks: existing.clicks + clicks,
+              impressions: newImpressions,
+              position: newPosition,
+              count: existing.count + 1
+            });
           }
         }
 
-        aggregatedResultMap.set(originalUrl, {
-          clicks: existing.clicks + clicks,
-          impressions: newImpressions,
-          position: newPosition,
-          count: existing.count + 1
-        });
-        
-      } else {
-        // console.log(`[GSC] ⚠️ Keine Zuordnung für GSC-URL: ${gscUrl.substring(0, 60)}...`); // (Zu verbose)
+        // Kurze Pause zwischen Chunks (Rate Limiting)
+        if (i < urlChunks.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+
+      } catch (chunkError) {
+        console.error(`[GSC] ❌ Fehler bei Chunk ${i + 1}:`, chunkError);
+        // Weiter mit nächstem Chunk
       }
     }
     
@@ -795,15 +780,17 @@ async function queryGscDataForPages(
       });
     });
 
-    console.log(`[GSC] ${finalMap.size} von ${pageUrls.length} DB-URLs erfolgreich zugeordnet`);
+    console.log(`[GSC] ✅ ${finalMap.size} von ${pageUrls.length} DB-URLs erfolgreich zugeordnet`);
     
     // Debugging für nicht gematchte URLs
     const unmatchedUrls = pageUrls.filter(url => !finalMap.has(url));
     if (unmatchedUrls.length > 0) {
-      console.log(`[GSC] ⚠️ ${unmatchedUrls.length} DB-URLs ohne GSC-Daten (Top 5):`);
-      unmatchedUrls.slice(0, 5).forEach(url => {
-        console.log(`  - ${url.substring(0, 80)}... (Norm: ${normalizeUrl(url)})`);
-      });
+      console.log(`[GSC] ⚠️ ${unmatchedUrls.length} DB-URLs ohne GSC-Daten`);
+      if (unmatchedUrls.length <= 5) {
+        unmatchedUrls.forEach(url => {
+          console.log(`  - ${url} (Norm: ${normalizeUrl(url)})`);
+        });
+      }
     }
 
     return finalMap;
@@ -813,26 +800,27 @@ async function queryGscDataForPages(
     if (error instanceof Error) {
       console.error('[GSC] Error Message:', error.message);
     }
-    // Leeres Map zurückgeben, damit Promise.all nicht fehlschlägt
     return new Map();
   }
 }
 
 /**
- * ✅ KORRIGIERT: Hauptfunktion, die die Logik zusammenführt
+ * ✅ Hauptfunktion: Holt GSC-Daten für mehrere Seiten mit Vergleichszeitraum
  */
 export async function getGscDataForPagesWithComparison(
   siteUrl: string,
   pageUrls: string[],
-  currentRange: { startDate: string, endDate: string },
-  previousRange: { startDate: string, endDate: string }
+  currentRange: { startDate: string; endDate: string },
+  previousRange: { startDate: string; endDate: string }
 ): Promise<Map<string, GscPageData>> {
   
   console.log('[GSC] === START: getGscDataForPagesWithComparison ===');
   console.log(`[GSC] Site URL: ${siteUrl}`);
   console.log(`[GSC] Anzahl URLs: ${pageUrls.length}`);
+  console.log(`[GSC] Current: ${currentRange.startDate} - ${currentRange.endDate}`);
+  console.log(`[GSC] Previous: ${previousRange.startDate} - ${previousRange.endDate}`);
   
-  // 1. Parallele Anfragen für beide Zeiträume
+  // Parallele Anfragen für beide Zeiträume
   const [currentDataMap, previousDataMap] = await Promise.all([
     queryGscDataForPages(siteUrl, currentRange.startDate, currentRange.endDate, pageUrls),
     queryGscDataForPages(siteUrl, previousRange.startDate, previousRange.endDate, pageUrls)
@@ -840,13 +828,12 @@ export async function getGscDataForPagesWithComparison(
 
   const resultMap = new Map<string, GscPageData>();
 
-  // 2. Daten kombinieren und Differenzen berechnen
-  // WICHTIG: Iteriere über die *Original-URLs*, um die Zuordnung zu behalten
+  // Daten kombinieren und Differenzen berechnen
   for (const url of pageUrls) {
     const current = currentDataMap.get(url) || { clicks: 0, impressions: 0, position: 0 };
     const previous = previousDataMap.get(url) || { clicks: 0, impressions: 0, position: 0 };
 
-    // Spezielle Positionsbehandlung: 0 bedeutet "keine Daten"
+    // Position: 0 bedeutet "keine Daten"
     const currentPos = current.position || 0;
     const prevPos = previous.position || 0;
 
