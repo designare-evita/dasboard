@@ -21,11 +21,9 @@ interface TopQueryData {
   impressions: number;
   ctr: number;
   position: number;
-} // <-- Die schließende Klammer ist hier (Zeile 24)
+}
 
-// <-- Zeile 25 ist leer
-
-export interface AiTrafficData { // <-- Zeile 26, auf die der Fehler zeigt
+export interface AiTrafficData {
   totalSessions: number;
   totalUsers: number;
 
@@ -263,113 +261,106 @@ export async function getTopQueries(
       },
     });
 
-    const allQueries = res.data.rows?.map((row) => ({
-      query: row.keys?.[0] || "N/A",
-      clicks: row.clicks || 0,
-      impressions: row.impressions || 0,
-      ctr: row.ctr || 0,
-      position: row.position || 0,
-    })) || [];
+    const rows = res.data.rows || [];
+    const topQueries: TopQueryData[] = [];
 
-    return allQueries
-      .sort((a, b) => b.clicks - a.clicks)
-      .slice(0, 100);
+    for (const row of rows) {
+      const query = row.keys?.[0];
+      if (!query) continue;
 
+      topQueries.push({
+        query,
+        clicks: row.clicks || 0,
+        impressions: row.impressions || 0,
+        ctr: row.ctr || 0,
+        position: row.position || 0,
+      });
+    }
+
+    return topQueries;
   } catch (error: unknown) {
     console.error("[GSC] Fehler beim Abrufen der Top Queries:", error);
-    console.error("[GSC] Request Details:", { siteUrl, startDate, endDate });
-    return [];
+    const errorMessage = error instanceof Error ? error.message : "Unbekannter API-Fehler";
+    throw new Error(`Fehler bei Google Search Console API: ${errorMessage}`);
   }
 }
 
 /**
- * Ruft aggregierte Sitzungs- und Nutzerdaten von Google Analytics 4 ab
+ * Ruft aggregierte Sitzungsdaten von Google Analytics 4 ab
  */
 export async function getAnalyticsData(
   propertyId: string,
   startDate: string,
   endDate: string
-): Promise<{ sessions: DateRangeData; totalUsers: DateRangeData }> {
+): Promise<DateRangeData> {
+  const auth = createAuth();
+  const analyticsData = google.analyticsdata({ version: 'v1beta', auth });
+
   const formattedPropertyId = propertyId.startsWith('properties/')
     ? propertyId
     : `properties/${propertyId}`;
 
-  const auth = createAuth();
-  const analytics = google.analyticsdata({ version: 'v1beta', auth });
-
   try {
-    const response = await analytics.properties.runReport({
+    const response = await analyticsData.properties.runReport({
       property: formattedPropertyId,
       requestBody: {
         dateRanges: [{ startDate, endDate }],
         dimensions: [{ name: 'date' }],
-        metrics: [{ name: 'sessions' }, { name: 'totalUsers' }],
-        orderBys: [{
-          dimension: { dimensionName: 'date' },
-          desc: false,
-        }],
+        metrics: [{ name: 'sessions' }],
+        orderBys: [{ dimension: { dimensionName: 'date' }, desc: false }],
       },
     });
 
     const rows = response.data.rows || [];
     const sessionsDaily: DailyDataPoint[] = [];
-    const usersDaily: DailyDataPoint[] = [];
     let totalSessions = 0;
-    let totalUsers = 0;
 
     for (const row of rows) {
       const rawDate = row.dimensionValues?.[0]?.value;
-      const date = rawDate?.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3') ?? '';
       const sessions = parseInt(row.metricValues?.[0]?.value || '0', 10);
-      const users = parseInt(row.metricValues?.[1]?.value || '0', 10);
 
-      if (date) {
+      if (rawDate) {
+        const date = formatDateToISO(rawDate); // YYYYMMDD -> YYYY-MM-DD
         sessionsDaily.push({ date, value: sessions });
-        usersDaily.push({ date, value: users });
         totalSessions += sessions;
-        totalUsers += users;
       }
     }
 
     return {
-      sessions: {
-        total: totalSessions,
-        daily: sessionsDaily,
-      },
-      totalUsers: {
-        total: totalUsers,
-        daily: usersDaily,
-      },
+      total: totalSessions,
+      daily: sessionsDaily.sort((a, b) => a.date.localeCompare(b.date)),
     };
   } catch (error: unknown) {
-    console.error('[GA4] Fehler beim Abrufen der Daten:', error);
+    console.error('[GA4] Fehler beim Abrufen der Sessions:', error);
     console.error('[GA4] Request Details:', { propertyId: formattedPropertyId, startDate, endDate });
     const errorMessage = error instanceof Error ? error.message : 'Unbekannter API-Fehler';
-    throw new Error(`Fehler bei Google Analytics API: ${errorMessage}`);
+    throw new Error(`Fehler bei Google Analytics 4 API: ${errorMessage}`);
   }
 }
 
 /**
- * Ruft KI-Traffic-Daten aus Google Analytics 4 ab
- * Identifiziert Traffic von bekannten KI-Bots und Crawlern
+ * Ruft AI-Traffic-Daten von Google Analytics 4 ab
+ * Filtert Sitzungen nach bekannten KI-Quellen (ChatGPT, Claude, Perplexity, etc.)
  */
 export async function getAiTrafficData(
   propertyId: string,
   startDate: string,
   endDate: string
 ): Promise<AiTrafficData> {
+  const auth = createAuth();
+  const analyticsData = google.analyticsdata({ version: 'v1beta', auth });
+
   const formattedPropertyId = propertyId.startsWith('properties/')
     ? propertyId
     : `properties/${propertyId}`;
 
-  const auth = createAuth();
-  const analytics = google.analyticsdata({ version: 'v1beta', auth });
-
   try {
-    console.log('[AI-Traffic] Starte Abruf für Property:', formattedPropertyId);
+    console.log('[AI-Traffic] Starte Abfrage für Property:', formattedPropertyId);
+    console.log('[AI-Traffic] Zeitraum:', startDate, 'bis', endDate);
 
-    // Query 1: Traffic nach Quelle/Medium gruppiert
-    const sourceResponse = await analytics.properties.runReport({
+    // Zwei separate Abfragen:
+    // 1. Quellen-Daten (nach Source/Medium gruppiert)
+    const sourceResponse = await analyticsData.properties.runReport({
       property: formattedPropertyId,
       requestBody: {
         dateRanges: [{ startDate, endDate }],
@@ -385,12 +376,12 @@ export async function getAiTrafficData(
           metric: { metricName: 'sessions' }, 
           desc: true 
         }],
-        limit: '1000', // String statt Number
+        limit: '10000', // String statt Number
       },
     });
 
-    // Query 2: Täglicher KI-Traffic-Trend
-    const trendResponse = await analytics.properties.runReport({
+    // 2. Trend-Daten (nach Datum gruppiert)
+    const trendResponse = await analyticsData.properties.runReport({
       property: formattedPropertyId,
       requestBody: {
         dateRanges: [{ startDate, endDate }],
@@ -454,7 +445,7 @@ export async function getAiTrafficData(
       const source = row.dimensionValues?.[1]?.value || '';
       const medium = row.dimensionValues?.[2]?.value || '';
       const sessions = parseInt(row.metricValues?.[0]?.value || '0', 10);
-const fullSource = `${source}${medium ? `/${medium}` : ''}`; // ✅ HINZUGEFÜGT
+      const fullSource = `${source}${medium ? `/${medium}` : ''}`;
 
       if (isAiSource(fullSource) || isAiSource(source)) {
         const date = formatDateToISO(rawDate);
@@ -468,7 +459,7 @@ const fullSource = `${source}${medium ? `/${medium}` : ''}`; // ✅ HINZUGEFÜGT
         source,
         sessions,
         users: usersBySource[source] || 0,
-        percentage: totalSessions > 0 ? (sessions / totalSessions) * 100 : 0, // Anteil am KI-Traffic
+        percentage: totalSessions > 0 ? (sessions / totalSessions) * 100 : 0,
       }))
       .sort((a, b) => b.sessions - a.sessions)
       .slice(0, 5);
@@ -478,8 +469,8 @@ const fullSource = `${source}${medium ? `/${medium}` : ''}`; // ✅ HINZUGEFÜGT
     // Trend-Daten formatieren
    const trend = Object.entries(trendMap)
       .map(([date, sessions]) => ({
-        date: date, // Wichtig: YYYY-MM-DD Format für Recharts beibehalten
-        value: sessions, // ✅ 'sessions' zu 'value' umbenannt
+        date: date,
+        value: sessions,
       }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
@@ -523,17 +514,18 @@ const fullSource = `${source}${medium ? `/${medium}` : ''}`; // ✅ HINZUGEFÜGT
 export interface GscPageData {
   clicks: number;
   clicks_prev: number;
-  clicks_change: number; // (clicks - clicks_prev)
+  clicks_change: number;
   impressions: number;
   impressions_prev: number;
-  impressions_change: number; // (impressions - impressions_prev)
+  impressions_change: number;
   position: number;
   position_prev: number;
-  position_change: number; // (position_prev - position)
+  position_change: number;
 }
 
 /**
  * Interne Hilfsfunktion: Ruft GSC-Daten für eine Liste von Seiten in einem Zeitraum ab
+ * ✅ KORRIGIERT: Verwendet 'contains' mit URL-Pfad für flexibles Matching
  */
 async function queryGscDataForPages(
   siteUrl: string,
@@ -551,6 +543,10 @@ async function queryGscDataForPages(
   const searchconsole = google.searchconsole({ version: 'v1', auth });
 
   try {
+    console.log('[GSC Pages] Abfrage gestartet für', pageUrls.length, 'URLs');
+    console.log('[GSC Pages] Zeitraum:', startDate, '-', endDate);
+    console.log('[GSC Pages] Beispiel-URL:', pageUrls[0]);
+
     const response = await searchconsole.searchanalytics.query({
       siteUrl,
       requestBody: {
@@ -559,39 +555,81 @@ async function queryGscDataForPages(
         dimensions: ['page'],
         type: 'web',
         aggregationType: 'byPage',
-        // Filtert, um nur die angeforderten URLs abzurufen
+        // ✅ KORRIGIERT: Verwende 'contains' mit URL-Pfad für flexibles Matching
         dimensionFilterGroups: [
           {
-            filters: pageUrls.map(pageUrl => ({
-              dimension: 'page',
-              operator: 'equals',
-              expression: pageUrl
-            }))
+            filters: pageUrls.map(pageUrl => {
+              try {
+                // Extrahiere den Pfad ohne Domain (z.B. /de/Ratgeber/Altersgerechtes-Bauen)
+                const urlObj = new URL(pageUrl);
+                const pathWithoutDomain = urlObj.pathname;
+                
+                console.log('[GSC Pages] Filter:', pathWithoutDomain.toLowerCase());
+                
+                return {
+                  dimension: 'page',
+                  operator: 'contains', // ✅ Flexibles Matching
+                  expression: pathWithoutDomain.toLowerCase() // ✅ Kleinbuchstaben
+                };
+              } catch (e) {
+                console.warn('[GSC Pages] URL-Parsing fehlgeschlagen für:', pageUrl);
+                return {
+                  dimension: 'page',
+                  operator: 'contains',
+                  expression: pageUrl
+                };
+              }
+            })
           }
         ],
-        // Begrenzt die Rückgabe auf die Anzahl der URLs (max 5000)
-        rowLimit: Math.min(pageUrls.length, 5000)
+        rowLimit: Math.min(pageUrls.length * 2, 5000) // ✅ Etwas größer für Varianten
       },
     });
 
     const rows = response.data.rows || [];
+    console.log('[GSC Pages] Antwort: ', rows.length, 'Zeilen');
+    
+    if (rows.length > 0) {
+      console.log('[GSC Pages] Erste Zeile:', rows[0].keys?.[0]);
+    }
+
     const resultMap = new Map<string, { clicks: number; impressions: number; position: number }>();
 
+    // ✅ KORRIGIERT: Matche zurückgegebene URLs flexibel mit den angeforderten URLs
     for (const row of rows) {
-      const page = row.keys?.[0];
-      if (page) {
-        resultMap.set(page, {
+      const returnedPage = row.keys?.[0];
+      if (!returnedPage) continue;
+
+      // Finde die passende URL aus pageUrls
+      const matchedUrl = pageUrls.find(requestedUrl => {
+        try {
+          const requestedPath = new URL(requestedUrl).pathname.toLowerCase();
+          const returnedPath = new URL(returnedPage).pathname.toLowerCase();
+          
+          // Match wenn einer im anderen enthalten ist
+          return returnedPath.includes(requestedPath.replace(/\/$/, '')) || 
+                 requestedPath.includes(returnedPath.replace(/\/$/, ''));
+        } catch (e) {
+          return false;
+        }
+      });
+
+      if (matchedUrl) {
+        console.log('[GSC Pages] Match:', matchedUrl, '→', returnedPage);
+        
+        resultMap.set(matchedUrl, {
           clicks: row.clicks || 0,
           impressions: row.impressions || 0,
-          // GSC gibt Position 0 zurück, wenn keine Daten vorhanden sind
-          position: row.position || 0 
+          position: row.position || 0
         });
       }
     }
+
+    console.log('[GSC Pages] Gematchte URLs:', resultMap.size, 'von', pageUrls.length);
+    
     return resultMap;
   } catch (error: unknown) {
-    console.error(`[GSC] Fehler beim Abrufen der Page-Daten (${startDate} - ${endDate}):`, error);
-    // Einen leeren Map zurückgeben, damit Promise.all nicht fehlschlägt
+    console.error(`[GSC Pages] Fehler beim Abrufen der Page-Daten (${startDate} - ${endDate}):`, error);
     return new Map();
   }
 }
@@ -607,6 +645,8 @@ export async function getGscDataForPagesWithComparison(
   previousRange: { startDate: string, endDate: string }
 ): Promise<Map<string, GscPageData>> {
   
+  console.log('[GSC Comparison] Start für', pageUrls.length, 'URLs');
+  
   // 1. Parallele Anfragen für beide Zeiträume
   const [currentDataMap, previousDataMap] = await Promise.all([
     queryGscDataForPages(siteUrl, currentRange.startDate, currentRange.endDate, pageUrls),
@@ -616,28 +656,18 @@ export async function getGscDataForPagesWithComparison(
   const resultMap = new Map<string, GscPageData>();
 
   // 2. Daten kombinieren und Differenzen berechnen
-  // Wir iterieren über die angeforderten URLs, um sicherzustellen, dass alle enthalten sind,
-  // selbst wenn sie in einem der Zeiträume keine Daten hatten.
   for (const url of pageUrls) {
     const current = currentDataMap.get(url) || { clicks: 0, impressions: 0, position: 0 };
     const previous = previousDataMap.get(url) || { clicks: 0, impressions: 0, position: 0 };
 
-    // Spezielle Positionsbehandlung: 0 bedeutet "keine Daten", nicht Position 0
     const currentPos = current.position || 0;
     const prevPos = previous.position || 0;
 
-    // Positionsänderung nur berechnen, wenn beide Werte > 0 sind
-    // (Achtung: niedrigere Position ist besser, daher prev - current)
     let posChange = 0;
     if (currentPos > 0 && prevPos > 0) {
       posChange = prevPos - currentPos;
-    } else if (currentPos > 0 && prevPos === 0) {
-      posChange = 0; // Neu gerankt (könnte auch als +Infinity interpretiert werden)
-    } else if (currentPos === 0 && prevPos > 0) {
-      posChange = 0; // Ranking verloren (könnte auch als -Infinity interpretiert werden)
     }
     
-    // Runden der Positionsänderung auf 2 Nachkommastellen
     const roundedPosChange = Math.round(posChange * 100) / 100;
 
     resultMap.set(url, {
@@ -649,11 +679,13 @@ export async function getGscDataForPagesWithComparison(
       impressions_prev: previous.impressions,
       impressions_change: current.impressions - previous.impressions,
       
-      position: Math.round(currentPos * 100) / 100, // Position auf 2 Nachkommastellen runden
+      position: Math.round(currentPos * 100) / 100,
       position_prev: Math.round(prevPos * 100) / 100,
       position_change: roundedPosChange
     });
   }
+
+  console.log('[GSC Comparison] Ergebnisse für', resultMap.size, 'URLs');
 
   return resultMap;
 }
