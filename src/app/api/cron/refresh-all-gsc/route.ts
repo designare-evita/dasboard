@@ -1,20 +1,20 @@
-// src/app/api/landingpages/refresh-gsc/route.ts (KORRIGIERT)
+// src/app/api/cron/refresh-all-gsc/route.ts (KORRIGIERT)
 
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { NextResponse } from 'next/server';
 import { sql } from '@vercel/postgres';
-import { User } from '@/types';
+import { getGscDataForPagesWithComparison } from '@/lib/google-api';
+import type { User } from '@/types';
 import { DateRangeOption } from '@/components/DateRangeSelector';
 
-// Importiere die NEUE Funktion
-import { getGscDataForPagesWithComparison } from '@/lib/google-api';
-
-// --- Datumsberechnung (identisch zur Cron-Route) ---
+// (Typdefinitionen und Datumsfunktionen bleiben unverändert)
+// ...
+type LandingpageDbRow = {
+  id: number;
+  url: string;
+};
 const formatDate = (date: Date): string => {
   return date.toISOString().split('T')[0];
 };
-
 function calculateDateRanges(range: DateRangeOption = '30d') {
   const GSC_DATA_DELAY_DAYS = 2;
   const endDateCurrent = new Date();
@@ -42,160 +42,161 @@ function calculateDateRanges(range: DateRangeOption = '30d') {
     },
   };
 }
-// --- Ende Datumsberechnung ---
+// ---
 
-/**
- * POST /api/landingpages/refresh-gsc
- * Führt einen manuellen GSC-Abgleich für alle Landingpages eines Projekts durch.
- */
-export async function POST(request: NextRequest) {
-  const client = await sql.connect();
+export async function POST(request: Request) {
+  // 1. Sicherheit: Cron-Geheimnis prüfen
+  const { searchParams } = new URL(request.url);
+  const cronSecret = searchParams.get('cron_secret');
   
+  if (cronSecret !== process.env.CRON_SECRET) {
+    console.warn('[CRON GSC] ❌ Zugriff verweigert - Ungültiges Geheimnis');
+    return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
+  }
+
+  console.log('[CRON GSC] 🚀 Starte automatischen GSC-Abgleich...');
+  const cronDateRange: DateRangeOption = '30d'; // Cron-Job läuft immer für 30 Tage
+  
+  const client = await sql.connect();
+  let totalProjectsProcessed = 0;
+  let totalPagesUpdated = 0;
+  const errors: string[] = [];
+
   try {
-    // 1. Sicherheit: Nur Admins und Superadmins
-    const session = await getServerSession(authOptions);
-    if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
-      return NextResponse.json({ message: "Zugriff verweigert" }, { status: 403 });
-    }
-
-    // 2. Request Body validieren
-    const body = await request.json();
-    const { projectId, dateRange } = body as { projectId: string; dateRange: DateRangeOption };
-
-    if (!projectId || !dateRange) {
-      return NextResponse.json({ message: "projectId und dateRange sind erforderlich" }, { status: 400 });
-    }
-
-    console.log(`[GSC REFRESH] Start für Projekt: ${projectId}, Zeitraum: ${dateRange}`);
-
-    // 3. Lade GSC Site URL des Projekts
+    // 2. Alle Benutzer mit GSC-Konfiguration laden
     const { rows: users } = await sql<User>`
-      SELECT gsc_site_url FROM users WHERE id::text = ${projectId}
+      SELECT id::text, email, gsc_site_url 
+      FROM users 
+      WHERE gsc_site_url IS NOT NULL AND gsc_site_url != '';
     `;
-    const gscSiteUrl = users[0]?.gsc_site_url;
 
-    if (!gscSiteUrl) {
-      return NextResponse.json({ message: "Für dieses Projekt ist keine GSC Site URL konfiguriert." }, { status: 400 });
-    }
+    console.log(`[CRON GSC] ℹ️ ${users.length} Projekte mit GSC-Konfiguration gefunden.`);
 
-    // 4. Lade alle Landingpages für das Projekt
-    const { rows: pages } = await client.query<{ id: number; url: string }>(
-      `SELECT id, url FROM landingpages WHERE user_id::text = $1`,
-      [projectId]
-    );
-    
-    if (pages.length === 0) {
-      return NextResponse.json({ message: "Keine Landingpages zum Abgleichen gefunden." });
-    }
+    // 3. Jedes Projekt durchlaufen
+    for (const user of users) {
+      const projectId = user.id;
+      const gscSiteUrl = user.gsc_site_url;
+      
+      if (!gscSiteUrl) continue;
 
-    // 5. Berechne Zeiträume
-    const { currentRange, previousRange } = calculateDateRanges(dateRange);
-    const pageUrls = pages.map(p => p.url);
+      console.log(`[CRON GSC] 🔄 Verarbeite Projekt: ${user.email} (${projectId})`);
 
-    console.log(`[GSC REFRESH] Rufe GSC API für ${pageUrls.length} URLs ab...`);
+      try {
+        // 4. Alle Landingpages für das Projekt laden
+        const { rows: pages } = await client.query<LandingpageDbRow>(
+          `SELECT id, url FROM landingpages WHERE user_id::text = $1`,
+          [projectId]
+        );
+        
+        if (pages.length === 0) {
+          console.log(`[CRON GSC] ⏩ Projekt ${user.email} übersprungen (keine Landingpages).`);
+          continue;
+        }
 
-    // 6. Rufe die GSC-Daten ab (Map hat lowercase-Schlüssel)
-    const gscDataMap = await getGscDataForPagesWithComparison(
-      gscSiteUrl,
-      pageUrls,
-      currentRange,
-      previousRange
-    );
+        // 5. Zeiträume berechnen & GSC-Daten abrufen
+        const { currentRange, previousRange } = calculateDateRanges(cronDateRange);
+        const pageUrls = pages.map(p => p.url);
 
-    console.log(`[GSC REFRESH] ${gscDataMap.size} URLs mit Daten von GSC empfangen.`);
+        const gscDataMap = await getGscDataForPagesWithComparison(
+          gscSiteUrl,
+          pageUrls,
+          currentRange,
+          previousRange
+        );
 
-    // 7. Datenbank-Update in einer Transaktion
-    let updatedCount = 0;
-    
-    await client.query('BEGIN');
+        console.log(`[CRON GSC] 📊 ${gscDataMap.size} GSC-Datenpunkte für ${user.email} empfangen.`);
 
-    const updatePromises = pages.map(page => {
-      const gscData = gscDataMap.get(normalizeGscUrl(page.url)); // Normalisierung beim Abruf
+        // 6. Datenbank-Update in einer Transaktion
+        let updatedCountInProject = 0;
+        await client.query('BEGIN');
 
-      if (gscData) {
-        updatedCount++;
-        // ✅ KORREKTUR: client.query mit Text und Array-Argumenten
-        return client.query(
+        const updatePromises = pages.map(page => {
+          const gscData = gscDataMap.get(normalizeGscUrl(page.url)); // Normalisierung beim Abruf
+
+          if (gscData) {
+            updatedCountInProject++;
+            return client.query(
+              `UPDATE landingpages
+               SET 
+                 gsc_klicks = $1,
+                 gsc_klicks_change = $2,
+                 gsc_impressionen = $3,
+                 gsc_impressionen_change = $4,
+                 gsc_position = $5,
+                 gsc_position_change = $6
+               WHERE id = $7;`,
+              [
+                gscData.clicks,
+                gscData.clicks_change,
+                gscData.impressions,
+                gscData.impressions_change,
+                gscData.position === 0 ? null : gscData.position,
+                gscData.position_change,
+                page.id
+              ]
+            );
+          } else {
+            return client.query(
+              `UPDATE landingpages
+               SET gsc_klicks = 0, gsc_klicks_change = 0, gsc_impressionen = 0, gsc_impressionen_change = 0, gsc_position = null, gsc_position_change = 0
+               WHERE id = $1;`,
+              [page.id]
+            );
+          }
+        });
+        
+        await Promise.all(updatePromises);
+
+        await client.query(
           `UPDATE landingpages
            SET 
-             gsc_klicks = $1,
-             gsc_klicks_change = $2,
-             gsc_impressionen = $3,
-             gsc_impressionen_change = $4,
-             gsc_position = $5,
-             gsc_position_change = $6
-           WHERE id = $7;`,
-          [
-            gscData.clicks,
-            gscData.clicks_change,
-            gscData.impressions,
-            gscData.impressions_change,
-            gscData.position === 0 ? null : gscData.position,
-            gscData.position_change,
-            page.id
-          ]
+             gsc_last_updated = NOW(),
+             gsc_last_range = $1
+           WHERE user_id::text = $2;`,
+          [cronDateRange, projectId]
         );
-      } else {
-        // ✅ KORREKTUR: client.query mit Text und Array-Argumenten
-        return client.query(
-          `UPDATE landingpages
-           SET gsc_klicks = 0, gsc_klicks_change = 0, gsc_impressionen = 0, gsc_impressionen_change = 0, gsc_position = null, gsc_position_change = 0
-           WHERE id = $1;`,
-          [page.id]
-        );
+
+        await client.query('COMMIT');
+        
+        console.log(`[CRON GSC] ✅ Projekt ${user.email} erfolgreich: ${updatedCountInProject} Seiten aktualisiert.`);
+        totalProjectsProcessed++;
+        totalPagesUpdated += updatedCountInProject;
+
+      } catch (projectError) {
+        await client.query('ROLLBACK');
+        const errorMessage = projectError instanceof Error ? projectError.message : 'Unbekannter Fehler';
+        console.error(`[CRON GSC] ❌ Fehler bei Projekt ${user.email}: ${errorMessage}`);
+        errors.push(`Projekt ${user.email}: ${errorMessage}`);
       }
-    });
+    } // Ende der for-Schleife
 
-    await Promise.all(updatePromises);
-    
-    // ✅ KORREKTUR: client.query mit Text und Array-Argumenten
-    await client.query(
-      `UPDATE landingpages
-       SET 
-         gsc_last_updated = NOW(),
-         gsc_last_range = $1
-       WHERE user_id::text = $2;`,
-      [dateRange, projectId]
-    );
-
-    await client.query('COMMIT');
-    
-    console.log(`[GSC REFRESH] ✅ Transaktion erfolgreich. ${updatedCount} Seiten aktualisiert.`);
-
-    // 8. Erfolgs-Response
+    // 7. Erfolgs-Response für den Cron-Job
+    console.log(`[CRON GSC] 🎉 Cron-Job beendet. ${totalProjectsProcessed} Projekte verarbeitet, ${totalPagesUpdated} Seiten aktualisiert.`);
     return NextResponse.json({
-      message: `✅ Abgleich erfolgreich. ${updatedCount} von ${pages.length} Landingpages mit GSC-Daten (${dateRange}) aktualisiert.`,
-      updatedCount,
-      totalCount: pages.length,
-      dateRange,
+      message: `Cron-Job erfolgreich. ${totalProjectsProcessed} von ${users.length} Projekten verarbeitet.`,
+      totalPagesUpdated,
+      errors,
     });
 
   } catch (error) {
-    // Bei Fehler -> Rollback
     await client.query('ROLLBACK');
-    console.error('[GSC REFRESH] ❌ Fehler während der Transaktion (Rollback durchgeführt):', error);
-    
-    return NextResponse.json(
-      { 
-        message: 'Fehler beim Abgleich der GSC-Daten', 
-        error: error instanceof Error ? error.message : 'Unbekannter Fehler' 
-      }, 
-      { status: 500 }
-    );
+    const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
+    console.error(`[CRON GSC] ❌ Schwerwiegender Fehler (Rollback): ${errorMessage}`);
+    return NextResponse.json({ message: `Fehler: ${errorMessage}` }, { status: 500 });
   } finally {
-    // Wichtig: Client-Verbindung freigeben
     client.release();
-    console.log('[GSC REFRESH] Datenbank-Client freigegeben.');
+    console.log('[CRON GSC] Datenbank-Client freigegeben.');
   }
 }
 
 /**
- * ✅ NEU: Robuste Normalisierungsfunktion (wie in der Cron-Datei)
+ * Robuste Normalisierungsfunktion
  */
 function normalizeGscUrl(url: string): string {
   try {
     if (url.startsWith('/')) {
-      let path = url.endsWith('/') && url.length > 1 ? url.slice(0, -1) : url;
+      // ✅ KORREKTUR: 'let' zu 'const' geändert
+      const path = url.endsWith('/') && url.length > 1 ? url.slice(0, -1) : url;
       return path.toLowerCase();
     }
     const parsedUrl = new URL(url);
