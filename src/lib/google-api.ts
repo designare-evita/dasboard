@@ -315,7 +315,7 @@ export async function getSearchConsoleData(
 }
 
 /**
- * Ruft die Top 5 Suchanfragen von der Google Search Console ab
+ * Ruft die Top Suchanfragen von der Google Search Console ab
  */
 export async function getTopQueries(
   siteUrl: string,
@@ -339,23 +339,252 @@ export async function getTopQueries(
       },
     });
 
-    const rows = res.data.rows || [];
-    const queries: TopQueryData[] = rows
-      .map((row) => ({
-        query: row.keys?.[0] || "",
-        clicks: row.clicks || 0,
-        impressions: row.impressions || 0,
-        ctr: row.ctr || 0,
-        position: row.position || 0,
-      }))
-      .sort((a, b) => b.clicks - a.clicks)
-      .slice(0, 5);
+    const allQueries = res.data.rows?.map((row) => ({
+      query: row.keys?.[0] || "N/A",
+      clicks: row.clicks || 0,
+      impressions: row.impressions || 0,
+      ctr: row.ctr || 0,
+      position: row.position || 0,
+    })) || [];
 
-    return queries;
+    return allQueries
+      .sort((a, b) => b.clicks - a.clicks)
+      .slice(0, 100);
+
   } catch (error: unknown) {
     console.error("[GSC] Fehler beim Abrufen der Top Queries:", error);
     console.error("[GSC] Request Details:", { siteUrl, startDate, endDate });
-    throw new Error("Fehler bei Google Search Console Top Queries API");
+    return [];
+  }
+}
+
+/**
+ * Ruft aggregierte Sitzungs- und Nutzerdaten von Google Analytics 4 ab
+ */
+export async function getAnalyticsData(
+  propertyId: string,
+  startDate: string,
+  endDate: string
+): Promise<{ sessions: DateRangeData; totalUsers: DateRangeData }> {
+  const formattedPropertyId = propertyId.startsWith('properties/')
+    ? propertyId
+    : `properties/${propertyId}`;
+
+  const auth = createAuth();
+  const analytics = google.analyticsdata({ version: 'v1beta', auth });
+
+  try {
+    const response = await analytics.properties.runReport({
+      property: formattedPropertyId,
+      requestBody: {
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: 'date' }],
+        metrics: [{ name: 'sessions' }, { name: 'totalUsers' }],
+        orderBys: [{
+          dimension: { dimensionName: 'date' },
+          desc: false,
+        }],
+      },
+    });
+
+    const rows = response.data.rows || [];
+    const sessionsDaily: DailyDataPoint[] = [];
+    const usersDaily: DailyDataPoint[] = [];
+    let totalSessions = 0;
+    let totalUsers = 0;
+
+    for (const row of rows) {
+      const rawDate = row.dimensionValues?.[0]?.value;
+      const date = rawDate?.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3') ?? '';
+      const sessions = parseInt(row.metricValues?.[0]?.value || '0', 10);
+      const users = parseInt(row.metricValues?.[1]?.value || '0', 10);
+
+      if (date) {
+        sessionsDaily.push({ date, value: sessions });
+        usersDaily.push({ date, value: users });
+        totalSessions += sessions;
+        totalUsers += users;
+      }
+    }
+
+    return {
+      sessions: {
+        total: totalSessions,
+        daily: sessionsDaily,
+      },
+      totalUsers: {
+        total: totalUsers,
+        daily: usersDaily,
+      },
+    };
+  } catch (error: unknown) {
+    console.error('[GA4] Fehler beim Abrufen der Daten:', error);
+    console.error('[GA4] Request Details:', { propertyId: formattedPropertyId, startDate, endDate });
+    const errorMessage = error instanceof Error ? error.message : 'Unbekannter API-Fehler';
+    throw new Error(`Fehler bei Google Analytics API: ${errorMessage}`);
+  }
+}
+
+/**
+ * Ruft KI-Traffic-Daten aus Google Analytics 4 ab
+ * Identifiziert Traffic von bekannten KI-Bots und Crawlern
+ */
+export async function getAiTrafficData(
+  propertyId: string,
+  startDate: string,
+  endDate: string
+): Promise<AiTrafficData> {
+  const formattedPropertyId = propertyId.startsWith('properties/')
+    ? propertyId
+    : `properties/${propertyId}`;
+
+  const auth = createAuth();
+  const analytics = google.analyticsdata({ version: 'v1beta', auth });
+
+  try {
+    console.log('[AI-Traffic] Starte Abruf für Property:', formattedPropertyId);
+
+    // Query 1: Traffic nach Quelle/Medium gruppiert
+    const sourceResponse = await analytics.properties.runReport({
+      property: formattedPropertyId,
+      requestBody: {
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [
+          { name: 'sessionSource' },
+          { name: 'sessionMedium' },
+        ],
+        metrics: [
+          { name: 'sessions' },
+          { name: 'totalUsers' },
+        ],
+        orderBys: [{ 
+          metric: { metricName: 'sessions' }, 
+          desc: true 
+        }],
+        limit: '1000',
+      },
+    });
+
+    // Query 2: Täglicher KI-Traffic-Trend
+    const trendResponse = await analytics.properties.runReport({
+      property: formattedPropertyId,
+      requestBody: {
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [
+          { name: 'date' },
+          { name: 'sessionSource' },
+          { name: 'sessionMedium' },
+        ],
+        metrics: [
+          { name: 'sessions' },
+        ],
+        orderBys: [{ 
+          dimension: { dimensionName: 'date' }, 
+          desc: false 
+        }],
+        limit: '10000',
+      },
+    });
+
+    const sourceRows = sourceResponse.data.rows || [];
+    const trendRows = trendResponse.data.rows || [];
+
+    console.log('[AI-Traffic] Quellen-Zeilen:', sourceRows.length);
+    console.log('[AI-Traffic] Trend-Zeilen:', trendRows.length);
+
+    // Verarbeite Quellen-Daten
+    let totalSessions = 0;
+    let totalUsers = 0;
+    const sessionsBySource: { [key: string]: number } = {};
+    const usersBySource: { [key: string]: number } = {};
+
+    for (const row of sourceRows) {
+      const source = row.dimensionValues?.[0]?.value || 'Unknown';
+      const medium = row.dimensionValues?.[1]?.value || '';
+      const sessions = parseInt(row.metricValues?.[0]?.value || '0', 10);
+      const users = parseInt(row.metricValues?.[1]?.value || '0', 10);
+
+      // Prüfe, ob es eine KI-Quelle ist
+      const fullSource = `${source}${medium ? `/${medium}` : ''}`;
+      
+      if (isAiSource(fullSource) || isAiSource(source)) {
+        const cleanName = cleanAiSourceName(source);
+        
+        totalSessions += sessions;
+        totalUsers += users;
+        
+        sessionsBySource[cleanName] = (sessionsBySource[cleanName] || 0) + sessions;
+        usersBySource[cleanName] = (usersBySource[cleanName] || 0) + users;
+        
+        console.log('[AI-Traffic] KI-Quelle gefunden:', cleanName, '- Sitzungen:', sessions);
+      }
+    }
+
+    console.log('[AI-Traffic] Gesamt KI-Sitzungen:', totalSessions);
+
+    // Verarbeite Trend-Daten
+    const trendMap: { [date: string]: number } = {};
+
+    for (const row of trendRows) {
+      const rawDate = row.dimensionValues?.[0]?.value || '';
+      const source = row.dimensionValues?.[1]?.value || '';
+      const medium = row.dimensionValues?.[2]?.value || '';
+      const sessions = parseInt(row.metricValues?.[0]?.value || '0', 10);
+      const fullSource = `${source}${medium ? `/${medium}` : ''}`;
+
+      if (isAiSource(fullSource) || isAiSource(source)) {
+        const date = formatDateToISO(rawDate);
+        trendMap[date] = (trendMap[date] || 0) + sessions;
+      }
+    }
+
+    // Top AI Sources erstellen
+    const topAiSources = Object.entries(sessionsBySource)
+      .map(([source, sessions]) => ({
+        source,
+        sessions,
+        users: usersBySource[source] || 0,
+        percentage: totalSessions > 0 ? (sessions / totalSessions) * 100 : 0,
+      }))
+      .sort((a, b) => b.sessions - a.sessions)
+      .slice(0, 5);
+
+    console.log('[AI-Traffic] Top AI Sources:', topAiSources);
+
+    // Trend-Daten formatieren
+    const trend = Object.entries(trendMap)
+      .map(([date, sessions]) => ({
+        date: date,
+        value: sessions,
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    console.log('[AI-Traffic] Trend-Datenpunkte:', trend.length);
+
+    return {
+      totalSessions,
+      totalUsers,
+      sessionsBySource,
+      topAiSources,
+      trend,
+    };
+
+  } catch (error: unknown) {
+    console.error('[AI-Traffic] Fehler beim Abrufen:', error);
+    console.error('[AI-Traffic] Request Details:', { 
+      propertyId: formattedPropertyId, 
+      startDate, 
+      endDate 
+    });
+
+    // Fallback mit leeren Daten statt Fehler zu werfen
+    return {
+      totalSessions: 0,
+      totalUsers: 0,
+      sessionsBySource: {},
+      topAiSources: [],
+      trend: [],
+    };
   }
 }
 
