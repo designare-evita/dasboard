@@ -28,18 +28,19 @@ export interface AiTrafficData {
   totalSessions: number;
   totalUsers: number;
 
-  totalSessionsChange?: number; 
+  totalSessionsChange?: number;
   totalUsersChange?: number;
-  
-  sessionsBySource: {
-    : number;
-  };
+
+  // Variante 1: Record
+  sessionsBySource: Record<string, number>;
+
   topAiSources: Array<{
     source: string;
     sessions: number;
     users: number;
     percentage: number;
   }>;
+
   trend: Array<{
     date: string;
     value: number; // Muss 'value' sein, um mit AiTrafficCard übereinzustimmen
