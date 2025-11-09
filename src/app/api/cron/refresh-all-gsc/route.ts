@@ -1,13 +1,12 @@
 // src/app/api/cron/refresh-all-gsc/route.ts (KORRIGIERT)
 
 import { NextResponse } from 'next/server';
-import { sql } from '@vercel/postgres';
+import { sql, type QueryResult } from '@vercel/postgres'; // QueryResult importiert
 import { getGscDataForPagesWithComparison } from '@/lib/google-api';
 import type { User } from '@/types';
 import { DateRangeOption } from '@/components/DateRangeSelector';
 
-// (Typdefinitionen und Datumsfunktionen bleiben unverändert)
-// ...
+// (Typdefinitionen und Datumsfunktionen)
 type LandingpageDbRow = {
   id: number;
   url: string;
@@ -110,12 +109,15 @@ export async function POST(request: Request) {
         let updatedCountInProject = 0;
         await client.query('BEGIN');
 
-        const updatePromises = pages.map(page => {
-          const gscData = gscDataMap.get(normalizeGscUrl(page.url)); // Normalisierung beim Abruf
+        const updatePromises: Promise<QueryResult>[] = []; // Korrekter Typ für die Promises
+
+        pages.forEach(page => { // Verwende forEach statt map, wenn das Ergebnis nicht benötigt wird
+          // === KORREKTUR: Direkter Zugriff mit der Original-URL ===
+          const gscData = gscDataMap.get(page.url);
 
           if (gscData) {
             updatedCountInProject++;
-            return client.query(
+            updatePromises.push(client.query(
               `UPDATE landingpages
                SET 
                  gsc_klicks = $1,
@@ -134,19 +136,21 @@ export async function POST(request: Request) {
                 gscData.position_change,
                 page.id
               ]
-            );
+            ));
           } else {
-            return client.query(
+            // Setze auf 0, wenn keine Daten gefunden wurden
+            updatePromises.push(client.query(
               `UPDATE landingpages
                SET gsc_klicks = 0, gsc_klicks_change = 0, gsc_impressionen = 0, gsc_impressionen_change = 0, gsc_position = null, gsc_position_change = 0
                WHERE id = $1;`,
               [page.id]
-            );
+            ));
           }
         });
         
         await Promise.all(updatePromises);
 
+        // Setze den Zeitstempel für alle Seiten dieses Benutzers
         await client.query(
           `UPDATE landingpages
            SET 
@@ -189,28 +193,4 @@ export async function POST(request: Request) {
   }
 }
 
-/**
- * Robuste Normalisierungsfunktion
- */
-function normalizeGscUrl(url: string): string {
-  try {
-    if (url.startsWith('/')) {
-      // ✅ KORREKTUR: 'let' zu 'const' geändert
-      const path = url.endsWith('/') && url.length > 1 ? url.slice(0, -1) : url;
-      return path.toLowerCase();
-    }
-    const parsedUrl = new URL(url);
-    let host = parsedUrl.hostname;
-    if (host.startsWith('www.')) {
-      host = host.substring(4);
-    }
-    let path = parsedUrl.pathname;
-    if (path.length > 1 && path.endsWith('/')) {
-      path = path.substring(0, path.length - 1);
-    }
-    const fullPath = host + path + parsedUrl.search;
-    return fullPath.toLowerCase();
-  } catch (e) {
-    return url.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/$/, '').toLowerCase();
-  }
-}
+// === KORREKTUR: Fehlerhafte, lokale normalizeGscUrl-Funktion wurde entfernt ===
