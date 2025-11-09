@@ -133,9 +133,12 @@ function formatDateToISO(dateStr: string): string {
 }
 
 /**
- * ✅ Normalisiert URLs für robusten Abgleich.
+ * ✅ Normalisiert URLs für robusten Abgleich (INKL. Sprach-Fallback).
  * Entfernt Protokoll, www. und trailing slashes.
  * Behält Pfad und Query-Parameter bei.
+ * 
+ * WICHTIG: Normalisiert Sprachpräfixe NICHT (z.B. /de/ bleibt /de/)
+ * Das Matching erfolgt über createUrlVariants(), die alle Varianten erstellt.
  */
 function normalizeUrl(url: string): string {
   if (!url) return '';
@@ -150,7 +153,7 @@ function normalizeUrl(url: string): string {
       // Wenn Hostname der Dummy-Base entspricht, hatten wir nur einen Pfad
       if (parsedUrl.hostname === 'dummy-base.com') {
         let path = parsedUrl.pathname.toLowerCase();
-        // Trailing slash entfernen
+        // Trailing slash entfernen (außer bei Root '/')
         if (path !== '/' && path.endsWith('/')) {
           path = path.slice(0, -1);
         }
@@ -161,19 +164,19 @@ function normalizeUrl(url: string): string {
       parsedUrl = new URL(url);
     }
 
-    // Hostname normalisieren
+    // Hostname normalisieren (ohne www)
     let host = parsedUrl.hostname.toLowerCase();
     if (host.startsWith('www.')) {
       host = host.substring(4);
     }
 
-    // Pfad normalisieren
+    // Pfad normalisieren (lowercase + ohne trailing slash)
     let path = parsedUrl.pathname.toLowerCase();
     if (path !== '/' && path.endsWith('/')) {
       path = path.slice(0, -1);
     }
     
-    // Query-Parameter sortieren
+    // Query-Parameter sortieren (für konsistente Vergleiche)
     const params = Array.from(parsedUrl.searchParams.entries())
       .sort(([a], [b]) => a.localeCompare(b));
     const search = new URLSearchParams(params).toString();
@@ -185,17 +188,17 @@ function normalizeUrl(url: string): string {
     console.warn(`[normalizeUrl] Fallback für URL: ${url}`, error);
     // Einfacher Fallback
     return url
-      .replace(/^https?:\/\//, '')
-      .replace(/^www\./, '')
-      .toLowerCase()
-      .replace(/\/$/, '')
-      .split('#')[0];
+      .replace(/^https?:\/\//, '')      // Protokoll entfernen
+      .replace(/^www\./, '')             // www. entfernen
+      .toLowerCase()                     // Lowercase
+      .replace(/\/+$/, '')               // Trailing slashes entfernen
+      .split('#')[0];                    // Fragment entfernen
   }
 }
 
 /**
- * ✅ Erstellt alle 8 URL-Varianten (http/s, www/non-www, mit/ohne /)
- * Behält die ursprüngliche Groß/Kleinschreibung des Pfades bei.
+ * ✅ Erstellt URL-Varianten inkl. Sprach-Fallbacks
+ * Beispiel: /de/lifte/ → auch /lifte/ (ohne Sprachpräfix)
  */
 function createUrlVariants(url: string): string[] {
   const variants: Set<string> = new Set();
@@ -203,7 +206,7 @@ function createUrlVariants(url: string): string[] {
   try {
     const urlObj = new URL(url);
     const host = urlObj.hostname.toLowerCase();
-    const path = urlObj.pathname; // Pfad case-sensitive beibehalten
+    const path = urlObj.pathname;
     const search = urlObj.search;
     
     // 1. Host-Varianten (www und non-www)
@@ -216,19 +219,44 @@ function createUrlVariants(url: string): string[] {
       hosts.push(`www.${host}`);
     }
 
-    // 2. Pfad-Varianten (mit und ohne trailing slash)
+    // 2. Pfad-Varianten (mit/ohne trailing slash + Sprach-Fallback)
     const paths: string[] = [];
+    
+    // Original-Pfad
     paths.push(path);
+    
+    // Ohne trailing slash
     if (path !== '/' && path.endsWith('/')) {
       paths.push(path.slice(0, -1));
     } else if (path !== '/') {
       paths.push(path + '/');
     }
+    
+    // ✅ NEU: Sprach-Fallback (entferne Sprachpräfixe)
+    // Erkenne Muster wie /de/, /en/, /fr/, /it/, /es/, etc.
+    const langPrefixPattern = /^\/([a-z]{2})(\/|$)/i;
+    const langMatch = path.match(langPrefixPattern);
+    
+    if (langMatch) {
+      // Pfad ohne Sprachpräfix
+      const pathWithoutLang = path.replace(langPrefixPattern, '/');
+      
+      if (pathWithoutLang !== path) {
+        paths.push(pathWithoutLang);
+        
+        // Auch ohne trailing slash
+        if (pathWithoutLang !== '/' && pathWithoutLang.endsWith('/')) {
+          paths.push(pathWithoutLang.slice(0, -1));
+        } else if (pathWithoutLang !== '/') {
+          paths.push(pathWithoutLang + '/');
+        }
+      }
+    }
 
     // 3. Protokoll-Varianten
     const protocols = ['https://', 'http://'];
 
-    // 4. Alle 8 Kombinationen erstellen
+    // 4. Alle Kombinationen erstellen
     for (const p of protocols) {
       for (const h of hosts) {
         for (const pa of paths) {
@@ -665,6 +693,17 @@ async function queryGscDataForPages(
   
   console.log(`[GSC] Erstellt: ${normalizedToOriginal.size} Normalisierungs-Mappings`);
   console.log(`[GSC] Sende ${apiFilterUrls.size} URL-Varianten an die API`);
+  
+  // ✅ NEU: Debug-Info für mehrsprachige URLs
+  const sampleDbUrl = pageUrls[0];
+  if (sampleDbUrl) {
+    const sampleVariants = createUrlVariants(sampleDbUrl);
+    console.log(`[GSC] Beispiel URL-Varianten für: ${sampleDbUrl.substring(0, 60)}...`);
+    console.log(`[GSC] → Erstellt ${sampleVariants.length} Varianten (inkl. Sprach-Fallbacks)`);
+    if (sampleVariants.length <= 20) {
+      sampleVariants.slice(0, 5).forEach(v => console.log(`    - ${v}`));
+    }
+  }
 
   // API-Limit beachten (25 Filter pro dimensionFilterGroups laut Google Docs)
   const MAX_FILTERS_PER_GROUP = 20; // Sicherer Puffer
@@ -756,6 +795,16 @@ async function queryGscDataForPages(
               position: newPosition,
               count: existing.count + 1
             });
+            
+            // ✅ NEU: Debug-Log für erfolgreiche Matches (nur erste 3 pro Chunk)
+            if (aggregatedResultMap.size <= 3) {
+              console.log(`[GSC] ✅ Match: ${gscUrl.substring(0, 50)}... → ${originalUrl.substring(0, 50)}... (${clicks} clicks)`);
+            }
+          } else {
+            // ✅ NEU: Log für nicht-gematchte URLs (nur erste 3)
+            if (i === 0 && rows.indexOf(row) < 3) {
+              console.log(`[GSC] ⚠️ Kein Match: ${gscUrl.substring(0, 60)}... (Norm: ${normalizedGscUrl.substring(0, 50)}...)`);
+            }
           }
         }
 
