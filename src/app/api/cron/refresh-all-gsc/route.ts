@@ -1,42 +1,40 @@
 // src/app/api/cron/refresh-all-gsc/route.ts
 
-import { NextRequest, NextResponse } from 'next/server';
-import { sql, type QueryResult } from '@vercel/postgres';
-import { getGscDataForPagesWithComparison } from '@/lib/google-api';
+import { NextResponse } from 'next/server';
+import { sql } from '@vercel/postgres';
+import { getGscDataForPagesWithComparison } from '@/lib/google-api'; // ⭐️ Importiere die neue Funktion
 import type { User } from '@/types';
+import { DateRangeOption } from '@/components/DateRangeSelector';
 
-// === Hilfsfunktionen zur Datumsberechnung ===
+// Typ für die Landingpage-Zeilen aus der DB
+type LandingpageDbRow = {
+  id: number;
+  url: string;
+};
 
-/**
- * Formatiert ein Date-Objekt zu 'YYYY-MM-DD'
- */
-function formatDate(date: Date): string {
+// --- Datumsberechnung (exakt wie in der manuellen Route) ---
+
+const formatDate = (date: Date): string => {
   return date.toISOString().split('T')[0];
-}
+};
 
-/**
- * Berechnet Start- und Enddatum für den aktuellen und vorherigen Zeitraum.
- * (Hardcoded auf '30d' für den Cron-Job)
- */
-function calculateDateRanges(): {
-  currentRange: { startDate: string, endDate: string },
-  previousRange: { startDate: string, endDate: string }
-} {
-  const today = new Date();
-  // GSC-Daten sind oft 2 Tage verzögert.
-  const endDateCurrent = new Date(today);
-  endDateCurrent.setDate(endDateCurrent.getDate() - 2); 
-  
+function calculateDateRanges(range: DateRangeOption = '30d') {
+  // ... (Code 1:1 aus der manuellen Route kopiert)
+  const GSC_DATA_DELAY_DAYS = 2;
+  const endDateCurrent = new Date();
+  endDateCurrent.setDate(endDateCurrent.getDate() - GSC_DATA_DELAY_DAYS);
+  let daysToSubtract = 29; // Default '30d'
+  switch (range) {
+    case '3m': daysToSubtract = 89; break;
+    case '6m': daysToSubtract = 179; break;
+    case '12m': daysToSubtract = 364; break;
+  }
   const startDateCurrent = new Date(endDateCurrent);
-  const daysBack = 29; // 30 Tage total (Tag 0 bis Tag 29)
-  
-  startDateCurrent.setDate(startDateCurrent.getDate() - daysBack);
-  
+  startDateCurrent.setDate(startDateCurrent.getDate() - daysToSubtract);
   const endDatePrevious = new Date(startDateCurrent);
-  endDatePrevious.setDate(endDatePrevious.getDate() - 1); // 1 Tag davor
+  endDatePrevious.setDate(endDatePrevious.getDate() - 1);
   const startDatePrevious = new Date(endDatePrevious);
-  startDatePrevious.setDate(startDatePrevious.getDate() - daysBack); // Gleiche Dauer
-  
+  startDatePrevious.setDate(startDatePrevious.getDate() - daysToSubtract);
   return {
     currentRange: {
       startDate: formatDate(startDateCurrent),
@@ -48,149 +46,146 @@ function calculateDateRanges(): {
     },
   };
 }
+// --- Ende Datumsberechnung ---
 
 
 /**
  * POST /api/cron/refresh-all-gsc
- * * Geht alle Benutzer durch, die GSC konfiguriert haben,
- * ruft die GSC-Daten für alle ihre Landingpages ab (Zeitraum 30d)
- * und speichert die Ergebnisse in der 'landingpages'-Tabelle.
- * * Geschützt durch CRON_SECRET.
+ * Wird von Vercel Cron aufgerufen, um GSC-Daten für ALLE Landingpages zu aktualisieren.
  */
-export async function POST(request: NextRequest) {
-  // 1. Sicherheit: Cron-Job absichern
-  const authHeader = request.headers.get('Authorization');
-  const cronSecret = process.env.CRON_SECRET;
-
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
-    console.warn('[CRON GSC] ❌ Nicht autorisierter Zugriff');
+export async function POST(request: Request) {
+  // 1. Sicherheit: Cron-Geheimnis prüfen
+  const { searchParams } = new URL(request.url);
+  const cronSecret = searchParams.get('cron_secret');
+  
+  if (cronSecret !== process.env.CRON_SECRET) {
+    console.warn('[CRON GSC] ❌ Zugriff verweigert - Ungültiges Geheimnis');
     return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
   }
 
   console.log('[CRON GSC] 🚀 Starte automatischen GSC-Abgleich...');
-  const dateRange = '30d';
-  const { currentRange, previousRange } = calculateDateRanges();
-
-  let totalUsersProcessed = 0;
+  const cronDateRange: DateRangeOption = '30d'; // Cron-Job läuft immer für 30 Tage
+  
+  const client = await sql.connect();
+  let totalProjectsProcessed = 0;
   let totalPagesUpdated = 0;
   const errors: string[] = [];
 
   try {
-    // 2. Alle relevanten Benutzer laden (Kunden mit GSC-URL)
-    const { rows: users } = await sql<Pick<User, 'id' | 'email' | 'gsc_site_url'>>`
-      SELECT id, email, gsc_site_url 
+    // 2. Alle Benutzer mit GSC-Konfiguration laden
+    const { rows: users } = await sql<User>`
+      SELECT id::text, email, gsc_site_url 
       FROM users 
-      WHERE role = 'BENUTZER' AND gsc_site_url IS NOT NULL AND gsc_site_url != '';
+      WHERE gsc_site_url IS NOT NULL AND gsc_site_url != '';
     `;
 
-    console.log(`[CRON GSC] 👥 ${users.length} Benutzer mit GSC-Konfiguration gefunden.`);
+    console.log(`[CRON GSC] ℹ️ ${users.length} Projekte mit GSC-Konfiguration gefunden.`);
 
-    // 3. Durch jeden Benutzer loopen
+    // 3. Jedes Projekt durchlaufen
     for (const user of users) {
-      if (!user.gsc_site_url) continue; // Sollte nie passieren, aber sicher ist sicher
-
-      console.log(`[CRON GSC] 🔄 Verarbeite User: ${user.email} (ID: ${user.id})`);
+      const projectId = user.id;
+      const gscSiteUrl = user.gsc_site_url;
       
-      // Pro User eine eigene Transaktion starten
-      const client = await sql.connect();
-      try {
-        // 4. Landingpages für diesen User laden
-        const { rows: landingpageRows } = await client.query<{ id: number; url: string }>(
-          `SELECT id, url FROM landingpages WHERE user_id::text = $1;`,
-          [user.id]
-        );
+      if (!gscSiteUrl) continue;
 
-        if (landingpageRows.length === 0) {
-          console.log(`[CRON GSC] ℹ️ User ${user.email} hat keine Landingpages. Überspringe.`);
-          client.release();
-          continue; // Nächster User
+      console.log(`[CRON GSC] 🔄 Verarbeite Projekt: ${user.email} (${projectId})`);
+
+      try {
+        // 4. Alle Landingpages für das Projekt laden
+        const { rows: pages } = await sql<LandingpageDbRow>`
+          SELECT id, url FROM landingpages WHERE user_id::text = ${projectId}
+        `;
+        
+        if (pages.length === 0) {
+          console.log(`[CRON GSC] ⏩ Projekt ${user.email} übersprungen (keine Landingpages).`);
+          continue;
         }
 
-        const pageUrls = landingpageRows.map(lp => lp.url);
-        const pageIdMap = new Map<string, number>(landingpageRows.map(lp => [lp.url, lp.id]));
+        // 5. Zeiträume berechnen & GSC-Daten abrufen
+        const { currentRange, previousRange } = calculateDateRanges(cronDateRange);
+        const pageUrls = pages.map(p => p.url);
 
-        // 5. GSC-Daten für alle URLs dieses Users abrufen
         const gscDataMap = await getGscDataForPagesWithComparison(
-          user.gsc_site_url,
+          gscSiteUrl,
           pageUrls,
           currentRange,
           previousRange
         );
 
-        // 6. Transaktion starten und Daten aktualisieren
+        console.log(`[CRON GSC] 📊 ${gscDataMap.size} GSC-Datenpunkte für ${user.email} empfangen.`);
+
+        // 6. Datenbank-Update in einer Transaktion
+        let updatedCountInProject = 0;
         await client.query('BEGIN');
 
-        const updatePromises: Promise<QueryResult>[] = [];
-        let updatedCountForUser = 0;
+        const updatePromises = pages.map(page => {
+          // ✅ KORREKTUR: Greife auf die Map mit der lowercase-URL zu
+          const gscData = gscDataMap.get(page.url.toLowerCase());
 
-        for (const [url, data] of gscDataMap.entries()) {
-          const landingpageId = pageIdMap.get(url);
-          
-          if (landingpageId && (data.clicks > 0 || data.impressions > 0 || data.position > 0)) {
-            updatePromises.push(
-              client.query(
-                `UPDATE landingpages
-                 SET 
-                   gsc_klicks = $1,
-                   gsc_klicks_change = $2,
-                   gsc_impressionen = $3,
-                   gsc_impressionen_change = $4,
-                   gsc_position = $5,
-                   gsc_position_change = $6,
-                   gsc_last_updated = NOW(),
-                   gsc_last_range = $7
-                 WHERE id = $8;`,
-                [
-                  data.clicks,
-                  data.clicks_change,
-                  data.impressions,
-                  data.impressions_change,
-                  data.position,
-                  data.position_change,
-                  dateRange,
-                  landingpageId
-                ]
-              )
-            );
-            updatedCountForUser++;
+          if (gscData) {
+            updatedCountInProject++;
+            return client.query`
+              UPDATE landingpages
+              SET 
+                gsc_klicks = ${gscData.clicks},
+                gsc_klicks_change = ${gscData.clicks_change},
+                gsc_impressionen = ${gscData.impressions},
+                gsc_impressionen_change = ${gscData.impressions_change},
+                gsc_position = ${gscData.position === 0 ? null : gscData.position},
+                gsc_position_change = ${gscData.position_change}
+              WHERE id = ${page.id};
+            `;
+          } else {
+            return client.query`
+              UPDATE landingpages
+              SET gsc_klicks = 0, gsc_klicks_change = 0, gsc_impressionen = 0, gsc_impressionen_change = 0, gsc_position = null, gsc_position_change = 0
+              WHERE id = ${page.id};
+            `;
           }
-        }
-
+        });
+        
         await Promise.all(updatePromises);
+
+        // Setze den globalen Zeitstempel
+        await client.query`
+          UPDATE landingpages
+          SET 
+            gsc_last_updated = NOW(),
+            gsc_last_range = ${cronDateRange}
+          WHERE user_id::text = ${projectId};
+        `;
+
         await client.query('COMMIT');
         
-        console.log(`[CRON GSC] ✅ User ${user.email}: ${updatedCountForUser} von ${pageUrls.length} Seiten aktualisiert.`);
-        totalUsersProcessed++;
-        totalPagesUpdated += updatedCountForUser;
+        console.log(`[CRON GSC] ✅ Projekt ${user.email} erfolgreich: ${updatedCountInProject} Seiten aktualisiert.`);
+        totalProjectsProcessed++;
+        totalPagesUpdated += updatedCountInProject;
 
-      } catch (userError) {
-        // Fehler bei diesem User -> Rollback und nächsten User versuchen
+      } catch (projectError) {
         await client.query('ROLLBACK');
-        const errorMessage = `Fehler bei User ${user.email}: ${userError instanceof Error ? userError.message : 'Unbekannt'}`;
-        console.error(`[CRON GSC] ❌ ${errorMessage}`);
-        errors.push(errorMessage);
-      } finally {
-        client.release();
+        const errorMessage = projectError instanceof Error ? projectError.message : 'Unbekannter Fehler';
+        console.error(`[CRON GSC] ❌ Fehler bei Projekt ${user.email}: ${errorMessage}`);
+        errors.push(`Projekt ${user.email}: ${errorMessage}`);
       }
-    } // Ende des User-Loops
+    } // Ende der for-Schleife
 
-    console.log(`[CRON GSC] 🎉 Job beendet. ${totalPagesUpdated} Seiten für ${totalUsersProcessed} User aktualisiert.`);
-    
-    return NextResponse.json({ 
-      message: `Cron-Job erfolgreich. ${totalPagesUpdated} Landingpages für ${totalUsersProcessed} Benutzer aktualisiert.`,
-      usersProcessed: totalUsersProcessed,
-      pagesUpdated: totalPagesUpdated,
-      errors: errors.length > 0 ? errors : undefined
+    // 7. Erfolgs-Response für den Cron-Job
+    console.log(`[CRON GSC] 🎉 Cron-Job beendet. ${totalProjectsProcessed} Projekte verarbeitet, ${totalPagesUpdated} Seiten aktualisiert.`);
+    return NextResponse.json({
+      message: `Cron-Job erfolgreich. ${totalProjectsProcessed} von ${users.length} Projekten verarbeitet.`,
+      totalPagesUpdated,
+      errors,
     });
 
   } catch (error) {
-    console.error('[CRON GSC] ❌ Schwerwiegender Fehler im Cron-Job:', error);
-    return NextResponse.json(
-      { 
-        message: 'Fehler beim Ausführen des Cron-Jobs.',
-        error: error instanceof Error ? error.message : 'Unbekannter Fehler'
-      },
-      { status: 500 }
-    );
+    // Bei schwerwiegendem Fehler (z.B. DB-Verbindung) -> Rollback
+    await client.query('ROLLBACK');
+    const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
+    console.error(`[CRON GSC] ❌ Schwerwiegender Fehler (Rollback): ${errorMessage}`);
+    return NextResponse.json({ message: `Fehler: ${errorMessage}` }, { status: 500 });
+  } finally {
+    // Wichtig: Client-Verbindung freigeben
+    client.release();
+    console.log('[CRON GSC] Datenbank-Client freigegeben.');
   }
 }
