@@ -2,7 +2,8 @@
 // mit detailliertem Logging zur Fehlerdiagnose
 // ✅ KORRIGIERT: Übergibt 5 Argumente an getGscDataForPagesWithComparison
 // ✅ FIX: Fehlerhaften JOIN auf 'users.project_id' entfernt
-// ✅ FIX (NEU): Linter-Fehler ('no-explicit-any' und 'no-unused-vars') behoben
+// ✅ FIX: Linter-Fehler ('no-explicit-any' und 'no-unused-vars') behoben
+// ✅ NEU: Debug-Logs GANZ AM ANFANG, um 'process.env' zu prüfen
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
@@ -120,6 +121,22 @@ function calculateDateRanges(range: string = '30d') {
 // HAUPTFUNKTION: POST Handler
 // ==================================================================
 export async function POST(req: NextRequest) {
+  // ==================================================================
+  // NEUE DEBUG-ZEILEN
+  // ==================================================================
+  console.log('=================================================');
+  console.log('[DEBUG] Prüfe process.env in api/landingpages/refresh-gsc');
+  // Wir prüfen, ob die Variablen *überhaupt* existieren
+  console.log(
+    `[DEBUG] Hat GOOGLE_CLIENT_EMAIL? ${!!process.env.GOOGLE_CLIENT_EMAIL}`,
+  );
+  // Wir loggen *nicht* den Key, nur ob er da ist.
+  console.log(
+    `[DEBUG] Hat GOOGLE_PRIVATE_KEY? ${!!process.env.GOOGLE_PRIVATE_KEY}`,
+  );
+  console.log('=================================================');
+  // Ende Debug
+
   const session = await getServerSession(authOptions);
   if (!session) {
     return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
@@ -185,10 +202,6 @@ export async function POST(req: NextRequest) {
 
     debugLog.projectInfo = {
       email: project.email,
-      // ===================================================================
-      // KORREKTUR: 'as any' entfernt. Greift jetzt sicher auf
-      // die optionale 'domain'-Eigenschaft zu.
-      // ===================================================================
       domain: project.domain || 'N/A (JOIN entfernt)',
       gsc_site_url: siteUrl,
       has_gsc: !!siteUrl && siteUrl.length > 0,
@@ -213,7 +226,6 @@ export async function POST(req: NextRequest) {
     if (landingpageRows.length === 0) {
       debugLog.landingpages = { count: 0, message: 'Keine Landingpages gefunden' };
       console.log(`[GSC Refresh] ⚠️ Warnung: Keine Landingpages in DB gefunden`);
-      // Wir brechen nicht ab, GSC-Abfrage wird einfach leer sein
     } else {
       debugLog.landingpages = {
         count: landingpageRows.length,
@@ -238,10 +250,6 @@ export async function POST(req: NextRequest) {
     // Fallback-Property aus siteUrl ableiten
     let fallbackProperty: string | null = null;
     if (siteUrl && (siteUrl.startsWith('http://') || siteUrl.startsWith('https://'))) {
-      // ===================================================================
-      // KORREKTUR: Unbenutzte 'e'-Variable (Fehler 251:16)
-      // 'catch (e)' wird zu 'catch (error)' und 'error' wird geloggt.
-      // ===================================================================
       try {
         const urlObj = new URL(siteUrl);
         let host = urlObj.hostname.toLowerCase();
@@ -306,7 +314,7 @@ export async function POST(req: NextRequest) {
     debugLog.matchingResults = {
       matched: matchedUrls.length,
       unmatched: pageUrls.length - matchedUrls.length,
-      noData: gscDataMap.size - matchedUrls.length, // URLs, die GSC kennt, aber 0 Klicks haben
+      noData: gscDataMap.size - matchedUrls.length,
       details: matchingDetails,
     };
     console.log(
@@ -352,7 +360,6 @@ export async function POST(req: NextRequest) {
           ),
         );
       } else {
-        // Fallback: Sollte nicht passieren, wenn gscDataMap alle URLs enthält
         noDataCount++;
         updatePromises.push(
           client.query(
@@ -400,7 +407,7 @@ export async function POST(req: NextRequest) {
       noDataPages: noDataCount,
       totalPages: pageUrls.length,
       cacheInvalidated: true,
-      debug: debugLog, // ✅ WICHTIG: Debug-Info für Diagnose
+      debug: debugLog,
       diagnosis: {
         hasGscConfig: !!project.gsc_site_url,
         hasLandingpages: landingpageRows.length > 0,
@@ -411,35 +418,4 @@ export async function POST(req: NextRequest) {
         possibleIssues:
           updatedCount === 0
             ? [
-                gscDataMap.size === 0 ? 'GSC liefert keine Daten' : null,
-                'URL-Normalisierung schlägt fehl',
-                'Sprachpräfix-Problem',
-                'GSC Site URL falsch konfiguriert',
-              ].filter(Boolean)
-            : [],
-      },
-    });
-  } catch (error) {
-    try {
-      await client.query('ROLLBACK');
-    } catch (rollbackError) {
-      console.error('[GSC Refresh] Rollback-Fehler:', rollbackError);
-    }
-
-    console.error('[GSC Refresh] ❌ FEHLER:', error);
-    const errorMessage =
-      error instanceof Error ? error.message : 'Unbekannter Fehler';
-    debugLog.errors?.push(errorMessage);
-
-    return NextResponse.json(
-      {
-        message: 'Fehler beim Synchronisieren der GSC-Daten.',
-        error: errorMessage,
-        debug: debugLog, // Sende Log auch bei Fehler
-      },
-      { status: 500 },
-    );
-  } finally {
-    client.release();
-  }
-}
+                gscDataMap.size === 0
