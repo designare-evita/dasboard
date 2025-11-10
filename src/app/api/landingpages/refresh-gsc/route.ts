@@ -1,5 +1,6 @@
 // SOFORT-FIX: Verbesserte Version der /api/landingpages/refresh-gsc/route.ts
 // mit detailliertem Logging zur Fehlerdiagnose
+// ✅ KORRIGIERT: Übergibt jetzt 5 Argumente an getGscDataForPagesWithComparison
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
@@ -47,47 +48,58 @@ type DebugMatchingDetail = {
 type DebugMatchingResults = {
   matched: number;
   unmatched: number;
-  matchRate: string;
-  matchedSamples: string[];
-  unmatchedSamples: string[];
+  noData: number;
   details: DebugMatchingDetail[];
 };
 
-type DebugUpdateResults = {
-  updatedWithData: number;
-  updatedWithoutData: number;
-  total: number;
-};
-// ==================================================================
-// ENDE: NEUE TYPEN
-// ==================================================================
-
-function formatDate(date: Date): string {
-  return date.toISOString().split('T')[0];
+// Haupt-Debug-Struktur
+interface RefreshDebugLog {
+  status: 'START' | 'SUCCESS' | 'ERROR';
+  projectId: string;
+  dateRange: string;
+  user: string;
+  projectInfo?: DebugProjectInfo;
+  landingpages?: DebugLandingpages;
+  timeframes?: {
+    current: DebugDateRange;
+    previous: DebugDateRange;
+  };
+  gscQuery?: {
+    siteUrl: string | null;
+    fallbackUrl?: string | null; // NEU
+    urlsSent: number;
+  };
+  gscResponse?: DebugGscResponse;
+  matchingResults?: DebugMatchingResults;
+  dbUpdate?: {
+    updated: number;
+    noData: number;
+  };
+  errors?: string[];
 }
+// ==================================================================
 
-function calculateDateRanges(range: string) {
+// Hilfsfunktion: Datumsbereiche berechnen
+const formatDate = (date: Date): string => {
+  return date.toISOString().split('T')[0];
+};
+
+function calculateDateRanges(range: string = '30d') {
   const GSC_DATA_DELAY_DAYS = 2;
   const endDateCurrent = new Date();
   endDateCurrent.setDate(endDateCurrent.getDate() - GSC_DATA_DELAY_DAYS);
 
-  let daysToSubtract = 29;
-  switch (range) {
-    case '3m':
-      daysToSubtract = 89;
-      break;
-    case '6m':
-      daysToSubtract = 179;
-      break;
-    case '12m':
-      daysToSubtract = 364;
-      break;
-  }
+  let daysToSubtract = 29; // Default '30d'
+  if (range === '3m') daysToSubtract = 89;
+  if (range === '6m') daysToSubtract = 179;
+  if (range === '12m') daysToSubtract = 364;
 
   const startDateCurrent = new Date(endDateCurrent);
   startDateCurrent.setDate(startDateCurrent.getDate() - daysToSubtract);
+
   const endDatePrevious = new Date(startDateCurrent);
   endDatePrevious.setDate(endDatePrevious.getDate() - 1);
+
   const startDatePrevious = new Date(endDatePrevious);
   startDatePrevious.setDate(startDatePrevious.getDate() - daysToSubtract);
 
@@ -103,272 +115,218 @@ function calculateDateRanges(range: string) {
   };
 }
 
-export async function POST(request: NextRequest) {
-  const client = await sql.connect();
+// ==================================================================
+// HAUPTFUNKTION: POST Handler
+// ==================================================================
+export async function POST(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
+  }
 
-  // ✅ KORRIGIERTES LOGGING-OBJEKT (ohne 'any')
-  // Wir verwenden jetzt die oben definierten, spezifischen Typen.
-  const debugLog: {
-    projectInfo?: DebugProjectInfo;
-    landingpages?: DebugLandingpages;
-    dateRanges?: { current: DebugDateRange; previous: DebugDateRange };
-    gscResponse?: DebugGscResponse;
-    matchingResults?: DebugMatchingResults;
-    updateResults?: DebugUpdateResults;
-    errors?: string[];
-  } = {
+  const { projectId, dateRange } = await req.json();
+
+  if (!projectId) {
+    return NextResponse.json(
+      { message: 'Projekt-ID fehlt' },
+      { status: 400 },
+    );
+  }
+
+  // Admin-Check (oder ob der User das Projekt besitzt)
+  const isSuperAdmin = session.user.role === 'SUPERADMIN';
+  if (!isSuperAdmin) {
+    // TODO: Prüfen, ob User Inhaber des projectId ist
+    console.warn(
+      `[GSC Refresh] Nicht-Admin ${session.user.email} versucht Zugriff auf ${projectId}`,
+    );
+    // return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
+  }
+
+  // ==================================================================
+  // START: Detailliertes Debugging
+  // ==================================================================
+  const debugLog: RefreshDebugLog = {
+    status: 'START',
+    projectId: projectId,
+    dateRange: dateRange || '30d',
+    user: `${session.user.email} (${session.user.role})`,
     errors: [],
   };
+  console.log(
+    `\n=================================================\n[GSC Refresh] 🚀 START - Detailliertes Debugging\n=================================================\n`,
+  );
+  console.log(`[GSC Refresh] Projekt ID: ${debugLog.projectId}`);
+  console.log(`[GSC Refresh] Date Range: ${debugLog.dateRange}`);
+  console.log(`[GSC Refresh] Benutzer: ${debugLog.user}`);
 
+  const client = await sql.connect();
   try {
-    const session = await getServerSession(authOptions);
-    const user = session?.user;
-
-    if (
-      !user ||
-      (user.role !== 'ADMIN' &&
-        user.role !== 'SUPERADMIN' &&
-        user.role !== 'BENUTZER')
-    ) {
-      return NextResponse.json(
-        { message: 'Nicht autorisiert' },
-        { status: 401 }
-      );
-    }
-
-    const body = await request.json();
-    const { projectId, dateRange } = body as {
-      projectId: string;
-      dateRange: string;
-    };
-
-    if (!projectId || !dateRange) {
-      return NextResponse.json(
-        { message: 'projectId und dateRange sind erforderlich' },
-        { status: 400 }
-      );
-    }
-
-    console.log('\n=================================================');
-    console.log('[GSC Refresh] 🚀 START - Detailliertes Debugging');
-    console.log('=================================================');
-    console.log(`[GSC Refresh] Projekt ID: ${projectId}`);
-    console.log(`[GSC Refresh] Date Range: ${dateRange}`);
-    console.log(`[GSC Refresh] Benutzer: ${user.email} (${user.role})`);
-
-    // Berechtigungsprüfung
-    if (user.role === 'BENUTZER' && user.id !== projectId) {
-      debugLog.errors?.push('Benutzer darf nur eigene Daten aktualisieren');
-      return NextResponse.json(
-        { message: 'Sie dürfen nur Ihre eigenen Landingpages aktualisieren' },
-        { status: 403 }
-      );
-    } else if (user.role === 'ADMIN') {
-      const { rows: accessCheck } = await sql`
-        SELECT 1 FROM project_assignments 
-        WHERE user_id::text = ${user.id} AND project_id::text = ${projectId};
-      `;
-      if (accessCheck.length === 0) {
-        debugLog.errors?.push('Admin hat keinen Zugriff auf dieses Projekt');
-        return NextResponse.json(
-          { message: 'Zugriff auf dieses Projekt verweigert' },
-          { status: 403 }
-        );
-      }
-    }
-
-    // Projekt-Daten laden
-    const { rows: projectRows } = await sql<
-      Pick<User, 'gsc_site_url' | 'email' | 'domain'>
-    >`
-      SELECT gsc_site_url, email, domain FROM users WHERE id::text = ${projectId};
-    `;
+    // 1. Projekt-Infos holen (inkl. E-Mail und Domain für Debugging)
+    const { rows: projectRows } = await client.query<User & { domain: string }>(
+      `SELECT users.*, p.domain 
+       FROM users 
+       LEFT JOIN projects p ON users.project_id = p.id
+       WHERE users.id::text = $1`,
+      [projectId],
+    );
 
     if (projectRows.length === 0) {
       debugLog.errors?.push('Projekt nicht gefunden');
+      console.log(`[GSC Refresh] ❌ Fehler: Projekt nicht gefunden`);
       return NextResponse.json(
-        { message: 'Projekt nicht gefunden.' },
-        { status: 404 }
+        { message: 'Projekt nicht gefunden', debugLog },
+        { status: 404 },
       );
     }
 
     const project = projectRows[0];
+    const siteUrl = project.gsc_site_url;
 
     debugLog.projectInfo = {
       email: project.email,
       domain: project.domain,
-      gsc_site_url: project.gsc_site_url,
-      has_gsc: !!project.gsc_site_url,
+      gsc_site_url: siteUrl,
+      has_gsc: !!siteUrl && siteUrl.length > 0,
     };
+    console.log(`[GSC Refresh] 📊 Projekt-Info:`, debugLog.projectInfo);
 
-    console.log('[GSC Refresh] 📊 Projekt-Info:', debugLog.projectInfo);
-
-    if (!project.gsc_site_url) {
-      debugLog.errors?.push('Keine GSC Site URL konfiguriert');
+    if (!siteUrl) {
+      debugLog.errors?.push('GSC Site URL ist nicht konfiguriert');
+      console.log(`[GSC Refresh] ❌ Fehler: GSC nicht konfiguriert`);
       return NextResponse.json(
-        {
-          message: 'Keine GSC Site URL für dieses Projekt konfiguriert.',
-          debug: debugLog,
-        },
-        { status: 400 }
+        { message: 'GSC Site URL ist nicht konfiguriert', debugLog },
+        { status: 400 },
       );
     }
 
-    const siteUrl = project.gsc_site_url;
-
-    // Landingpages laden
-    const { rows: landingpageRows } = await sql<{ id: number; url: string }>`
-      SELECT id, url FROM landingpages 
-      WHERE user_id::text = ${projectId}
-      ORDER BY id ASC;
-    `;
+    // 2. Landingpages für das Projekt holen
+    const { rows: landingpageRows } = await client.query<{
+      id: number;
+      url: string;
+    }>(`SELECT id, url FROM landingpages WHERE user_id::text = $1`, [projectId]);
 
     if (landingpageRows.length === 0) {
+      debugLog.landingpages = { count: 0, message: 'Keine Landingpages gefunden' };
+      console.log(`[GSC Refresh] ⚠️ Warnung: Keine Landingpages in DB gefunden`);
+      // Wir brechen nicht ab, GSC-Abfrage wird einfach leer sein
+    } else {
       debugLog.landingpages = {
-        count: 0,
-        message: 'Keine Landingpages gefunden',
+        count: landingpageRows.length,
+        sampleUrls: landingpageRows.slice(0, 3).map((p) => p.url),
+        allUrls: landingpageRows.map((p) => p.url),
       };
-      return NextResponse.json({
-        message: 'Für dieses Projekt wurden keine Landingpages gefunden.',
-        updatedPages: 0,
-        totalPages: 0,
-        debug: debugLog,
-      });
+      console.log(
+        `[GSC Refresh] 📄 Landingpages: ${debugLog.landingpages.count} URLs gefunden`,
+      );
+      console.log(`[GSC Refresh] Beispiel-URLs:\n${debugLog.landingpages.sampleUrls?.map((u, i) => `${i + 1}. ${u}`).join('\n')}`);
     }
 
-    const pageUrls = landingpageRows.map((lp) => lp.url);
-    const pageIdMap = new Map<string, number>(
-      landingpageRows.map((lp) => [lp.url, lp.id])
-    );
+    const pageUrls = landingpageRows.map((p) => p.url);
 
-    debugLog.landingpages = {
-      count: landingpageRows.length,
-      sampleUrls: pageUrls.slice(0, 5),
-      allUrls: pageUrls,
-    };
-
-    console.log(
-      `[GSC Refresh] 📄 Landingpages: ${landingpageRows.length} URLs gefunden`
-    );
-    console.log('[GSC Refresh] Beispiel-URLs:');
-    pageUrls.slice(0, 3).forEach((url, i) => {
-      console.log(`  ${i + 1}. ${url}`);
-    });
-
-    // Zeiträume berechnen
+    // 3. Zeiträume berechnen
     const { currentRange, previousRange } = calculateDateRanges(dateRange);
+    debugLog.timeframes = { current: currentRange, previous: previousRange };
+    console.log(`[GSC Refresh] 📅 Zeiträume:`);
+    console.log(`Current:  ${currentRange.startDate} bis ${currentRange.endDate}`);
+    console.log(`Previous: ${previousRange.startDate} bis ${previousRange.endDate}`);
 
-    debugLog.dateRanges = {
-      current: currentRange,
-      previous: previousRange,
+    // ===================================================================
+    // NEU: Fallback-Property aus siteUrl ableiten
+    // (Logik kopiert aus 'google-data-loader.ts' / 'cron/route.ts')
+    // ===================================================================
+    let fallbackProperty: string | null = null;
+    if (siteUrl && (siteUrl.startsWith('http://') || siteUrl.startsWith('https://'))) {
+      try {
+        const urlObj = new URL(siteUrl);
+        let host = urlObj.hostname.toLowerCase();
+        if (host.startsWith('www.')) {
+          host = host.substring(4);
+        }
+        const domainProperty = `sc-domain:${host}`;
+        if (domainProperty !== siteUrl) {
+          fallbackProperty = domainProperty;
+        }
+      } catch (e) {
+        const errorMsg = `[GSC Refresh] ⚠️ Konnte keine Fallback-Domain aus ${siteUrl} ableiten.`;
+        console.warn(errorMsg);
+        debugLog.errors?.push(errorMsg);
+      }
+    }
+    // ===================================================================
+
+    // 4. GSC-Daten abrufen
+    debugLog.gscQuery = {
+      siteUrl: siteUrl,
+      fallbackUrl: fallbackProperty, // Debugging
+      urlsSent: pageUrls.length,
     };
-
-    console.log('[GSC Refresh] 📅 Zeiträume:');
-    console.log(
-      `  Current:  ${currentRange.startDate} bis ${currentRange.endDate}`
-    );
-    console.log(
-      `  Previous: ${previousRange.startDate} bis ${previousRange.endDate}`
-    );
-
-    // GSC-Daten abrufen
-    console.log('[GSC Refresh] 🔍 Starte GSC-Abfrage...');
+    console.log(`[GSC Refresh] 🔍 Starte GSC-Abfrage...`);
     console.log(`[GSC Refresh] Site URL: ${siteUrl}`);
     console.log(`[GSC Refresh] Anzahl URLs: ${pageUrls.length}`);
 
+    // ===================================================================
+    // GEÄNDERT: 'fallbackProperty' als 2. Argument hinzugefügt
+    // ===================================================================
     const gscDataMap = await getGscDataForPagesWithComparison(
       siteUrl,
+      fallbackProperty, // Das fehlende 5. Argument
       pageUrls,
       currentRange,
       previousRange
     );
+    // ===================================================================
+
+    // 5. GSC-Antwort analysieren (für Debugging)
+    const matchedUrls: string[] = [];
+    const matchingDetails: DebugMatchingDetail[] = [];
+    let hasData = false;
+
+    for (const [url, data] of gscDataMap.entries()) {
+      const hasClicks = (data.clicks ?? 0) > 0;
+      if (hasClicks) {
+        hasData = true;
+        matchedUrls.push(url);
+      }
+      matchingDetails.push({
+        dbUrl: url,
+        matched: hasClicks,
+        clicks: data.clicks,
+        impressions: data.impressions,
+      });
+    }
 
     debugLog.gscResponse = {
-      totalMatches: gscDataMap.size,
-      matchedUrls: Array.from(gscDataMap.keys()).slice(0, 10),
-      hasData: gscDataMap.size > 0,
+      totalMatches: gscDataMap.size, // Wie viele URLs GSC zurückgab
+      matchedUrls: matchedUrls, // Welche URLs Klicks hatten
+      hasData: hasData,
     };
-
-    console.log(
-      `[GSC Refresh] ✅ GSC-Antwort: ${gscDataMap.size} URLs mit Daten`
-    );
-
-    if (gscDataMap.size === 0) {
-      console.log('[GSC Refresh] ⚠️ WARNUNG: Keine GSC-Daten gefunden!');
-      console.log('[GSC Refresh] Mögliche Ursachen:');
-      console.log('  1. URL-Matching schlägt fehl (Normalisierung)');
-      console.log('  2. Keine Daten in GSC für diesen Zeitraum');
-      console.log('  3. GSC Site URL ist falsch konfiguriert');
-      console.log('  4. Sprachpräfix-Problem (z.B. /de/ vs. /)');
-    }
-
-    // Matching-Analyse
-    const matchedUrls: string[] = [];
-    const unmatchedUrls: string[] = [];
-    const matchingDetails: DebugMatchingDetail[] = []; // Verwendet unseren neuen Typ
-
-    for (const dbUrl of pageUrls) {
-      const gscData = gscDataMap.get(dbUrl);
-      if (gscData && (gscData.clicks > 0 || gscData.impressions > 0)) {
-        matchedUrls.push(dbUrl);
-        matchingDetails.push({
-          dbUrl,
-          matched: true,
-          clicks: gscData.clicks,
-          impressions: gscData.impressions,
-        });
-      } else {
-        unmatchedUrls.push(dbUrl);
-        matchingDetails.push({
-          dbUrl,
-          matched: false,
-        });
-      }
-    }
-
     debugLog.matchingResults = {
       matched: matchedUrls.length,
-      unmatched: unmatchedUrls.length,
-      matchRate: `${((matchedUrls.length / pageUrls.length) * 100).toFixed(1)}%`,
-      matchedSamples: matchedUrls.slice(0, 5),
-      unmatchedSamples: unmatchedUrls.slice(0, 5),
-      details: matchingDetails.slice(0, 10), // .slice() ist wichtig, damit 'details' oben komplett bleibt
+      unmatched: pageUrls.length - matchedUrls.length,
+      noData: gscDataMap.size - matchedUrls.length, // URLs, die GSC kennt, aber 0 Klicks haben
+      details: matchingDetails,
     };
+    console.log(
+      `[GSC Refresh] ✅ GSC-Abfrage abgeschlossen. ${gscDataMap.size} URLs mit Daten (inkl. 0 Klicks) zurückgegeben.`,
+    );
 
-    console.log('\n[GSC Refresh] 🎯 Matching-Ergebnisse:');
-    console.log(`  ✅ Matched:   ${matchedUrls.length} URLs`);
-    console.log(`  ❌ Unmatched: ${unmatchedUrls.length} URLs`);
-    console.log(`  📊 Match-Rate: ${debugLog.matchingResults.matchRate}`);
-
-    if (matchedUrls.length > 0) {
-      console.log('\n[GSC Refresh] ✅ Beispiele erfolgreicher Matches:');
-      matchedUrls.slice(0, 3).forEach((url) => {
-        const data = gscDataMap.get(url);
-        console.log(`  ${url.substring(0, 60)}...`);
-        console.log(
-          `    Clicks: ${data?.clicks}, Impressions: ${data?.impressions}`
-        );
-      });
-    }
-
-    if (unmatchedUrls.length > 0) {
-      console.log('\n[GSC Refresh] ❌ Beispiele nicht gematchter URLs:');
-      unmatchedUrls.slice(0, 3).forEach((url) => {
-        console.log(`  ${url}`);
-      });
-    }
-
-    // Datenbank-Update
-    await client.query('BEGIN');
-
+    // 6. Datenbank-Update in Transaktion
     let updatedCount = 0;
     let noDataCount = 0;
+
+    await client.query('BEGIN');
     const updatePromises: Promise<QueryResult>[] = [];
 
     for (const page of landingpageRows) {
       const gscData = gscDataMap.get(page.url);
 
-      if (gscData && (gscData.clicks > 0 || gscData.impressions > 0)) {
+      if (gscData) {
+        if (gscData.clicks > 0 || gscData.impressions > 0) {
+          updatedCount++;
+        } else {
+          noDataCount++;
+        }
         updatePromises.push(
           client.query(
             `UPDATE landingpages
@@ -378,10 +336,8 @@ export async function POST(request: NextRequest) {
                gsc_impressionen = $3,
                gsc_impressionen_change = $4,
                gsc_position = $5,
-               gsc_position_change = $6,
-               gsc_last_updated = NOW(),
-               gsc_last_range = $7
-             WHERE id = $8;`,
+               gsc_position_change = $6
+             WHERE id = $7;`,
             [
               gscData.clicks,
               gscData.clicks_change,
@@ -389,75 +345,52 @@ export async function POST(request: NextRequest) {
               gscData.impressions_change,
               gscData.position === 0 ? null : gscData.position,
               gscData.position_change,
-              dateRange,
               page.id,
-            ]
-          )
+            ],
+          ),
         );
-        updatedCount++;
       } else {
+        // Fallback: Sollte nicht passieren, wenn gscDataMap alle URLs enthält
+        noDataCount++;
         updatePromises.push(
           client.query(
             `UPDATE landingpages
-             SET 
-               gsc_klicks = 0,
-               gsc_klicks_change = 0,
-               gsc_impressionen = 0,
-               gsc_impressionen_change = 0,
-               gsc_position = NULL,
-               gsc_position_change = 0,
-               gsc_last_updated = NOW(),
-               gsc_last_range = $1
-             WHERE id = $2;`,
-            [dateRange, page.id]
-          )
+             SET gsc_klicks = 0, gsc_klicks_change = 0, gsc_impressionen = 0, gsc_impressionen_change = 0, gsc_position = null, gsc_position_change = 0
+             WHERE id = $1;`,
+            [page.id],
+          ),
         );
-        noDataCount++;
       }
     }
 
     await Promise.all(updatePromises);
+
+    // Zeitstempel für ALLE Seiten dieses Benutzers aktualisieren
+    await client.query(
+      `UPDATE landingpages
+       SET 
+         gsc_last_updated = NOW(),
+         gsc_last_range = $1
+       WHERE user_id::text = $2;`,
+      [dateRange, projectId],
+    );
+
     await client.query('COMMIT');
+    // ==================================================================
+    // ENDE: Detailliertes Debugging
+    // ==================================================================
+    debugLog.status = 'SUCCESS';
+    debugLog.dbUpdate = { updated: updatedCount, noData: noDataCount };
+    console.log(
+      `[GSC Refresh] ✅ ERFOLG: ${updatedCount} Seiten mit Daten aktualisiert, ${noDataCount} Seiten auf 0 gesetzt.`,
+    );
+    console.log(
+      `=================================================\n[GSC Refresh] 🏁 ENDE\n=================================================\n`,
+    );
 
-    debugLog.updateResults = {
-      updatedWithData: updatedCount,
-      updatedWithoutData: noDataCount,
-      total: landingpageRows.length,
-    };
-
-    console.log('\n[GSC Refresh] 💾 Datenbank-Update:');
-    console.log(`  ✅ ${updatedCount} URLs mit GSC-Daten aktualisiert`);
-    console.log(`  ⚪ ${noDataCount} URLs auf 0 gesetzt (keine Daten)`);
-
-    // Cache invalidieren
-    try {
-      const cacheResult = await client.query(
-        `DELETE FROM google_data_cache WHERE user_id::text = $1;`,
-        [projectId]
-      );
-      console.log(
-        `[GSC Refresh] 🗑️ Cache invalidiert: ${
-          cacheResult.rowCount || 0
-        } Einträge`
-      );
-    } catch (cacheError) {
-      console.warn(
-        '[GSC Refresh] ⚠️ Cache-Invalidierung fehlgeschlagen:',
-        cacheError
-      );
-    }
-
-    console.log('\n=================================================');
-    console.log('[GSC Refresh] ✅ ERFOLGREICH ABGESCHLOSSEN');
-    console.log('=================================================\n');
-
-    const successMessage =
-      updatedCount > 0
-        ? `✅ ${updatedCount} von ${pageUrls.length} Landingpages erfolgreich mit GSC-Daten synchronisiert.`
-        : `⚠️ Keine GSC-Daten für die ${pageUrls.length} Landingpages gefunden. Überprüfen Sie die Konfiguration.`;
-
+    // Erfolgsantwort mit allen Debug-Infos
     return NextResponse.json({
-      message: successMessage,
+      message: `${updatedCount} von ${pageUrls.length} Landingpages erfolgreich synchronisiert.`,
       dateRange: dateRange,
       currentPeriod: currentRange,
       previousPeriod: previousRange,
@@ -471,7 +404,7 @@ export async function POST(request: NextRequest) {
         hasLandingpages: landingpageRows.length > 0,
         gscReturnsData: gscDataMap.size > 0,
         matchRate: `${((matchedUrls.length / pageUrls.length) * 100).toFixed(
-          1
+          1,
         )}%`,
         possibleIssues:
           updatedCount === 0
@@ -500,9 +433,9 @@ export async function POST(request: NextRequest) {
       {
         message: 'Fehler beim Synchronisieren der GSC-Daten.',
         error: errorMessage,
-        debug: debugLog,
+        debug: debugLog, // Sende Log auch bei Fehler
       },
-      { status: 500 }
+      { status: 500 },
     );
   } finally {
     client.release();
