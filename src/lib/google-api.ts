@@ -1,5 +1,6 @@
 // src/lib/google-api.ts
 // ✅ KORRIGIERTE VERSION mit bidirektionalem URL-Matching
+// ✅ NEU: Mit Fallback-Logik für getGscDataForPagesWithComparison
 
 import { google } from 'googleapis';
 import { JWT } from 'google-auth-library';
@@ -172,14 +173,12 @@ function normalizeUrl(url: string): string {
 
 /**
  * ✅✅✅ KORRIGIERT: Erstellt URL-Varianten inkl. BIDIREKTIONALER Sprach-Fallbacks
- * 
- * Beispiel 1 (DB hat Sprache):
- *   Input:  https://www.lehner-lifttechnik.com/de/
- *   Output: [..., https://www.lehner-lifttechnik.com/, ...]
- * 
- * Beispiel 2 (DB hat keine Sprache):
- *   Input:  https://www.lehner-lifttechnik.com/
- *   Output: [..., https://www.lehner-lifttechnik.com/de/, /en/, /fr/, ...]
+ * * Beispiel 1 (DB hat Sprache):
+ * Input:  https://www.lehner-lifttechnik.com/de/
+ * Output: [..., https://www.lehner-lifttechnik.com/, ...]
+ * * Beispiel 2 (DB hat keine Sprache):
+ * Input:  https://www.lehner-lifttechnik.com/
+ * Output: [..., https://www.lehner-lifttechnik.com/de/, /en/, /fr/, ...]
  */
 function createUrlVariants(url: string): string[] {
   const variants: Set<string> = new Set();
@@ -820,24 +819,15 @@ async function queryGscDataForPages(
   }
 }
 
-export async function getGscDataForPagesWithComparison(
-  siteUrl: string,
-  pageUrls: string[],
-  currentRange: { startDate: string; endDate: string },
-  previousRange: { startDate: string; endDate: string }
-): Promise<Map<string, GscPageData>> {
-  
-  console.log('[GSC] === START: getGscDataForPagesWithComparison ===');
-  console.log(`[GSC] Site URL: ${siteUrl}`);
-  console.log(`[GSC] Anzahl URLs: ${pageUrls.length}`);
-  console.log(`[GSC] Current: ${currentRange.startDate} - ${currentRange.endDate}`);
-  console.log(`[GSC] Previous: ${previousRange.startDate} - ${previousRange.endDate}`);
-  
-  const [currentDataMap, previousDataMap] = await Promise.all([
-    queryGscDataForPages(siteUrl, currentRange.startDate, currentRange.endDate, pageUrls),
-    queryGscDataForPages(siteUrl, previousRange.startDate, previousRange.endDate, pageUrls)
-  ]);
+// =============================================================================
+// NEUE HELFERFUNKTION ZUM ZUSAMMENFÜHREN
+// =============================================================================
 
+function mergeGscData(
+  pageUrls: string[],
+  currentDataMap: Map<string, { clicks: number; impressions: number; position: number }>,
+  previousDataMap: Map<string, { clicks: number; impressions: number; position: number }>
+): Map<string, GscPageData> {
   const resultMap = new Map<string, GscPageData>();
 
   for (const url of pageUrls) {
@@ -849,7 +839,9 @@ export async function getGscDataForPagesWithComparison(
 
     let posChange = 0;
     if (currentPos > 0 && prevPos > 0) {
-      posChange = prevPos - currentPos;
+      // WICHTIG: Position-Änderung ist (Alt - Neu). 
+      // Ein Wechsel von Pos 10 auf Pos 8 ist eine *positive* Änderung von 2.
+      posChange = prevPos - currentPos; 
     }
     
     const roundedPosChange = Math.round(posChange * 100) / 100;
@@ -870,6 +862,96 @@ export async function getGscDataForPagesWithComparison(
   }
 
   console.log(`[GSC] === ENDE: ${resultMap.size} URLs mit Daten versehen ===`);
-  
   return resultMap;
+}
+
+
+// =============================================================================
+// KORRIGIERTE FUNKTION MIT FALLBACK-LOGIK
+// =============================================================================
+
+export async function getGscDataForPagesWithComparison(
+  siteUrl: string, // Dies ist die "standardProperty"
+  pageUrls: string[],
+  currentRange: { startDate: string; endDate: string },
+  previousRange: { startDate: string; endDate: string }
+): Promise<Map<string, GscPageData>> {
+  
+  console.log('[GSC] === START: getGscDataForPagesWithComparison (MIT FALLBACK) ===');
+  console.log(`[GSC] Standard Property: ${siteUrl}`);
+  console.log(`[GSC] Anzahl URLs: ${pageUrls.length}`);
+  console.log(`[GSC] Current: ${currentRange.startDate} - ${currentRange.endDate}`);
+  console.log(`[GSC] Previous: ${previousRange.startDate} - ${previousRange.endDate}`);
+  
+  // 1. Fallback Property bestimmen
+  let fallbackProperty: string | null = null;
+  if (siteUrl.startsWith('http://') || siteUrl.startsWith('https://')) {
+    try {
+      const urlObj = new URL(siteUrl);
+      let host = urlObj.hostname.toLowerCase();
+      if (host.startsWith('www.')) {
+        host = host.substring(4);
+      }
+      const domainProperty = `sc-domain:${host}`;
+      if (domainProperty !== siteUrl) {
+        fallbackProperty = domainProperty;
+        console.log(`[GSC] ↪️ Fallback Property identifiziert: ${fallbackProperty}`);
+      }
+    } catch (e) {
+      console.warn(`[GSC] Konnte keine Fallback-Domain ableiten für: ${siteUrl}`);
+    }
+  }
+
+  // 2. Standard Property abfragen
+  console.log(`[GSC] 1️⃣ Starte Abfrage für Standard Property: ${siteUrl}`);
+  const [currentDataMap, previousDataMap] = await Promise.all([
+    queryGscDataForPages(siteUrl, currentRange.startDate, currentRange.endDate, pageUrls),
+    queryGscDataForPages(siteUrl, previousRange.startDate, previousRange.endDate, pageUrls)
+  ]);
+
+  // 3. Prüfen, ob Standard-Property Daten geliefert hat
+  let standardDataIsEmpty = true;
+  for (const data of currentDataMap.values()) {
+    if (data.clicks > 0 || data.impressions > 0) {
+      standardDataIsEmpty = false;
+      break;
+    }
+  }
+
+  // 4. Wenn Standard leer ist UND ein Fallback existiert, Fallback abfragen
+  if (standardDataIsEmpty && fallbackProperty) {
+    console.log(`[GSC] ⚠️ Standard Property lieferte keine Daten. Starte 2️⃣ Abfrage für Fallback Property: ${fallbackProperty}`);
+    
+    const [fallbackCurrentMap, fallbackPreviousMap] = await Promise.all([
+      queryGscDataForPages(fallbackProperty, currentRange.startDate, currentRange.endDate, pageUrls),
+      queryGscDataForPages(fallbackProperty, previousRange.startDate, previousRange.endDate, pageUrls)
+    ]);
+
+    // Prüfen, ob Fallback Daten geliefert hat
+    let fallbackDataIsEmpty = true;
+    for (const data of fallbackCurrentMap.values()) {
+      if (data.clicks > 0 || data.impressions > 0) {
+        fallbackDataIsEmpty = false;
+        break;
+      }
+    }
+
+    if (!fallbackDataIsEmpty) {
+      console.log(`[GSC] ✅ Fallback Property lieferte Daten. Nutze Fallback-Ergebnisse.`);
+      // Fallback-Daten verwenden
+      return mergeGscData(pageUrls, fallbackCurrentMap, fallbackPreviousMap);
+    } else {
+      console.log(`[GSC] ⚠️ Fallback Property lieferte ebenfalls keine Daten. Nutze leere Standard-Ergebnisse.`);
+      // Fallback ist auch leer, leere Standard-Daten verwenden
+      return mergeGscData(pageUrls, currentDataMap, previousDataMap);
+    }
+  }
+
+  // 5. Standard hatte Daten, oder es gab keinen Fallback
+  if (!standardDataIsEmpty) {
+    console.log(`[GSC] ✅ Standard Property lieferte Daten. Nutze Standard-Ergebnisse.`);
+  } else {
+    console.log(`[GSC] ⚠️ Standard Property ist leer, kein Fallback vorhanden/versucht. Nutze leere Standard-Ergebnisse.`);
+  }
+  return mergeGscData(pageUrls, currentDataMap, previousDataMap);
 }
