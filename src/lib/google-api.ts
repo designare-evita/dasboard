@@ -1,5 +1,5 @@
 // src/lib/google-api.ts
-// Vollständig korrigierte Version mit robustem URL-Matching und API-Fix
+// ✅ KORRIGIERTE VERSION mit bidirektionalem URL-Matching
 
 import { google } from 'googleapis';
 import { JWT } from 'google-auth-library';
@@ -75,7 +75,6 @@ function createAuth(): JWT {
       });
     } catch (e) {
       console.error('[Google API] Fehler beim Parsen von GOOGLE_CREDENTIALS:', e);
-      // Fallback zu Option 2
     }
   }
 
@@ -90,7 +89,6 @@ function createAuth(): JWT {
   }
 
   try {
-    // Base64 zu normalem String dekodieren
     const privateKey = Buffer.from(privateKeyBase64, 'base64').toString('utf-8');
 
     return new JWT({
@@ -111,9 +109,6 @@ function createAuth(): JWT {
 // HILFSFUNKTIONEN
 // =============================================================================
 
-/**
- * Formatiert GA4-Datum (YYYYMMDD) zu lesbarem Format (DD.MM)
- */
 function formatDateForChart(dateStr: string): string {
   if (!dateStr || dateStr.length !== 8) return dateStr;
   const day = dateStr.substring(6, 8);
@@ -121,9 +116,6 @@ function formatDateForChart(dateStr: string): string {
   return `${day}.${month}`;
 }
 
-/**
- * Formatiert GA4-Datum (YYYYMMDD) zu ISO-Format (YYYY-MM-DD)
- */
 function formatDateToISO(dateStr: string): string {
   if (!dateStr || dateStr.length !== 8) return dateStr;
   const year = dateStr.substring(0, 4);
@@ -132,73 +124,62 @@ function formatDateToISO(dateStr: string): string {
   return `${year}-${month}-${day}`;
 }
 
-/**
- * ✅ Normalisiert URLs für robusten Abgleich (INKL. Sprach-Fallback).
- * Entfernt Protokoll, www. und trailing slashes.
- * Behält Pfad und Query-Parameter bei.
- * 
- * WICHTIG: Normalisiert Sprachpräfixe NICHT (z.B. /de/ bleibt /de/)
- * Das Matching erfolgt über createUrlVariants(), die alle Varianten erstellt.
- */
 function normalizeUrl(url: string): string {
   if (!url) return '';
   try {
     let parsedUrl: URL;
     
-    // Füge Dummy-Protokoll hinzu, falls es fehlt
     if (!url.startsWith('http://') && !url.startsWith('https://')) {
       const dummyBase = 'https://dummy-base.com';
       parsedUrl = new URL(url, dummyBase);
       
-      // Wenn Hostname der Dummy-Base entspricht, hatten wir nur einen Pfad
       if (parsedUrl.hostname === 'dummy-base.com') {
         let path = parsedUrl.pathname.toLowerCase();
-        // Trailing slash entfernen (außer bei Root '/')
         if (path !== '/' && path.endsWith('/')) {
           path = path.slice(0, -1);
         }
-        // Nur Pfad + Query zurückgeben
         return path + parsedUrl.search;
       }
     } else {
       parsedUrl = new URL(url);
     }
 
-    // Hostname normalisieren (ohne www)
     let host = parsedUrl.hostname.toLowerCase();
     if (host.startsWith('www.')) {
       host = host.substring(4);
     }
 
-    // Pfad normalisieren (lowercase + ohne trailing slash)
     let path = parsedUrl.pathname.toLowerCase();
     if (path !== '/' && path.endsWith('/')) {
       path = path.slice(0, -1);
     }
     
-    // Query-Parameter sortieren (für konsistente Vergleiche)
     const params = Array.from(parsedUrl.searchParams.entries())
       .sort(([a], [b]) => a.localeCompare(b));
     const search = new URLSearchParams(params).toString();
 
-    // Zusammensetzen (OHNE Protokoll, OHNE Fragment)
     return `${host}${path}${search ? '?' + search : ''}`;
 
   } catch (error) {
-    console.warn(`[normalizeUrl] Fallback für URL: ${url}`, error);
-    // Einfacher Fallback
     return url
-      .replace(/^https?:\/\//, '')      // Protokoll entfernen
-      .replace(/^www\./, '')             // www. entfernen
-      .toLowerCase()                     // Lowercase
-      .replace(/\/+$/, '')               // Trailing slashes entfernen
-      .split('#')[0];                    // Fragment entfernen
+      .replace(/^https?:\/\//, '')
+      .replace(/^www\./, '')
+      .toLowerCase()
+      .replace(/\/+$/, '')
+      .split('#')[0];
   }
 }
 
 /**
- * ✅ Erstellt URL-Varianten inkl. Sprach-Fallbacks
- * Beispiel: /de/lifte/ → auch /lifte/ (ohne Sprachpräfix)
+ * ✅✅✅ KORRIGIERT: Erstellt URL-Varianten inkl. BIDIREKTIONALER Sprach-Fallbacks
+ * 
+ * Beispiel 1 (DB hat Sprache):
+ *   Input:  https://www.lehner-lifttechnik.com/de/
+ *   Output: [..., https://www.lehner-lifttechnik.com/, ...]
+ * 
+ * Beispiel 2 (DB hat keine Sprache):
+ *   Input:  https://www.lehner-lifttechnik.com/
+ *   Output: [..., https://www.lehner-lifttechnik.com/de/, /en/, /fr/, ...]
  */
 function createUrlVariants(url: string): string[] {
   const variants: Set<string> = new Set();
@@ -219,36 +200,67 @@ function createUrlVariants(url: string): string[] {
       hosts.push(`www.${host}`);
     }
 
-    // 2. Pfad-Varianten (mit/ohne trailing slash + Sprach-Fallback)
+    // 2. Pfad-Varianten (inkl. Sprach-Fallbacks)
     const paths: string[] = [];
     
     // Original-Pfad
     paths.push(path);
     
-    // Ohne trailing slash
+    // Mit/ohne trailing slash
     if (path !== '/' && path.endsWith('/')) {
       paths.push(path.slice(0, -1));
     } else if (path !== '/') {
       paths.push(path + '/');
     }
     
-    // ✅ NEU: Sprach-Fallback (entferne Sprachpräfixe)
-    // Erkenne Muster wie /de/, /en/, /fr/, /it/, /es/, etc.
-    const langPrefixPattern = /^\/([a-z]{2})(\/|$)/i;
+    // ✅✅✅ BIDIREKTIONALE Sprach-Varianten
+    const langPrefixPattern = /^\/([a-z]{2})(\/.*|$)/i;
     const langMatch = path.match(langPrefixPattern);
     
     if (langMatch) {
-      // Pfad ohne Sprachpräfix
-      const pathWithoutLang = path.replace(langPrefixPattern, '/');
+      // ✅ Fall 1: URL HAT Sprachpräfix (z.B. /de/lifte/)
+      //           → Erstelle Variante OHNE Sprachpräfix (/lifte/)
+      const langCode = langMatch[1];
+      const restPath = langMatch[2] || '/';
+      const pathWithoutLang = restPath === '' ? '/' : restPath;
       
-      if (pathWithoutLang !== path) {
+      if (pathWithoutLang !== path && pathWithoutLang !== '') {
         paths.push(pathWithoutLang);
         
-        // Auch ohne trailing slash
+        // Mit/ohne trailing slash
         if (pathWithoutLang !== '/' && pathWithoutLang.endsWith('/')) {
           paths.push(pathWithoutLang.slice(0, -1));
         } else if (pathWithoutLang !== '/') {
           paths.push(pathWithoutLang + '/');
+        }
+      }
+    } else {
+      // ✅ Fall 2: URL HAT KEIN Sprachpräfix (z.B. /lifte/)
+      //           → Erstelle Varianten MIT Sprachpräfixen (/de/lifte/, /en/lifte/, etc.)
+      
+      // Häufige Sprachen (priorisiert nach Wahrscheinlichkeit in Europa)
+      const commonLangs = ['de', 'en', 'fr', 'es', 'it', 'pt', 'nl', 'pl', 'cs', 'hu'];
+      
+      for (const lang of commonLangs) {
+        let pathWithLang: string;
+        
+        if (path === '/') {
+          // Root-Pfad: / → /de/
+          pathWithLang = `/${lang}/`;
+        } else if (path.startsWith('/') && !path.startsWith('//')) {
+          // Normaler Pfad: /lifte/ → /de/lifte/
+          pathWithLang = `/${lang}${path}`;
+        } else {
+          continue;
+        }
+        
+        paths.push(pathWithLang);
+        
+        // Mit/ohne trailing slash
+        if (pathWithLang.endsWith('/')) {
+          paths.push(pathWithLang.slice(0, -1));
+        } else {
+          paths.push(pathWithLang + '/');
         }
       }
     }
@@ -265,16 +277,13 @@ function createUrlVariants(url: string): string[] {
       }
     }
   } catch (error) {
-    // Fallback für ungültige URLs
+    console.warn(`[createUrlVariants] Fehler für URL: ${url}`, error);
     variants.add(url);
   }
   
   return Array.from(variants);
 }
 
-/**
- * Prüft, ob eine Quelle ein bekannter KI-Bot ist
- */
 function isAiSource(source: string): boolean {
   if (!source) return false;
   
@@ -298,9 +307,6 @@ function isAiSource(source: string): boolean {
   return aiPatterns.some(pattern => sourceLower.includes(pattern));
 }
 
-/**
- * Bereinigt und kategorisiert KI-Quellen
- */
 function cleanAiSourceName(source: string): string {
   if (!source) return 'Unbekannt';
   
@@ -321,9 +327,6 @@ function cleanAiSourceName(source: string): string {
 // GOOGLE SEARCH CONSOLE API
 // =============================================================================
 
-/**
- * Ruft aggregierte Klick- und Impressionsdaten von der GSC ab
- */
 export async function getSearchConsoleData(
   siteUrl: string,
   startDate: string,
@@ -381,9 +384,6 @@ export async function getSearchConsoleData(
   }
 }
 
-/**
- * Ruft die Top Suchanfragen von der GSC ab
- */
 export async function getTopQueries(
   siteUrl: string,
   startDate: string,
@@ -429,9 +429,6 @@ export async function getTopQueries(
 // GOOGLE ANALYTICS 4 API
 // =============================================================================
 
-/**
- * Ruft aggregierte Sitzungs- und Nutzerdaten von GA4 ab
- */
 export async function getAnalyticsData(
   propertyId: string,
   startDate: string,
@@ -496,9 +493,6 @@ export async function getAnalyticsData(
   }
 }
 
-/**
- * Ruft KI-Traffic-Daten aus GA4 ab
- */
 export async function getAiTrafficData(
   propertyId: string,
   startDate: string,
@@ -512,7 +506,6 @@ export async function getAiTrafficData(
   const analytics = google.analyticsdata({ version: 'v1beta', auth });
 
   try {
-    // Query 1: Traffic nach Quelle/Medium gruppiert
     const sourceResponse = await analytics.properties.runReport({
       property: formattedPropertyId,
       requestBody: {
@@ -533,7 +526,6 @@ export async function getAiTrafficData(
       },
     });
 
-    // Query 2: Täglicher KI-Traffic-Trend
     const trendResponse = await analytics.properties.runReport({
       property: formattedPropertyId,
       requestBody: {
@@ -557,7 +549,6 @@ export async function getAiTrafficData(
     const sourceRows = sourceResponse.data.rows || [];
     const trendRows = trendResponse.data.rows || [];
 
-    // Verarbeite Quellen-Daten
     let totalSessions = 0;
     let totalUsers = 0;
     const sessionsBySource: { [key: string]: number } = {};
@@ -582,7 +573,6 @@ export async function getAiTrafficData(
       }
     }
 
-    // Verarbeite Trend-Daten
     const trendMap: { [date: string]: number } = {};
 
     for (const row of trendRows) {
@@ -598,7 +588,6 @@ export async function getAiTrafficData(
       }
     }
 
-    // Top AI Sources erstellen
     const topAiSources = Object.entries(sessionsBySource)
       .map(([source, sessions]) => ({
         source,
@@ -609,7 +598,6 @@ export async function getAiTrafficData(
       .sort((a, b) => b.sessions - a.sessions)
       .slice(0, 5);
 
-    // Trend-Daten formatieren
     const trend = Object.entries(trendMap)
       .map(([date, sessions]) => ({
         date: date,
@@ -633,7 +621,6 @@ export async function getAiTrafficData(
       endDate 
     });
 
-    // Fallback mit leeren Daten
     return {
       totalSessions: 0,
       totalUsers: 0,
@@ -648,9 +635,6 @@ export async function getAiTrafficData(
 // GSC LANDINGPAGE-DATEN MIT VERGLEICH
 // =============================================================================
 
-/**
- * ✅ KORRIGIERT: Interne Hilfsfunktion mit Chunking und korrektem dimensionFilterGroups
- */
 async function queryGscDataForPages(
   siteUrl: string,
   startDate: string,
@@ -668,10 +652,7 @@ async function queryGscDataForPages(
   const auth = createAuth();
   const searchconsole = google.searchconsole({ version: 'v1', auth });
   
-  // Map [Key: Normalisierte URL] -> [Value: Original-URL]
   const normalizedToOriginal = new Map<string, string>();
-  
-  // Set aller URL-Varianten für API
   const apiFilterUrls = new Set<string>();
 
   for (const originalUrl of pageUrls) {
@@ -694,19 +675,17 @@ async function queryGscDataForPages(
   console.log(`[GSC] Erstellt: ${normalizedToOriginal.size} Normalisierungs-Mappings`);
   console.log(`[GSC] Sende ${apiFilterUrls.size} URL-Varianten an die API`);
   
-  // ✅ NEU: Debug-Info für mehrsprachige URLs
   const sampleDbUrl = pageUrls[0];
   if (sampleDbUrl) {
     const sampleVariants = createUrlVariants(sampleDbUrl);
-    console.log(`[GSC] Beispiel URL-Varianten für: ${sampleDbUrl.substring(0, 60)}...`);
-    console.log(`[GSC] → Erstellt ${sampleVariants.length} Varianten (inkl. Sprach-Fallbacks)`);
+    console.log(`[GSC] ✅ Beispiel URL-Varianten für: ${sampleDbUrl.substring(0, 60)}...`);
+    console.log(`[GSC] ✅ Erstellt ${sampleVariants.length} Varianten (inkl. bidirektionaler Sprach-Fallbacks)`);
     if (sampleVariants.length <= 20) {
       sampleVariants.slice(0, 5).forEach(v => console.log(`    - ${v}`));
     }
   }
 
-  // API-Limit beachten (25 Filter pro dimensionFilterGroups laut Google Docs)
-  const MAX_FILTERS_PER_GROUP = 20; // Sicherer Puffer
+  const MAX_FILTERS_PER_GROUP = 20;
   const allApiUrls = Array.from(apiFilterUrls);
   const urlChunks: string[][] = [];
 
@@ -716,7 +695,6 @@ async function queryGscDataForPages(
 
   console.log(`[GSC] Aufruf wird in ${urlChunks.length} Chunks aufgeteilt.`);
 
-  // Aggregierte Ergebnisse
   const aggregatedResultMap = new Map<string, { 
     clicks: number; 
     impressions: number; 
@@ -725,13 +703,11 @@ async function queryGscDataForPages(
   }>();
   
   try {
-    // Chunks sequenziell verarbeiten (um Rate Limits zu vermeiden)
     for (let i = 0; i < urlChunks.length; i++) {
       const chunk = urlChunks[i];
       console.log(`[GSC] Verarbeite Chunk ${i + 1}/${urlChunks.length} (${chunk.length} URLs)`);
       
       try {
-        // ✅✅✅ KORREKTUR: Korrekte dimensionFilterGroups Struktur
         const response = await searchconsole.searchanalytics.query({
           siteUrl,
           requestBody: {
@@ -740,7 +716,6 @@ async function queryGscDataForPages(
             dimensions: ['page'],
             type: 'web',
             aggregationType: 'byPage',
-            // ✅ WICHTIG: Jede URL einzeln als Filter
             dimensionFilterGroups: [{
               filters: chunk.map(pageUrl => ({
                 dimension: 'page',
@@ -755,7 +730,6 @@ async function queryGscDataForPages(
         const rows = response.data.rows || [];
         console.log(`[GSC] Chunk ${i + 1}: ${rows.length} Zeilen empfangen`);
 
-        // Verarbeite Ergebnisse
         for (const row of rows) {
           const gscUrl = row.keys?.[0];
           if (!gscUrl) continue;
@@ -776,7 +750,6 @@ async function queryGscDataForPages(
             const position = row.position || 0;
             const newImpressions = existing.impressions + impressions;
             
-            // Position gewichtet nach Impressionen mitteln
             let newPosition = existing.position;
             if (position > 0) {
               if (existing.position === 0) {
@@ -796,30 +769,25 @@ async function queryGscDataForPages(
               count: existing.count + 1
             });
             
-            // ✅ NEU: Debug-Log für erfolgreiche Matches (nur erste 3 pro Chunk)
             if (aggregatedResultMap.size <= 3) {
               console.log(`[GSC] ✅ Match: ${gscUrl.substring(0, 50)}... → ${originalUrl.substring(0, 50)}... (${clicks} clicks)`);
             }
           } else {
-            // ✅ NEU: Log für nicht-gematchte URLs (nur erste 3)
             if (i === 0 && rows.indexOf(row) < 3) {
               console.log(`[GSC] ⚠️ Kein Match: ${gscUrl.substring(0, 60)}... (Norm: ${normalizedGscUrl.substring(0, 50)}...)`);
             }
           }
         }
 
-        // Kurze Pause zwischen Chunks (Rate Limiting)
         if (i < urlChunks.length - 1) {
           await new Promise(resolve => setTimeout(resolve, 500));
         }
 
       } catch (chunkError) {
         console.error(`[GSC] ❌ Fehler bei Chunk ${i + 1}:`, chunkError);
-        // Weiter mit nächstem Chunk
       }
     }
     
-    // Konvertiere zu finalem Map-Typ
     const finalMap = new Map<string, { clicks: number; impressions: number; position: number }>();
     aggregatedResultMap.forEach((value, key) => {
       finalMap.set(key, {
@@ -831,7 +799,6 @@ async function queryGscDataForPages(
 
     console.log(`[GSC] ✅ ${finalMap.size} von ${pageUrls.length} DB-URLs erfolgreich zugeordnet`);
     
-    // Debugging für nicht gematchte URLs
     const unmatchedUrls = pageUrls.filter(url => !finalMap.has(url));
     if (unmatchedUrls.length > 0) {
       console.log(`[GSC] ⚠️ ${unmatchedUrls.length} DB-URLs ohne GSC-Daten`);
@@ -853,9 +820,6 @@ async function queryGscDataForPages(
   }
 }
 
-/**
- * ✅ Hauptfunktion: Holt GSC-Daten für mehrere Seiten mit Vergleichszeitraum
- */
 export async function getGscDataForPagesWithComparison(
   siteUrl: string,
   pageUrls: string[],
@@ -869,7 +833,6 @@ export async function getGscDataForPagesWithComparison(
   console.log(`[GSC] Current: ${currentRange.startDate} - ${currentRange.endDate}`);
   console.log(`[GSC] Previous: ${previousRange.startDate} - ${previousRange.endDate}`);
   
-  // Parallele Anfragen für beide Zeiträume
   const [currentDataMap, previousDataMap] = await Promise.all([
     queryGscDataForPages(siteUrl, currentRange.startDate, currentRange.endDate, pageUrls),
     queryGscDataForPages(siteUrl, previousRange.startDate, previousRange.endDate, pageUrls)
@@ -877,18 +840,16 @@ export async function getGscDataForPagesWithComparison(
 
   const resultMap = new Map<string, GscPageData>();
 
-  // Daten kombinieren und Differenzen berechnen
   for (const url of pageUrls) {
     const current = currentDataMap.get(url) || { clicks: 0, impressions: 0, position: 0 };
     const previous = previousDataMap.get(url) || { clicks: 0, impressions: 0, position: 0 };
 
-    // Position: 0 bedeutet "keine Daten"
     const currentPos = current.position || 0;
     const prevPos = previous.position || 0;
 
     let posChange = 0;
     if (currentPos > 0 && prevPos > 0) {
-      posChange = prevPos - currentPos; // Niedrigere Position ist besser
+      posChange = prevPos - currentPos;
     }
     
     const roundedPosChange = Math.round(posChange * 100) / 100;
