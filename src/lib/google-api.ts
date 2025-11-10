@@ -4,7 +4,9 @@
 // ✅ OPTIMIERT: Mit "Early Exit" Fallback und reduzierten Varianten
 // ✅ BEREINIGT: Linter-Fehler (any types, unused vars) behoben
 // ✅ FIX: JWT-Konstruktor an moderne 1-Argument-Signatur angepasst
-// ✅ FIX (NEU): Rückgabetyp von getTopQueries auf TopQueryData[] korrigiert
+// ✅ FIX: Rückgabetyp von getTopQueries auf TopQueryData[] korrigiert
+// ✅ FIX (NEU): 'limit'-Parameter in GA4-Aufrufen zu String konvertiert
+// ✅ FIX (NEU): Tippfehler 'queryGgscDataForPages' korrigiert
 
 import { google, analyticsdata_v1beta, searchconsole_v1 } from 'googleapis';
 import { JWT } from 'google-auth-library';
@@ -239,9 +241,7 @@ export async function getTopQueries(
   siteUrl: string,
   startDate: string,
   endDate: string,
-  // ===================================================================
   // KORREKTUR: TopQueryData -> TopQueryData[]
-  // ===================================================================
 ): Promise<TopQueryData[]> {
   // console.log(`[GSC API] Starte getTopQueries für ${siteUrl}`);
   const webmasters = await getSearchConsoleClient();
@@ -312,7 +312,10 @@ export async function getAnalyticsData(
         dimensions: [{ name: 'date' }],
         metrics: [{ name: 'sessions' }, { name: 'totalUsers' }],
         orderBys: [{ dimension: { orderType: 'ALPHANUMERIC', dimensionName: 'date' }, desc: false }],
-        limit: 366, // Max für 1 Jahr
+        // ===================================================================
+        // KORREKTUR: 'limit' muss ein String sein
+        // ===================================================================
+        limit: '366', // Max für 1 Jahr
       },
     });
 
@@ -397,7 +400,10 @@ export async function getAiTrafficData(
           },
         },
         orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
-        limit: 20,
+        // ===================================================================
+        // KORREKTUR: 'limit' muss ein String sein
+        // ===================================================================
+        limit: '20',
       },
     });
 
@@ -449,7 +455,10 @@ export async function getAiTrafficData(
         orderBys: [
           { dimension: { orderType: 'ALPHANUMERIC', dimensionName: 'date' } },
         ],
-        limit: 366,
+        // ===================================================================
+        // KORREKTUR: 'limit' muss ein String sein
+        // ===================================================================
+        limit: '366',
       },
     });
 
@@ -741,9 +750,12 @@ export async function getGscDataForPagesWithComparison(
   // 1. Abfrage für Standard Property (Current + Previous)
   console.log(`[GSC] 1️⃣ Starte Abfrage für Standard Property: ${standardProperty}`);
   
+  // ===================================================================
+  // KORREKTUR: Tippfehler 'queryGgscDataForPages'
+  // ===================================================================
   const [currentDataMap, previousDataMap] = await Promise.all([
     queryGscDataForPages(standardProperty, currentRange.startDate, currentRange.endDate, pageUrls),
-    queryGgscDataForPages(standardProperty, previousRange.startDate, previousRange.endDate, pageUrls)
+    queryGscDataForPages(standardProperty, previousRange.startDate, previousRange.endDate, pageUrls)
   ]);
 
   // 2. Prüfen, ob die Standard-Daten leer sind
