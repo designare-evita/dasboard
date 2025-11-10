@@ -126,8 +126,8 @@ export async function POST(request: NextRequest) {
         for (const [url, data] of gscDataMap.entries()) {
           const landingpageId = pageIdMap.get(url);
           
-          if (landingpageId && (data.clicks > 0 || data.impressions > 0 || data.position > 0)) {
-            updatePromises.push(
+          if (landingpageId) {
+  updatePromises.push(
               client.query(
                 `UPDATE landingpages
                  SET 
