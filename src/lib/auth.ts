@@ -22,7 +22,8 @@ export const authOptions: NextAuthOptions = {
 
         if (!credentials?.email || !credentials.password) {
           console.log('[Authorize] Fehlende Credentials');
-          return null; // Keine Anmeldedaten vorhanden
+          // KORREKTUR 1: Spezifischer Fehler statt null
+          throw new Error('E-Mail oder Passwort fehlt');
         }
 
         const normalizedEmail = credentials.email.toLowerCase().trim();
@@ -39,7 +40,8 @@ export const authOptions: NextAuthOptions = {
 
           if (!user) {
             console.log('[Authorize] Benutzer nicht gefunden:', normalizedEmail);
-            throw new Error('Nicht autorisiert');
+            // KORREKTUR 2: Spezifischer Fehler für "Benutzer nicht gefunden"
+            throw new Error('Diese E-Mail-Adresse ist nicht registriert');
           }
 
           console.log('[Authorize] Benutzer gefunden:', user.email);
@@ -54,11 +56,13 @@ export const authOptions: NextAuthOptions = {
 
           if (!passwordsMatch) {
             console.log('[Authorize] Passwort-Vergleich fehlgeschlagen für:', normalizedEmail);
-            throw new Error('Nicht autorisiert');
+            // KORREKTUR 3: Spezifischer Fehler für "Falsches Passwort"
+            throw new Error('Das Passwort ist nicht korrekt');
           }
 
           console.log('[Authorize] Login erfolgreich für:', user.email);
 
+          // (Rest der Funktion bleibt gleich...)
           // ✅ NEU: Logo-URL für den Mandanten abrufen
           let logo_url: string | null = null;
           if (user.mandant_id) {
@@ -88,7 +92,8 @@ export const authOptions: NextAuthOptions = {
         } catch (error) {
           if (error instanceof Error) {
             console.warn(`[Authorize] Fehler: ${error.message}`);
-            throw error;
+            // Wirft den spezifischen Fehler (z.B. "Falsches Passwort") weiter
+            throw error; 
           }
           console.error("[Authorize] Unerwarteter Fehler:", error);
           throw new Error('Authentifizierungsfehler');
@@ -96,6 +101,7 @@ export const authOptions: NextAuthOptions = {
       }
     })
   ],
+  // (Rest der Datei bleibt gleich)
   session: {
     strategy: 'jwt',
     maxAge: 60 * 60, // 60 Minuten
