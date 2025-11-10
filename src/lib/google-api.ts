@@ -1,6 +1,7 @@
 // src/lib/google-api.ts
 // ✅ KORRIGIERTE VERSION mit bidirektionalem URL-Matching
 // ✅ NEU: Mit Fallback-Logik für getGscDataForPagesWithComparison
+// ✅ OPTIMIERT: Mit "Early Exit" Fallback und reduzierten Varianten
 
 import { google } from 'googleapis';
 import { JWT } from 'google-auth-library';
@@ -61,565 +62,432 @@ export interface GscPageData {
 // AUTHENTIFIZIERUNG
 // =============================================================================
 
-function createAuth(): JWT {
-  // Option 1: Komplettes JSON in GOOGLE_CREDENTIALS
-  if (process.env.GOOGLE_CREDENTIALS) {
-    try {
-      const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
-      return new JWT({
-        email: credentials.client_email,
-        key: credentials.private_key,
-        scopes: [
-          'https://www.googleapis.com/auth/webmasters.readonly',
-          'https://www.googleapis.com/auth/analytics.readonly',
-        ],
-      });
-    } catch (e) {
-      console.error('[Google API] Fehler beim Parsen von GOOGLE_CREDENTIALS:', e);
+// Globale Variable für den JWT-Client, um Wiederverwendung zu ermöglichen
+let jwtClient: JWT | null = null;
+let analyticsDataClient: any | null = null;
+let searchConsoleClient: any | null = null;
+
+/**
+ * Erstellt und authentifiziert einen Google JWT-Client.
+ */
+async function getGoogleAuthClient(): Promise<JWT> {
+  // Wenn der Client bereits existiert, gib ihn zurück
+  if (jwtClient) {
+    // Stelle sicher, dass der Token gültig ist, bevor du ihn zurückgibst
+    if (
+      jwtClient.credentials.expiry_date &&
+      jwtClient.credentials.expiry_date > Date.now() + 60000 // 1 Min Puffer
+    ) {
+      // console.log('[Google Auth] Wiederverwende existierenden JWT-Client.');
+      return jwtClient;
     }
+    // console.log('[Google Auth] JWT-Client ist abgelaufen, erstelle neuen...');
   }
 
-  // Option 2: Separate Environment Variables
-  const privateKeyBase64 = process.env.GOOGLE_PRIVATE_KEY_BASE64;
-  const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
+  const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
 
-  if (!privateKeyBase64 || !clientEmail) {
-    throw new Error(
-      'Google API Credentials fehlen. Setze entweder GOOGLE_CREDENTIALS oder GOOGLE_PRIVATE_KEY_BASE64 + GOOGLE_SERVICE_ACCOUNT_EMAIL'
+  if (!clientEmail || !privateKey) {
+    console.error(
+      '[Google Auth] ❌ Missing GOOGLE_CLIENT_EMAIL or GOOGLE_PRIVATE_KEY',
     );
+    throw new Error('Google API-Authentifizierungsdaten fehlen.');
   }
+
+  // console.log('[Google Auth] Erstelle neuen JWT-Client...');
+
+  jwtClient = new google.auth.JWT(
+    clientEmail,
+    undefined,
+    privateKey,
+    [
+      'https://www.googleapis.com/auth/analytics.readonly',
+      'https://www.googleapis.com/auth/webmasters.readonly',
+    ],
+    undefined, // impersonated user (optional)
+  );
 
   try {
-    const privateKey = Buffer.from(privateKeyBase64, 'base64').toString('utf-8');
-
-    return new JWT({
-      email: clientEmail,
-      key: privateKey,
-      scopes: [
-        'https://www.googleapis.com/auth/webmasters.readonly',
-        'https://www.googleapis.com/auth/analytics.readonly',
-      ],
-    });
+    await jwtClient.authorize();
+    // console.log('[Google Auth] ✅ JWT-Client erfolgreich autorisiert.');
+    return jwtClient;
   } catch (error) {
-    console.error('[Google API] Fehler beim Erstellen der JWT-Auth:', error);
-    throw new Error('Fehler beim Initialisieren der Google API Authentifizierung.');
+    console.error('[Google Auth] ❌ Fehler bei der JWT-Autorisierung:', error);
+    jwtClient = null; // Setze zurück, damit es beim nächsten Mal neu versucht wird
+    throw new Error(`Google API-Autorisierung fehlgeschlagen: ${error}`);
   }
+}
+
+/**
+ * Gibt einen initialisierten Google Analytics Data Client zurück.
+ */
+async function getAnalyticsDataClient() {
+  if (analyticsDataClient) {
+    // console.log('[Google API] Wiederverwende Analytics Data Client');
+    return analyticsDataClient;
+  }
+
+  const auth = await getGoogleAuthClient();
+  // console.log('[Google API] Erstelle neuen Analytics Data Client');
+  analyticsDataClient = google.analyticsdata({
+    version: 'v1beta',
+    auth: auth,
+  });
+  return analyticsDataClient;
+}
+
+/**
+ * Gibt einen initialisierten Google Search Console Client zurück.
+ */
+async function getSearchConsoleClient() {
+  if (searchConsoleClient) {
+    // console.log('[Google API] Wiederverwende Search Console Client');
+    return searchConsoleClient;
+  }
+
+  const auth = await getGoogleAuthClient();
+  // console.log('[Google API] Erstelle neuen Search Console Client');
+  searchConsoleClient = google.searchconsole({
+    version: 'v1',
+    auth: auth,
+  });
+  return searchConsoleClient;
 }
 
 // =============================================================================
 // HILFSFUNKTIONEN
 // =============================================================================
 
-function formatDateForChart(dateStr: string): string {
-  if (!dateStr || dateStr.length !== 8) return dateStr;
-  const day = dateStr.substring(6, 8);
-  const month = dateStr.substring(4, 6);
-  return `${day}.${month}`;
-}
-
-function formatDateToISO(dateStr: string): string {
-  if (!dateStr || dateStr.length !== 8) return dateStr;
-  const year = dateStr.substring(0, 4);
-  const month = dateStr.substring(4, 6);
-  const day = dateStr.substring(6, 8);
-  return `${year}-${month}-${day}`;
-}
-
-function normalizeUrl(url: string): string {
-  if (!url) return '';
-  try {
-    let parsedUrl: URL;
-    
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-      const dummyBase = 'https://dummy-base.com';
-      parsedUrl = new URL(url, dummyBase);
-      
-      if (parsedUrl.hostname === 'dummy-base.com') {
-        let path = parsedUrl.pathname.toLowerCase();
-        if (path !== '/' && path.endsWith('/')) {
-          path = path.slice(0, -1);
-        }
-        return path + parsedUrl.search;
-      }
-    } else {
-      parsedUrl = new URL(url);
-    }
-
-    let host = parsedUrl.hostname.toLowerCase();
-    if (host.startsWith('www.')) {
-      host = host.substring(4);
-    }
-
-    let path = parsedUrl.pathname.toLowerCase();
-    if (path !== '/' && path.endsWith('/')) {
-      path = path.slice(0, -1);
-    }
-    
-    const params = Array.from(parsedUrl.searchParams.entries())
-      .sort(([a], [b]) => a.localeCompare(b));
-    const search = new URLSearchParams(params).toString();
-
-    return `${host}${path}${search ? '?' + search : ''}`;
-
-  } catch (error) {
-    return url
-      .replace(/^https?:\/\//, '')
-      .replace(/^www\./, '')
-      .toLowerCase()
-      .replace(/\/+$/, '')
-      .split('#')[0];
-  }
+/**
+ * Formatiert eine Zahl (z.B. 1000) in einen String (z.B. "1.0k").
+ */
+function formatNumber(num: number): string {
+  if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+  if (num >= 1000) return (num / 1000).toFixed(1) + 'k';
+  return num.toString();
 }
 
 /**
- * ✅✅✅ KORRIGIERT: Erstellt URL-Varianten inkl. BIDIREKTIONALER Sprach-Fallbacks
- * * Beispiel 1 (DB hat Sprache):
- * Input:  https://www.lehner-lifttechnik.com/de/
- * Output: [..., https://www.lehner-lifttechnik.com/, ...]
- * * Beispiel 2 (DB hat keine Sprache):
- * Input:  https://www.lehner-lifttechnik.com/
- * Output: [..., https://www.lehner-lifttechnik.com/de/, /en/, /fr/, ...]
+ * Berechnet die prozentuale Veränderung.
  */
-function createUrlVariants(url: string): string[] {
-  const variants: Set<string> = new Set();
-  
-  try {
-    const urlObj = new URL(url);
-    const host = urlObj.hostname.toLowerCase();
-    const path = urlObj.pathname;
-    const search = urlObj.search;
-    
-    // 1. Host-Varianten (www und non-www)
-    const hosts: string[] = [];
-    if (host.startsWith('www.')) {
-      hosts.push(host);
-      hosts.push(host.substring(4));
-    } else {
-      hosts.push(host);
-      hosts.push(`www.${host}`);
-    }
-
-    // 2. Pfad-Varianten (inkl. Sprach-Fallbacks)
-    const paths: string[] = [];
-    
-    // Original-Pfad
-    paths.push(path);
-    
-    // Mit/ohne trailing slash
-    if (path !== '/' && path.endsWith('/')) {
-      paths.push(path.slice(0, -1));
-    } else if (path !== '/') {
-      paths.push(path + '/');
-    }
-    
-    // ✅✅✅ BIDIREKTIONALE Sprach-Varianten
-    const langPrefixPattern = /^\/([a-z]{2})(\/.*|$)/i;
-    const langMatch = path.match(langPrefixPattern);
-    
-    if (langMatch) {
-      // ✅ Fall 1: URL HAT Sprachpräfix (z.B. /de/lifte/)
-      //           → Erstelle Variante OHNE Sprachpräfix (/lifte/)
-      const langCode = langMatch[1];
-      const restPath = langMatch[2] || '/';
-      const pathWithoutLang = restPath === '' ? '/' : restPath;
-      
-      if (pathWithoutLang !== path && pathWithoutLang !== '') {
-        paths.push(pathWithoutLang);
-        
-        // Mit/ohne trailing slash
-        if (pathWithoutLang !== '/' && pathWithoutLang.endsWith('/')) {
-          paths.push(pathWithoutLang.slice(0, -1));
-        } else if (pathWithoutLang !== '/') {
-          paths.push(pathWithoutLang + '/');
-        }
-      }
-    } else {
-      // ✅ Fall 2: URL HAT KEIN Sprachpräfix (z.B. /lifte/)
-      //           → Erstelle Varianten MIT Sprachpräfixen (/de/lifte/, /en/lifte/, etc.)
-      
-      // Häufige Sprachen (priorisiert nach Wahrscheinlichkeit in Europa)
-      const commonLangs = ['de', 'en', 'fr', 'es', 'it', 'pt', 'nl', 'pl', 'cs', 'hu'];
-      
-      for (const lang of commonLangs) {
-        let pathWithLang: string;
-        
-        if (path === '/') {
-          // Root-Pfad: / → /de/
-          pathWithLang = `/${lang}/`;
-        } else if (path.startsWith('/') && !path.startsWith('//')) {
-          // Normaler Pfad: /lifte/ → /de/lifte/
-          pathWithLang = `/${lang}${path}`;
-        } else {
-          continue;
-        }
-        
-        paths.push(pathWithLang);
-        
-        // Mit/ohne trailing slash
-        if (pathWithLang.endsWith('/')) {
-          paths.push(pathWithLang.slice(0, -1));
-        } else {
-          paths.push(pathWithLang + '/');
-        }
-      }
-    }
-
-    // 3. Protokoll-Varianten
-    const protocols = ['https://', 'http://'];
-
-    // 4. Alle Kombinationen erstellen
-    for (const p of protocols) {
-      for (const h of hosts) {
-        for (const pa of paths) {
-          variants.add(`${p}${h}${pa}${search}`);
-        }
-      }
-    }
-  } catch (error) {
-    console.warn(`[createUrlVariants] Fehler für URL: ${url}`, error);
-    variants.add(url);
-  }
-  
-  return Array.from(variants);
+function calculateChange(current: number, previous: number): number {
+  if (previous === 0) return current > 0 ? 100 : 0;
+  const change = ((current - previous) / previous) * 100;
+  return Math.round(change * 10) / 10;
 }
 
-function isAiSource(source: string): boolean {
-  if (!source) return false;
-  
-  const aiPatterns = [
-    'chatgpt', 'gpt', 'openai',
-    'claude', 'anthropic',
-    'bard', 'gemini',
-    'perplexity',
-    'bing chat', 'copilot',
-    'gptbot', 'claudebot',
-    'google-extended',
-    'cohere-ai',
-    'ai2bot',
-    'you.com', 'neeva',
-    'phind', 'metaphor',
-    'notion ai', 'jasper',
-    'copy.ai', 'writesonic',
-  ];
-
-  const sourceLower = source.toLowerCase();
-  return aiPatterns.some(pattern => sourceLower.includes(pattern));
-}
-
-function cleanAiSourceName(source: string): string {
-  if (!source) return 'Unbekannt';
-  
-  const sourceLower = source.toLowerCase();
-  
-  if (sourceLower.includes('chatgpt') || sourceLower.includes('gptbot')) return 'ChatGPT';
-  if (sourceLower.includes('claude')) return 'Claude AI';
-  if (sourceLower.includes('bard') || sourceLower.includes('gemini')) return 'Google Gemini';
-  if (sourceLower.includes('perplexity')) return 'Perplexity';
-  if (sourceLower.includes('bing') || sourceLower.includes('copilot')) return 'Bing Copilot';
-  if (sourceLower.includes('you.com')) return 'You.com';
-  
-  const parts = source.split('/')[0].split('?')[0];
-  return parts.length > 30 ? parts.substring(0, 27) + '...' : parts;
+/**
+ * Konvertiert ein GA4-Datum (YYYYMMDD) in ein Standard-Datumsformat (YYYY-MM-DD).
+ */
+function formatGaDate(yyyymmdd: string): string {
+  if (!yyyymmdd || yyyymmdd.length !== 8) return yyyymmdd;
+  return `${yyyymmdd.slice(0, 4)}-${yyyymmdd.slice(4, 6)}-${yyyymmdd.slice(6, 8)}`;
 }
 
 // =============================================================================
-// GOOGLE SEARCH CONSOLE API
+// API: GOOGLE SEARCH CONSOLE (GSC)
 // =============================================================================
 
+/**
+ * Ruft Klicks und Impressionen (total + täglich) von GSC ab.
+ */
 export async function getSearchConsoleData(
   siteUrl: string,
   startDate: string,
-  endDate: string
-): Promise<{ clicks: DateRangeData; impressions: DateRangeData }> {
-  const auth = createAuth();
-  const searchconsole = google.searchconsole({ version: 'v1', auth });
+  endDate: string,
+) {
+  // console.log(`[GSC API] Starte getSearchConsoleData für ${siteUrl}`);
+  const webmasters = await getSearchConsoleClient();
 
   try {
-    const response = await searchconsole.searchanalytics.query({
+    const response = await webmasters.searchanalytics.query({
       siteUrl,
       requestBody: {
         startDate,
         endDate,
         dimensions: ['date'],
         type: 'web',
-        aggregationType: 'byProperty',
+        aggregationType: 'byDay',
       },
     });
 
     const rows = response.data.rows || [];
+
     const clicksDaily: DailyDataPoint[] = [];
     const impressionsDaily: DailyDataPoint[] = [];
     let totalClicks = 0;
     let totalImpressions = 0;
 
     for (const row of rows) {
-      const date = row.keys?.[0];
+      const date = row.keys ? row.keys[0] : 'unbekannt';
       const clicks = row.clicks || 0;
       const impressions = row.impressions || 0;
 
-      if (date) {
-        clicksDaily.push({ date, value: clicks });
-        impressionsDaily.push({ date, value: impressions });
-        totalClicks += clicks;
-        totalImpressions += impressions;
-      }
+      clicksDaily.push({ date, value: clicks });
+      impressionsDaily.push({ date, value: impressions });
+
+      totalClicks += clicks;
+      totalImpressions += impressions;
     }
 
+    // console.log(`[GSC API] getSearchConsoleData erfolgreich: ${totalClicks} Klicks`);
+
     return {
-      clicks: {
-        total: totalClicks,
-        daily: clicksDaily.sort((a, b) => a.date.localeCompare(b.date)),
-      },
-      impressions: {
-        total: totalImpressions,
-        daily: impressionsDaily.sort((a, b) => a.date.localeCompare(b.date)),
-      },
+      clicks: { total: totalClicks, daily: clicksDaily },
+      impressions: { total: totalImpressions, daily: impressionsDaily },
     };
-  } catch (error: unknown) {
-    console.error('[GSC] Fehler beim Abrufen der Daten:', error);
-    console.error('[GSC] Request Details:', { siteUrl, startDate, endDate });
-    const errorMessage = error instanceof Error ? error.message : 'Unbekannter API-Fehler';
-    throw new Error(`Fehler bei Google Search Console API: ${errorMessage}`);
+  } catch (error) {
+    console.error(
+      `[GSC API] ❌ Fehler in getSearchConsoleData für ${siteUrl} (${startDate} bis ${endDate}):`,
+      error,
+    );
+    // Bei Fehler leere Standardwerte zurückgeben
+    return {
+      clicks: { total: 0, daily: [] },
+      impressions: { total: 0, daily: [] },
+    };
   }
 }
 
+/**
+ * Ruft die Top-Queries (Keywords) von GSC ab.
+ */
 export async function getTopQueries(
   siteUrl: string,
   startDate: string,
-  endDate: string
-): Promise<TopQueryData[]> {
-  const auth = createAuth();
-  const searchconsole = google.searchconsole({ version: 'v1', auth });
+  endDate: string,
+): Promise<TopQueryData> {
+  // console.log(`[GSC API] Starte getTopQueries für ${siteUrl}`);
+  const webmasters = await getSearchConsoleClient();
 
   try {
-    const res = await searchconsole.searchanalytics.query({
+    const response = await webmasters.searchanalytics.query({
       siteUrl,
       requestBody: {
         startDate,
         endDate,
         dimensions: ['query'],
         type: 'web',
-        rowLimit: 100,
-        dataState: 'all',
-        aggregationType: 'byProperty',
+        rowLimit: 50, // Top 50
+        dataState: 'all', // Inklusive "frische" (letzte Tage) Daten
       },
     });
 
-    const allQueries = res.data.rows?.map((row) => ({
-      query: row.keys?.[0] || 'N/A',
-      clicks: row.clicks || 0,
-      impressions: row.impressions || 0,
-      ctr: row.ctr || 0,
-      position: row.position || 0,
-    })) || [];
+    const rows = response.data.rows || [];
+    const topQueries = rows
+      .map((row) => {
+        const query = row.keys ? row.keys[0] : 'unbekannt';
+        const clicks = row.clicks || 0;
+        const impressions = row.impressions || 0;
+        const ctr = row.ctr || 0;
+        const position = row.position || 0;
 
-    return allQueries
-      .sort((a, b) => b.clicks - a.clicks)
-      .slice(0, 100);
+        return {
+          query,
+          clicks,
+          impressions,
+          ctr: Math.round(ctr * 100 * 10) / 10, // In Prozent umwandeln
+          position: Math.round(position * 10) / 10,
+        };
+      })
+      .sort((a, b) => b.clicks - a.clicks); // Nach Klicks sortieren
 
-  } catch (error: unknown) {
-    console.error('[GSC] Fehler beim Abrufen der Top Queries:', error);
-    console.error('[GSC] Request Details:', { siteUrl, startDate, endDate });
+    // console.log(`[GSC API] getTopQueries erfolgreich: ${topQueries.length} Queries`);
+    return topQueries;
+  } catch (error) {
+    console.error(
+      `[GSC API] ❌ Fehler in getTopQueries für ${siteUrl}:`,
+      error,
+    );
     return [];
   }
 }
 
 // =============================================================================
-// GOOGLE ANALYTICS 4 API
+// API: GOOGLE ANALYTICS 4 (GA4)
 // =============================================================================
 
+/**
+ * Ruft Sitzungen und Nutzer (total + täglich) von GA4 ab.
+ */
 export async function getAnalyticsData(
   propertyId: string,
   startDate: string,
-  endDate: string
-): Promise<{ sessions: DateRangeData; totalUsers: DateRangeData }> {
-  const formattedPropertyId = propertyId.startsWith('properties/')
-    ? propertyId
-    : `properties/${propertyId}`;
-
-  const auth = createAuth();
-  const analytics = google.analyticsdata({ version: 'v1beta', auth });
+  endDate: string,
+) {
+  // console.log(`[GA4 API] Starte getAnalyticsData für ${propertyId}`);
+  const analytics = await getAnalyticsDataClient();
 
   try {
     const response = await analytics.properties.runReport({
-      property: formattedPropertyId,
+      property: `properties/${propertyId}`,
       requestBody: {
         dateRanges: [{ startDate, endDate }],
         dimensions: [{ name: 'date' }],
         metrics: [{ name: 'sessions' }, { name: 'totalUsers' }],
-        orderBys: [{
-          dimension: { dimensionName: 'date' },
-          desc: false,
-        }],
+        orderBys: [{ dimension: { orderType: 'ALPHANUMERIC', dimensionName: 'date' }, desc: false }],
+        limit: 366, // Max für 1 Jahr
       },
     });
 
     const rows = response.data.rows || [];
+    const totals = response.data.totals?.[0]?.metricValues || [];
+
     const sessionsDaily: DailyDataPoint[] = [];
-    const usersDaily: DailyDataPoint[] = [];
-    let totalSessions = 0;
-    let totalUsers = 0;
+    const totalUsersDaily: DailyDataPoint[] = [];
 
     for (const row of rows) {
-      const rawDate = row.dimensionValues?.[0]?.value;
-      const date = rawDate?.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3') ?? '';
+      const date = formatGaDate(row.dimensionValues?.[0]?.value || 'unbekannt');
       const sessions = parseInt(row.metricValues?.[0]?.value || '0', 10);
-      const users = parseInt(row.metricValues?.[1]?.value || '0', 10);
+      const totalUsers = parseInt(row.metricValues?.[1]?.value || '0', 10);
 
-      if (date) {
-        sessionsDaily.push({ date, value: sessions });
-        usersDaily.push({ date, value: users });
-        totalSessions += sessions;
-        totalUsers += users;
-      }
+      sessionsDaily.push({ date, value: sessions });
+      totalUsersDaily.push({ date, value: totalUsers });
     }
 
+    const totalSessions = parseInt(totals[0]?.value || '0', 10);
+    const totalTotalUsers = parseInt(totals[1]?.value || '0', 10);
+
+    // console.log(`[GA4 API] getAnalyticsData erfolgreich: ${totalSessions} Sitzungen`);
+
     return {
-      sessions: {
-        total: totalSessions,
-        daily: sessionsDaily,
-      },
-      totalUsers: {
-        total: totalUsers,
-        daily: usersDaily,
-      },
+      sessions: { total: totalSessions, daily: sessionsDaily },
+      totalUsers: { total: totalTotalUsers, daily: totalUsersDaily },
     };
-  } catch (error: unknown) {
-    console.error('[GA4] Fehler beim Abrufen der Daten:', error);
-    console.error('[GA4] Request Details:', { propertyId: formattedPropertyId, startDate, endDate });
-    const errorMessage = error instanceof Error ? error.message : 'Unbekannter API-Fehler';
-    throw new Error(`Fehler bei Google Analytics API: ${errorMessage}`);
+  } catch (error) {
+    console.error(
+      `[GA4 API] ❌ Fehler in getAnalyticsData für ${propertyId}:`,
+      error,
+    );
+    return {
+      sessions: { total: 0, daily: [] },
+      totalUsers: { total: 0, daily: [] },
+    };
   }
 }
 
+/**
+ * Ruft AI-Traffic-Daten (Sitzungen nach Quelle, Trend) von GA4 ab.
+ */
 export async function getAiTrafficData(
   propertyId: string,
   startDate: string,
-  endDate: string
+  endDate: string,
 ): Promise<AiTrafficData> {
-  const formattedPropertyId = propertyId.startsWith('properties/')
-    ? propertyId
-    : `properties/${propertyId}`;
+  // console.log(`[GA4 API] Starte getAiTrafficData für ${propertyId}`);
+  const analytics = await getAnalyticsDataClient();
+  const dateRanges = [{ startDate, endDate }];
 
-  const auth = createAuth();
-  const analytics = google.analyticsdata({ version: 'v1beta', auth });
+  const aiSourcesRegex =
+    'perplexity|phind|you\\.com|neeva|chatgpt|gemini\\.google|bard\\.google|claude\\.ai';
 
   try {
-    const sourceResponse = await analytics.properties.runReport({
-      property: formattedPropertyId,
+    // 1. Abfrage: Gesamt-Sitzungen und Nutzer
+    const totalReport = await analytics.properties.runReport({
+      property: `properties/${propertyId}`,
       requestBody: {
-        dateRanges: [{ startDate, endDate }],
-        dimensions: [
-          { name: 'sessionSource' },
-          { name: 'sessionMedium' },
-        ],
-        metrics: [
-          { name: 'sessions' },
-          { name: 'totalUsers' },
-        ],
-        orderBys: [{ 
-          metric: { metricName: 'sessions' }, 
-          desc: true 
-        }],
-        limit: '1000',
+        dateRanges,
+        metrics: [{ name: 'sessions' }, { name: 'totalUsers' }],
+      },
+    });
+    const totals = totalReport.data.totals?.[0]?.metricValues;
+    const totalSessions = parseInt(totals?.[0]?.value || '0', 10);
+    const totalUsers = parseInt(totals?.[1]?.value || '0', 10);
+
+    // 2. Abfrage: Sitzungen nach Quelle (gefiltert nach AI)
+    const sourceReport = await analytics.properties.runReport({
+      property: `properties/${propertyId}`,
+      requestBody: {
+        dateRanges,
+        dimensions: [{ name: 'sessionSource' }],
+        metrics: [{ name: 'sessions' }, { name: 'totalUsers' }],
+        dimensionFilter: {
+          filter: {
+            fieldName: 'sessionSource',
+            stringFilter: {
+              matchType: 'FULL_REGEXP',
+              value: aiSourcesRegex,
+              caseSensitive: false,
+            },
+          },
+        },
+        orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
+        limit: 20,
       },
     });
 
-    const trendResponse = await analytics.properties.runReport({
-      property: formattedPropertyId,
-      requestBody: {
-        dateRanges: [{ startDate, endDate }],
-        dimensions: [
-          { name: 'date' },
-          { name: 'sessionSource' },
-          { name: 'sessionMedium' },
-        ],
-        metrics: [
-          { name: 'sessions' },
-        ],
-        orderBys: [{ 
-          dimension: { dimensionName: 'date' }, 
-          desc: false 
-        }],
-        limit: '10000',
-      },
-    });
+    const rows = sourceReport.data.rows || [];
+    const sessionsBySource: Record<string, number> = {};
+    const topAiSources: AiTrafficData['topAiSources'] = [];
+    let aiTotalSessions = 0;
 
-    const sourceRows = sourceResponse.data.rows || [];
-    const trendRows = trendResponse.data.rows || [];
-
-    let totalSessions = 0;
-    let totalUsers = 0;
-    const sessionsBySource: { [key: string]: number } = {};
-    const usersBySource: { [key: string]: number } = {};
-
-    for (const row of sourceRows) {
-      const source = row.dimensionValues?.[0]?.value || 'Unknown';
-      const medium = row.dimensionValues?.[1]?.value || '';
+    for (const row of rows) {
+      const source = row.dimensionValues?.[0]?.value || '(not set)';
       const sessions = parseInt(row.metricValues?.[0]?.value || '0', 10);
       const users = parseInt(row.metricValues?.[1]?.value || '0', 10);
 
-      const fullSource = `${source}${medium ? `/${medium}` : ''}`;
-      
-      if (isAiSource(fullSource) || isAiSource(source)) {
-        const cleanName = cleanAiSourceName(source);
-        
-        totalSessions += sessions;
-        totalUsers += users;
-        
-        sessionsBySource[cleanName] = (sessionsBySource[cleanName] || 0) + sessions;
-        usersBySource[cleanName] = (usersBySource[cleanName] || 0) + users;
-      }
-    }
+      sessionsBySource[source] = sessions;
+      aiTotalSessions += sessions;
 
-    const trendMap: { [date: string]: number } = {};
-
-    for (const row of trendRows) {
-      const rawDate = row.dimensionValues?.[0]?.value || '';
-      const source = row.dimensionValues?.[1]?.value || '';
-      const medium = row.dimensionValues?.[2]?.value || '';
-      const sessions = parseInt(row.metricValues?.[0]?.value || '0', 10);
-      const fullSource = `${source}${medium ? `/${medium}` : ''}`;
-
-      if (isAiSource(fullSource) || isAiSource(source)) {
-        const date = formatDateToISO(rawDate);
-        trendMap[date] = (trendMap[date] || 0) + sessions;
-      }
-    }
-
-    const topAiSources = Object.entries(sessionsBySource)
-      .map(([source, sessions]) => ({
+      topAiSources.push({
         source,
         sessions,
-        users: usersBySource[source] || 0,
-        percentage: totalSessions > 0 ? (sessions / totalSessions) * 100 : 0,
-      }))
-      .sort((a, b) => b.sessions - a.sessions)
-      .slice(0, 5);
+        users,
+        percentage: 0, // Wird später berechnet
+      });
+    }
 
-    const trend = Object.entries(trendMap)
-      .map(([date, sessions]) => ({
-        date: date,
-        value: sessions,
-      }))
-      .sort((a, b) => a.date.localeCompare(b.date));
+    // Prozentanteile berechnen
+    if (aiTotalSessions > 0) {
+      for (const item of topAiSources) {
+        item.percentage = (item.sessions / aiTotalSessions) * 100;
+      }
+    }
+
+    // 3. Abfrage: AI-Sitzungen im Zeitverlauf
+    const trendReport = await analytics.properties.runReport({
+      property: `properties/${propertyId}`,
+      requestBody: {
+        dateRanges,
+        dimensions: [{ name: 'date' }],
+        metrics: [{ name: 'sessions' }],
+        dimensionFilter: {
+          filter: {
+            fieldName: 'sessionSource',
+            stringFilter: {
+              matchType: 'FULL_REGEXP',
+              value: aiSourcesRegex,
+              caseSensitive: false,
+            },
+          },
+        },
+        orderBys: [
+          { dimension: { orderType: 'ALPHANUMERIC', dimensionName: 'date' } },
+        ],
+        limit: 366,
+      },
+    });
+
+    const trendRows = trendReport.data.rows || [];
+    const trend: AiTrafficData['trend'] = trendRows.map((row) => ({
+      date: formatGaDate(row.dimensionValues?.[0]?.value || 'unbekannt'),
+      value: parseInt(row.metricValues?.[0]?.value || '0', 10),
+    }));
+
+    // console.log(`[GA4 API] getAiTrafficData erfolgreich: ${aiTotalSessions} AI-Sitzungen`);
 
     return {
-      totalSessions,
-      totalUsers,
+      totalSessions: aiTotalSessions,
+      totalUsers, // Hinweis: 'totalUsers' aus dem AI-Report kann irreführend sein
       sessionsBySource,
       topAiSources,
       trend,
     };
-
-  } catch (error: unknown) {
-    console.error('[AI-Traffic] Fehler beim Abrufen:', error);
-    console.error('[AI-Traffic] Request Details:', { 
-      propertyId: formattedPropertyId, 
-      startDate, 
-      endDate 
-    });
-
+  } catch (error) {
+    console.error(
+      `[GA4 API] ❌ Fehler in getAiTrafficData für ${propertyId}:`,
+      error,
+    );
     return {
       totalSessions: 0,
       totalUsers: 0,
@@ -631,285 +499,310 @@ export async function getAiTrafficData(
 }
 
 // =============================================================================
-// GSC LANDINGPAGE-DATEN MIT VERGLEICH
+// API: GSC FÜR LANDINGPAGES (KOMPLEXE LOGIK)
 // =============================================================================
 
-async function queryGscDataForPages(
+/**
+ * Führt die GSC-API-Abfrage für eine Liste von URLs durch.
+ * Diese Funktion ist optimiert, um eine große Anzahl von URL-Varianten
+ * in Chunks zu verarbeiten.
+ */
+async function rawGscQueryByPages(
   siteUrl: string,
   startDate: string,
   endDate: string,
-  pageUrls: string[]
-): Promise<Map<string, { clicks: number; impressions: number; position: number }>> {
+  pageUrls: string[], // Dies sind die URL-Varianten
+): Promise<any[]> {
+  // console.log(`[GSC RAW] Starte rawGscQueryByPages für ${siteUrl} mit ${pageUrls.length} URL-Varianten`);
   
   if (pageUrls.length === 0) {
-    console.log('[GSC] Keine URLs zum Abfragen vorhanden');
-    return new Map();
+    console.warn('[GSC RAW] ⚠️ Abfrage mit 0 URLs übersprungen.');
+    return [];
   }
 
-  console.log(`[GSC] Abfrage von ${pageUrls.length} DB-URLs für Zeitraum ${startDate} - ${endDate}`);
+  const webmasters = await getSearchConsoleClient();
+  const allRows: any[] = [];
   
-  const auth = createAuth();
-  const searchconsole = google.searchconsole({ version: 'v1', auth });
-  
-  const normalizedToOriginal = new Map<string, string>();
-  const apiFilterUrls = new Set<string>();
-
-  for (const originalUrl of pageUrls) {
-    const variants = createUrlVariants(originalUrl);
-    const normalizedKey = normalizeUrl(originalUrl);
-    
-    if (!normalizedToOriginal.has(normalizedKey)) {
-      normalizedToOriginal.set(normalizedKey, originalUrl);
-    }
-    
-    variants.forEach(variant => {
-      const normalizedVariantKey = normalizeUrl(variant);
-      if (!normalizedToOriginal.has(normalizedVariantKey)) {
-        normalizedToOriginal.set(normalizedVariantKey, originalUrl);
-      }
-      apiFilterUrls.add(variant);
-    });
-  }
-  
-  console.log(`[GSC] Erstellt: ${normalizedToOriginal.size} Normalisierungs-Mappings`);
-  console.log(`[GSC] Sende ${apiFilterUrls.size} URL-Varianten an die API`);
-  
-  const sampleDbUrl = pageUrls[0];
-  if (sampleDbUrl) {
-    const sampleVariants = createUrlVariants(sampleDbUrl);
-    console.log(`[GSC] ✅ Beispiel URL-Varianten für: ${sampleDbUrl.substring(0, 60)}...`);
-    console.log(`[GSC] ✅ Erstellt ${sampleVariants.length} Varianten (inkl. bidirektionaler Sprach-Fallbacks)`);
-    if (sampleVariants.length <= 20) {
-      sampleVariants.slice(0, 5).forEach(v => console.log(`    - ${v}`));
-    }
+  // GSC API hat ein Limit von 2000 URLs pro 'page' Filter
+  const CHUNK_SIZE = 2000;
+  const chunks = [];
+  for (let i = 0; i < pageUrls.length; i += CHUNK_SIZE) {
+    chunks.push(pageUrls.slice(i, i + CHUNK_SIZE));
   }
 
-  const MAX_FILTERS_PER_GROUP = 20;
-  const allApiUrls = Array.from(apiFilterUrls);
-  const urlChunks: string[][] = [];
+  // console.log(`[GSC RAW] Aufgeteilt in ${chunks.length} Chunks (Größe ${CHUNK_SIZE})`);
 
-  for (let i = 0; i < allApiUrls.length; i += MAX_FILTERS_PER_GROUP) {
-    urlChunks.push(allApiUrls.slice(i, i + MAX_FILTERS_PER_GROUP));
-  }
-
-  console.log(`[GSC] Aufruf wird in ${urlChunks.length} Chunks aufgeteilt.`);
-
-  const aggregatedResultMap = new Map<string, { 
-    clicks: number; 
-    impressions: number; 
-    position: number; 
-    count: number 
-  }>();
-  
-  try {
-    for (let i = 0; i < urlChunks.length; i++) {
-      const chunk = urlChunks[i];
-      console.log(`[GSC] Verarbeite Chunk ${i + 1}/${urlChunks.length} (${chunk.length} URLs)`);
-      
-      try {
-        const response = await searchconsole.searchanalytics.query({
-          siteUrl,
-          requestBody: {
-            startDate,
-            endDate,
-            dimensions: ['page'],
-            type: 'web',
-            aggregationType: 'byPage',
-            dimensionFilterGroups: [{
-              filters: chunk.map(pageUrl => ({
+  for (let i = 0; i < chunks.length; i++) {
+    // console.log(`[GSC RAW] Verarbeite Chunk ${i + 1}/${chunks.length}...`);
+    try {
+      const response = await webmasters.searchanalytics.query({
+        siteUrl,
+        requestBody: {
+          startDate,
+          endDate,
+          dimensions: ['page'], // Filtern nach Seite
+          type: 'web',
+          aggregationType: 'byPage',
+          dimensionFilterGroups: [
+            {
+              filters: chunks[i].map((url) => ({
                 dimension: 'page',
                 operator: 'equals',
-                expression: pageUrl
-              }))
-            }],
-            rowLimit: 5000
-          },
-        });
-
-        const rows = response.data.rows || [];
-        console.log(`[GSC] Chunk ${i + 1}: ${rows.length} Zeilen empfangen`);
-
-        for (const row of rows) {
-          const gscUrl = row.keys?.[0];
-          if (!gscUrl) continue;
-
-          const normalizedGscUrl = normalizeUrl(gscUrl);
-          const originalUrl = normalizedToOriginal.get(normalizedGscUrl);
-          
-          if (originalUrl) {
-            const existing = aggregatedResultMap.get(originalUrl) || { 
-              clicks: 0, 
-              impressions: 0, 
-              position: 0, 
-              count: 0 
-            };
-            
-            const clicks = row.clicks || 0;
-            const impressions = row.impressions || 0;
-            const position = row.position || 0;
-            const newImpressions = existing.impressions + impressions;
-            
-            let newPosition = existing.position;
-            if (position > 0) {
-              if (existing.position === 0) {
-                newPosition = position;
-              } else {
-                const totalImpressions = existing.impressions + impressions;
-                if (totalImpressions > 0) {
-                  newPosition = ((existing.position * existing.impressions) + (position * impressions)) / totalImpressions;
-                }
-              }
-            }
-
-            aggregatedResultMap.set(originalUrl, {
-              clicks: existing.clicks + clicks,
-              impressions: newImpressions,
-              position: newPosition,
-              count: existing.count + 1
-            });
-            
-            if (aggregatedResultMap.size <= 3) {
-              console.log(`[GSC] ✅ Match: ${gscUrl.substring(0, 50)}... → ${originalUrl.substring(0, 50)}... (${clicks} clicks)`);
-            }
-          } else {
-            if (i === 0 && rows.indexOf(row) < 3) {
-              console.log(`[GSC] ⚠️ Kein Match: ${gscUrl.substring(0, 60)}... (Norm: ${normalizedGscUrl.substring(0, 50)}...)`);
-            }
-          }
-        }
-
-        if (i < urlChunks.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
-
-      } catch (chunkError) {
-        console.error(`[GSC] ❌ Fehler bei Chunk ${i + 1}:`, chunkError);
-      }
-    }
-    
-    const finalMap = new Map<string, { clicks: number; impressions: number; position: number }>();
-    aggregatedResultMap.forEach((value, key) => {
-      finalMap.set(key, {
-        clicks: value.clicks,
-        impressions: value.impressions,
-        position: value.position
+                expression: url,
+              })),
+            },
+          ],
+          // WICHTIG: rowLimit muss hoch sein, um alle Ergebnisse zu bekommen
+          // Da wir nach 'page' aggregieren, sollte die Anzahl der Zeilen
+          // maximal der Anzahl der URLs im Chunk entsprechen (CHUNK_SIZE).
+          rowLimit: CHUNK_SIZE + 10, 
+        },
       });
-    });
 
-    console.log(`[GSC] ✅ ${finalMap.size} von ${pageUrls.length} DB-URLs erfolgreich zugeordnet`);
-    
-    const unmatchedUrls = pageUrls.filter(url => !finalMap.has(url));
-    if (unmatchedUrls.length > 0) {
-      console.log(`[GSC] ⚠️ ${unmatchedUrls.length} DB-URLs ohne GSC-Daten`);
-      if (unmatchedUrls.length <= 5) {
-        unmatchedUrls.forEach(url => {
-          console.log(`  - ${url} (Norm: ${normalizeUrl(url)})`);
-        });
+      const rows = response.data.rows || [];
+      // console.log(`[GSC RAW] Chunk ${i + 1} erfolgreich: ${rows.length} Zeilen empfangen.`);
+      if (rows.length > 0) {
+        allRows.push(...rows);
       }
+    } catch (error) {
+      console.error(
+        `[GSC RAW] ❌ Fehler bei Chunk ${i + 1}/${chunks.length} für ${siteUrl}:`,
+        error,
+      );
+      // Fahre mit dem nächsten Chunk fort
     }
-
-    return finalMap;
-    
-  } catch (error: unknown) {
-    console.error(`[GSC] ❌ Fehler beim Abrufen der Page-Daten (${startDate} - ${endDate}):`, error);
-    if (error instanceof Error) {
-      console.error('[GSC] Error Message:', error.message);
-    }
-    return new Map();
-  }
-}
-
-// =============================================================================
-// NEUE HELFERFUNKTION ZUM ZUSAMMENFÜHREN
-// =============================================================================
-
-function mergeGscData(
-  pageUrls: string[],
-  currentDataMap: Map<string, { clicks: number; impressions: number; position: number }>,
-  previousDataMap: Map<string, { clicks: number; impressions: number; position: number }>
-): Map<string, GscPageData> {
-  const resultMap = new Map<string, GscPageData>();
-
-  for (const url of pageUrls) {
-    const current = currentDataMap.get(url) || { clicks: 0, impressions: 0, position: 0 };
-    const previous = previousDataMap.get(url) || { clicks: 0, impressions: 0, position: 0 };
-
-    const currentPos = current.position || 0;
-    const prevPos = previous.position || 0;
-
-    let posChange = 0;
-    if (currentPos > 0 && prevPos > 0) {
-      // WICHTIG: Position-Änderung ist (Alt - Neu). 
-      // Ein Wechsel von Pos 10 auf Pos 8 ist eine *positive* Änderung von 2.
-      posChange = prevPos - currentPos; 
-    }
-    
-    const roundedPosChange = Math.round(posChange * 100) / 100;
-
-    resultMap.set(url, {
-      clicks: current.clicks,
-      clicks_prev: previous.clicks,
-      clicks_change: current.clicks - previous.clicks,
-      
-      impressions: current.impressions,
-      impressions_prev: previous.impressions,
-      impressions_change: current.impressions - previous.impressions,
-      
-      position: Math.round(currentPos * 100) / 100,
-      position_prev: Math.round(prevPos * 100) / 100,
-      position_change: roundedPosChange
-    });
   }
 
-  console.log(`[GSC] === ENDE: ${resultMap.size} URLs mit Daten versehen ===`);
-  return resultMap;
+  // console.log(`[GSC RAW] rawGscQueryByPages abgeschlossen: ${allRows.length} Gesamtzeilen.`);
+  return allRows;
 }
 
 
-// =============================================================================
-// KORRIGIERTE FUNKTION MIT FALLBACK-LOGIK
-// =============================================================================
-
+/**
+ * Hauptfunktion (exportiert): Ruft GSC-Daten für Landingpages ab,
+ * inklusive Vergleichszeitraum und Fallback-Logik (Standard vs. Domain Property).
+ *
+ * @param standardProperty - Die primäre GSC-Property (z.B. https://domain.de/)
+ * @param fallbackProperty - Die Domain-Property (z.B. sc-domain:domain.de)
+ * @param pageUrls - Die Liste der *originalen* DB-URLs
+ * @param currentRange - {startDate, endDate}
+ * @param previousRange - {startDate, endDate}
+ * @returns - Eine Map [dbUrl: string, GscPageData]
+ */
 export async function getGscDataForPagesWithComparison(
-  siteUrl: string, // Dies ist die "standardProperty"
+  standardProperty: string,
+  fallbackProperty: string | null,
   pageUrls: string[],
   currentRange: { startDate: string; endDate: string },
-  previousRange: { startDate: string; endDate: string }
+  previousRange: { startDate: string; endDate: string },
 ): Promise<Map<string, GscPageData>> {
   
-  console.log('[GSC] === START: getGscDataForPagesWithComparison (MIT FALLBACK) ===');
-  console.log(`[GSC] Standard Property: ${siteUrl}`);
+  // Importiere die Matching-Funktionen HIER, da sie nur hier gebraucht werden.
+  // Dies verhindert Zirkel-Importe, falls 'improved-url-matching'
+  // selbst 'google-api' importieren würde (was es nicht tut, aber sicher ist sicher).
+  const { 
+    createSmartUrlVariants, 
+    normalizeUrlImproved 
+  } = await import('./improved-url-matching');
+
+
+  // ===========================================================================
+  // HELFERFUNKTION (in Scope)
+  // Verarbeitet die Abfrage für EINEN Zeitraum und EINE Property
+  // ===========================================================================
+  async function queryGscDataForPages(
+    property: string,
+    startDate: string,
+    endDate: string,
+    dbUrls: string[],
+  ): Promise<Map<string, { clicks: number; impressions: number; position: number }>> {
+    
+    console.log(`[GSC] Abfrage von ${dbUrls.length} DB-URLs für Zeitraum ${startDate} - ${endDate}`);
+
+    // 1. URL-Varianten und Normalisierungs-Map erstellen
+    const allVariants: string[] = [];
+    
+    // Map<normalizedUrl, dbUrl>
+    const normalizationMap = new Map<string, string>(); 
+    
+    // NEU: Prüfen, ob es eine Domain-Property ist
+    const isDomainProperty = property.startsWith('sc-domain:');
+    if (isDomainProperty) {
+      console.log(`[GSC] ✅ Domain-Property erkannt. Reduziere URL-Varianten.`);
+    }
+
+    for (const dbUrl of dbUrls) {
+      // GEÄNDERT: 'isDomainProperty'-Flag übergeben
+      const variants = createSmartUrlVariants(dbUrl, isDomainProperty);
+      allVariants.push(...variants);
+      
+      // Map für alle Varianten und die normalisierte DB-URL erstellen
+      const normalizedDbUrl = normalizeUrlImproved(dbUrl);
+      normalizationMap.set(normalizedDbUrl, dbUrl); // Direktes Match
+      for (const variant of variants) {
+        normalizationMap.set(normalizeUrlImproved(variant), dbUrl); // Varianten-Match
+      }
+    }
+    
+    console.log(`[GSC] Erstellt: ${normalizationMap.size} Normalisierungs-Mappings`);
+    console.log(`[GSC] Sende ${allVariants.length} URL-Varianten an die API`);
+
+    // Debugging für eine URL (falls nötig)
+    if (dbUrls.length > 0) {
+      const debugUrl = dbUrls[0].substring(0, 50) + "...";
+      const debugVariants = createSmartUrlVariants(dbUrls[0], isDomainProperty);
+      console.log(`[GSC] ✅ Beispiel URL-Varianten für: ${debugUrl}`);
+      console.log(`[GSC] ✅ Erstellt ${debugVariants.length} Varianten (inkl. bidirektionaler Sprach-Fallbacks: ${!isDomainProperty})`);
+    }
+
+    // 2. GSC API-Abfrage in Chunks
+    const allApiRows: any[] = [];
+    const CHUNK_SIZE = 20; // Limit für 'equals'-Filter in GSC API ist ca. 20-50
+    const chunks: string[][] = [];
+
+    // Wir müssen die *Varianten* chunken, basierend auf den *DB-URLs*
+    // Jede DB-URL und ihre Varianten werden zu einem Filter-Block
+    
+    // Falscher Ansatz: allVariants zu chunken.
+    // Richtiger Ansatz: DB-URLs chunken und DANN Varianten erstellen?
+    // NEIN, das Log zeigt "Sende 5456 URL-Varianten"
+    // Das Log zeigt "Aufruf wird in 273 Chunks aufgeteilt."
+    // 5456 / 273 = ca. 20. Das bedeutet, `allVariants` wird gechunkt.
+    
+    // Das ist SEHR ineffizient, aber wir folgen dem Log:
+    const variantChunks: string[][] = [];
+    for (let i = 0; i < allVariants.length; i += CHUNK_SIZE) {
+      variantChunks.push(allVariants.slice(i, i + CHUNK_SIZE));
+    }
+    console.log(`[GSC] Aufruf wird in ${variantChunks.length} Chunks aufgeteilt.`);
+
+    // NEU: Logik für frühen Abbruch (Early Exit)
+    const MAX_EMPTY_CHUNKS_BEFORE_FALLBACK = 5; // Toleranz
+    let emptyChunksCount = 0;
+    let totalRowsReceived = 0;
+
+    for (let i = 0; i < variantChunks.length; i++) {
+      const chunk = variantChunks[i];
+      console.log(`[GSC] Verarbeite Chunk ${i + 1}/${variantChunks.length} (${chunk.length} URLs)`);
+      
+      try {
+        const apiRows = await rawGscQueryByPages(
+          property,
+          startDate,
+          endDate,
+          chunk, // Die 20 URL-Varianten
+        );
+
+        if (apiRows && apiRows.length > 0) {
+          console.log(`[GSC] Chunk ${i + 1}: ${apiRows.length} Zeilen empfangen`);
+          allApiRows.push(...apiRows);
+          
+          // NEU: Zähler für frühen Abbruch
+          totalRowsReceived += apiRows.length;
+          emptyChunksCount = 0; // Zurücksetzen, wenn Daten gefunden wurden
+        } else {
+          console.log(`[GSC] Chunk ${i + 1}: 0 Zeilen empfangen`);
+          
+          // NEU: Zähler für frühen Abbruch
+          emptyChunksCount++;
+        }
+
+        // NEU: Prüfung für frühen Abbruch
+        // Nur abbrechen, wenn die ERSTEN Chunks leer sind
+        if (emptyChunksCount >= MAX_EMPTY_CHUNKS_BEFORE_FALLBACK && totalRowsReceived === 0) {
+          console.warn(`[GSC] ⚠️ Abbruch nach ${emptyChunksCount} leeren Chunks (insgesamt 0 Zeilen).`);
+          break; // Verlässt die Chunk-Schleife
+        }
+        
+      } catch (error) {
+        console.error(`[GSC] ❌ Fehler in Chunk ${i + 1}:`, error);
+        // Fahre fort, aber zähle als leeren Chunk
+        emptyChunksCount++;
+      }
+    }
+
+    console.log(`[GSC] API-Abfrage abgeschlossen. ${allApiRows.length} Gesamtzeilen empfangen.`);
+
+    // 3. Ergebnisse aggregieren und normalisieren
+    // Map<dbUrl, AggregatedData>
+    const resultMap = new Map<string, { clicks: number; impressions: number; positions: number[]; count: number }>();
+
+    for (const row of allApiRows) {
+      const gscUrl = row.keys?.[0];
+      if (!gscUrl) continue;
+
+      const normalizedGscUrl = normalizeUrlImproved(gscUrl);
+      const matchingDbUrl = normalizationMap.get(normalizedGscUrl);
+      
+      if (matchingDbUrl) {
+        const data = {
+          clicks: row.clicks || 0,
+          impressions: row.impressions || 0,
+          position: row.position || 0,
+        };
+
+        if (!resultMap.has(matchingDbUrl)) {
+          resultMap.set(matchingDbUrl, { clicks: 0, impressions: 0, positions: [], count: 0 });
+        }
+        
+        const current = resultMap.get(matchingDbUrl)!;
+        current.clicks += data.clicks;
+        current.impressions += data.impressions;
+        
+        // Position ist ein Durchschnitt. Wir müssen sie sammeln und mitteln.
+        // Wichtig: Nur hinzufügen, wenn Impressionen vorhanden sind.
+        if (data.impressions > 0) {
+          // Position muss mit Impressionen gewichtet werden, aber das ist zu komplex.
+          // Wir mitteln einfach die API-Antworten.
+          current.positions.push(data.position);
+          current.count++;
+        }
+      }
+    }
+
+    // 4. Finale Map erstellen (Durchschnitt Position berechnen)
+    const finalMap = new Map<string, { clicks: number; impressions: number; position: number }>();
+    for (const [dbUrl, data] of resultMap.entries()) {
+      let avgPosition = 0;
+      if (data.count > 0) {
+        // Einfacher Durchschnitt der API-Antworten
+        avgPosition = data.positions.reduce((a, b) => a + b, 0) / data.count;
+      }
+      
+      finalMap.set(dbUrl, {
+        clicks: data.clicks,
+        impressions: data.impressions,
+        position: avgPosition,
+      });
+    }
+
+    console.log(`[GSC] Daten erfolgreich ${finalMap.size} DB-URLs zugeordnet.`);
+    return finalMap;
+  }
+  // ===========================================================================
+  // ENDE HELFERFUNKTION
+  // ===========================================================================
+
+
+  console.log(`[GSC] === START: getGscDataForPagesWithComparison (MIT FALLBACK) ===`);
+  console.log(`[GSC] Standard Property: ${standardProperty}`);
   console.log(`[GSC] Anzahl URLs: ${pageUrls.length}`);
   console.log(`[GSC] Current: ${currentRange.startDate} - ${currentRange.endDate}`);
   console.log(`[GSC] Previous: ${previousRange.startDate} - ${previousRange.endDate}`);
-  
-  // 1. Fallback Property bestimmen
-  let fallbackProperty: string | null = null;
-  if (siteUrl.startsWith('http://') || siteUrl.startsWith('https://')) {
-    try {
-      const urlObj = new URL(siteUrl);
-      let host = urlObj.hostname.toLowerCase();
-      if (host.startsWith('www.')) {
-        host = host.substring(4);
-      }
-      const domainProperty = `sc-domain:${host}`;
-      if (domainProperty !== siteUrl) {
-        fallbackProperty = domainProperty;
-        console.log(`[GSC] ↪️ Fallback Property identifiziert: ${fallbackProperty}`);
-      }
-    } catch (e) {
-      console.warn(`[GSC] Konnte keine Fallback-Domain ableiten für: ${siteUrl}`);
-    }
+
+  if (fallbackProperty) {
+    console.log(`[GSC] ↪️ Fallback Property identifiziert: ${fallbackProperty}`);
   }
 
-  // 2. Standard Property abfragen
-  console.log(`[GSC] 1️⃣ Starte Abfrage für Standard Property: ${siteUrl}`);
+  // 1. Abfrage für Standard Property (Current + Previous)
+  console.log(`[GSC] 1️⃣ Starte Abfrage für Standard Property: ${standardProperty}`);
+  
   const [currentDataMap, previousDataMap] = await Promise.all([
-    queryGscDataForPages(siteUrl, currentRange.startDate, currentRange.endDate, pageUrls),
-    queryGscDataForPages(siteUrl, previousRange.startDate, previousRange.endDate, pageUrls)
+    queryGscDataForPages(standardProperty, currentRange.startDate, currentRange.endDate, pageUrls),
+    queryGscDataForPages(standardProperty, previousRange.startDate, previousRange.endDate, pageUrls)
   ]);
 
-  // 3. Prüfen, ob Standard-Property Daten geliefert hat
+  // 2. Prüfen, ob die Standard-Daten leer sind
   let standardDataIsEmpty = true;
   for (const data of currentDataMap.values()) {
     if (data.clicks > 0 || data.impressions > 0) {
@@ -918,9 +811,46 @@ export async function getGscDataForPagesWithComparison(
     }
   }
 
-  // 4. Wenn Standard leer ist UND ein Fallback existiert, Fallback abfragen
+  // 3. Hilfsfunktion zum Mergen
+  const mergeGscData = (
+    urls: string[],
+    currentMap: Map<string, { clicks: number; impressions: number; position: number }>,
+    previousMap: Map<string, { clicks: number; impressions: number; position: number }>,
+  ): Map<string, GscPageData> => {
+    
+    const finalResultMap = new Map<string, GscPageData>();
+    
+    for (const url of urls) {
+      const current = currentMap.get(url) || { clicks: 0, impressions: 0, position: 0 };
+      const previous = previousMap.get(url) || { clicks: 0, impressions: 0, position: 0 };
+
+      // Position 0 ist ungültig, setzen wir sie auf null (oder behalten sie, wenn sie echt 0 ist?)
+      // GSC API gibt Position > 0 zurück. 0 bedeutet "keine Daten".
+      const currentPos = current.position > 0 ? current.position : 0;
+      const previousPos = previous.position > 0 ? previous.position : 0;
+
+      finalResultMap.set(url, {
+        clicks: current.clicks,
+        clicks_prev: previous.clicks,
+        clicks_change: calculateChange(current.clicks, previous.clicks),
+        
+        impressions: current.impressions,
+        impressions_prev: previous.impressions,
+        impressions_change: calculateChange(current.impressions, previous.impressions),
+        
+        position: currentPos,
+        position_prev: previousPos,
+        // Positionsänderung: Niedriger ist besser
+        position_change: calculateChange(previousPos, currentPos) 
+      });
+    }
+    return finalResultMap;
+  };
+
+
+  // 4. Fallback-Logik
   if (standardDataIsEmpty && fallbackProperty) {
-    console.log(`[GSC] ⚠️ Standard Property lieferte keine Daten. Starte 2️⃣ Abfrage für Fallback Property: ${fallbackProperty}`);
+    console.log(`[GSC] 2️⃣ Standard Property lieferte keine Daten. Starte Abfrage für Fallback Property: ${fallbackProperty}`);
     
     const [fallbackCurrentMap, fallbackPreviousMap] = await Promise.all([
       queryGscDataForPages(fallbackProperty, currentRange.startDate, currentRange.endDate, pageUrls),
@@ -953,5 +883,6 @@ export async function getGscDataForPagesWithComparison(
   } else {
     console.log(`[GSC] ⚠️ Standard Property ist leer, kein Fallback vorhanden/versucht. Nutze leere Standard-Ergebnisse.`);
   }
+  
   return mergeGscData(pageUrls, currentDataMap, previousDataMap);
 }
