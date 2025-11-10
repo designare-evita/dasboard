@@ -1,4 +1,4 @@
-// src/app/api/cron/refresh-all-gsc/route.ts (KORRIGIERT)
+// src/app/api/cron/refresh-all-gsc/route.ts (KORRIGIERT MIT 5 ARGUMENTEN)
 
 import { NextResponse } from 'next/server';
 import { sql, type QueryResult } from '@vercel/postgres'; // QueryResult importiert
@@ -80,6 +80,30 @@ export async function POST(request: Request) {
 
       console.log(`[CRON GSC] 🔄 Verarbeite Projekt: ${user.email} (${projectId})`);
 
+      // ===================================================================
+      // NEU: Fallback-Property aus gscSiteUrl ableiten
+      // (Logik kopiert aus 'google-data-loader.ts')
+      // ===================================================================
+      let fallbackProperty: string | null = null;
+      if (gscSiteUrl.startsWith('http://') || gscSiteUrl.startsWith('https://')) {
+        try {
+          const urlObj = new URL(gscSiteUrl);
+          let host = urlObj.hostname.toLowerCase();
+          if (host.startsWith('www.')) {
+            host = host.substring(4);
+          }
+          const domainProperty = `sc-domain:${host}`;
+          
+          // Nur hinzufügen, wenn Fallback sich von Standard unterscheidet
+          if (domainProperty !== gscSiteUrl) {
+            fallbackProperty = domainProperty;
+          }
+        } catch (e) {
+          console.warn(`[CRON GSC] ⚠️ Konnte keine Fallback-Domain aus ${gscSiteUrl} ableiten.`);
+        }
+      }
+      // ===================================================================
+
       try {
         // 4. Alle Landingpages für das Projekt laden
         const { rows: pages } = await client.query<LandingpageDbRow>(
@@ -96,12 +120,17 @@ export async function POST(request: Request) {
         const { currentRange, previousRange } = calculateDateRanges(cronDateRange);
         const pageUrls = pages.map(p => p.url);
 
+        // ===================================================================
+        // GEÄNDERT: 'fallbackProperty' als 2. Argument hinzugefügt
+        // ===================================================================
         const gscDataMap = await getGscDataForPagesWithComparison(
           gscSiteUrl,
+          fallbackProperty, // Das fehlende 5. Argument
           pageUrls,
           currentRange,
           previousRange
         );
+        // ===================================================================
 
         console.log(`[CRON GSC] 📊 ${gscDataMap.size} GSC-Datenpunkte für ${user.email} empfangen.`);
 
@@ -111,8 +140,7 @@ export async function POST(request: Request) {
 
         const updatePromises: Promise<QueryResult>[] = []; // Korrekter Typ für die Promises
 
-        pages.forEach(page => { // Verwende forEach statt map, wenn das Ergebnis nicht benötigt wird
-          // === KORREKTUR: Direkter Zugriff mit der Original-URL ===
+        pages.forEach(page => { 
           const gscData = gscDataMap.get(page.url);
 
           if (gscData) {
@@ -192,5 +220,3 @@ export async function POST(request: Request) {
     console.log('[CRON GSC] Datenbank-Client freigegeben.');
   }
 }
-
-// === KORREKTUR: Fehlerhafte, lokale normalizeGscUrl-Funktion wurde entfernt ===
