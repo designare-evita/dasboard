@@ -8,6 +8,60 @@ import { sql, type QueryResult } from '@vercel/postgres';
 import { getGscDataForPagesWithComparison } from '@/lib/google-api';
 import type { User } from '@/types';
 
+// ==================================================================
+// NEUE TYPEN für das detaillierte Debug-Log
+// Diese ersetzen 'any' und machen den Code typsicher.
+// ==================================================================
+type DebugDateRange = {
+  startDate: string;
+  endDate: string;
+};
+
+type DebugProjectInfo = {
+  email: string | undefined; // E-Mail kommt von `project.email`
+  domain: string | undefined; // Domain kommt von `project.domain`
+  gsc_site_url: string | null | undefined; // Kann null oder undefined sein
+  has_gsc: boolean;
+};
+
+type DebugLandingpages = {
+  count: number;
+  message?: string; // Für den "nicht gefunden" Fall
+  sampleUrls?: string[];
+  allUrls?: string[];
+};
+
+type DebugGscResponse = {
+  totalMatches: number;
+  matchedUrls: string[];
+  hasData: boolean;
+};
+
+type DebugMatchingDetail = {
+  dbUrl: string;
+  matched: boolean;
+  clicks?: number;
+  impressions?: number;
+};
+
+type DebugMatchingResults = {
+  matched: number;
+  unmatched: number;
+  matchRate: string;
+  matchedSamples: string[];
+  unmatchedSamples: string[];
+  details: DebugMatchingDetail[];
+};
+
+type DebugUpdateResults = {
+  updatedWithData: number;
+  updatedWithoutData: number;
+  total: number;
+};
+// ==================================================================
+// ENDE: NEUE TYPEN
+// ==================================================================
+
 function formatDate(date: Date): string {
   return date.toISOString().split('T')[0];
 }
@@ -16,21 +70,27 @@ function calculateDateRanges(range: string) {
   const GSC_DATA_DELAY_DAYS = 2;
   const endDateCurrent = new Date();
   endDateCurrent.setDate(endDateCurrent.getDate() - GSC_DATA_DELAY_DAYS);
-  
+
   let daysToSubtract = 29;
   switch (range) {
-    case '3m': daysToSubtract = 89; break;
-    case '6m': daysToSubtract = 179; break;
-    case '12m': daysToSubtract = 364; break;
+    case '3m':
+      daysToSubtract = 89;
+      break;
+    case '6m':
+      daysToSubtract = 179;
+      break;
+    case '12m':
+      daysToSubtract = 364;
+      break;
   }
-  
+
   const startDateCurrent = new Date(endDateCurrent);
   startDateCurrent.setDate(startDateCurrent.getDate() - daysToSubtract);
   const endDatePrevious = new Date(startDateCurrent);
   endDatePrevious.setDate(endDatePrevious.getDate() - 1);
   const startDatePrevious = new Date(endDatePrevious);
   startDatePrevious.setDate(startDatePrevious.getDate() - daysToSubtract);
-  
+
   return {
     currentRange: {
       startDate: formatDate(startDateCurrent),
@@ -45,15 +105,16 @@ function calculateDateRanges(range: string) {
 
 export async function POST(request: NextRequest) {
   const client = await sql.connect();
-  
-  // ✅ NEUES LOGGING-OBJEKT für detaillierte Diagnose
+
+  // ✅ KORRIGIERTES LOGGING-OBJEKT (ohne 'any')
+  // Wir verwenden jetzt die oben definierten, spezifischen Typen.
   const debugLog: {
-    projectInfo?: any;
-    landingpages?: any;
-    dateRanges?: any;
-    gscResponse?: any;
-    matchingResults?: any;
-    updateResults?: any;
+    projectInfo?: DebugProjectInfo;
+    landingpages?: DebugLandingpages;
+    dateRanges?: { current: DebugDateRange; previous: DebugDateRange };
+    gscResponse?: DebugGscResponse;
+    matchingResults?: DebugMatchingResults;
+    updateResults?: DebugUpdateResults;
     errors?: string[];
   } = {
     errors: [],
@@ -63,12 +124,23 @@ export async function POST(request: NextRequest) {
     const session = await getServerSession(authOptions);
     const user = session?.user;
 
-    if (!user || (user.role !== 'ADMIN' && user.role !== 'SUPERADMIN' && user.role !== 'BENUTZER')) {
-      return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
+    if (
+      !user ||
+      (user.role !== 'ADMIN' &&
+        user.role !== 'SUPERADMIN' &&
+        user.role !== 'BENUTZER')
+    ) {
+      return NextResponse.json(
+        { message: 'Nicht autorisiert' },
+        { status: 401 }
+      );
     }
 
     const body = await request.json();
-    const { projectId, dateRange } = body as { projectId: string; dateRange: string };
+    const { projectId, dateRange } = body as {
+      projectId: string;
+      dateRange: string;
+    };
 
     if (!projectId || !dateRange) {
       return NextResponse.json(
@@ -106,17 +178,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Projekt-Daten laden
-    const { rows: projectRows } = await sql<Pick<User, 'gsc_site_url' | 'email' | 'domain'>>`
+    const { rows: projectRows } = await sql<
+      Pick<User, 'gsc_site_url' | 'email' | 'domain'>
+    >`
       SELECT gsc_site_url, email, domain FROM users WHERE id::text = ${projectId};
     `;
 
     if (projectRows.length === 0) {
       debugLog.errors?.push('Projekt nicht gefunden');
-      return NextResponse.json({ message: 'Projekt nicht gefunden.' }, { status: 404 });
+      return NextResponse.json(
+        { message: 'Projekt nicht gefunden.' },
+        { status: 404 }
+      );
     }
 
     const project = projectRows[0];
-    
+
     debugLog.projectInfo = {
       email: project.email,
       domain: project.domain,
@@ -129,7 +206,10 @@ export async function POST(request: NextRequest) {
     if (!project.gsc_site_url) {
       debugLog.errors?.push('Keine GSC Site URL konfiguriert');
       return NextResponse.json(
-        { message: 'Keine GSC Site URL für dieses Projekt konfiguriert.', debug: debugLog },
+        {
+          message: 'Keine GSC Site URL für dieses Projekt konfiguriert.',
+          debug: debugLog,
+        },
         { status: 400 }
       );
     }
@@ -144,7 +224,10 @@ export async function POST(request: NextRequest) {
     `;
 
     if (landingpageRows.length === 0) {
-      debugLog.landingpages = { count: 0, message: 'Keine Landingpages gefunden' };
+      debugLog.landingpages = {
+        count: 0,
+        message: 'Keine Landingpages gefunden',
+      };
       return NextResponse.json({
         message: 'Für dieses Projekt wurden keine Landingpages gefunden.',
         updatedPages: 0,
@@ -154,7 +237,9 @@ export async function POST(request: NextRequest) {
     }
 
     const pageUrls = landingpageRows.map((lp) => lp.url);
-    const pageIdMap = new Map<string, number>(landingpageRows.map((lp) => [lp.url, lp.id]));
+    const pageIdMap = new Map<string, number>(
+      landingpageRows.map((lp) => [lp.url, lp.id])
+    );
 
     debugLog.landingpages = {
       count: landingpageRows.length,
@@ -162,7 +247,9 @@ export async function POST(request: NextRequest) {
       allUrls: pageUrls,
     };
 
-    console.log(`[GSC Refresh] 📄 Landingpages: ${landingpageRows.length} URLs gefunden`);
+    console.log(
+      `[GSC Refresh] 📄 Landingpages: ${landingpageRows.length} URLs gefunden`
+    );
     console.log('[GSC Refresh] Beispiel-URLs:');
     pageUrls.slice(0, 3).forEach((url, i) => {
       console.log(`  ${i + 1}. ${url}`);
@@ -170,15 +257,19 @@ export async function POST(request: NextRequest) {
 
     // Zeiträume berechnen
     const { currentRange, previousRange } = calculateDateRanges(dateRange);
-    
+
     debugLog.dateRanges = {
       current: currentRange,
       previous: previousRange,
     };
 
     console.log('[GSC Refresh] 📅 Zeiträume:');
-    console.log(`  Current:  ${currentRange.startDate} bis ${currentRange.endDate}`);
-    console.log(`  Previous: ${previousRange.startDate} bis ${previousRange.endDate}`);
+    console.log(
+      `  Current:  ${currentRange.startDate} bis ${currentRange.endDate}`
+    );
+    console.log(
+      `  Previous: ${previousRange.startDate} bis ${previousRange.endDate}`
+    );
 
     // GSC-Daten abrufen
     console.log('[GSC Refresh] 🔍 Starte GSC-Abfrage...');
@@ -198,7 +289,9 @@ export async function POST(request: NextRequest) {
       hasData: gscDataMap.size > 0,
     };
 
-    console.log(`[GSC Refresh] ✅ GSC-Antwort: ${gscDataMap.size} URLs mit Daten`);
+    console.log(
+      `[GSC Refresh] ✅ GSC-Antwort: ${gscDataMap.size} URLs mit Daten`
+    );
 
     if (gscDataMap.size === 0) {
       console.log('[GSC Refresh] ⚠️ WARNUNG: Keine GSC-Daten gefunden!');
@@ -212,12 +305,7 @@ export async function POST(request: NextRequest) {
     // Matching-Analyse
     const matchedUrls: string[] = [];
     const unmatchedUrls: string[] = [];
-    const matchingDetails: Array<{
-      dbUrl: string;
-      matched: boolean;
-      clicks?: number;
-      impressions?: number;
-    }> = [];
+    const matchingDetails: DebugMatchingDetail[] = []; // Verwendet unseren neuen Typ
 
     for (const dbUrl of pageUrls) {
       const gscData = gscDataMap.get(dbUrl);
@@ -244,7 +332,7 @@ export async function POST(request: NextRequest) {
       matchRate: `${((matchedUrls.length / pageUrls.length) * 100).toFixed(1)}%`,
       matchedSamples: matchedUrls.slice(0, 5),
       unmatchedSamples: unmatchedUrls.slice(0, 5),
-      details: matchingDetails.slice(0, 10),
+      details: matchingDetails.slice(0, 10), // .slice() ist wichtig, damit 'details' oben komplett bleibt
     };
 
     console.log('\n[GSC Refresh] 🎯 Matching-Ergebnisse:');
@@ -257,7 +345,9 @@ export async function POST(request: NextRequest) {
       matchedUrls.slice(0, 3).forEach((url) => {
         const data = gscDataMap.get(url);
         console.log(`  ${url.substring(0, 60)}...`);
-        console.log(`    Clicks: ${data?.clicks}, Impressions: ${data?.impressions}`);
+        console.log(
+          `    Clicks: ${data?.clicks}, Impressions: ${data?.impressions}`
+        );
       });
     }
 
@@ -345,9 +435,16 @@ export async function POST(request: NextRequest) {
         `DELETE FROM google_data_cache WHERE user_id::text = $1;`,
         [projectId]
       );
-      console.log(`[GSC Refresh] 🗑️ Cache invalidiert: ${cacheResult.rowCount || 0} Einträge`);
+      console.log(
+        `[GSC Refresh] 🗑️ Cache invalidiert: ${
+          cacheResult.rowCount || 0
+        } Einträge`
+      );
     } catch (cacheError) {
-      console.warn('[GSC Refresh] ⚠️ Cache-Invalidierung fehlgeschlagen:', cacheError);
+      console.warn(
+        '[GSC Refresh] ⚠️ Cache-Invalidierung fehlgeschlagen:',
+        cacheError
+      );
     }
 
     console.log('\n=================================================');
@@ -373,7 +470,9 @@ export async function POST(request: NextRequest) {
         hasGscConfig: !!project.gsc_site_url,
         hasLandingpages: landingpageRows.length > 0,
         gscReturnsData: gscDataMap.size > 0,
-        matchRate: `${((matchedUrls.length / pageUrls.length) * 100).toFixed(1)}%`,
+        matchRate: `${((matchedUrls.length / pageUrls.length) * 100).toFixed(
+          1
+        )}%`,
         possibleIssues:
           updatedCount === 0
             ? [
@@ -393,7 +492,8 @@ export async function POST(request: NextRequest) {
     }
 
     console.error('[GSC Refresh] ❌ FEHLER:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unbekannter Fehler';
     debugLog.errors?.push(errorMessage);
 
     return NextResponse.json(
