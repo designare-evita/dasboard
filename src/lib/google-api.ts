@@ -4,6 +4,7 @@
 // ✅ OPTIMIERT: Mit "Early Exit" Fallback und reduzierten Varianten
 // ✅ BEREINIGT: Linter-Fehler (any types, unused vars) behoben
 // ✅ FIX: JWT-Konstruktor an moderne 1-Argument-Signatur angepasst
+// ✅ FIX (NEU): Rückgabetyp von getTopQueries auf TopQueryData[] korrigiert
 
 import { google, analyticsdata_v1beta, searchconsole_v1 } from 'googleapis';
 import { JWT } from 'google-auth-library';
@@ -88,20 +89,7 @@ async function getGoogleAuthClient(): Promise<JWT> {
     throw new Error('Google API-Authentifizierungsdaten fehlen.');
   }
 
-  // ===================================================================
   // KORREKTUR: Von 5 Argumenten zu 1 Options-Objekt
-  //
-  // ALT (verursacht den Typ-Fehler):
-  // jwtClient = new google.auth.JWT(
-  //   clientEmail,
-  //   undefined,
-  //   privateKey,
-  //   [...],
-  //   undefined
-  // );
-  //
-  // NEU (korrekt für aktuelle Bibliotheks-Versionen):
-  // ===================================================================
   jwtClient = new google.auth.JWT({
     email: clientEmail,
     key: privateKey,
@@ -251,7 +239,10 @@ export async function getTopQueries(
   siteUrl: string,
   startDate: string,
   endDate: string,
-): Promise<TopQueryData> {
+  // ===================================================================
+  // KORREKTUR: TopQueryData -> TopQueryData[]
+  // ===================================================================
+): Promise<TopQueryData[]> {
   // console.log(`[GSC API] Starte getTopQueries für ${siteUrl}`);
   const webmasters = await getSearchConsoleClient();
 
@@ -752,7 +743,7 @@ export async function getGscDataForPagesWithComparison(
   
   const [currentDataMap, previousDataMap] = await Promise.all([
     queryGscDataForPages(standardProperty, currentRange.startDate, currentRange.endDate, pageUrls),
-    queryGscDataForPages(standardProperty, previousRange.startDate, previousRange.endDate, pageUrls)
+    queryGgscDataForPages(standardProperty, previousRange.startDate, previousRange.endDate, pageUrls)
   ]);
 
   // 2. Prüfen, ob die Standard-Daten leer sind
