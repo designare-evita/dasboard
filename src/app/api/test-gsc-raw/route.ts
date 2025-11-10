@@ -1,22 +1,42 @@
-// src/app/api/test-gsc-raw/route.ts (bereits vorhanden - modifizieren)
+// src/app/api/test-gsc-raw/route.ts (ERSETZE KOMPLETT)
+import { NextResponse } from 'next/server';
+import { google } from 'googleapis';
+import { JWT } from 'google-auth-library';
 
-export async function GET() {
+function createAuth(): JWT {
+  const privateKeyBase64 = process.env.GOOGLE_PRIVATE_KEY_BASE64;
+  const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  
+  if (!privateKeyBase64 || !clientEmail) {
+    throw new Error('Credentials fehlen');
+  }
+
+  const privateKey = Buffer.from(privateKeyBase64, 'base64').toString('utf-8');
+  return new JWT({
+    email: clientEmail,
+    key: privateKey,
+    scopes: ['https://www.googleapis.com/auth/webmasters.readonly'],
+  });
+}
+
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    
+    // ✅ Site URL aus Query-Parameter (oder Default)
+    const siteUrl = searchParams.get('siteUrl') || 'https://www.lehner-lifttechnik.com/';
+    
     const auth = createAuth();
     const searchconsole = google.searchconsole({ version: 'v1', auth });
 
-    // ✅ KORRIGIERTER Zeitraum mit GSC-Delay
+    // ✅ Korrekter Zeitraum (3 Tage Delay)
     const endDate = new Date();
-    endDate.setDate(endDate.getDate() - 3); // 3 Tage zurück
+    endDate.setDate(endDate.getDate() - 3);
     const startDate = new Date(endDate);
     startDate.setDate(startDate.getDate() - 30);
 
     const formatDate = (d: Date) => d.toISOString().split('T')[0];
-
-    const siteUrl = 'https://www.lehner-lifttechnik.com/'; // ⚠️ MIT Slash testen
     
-    console.log('Testing dates:', formatDate(startDate), 'to', formatDate(endDate));
-
     const response = await searchconsole.searchanalytics.query({
       siteUrl,
       requestBody: {
@@ -25,7 +45,7 @@ export async function GET() {
         dimensions: ['page'],
         type: 'web',
         aggregationType: 'byPage',
-        rowLimit: 100, // Erhöht für mehr Ergebnisse
+        rowLimit: 100,
       },
     });
 
@@ -45,13 +65,16 @@ export async function GET() {
         impressions: row.impressions,
         position: row.position
       })),
-      // ✅ Zeige auch URL-Muster
-      urlPatterns: {
+      // ✅ URL-Muster-Analyse
+      urlPatterns: rows.length > 0 ? {
         withDe: rows.filter(r => r.keys?.[0]?.includes('/de/')).length,
         withoutDe: rows.filter(r => r.keys?.[0] && !r.keys[0].includes('/de/')).length,
         withTrailingSlash: rows.filter(r => r.keys?.[0]?.endsWith('/')).length,
         withoutTrailingSlash: rows.filter(r => r.keys?.[0] && !r.keys[0].endsWith('/')).length,
-      }
+        rootUrl: rows.filter(r => r.keys?.[0] === siteUrl).length,
+      } : null,
+      // ✅ Sample URLs für Matching-Tests
+      sampleUrls: rows.slice(0, 5).map(r => r.keys?.[0]).filter(Boolean),
     });
 
   } catch (error) {
