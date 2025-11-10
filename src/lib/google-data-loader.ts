@@ -1,4 +1,4 @@
-// src/lib/google-data-loader.ts (VERBESSERT)
+// src/lib/google-data-loader.ts (NEU & KORRIGIERT MIT FALLBACK-LOGIK)
 
 import { sql } from '@vercel/postgres';
 import { User } from '@/types';
@@ -43,7 +43,7 @@ function calculateChange(current: number, previous: number): number {
   return Math.round(change * 10) / 10;
 }
 
-// ========== DATENLADE-FUNKTION ==========
+// ========== DATENLADE-FUNKTION (MIT FALLBACK-LOGIK) ==========
 async function fetchFreshGoogleData(user: Partial<User>, dateRange: string = '30d') {
   
   // Prüfe, ob überhaupt Datenquellen konfiguriert sind
@@ -98,13 +98,43 @@ async function fetchFreshGoogleData(user: Partial<User>, dateRange: string = '30
     const gscPromises = [];
     const ga4Promises = [];
 
-    if (user.gsc_site_url) {
-      console.log(`[Google Cache FETCH] ✅ GSC konfiguriert: ${user.gsc_site_url}`);
+    let gscFallbackProperty: string | null = null;
+    const standardProperty = user.gsc_site_url;
+
+    if (standardProperty) {
+      console.log(`[Google Cache FETCH] ✅ GSC konfiguriert (Standard): ${standardProperty}`);
+      // 1. Standard-Promises (Indizes 0, 1, 2)
       gscPromises.push(
-        getSearchConsoleData(user.gsc_site_url, sDateCurrent, eDateCurrent),
-        getSearchConsoleData(user.gsc_site_url, sDatePrevious, eDatePrevious),
-        getTopQueries(user.gsc_site_url, sDateCurrent, eDateCurrent)
+        getSearchConsoleData(standardProperty, sDateCurrent, eDateCurrent),
+        getSearchConsoleData(standardProperty, sDatePrevious, eDatePrevious),
+        getTopQueries(standardProperty, sDateCurrent, eDateCurrent)
       );
+
+      // 2. Fallback-Property vorbereiten, wenn Standard eine URL ist
+      if (standardProperty.startsWith('http://') || standardProperty.startsWith('https://')) {
+        try {
+          const urlObj = new URL(standardProperty);
+          let host = urlObj.hostname.toLowerCase();
+          if (host.startsWith('www.')) {
+            host = host.substring(4);
+          }
+          const domainProperty = `sc-domain:${host}`;
+          
+          // Nur hinzufügen, wenn Fallback sich von Standard unterscheidet
+          if (domainProperty !== standardProperty) {
+            gscFallbackProperty = domainProperty;
+            console.log(`[Google Cache FETCH] ↪️ Bereite Fallback GSC-Property vor: ${gscFallbackProperty}`);
+            // Fallback-Promises (Indizes 3, 4, 5)
+            gscPromises.push(
+              getSearchConsoleData(gscFallbackProperty, sDateCurrent, eDateCurrent),
+              getSearchConsoleData(gscFallbackProperty, sDatePrevious, eDatePrevious),
+              getTopQueries(gscFallbackProperty, sDateCurrent, eDateCurrent)
+            );
+          }
+        } catch (e) {
+          console.warn(`[Google Cache FETCH] ⚠️ Konnte keine Fallback-Domain aus ${standardProperty} ableiten.`);
+        }
+      }
     } else {
       console.log(`[Google Cache FETCH] ⚠️ GSC nicht konfiguriert`);
     }
@@ -133,28 +163,83 @@ async function fetchFreshGoogleData(user: Partial<User>, dateRange: string = '30
     const fetchDuration = Date.now() - startTime;
     console.log(`[Google Cache FETCH] ⏱️ API-Abfragen abgeschlossen in ${fetchDuration}ms`);
 
-    // ========== GSC ERGEBNISSE VERARBEITEN ==========
+    // ========== GSC ERGEBNISSE VERARBEITEN (MIT FALLBACK-LOGIK) ==========
     if (gscResults.length > 0) {
-      if (gscResults[0].status === 'fulfilled') {
-        gscCurrent = gscResults[0].value as GscData;
-        console.log(`[Google Cache FETCH] ✅ GSC Current: ${gscCurrent.clicks.total} Klicks`);
+      
+      // Standard-Ergebnisse extrahieren (Indizes 0, 1, 2)
+      const gscCurrentResult = gscResults[0];
+      const gscPreviousResult = gscResults[1];
+      const topQueriesResult = gscResults[2];
+
+      let gscCurrentData: GscData | null = null;
+      let gscPreviousData: typeof gscPrevious | null = null;
+      let topQueriesData: TopQueryData | null = null;
+
+      if (gscCurrentResult.status === 'fulfilled') {
+        gscCurrentData = gscCurrentResult.value as GscData;
       } else {
-        console.error(`[Google Cache FETCH] ❌ GSC Current failed:`, gscResults[0].reason);
+        console.error(`[Google Cache FETCH] ❌ GSC Current (Standard) failed:`, gscCurrentResult.reason);
       }
       
-      if (gscResults[1].status === 'fulfilled') {
-        gscPrevious = gscResults[1].value as typeof gscPrevious;
-        console.log(`[Google Cache FETCH] ✅ GSC Previous: ${gscPrevious.clicks.total} Klicks`);
+      if (gscPreviousResult.status === 'fulfilled') {
+        gscPreviousData = gscPreviousResult.value as typeof gscPrevious;
       } else {
-        console.error(`[Google Cache FETCH] ❌ GSC Previous failed:`, gscResults[1].reason);
+        console.error(`[Google Cache FETCH] ❌ GSC Previous (Standard) failed:`, gscPreviousResult.reason);
       }
       
-      if (gscResults[2].status === 'fulfilled') {
-        topQueries = gscResults[2].value as TopQueryData;
-        console.log(`[Google Cache FETCH] ✅ Top Queries: ${topQueries.length} Einträge`);
+      if (topQueriesResult.status === 'fulfilled') {
+        topQueriesData = topQueriesResult.value as TopQueryData;
       } else {
-        console.error(`[Google Cache FETCH] ❌ Top Queries failed:`, gscResults[2].reason);
+        console.error(`[Google Cache FETCH] ❌ Top Queries (Standard) failed:`, topQueriesResult.reason);
       }
+
+      // Prüfen, ob Fallback genutzt werden soll
+      const standardIsEmpty = (gscCurrentData?.clicks.total ?? 0) === 0;
+      const fallbackExists = gscFallbackProperty && gscResults.length > 3;
+
+      if (standardIsEmpty && fallbackExists) {
+        console.log(`[Google Cache FETCH] ↪️ Standard-Abfrage (Index 0) ist leer. Prüfe Fallback (Index 3)...`);
+        
+        const fallbackCurrentResult = gscResults[3];
+        
+        if (fallbackCurrentResult.status === 'fulfilled') {
+          const fallbackCurrentData = fallbackCurrentResult.value as GscData;
+          
+          // Wenn Fallback Daten liefert, überschreibe die Standard-Variablen
+          if ((fallbackCurrentData?.clicks.total ?? 0) > 0) {
+            console.log(`[Google Cache FETCH] ✅ Fallback erfolgreich! Nutze Daten von ${gscFallbackProperty}`);
+            gscCurrentData = fallbackCurrentData;
+            
+            // Auch Previous und TopQueries vom Fallback nehmen
+            const fallbackPreviousResult = gscResults[4];
+            const fallbackTopQueriesResult = gscResults[5];
+            
+            if (fallbackPreviousResult.status === 'fulfilled') {
+              gscPreviousData = fallbackPreviousResult.value as typeof gscPrevious;
+            } else {
+              console.error(`[Google Cache FETCH] ❌ GSC Previous (Fallback) failed:`, fallbackPreviousResult.reason);
+            }
+
+            if (fallbackTopQueriesResult.status === 'fulfilled') {
+              topQueriesData = fallbackTopQueriesResult.value as TopQueryData;
+            } else {
+              console.error(`[Google Cache FETCH] ❌ Top Queries (Fallback) failed:`, fallbackTopQueriesResult.reason);
+            }
+          } else {
+             console.log(`[Google Cache FETCH] ⚠️ Fallback (Index 3) ist ebenfalls leer. Nutze Standard-Ergebnisse.`);
+          }
+        } else {
+          console.error(`[Google Cache FETCH] ❌ Fallback-Abfrage (Index 3) fehlgeschlagen:`, fallbackCurrentResult.reason);
+        }
+      }
+
+      // Finale Zuweisung
+      gscCurrent = gscCurrentData ?? DEFAULT_GSC_DATA;
+      gscPrevious = gscPreviousData ?? DEFAULT_GSC_PREVIOUS;
+      topQueries = topQueriesData ?? DEFAULT_TOP_QUERIES;
+
+      console.log(`[Google Cache FETCH] ✅ GSC Current (final): ${gscCurrent.clicks.total} Klicks`);
+      console.log(`[Google Cache FETCH] ✅ Top Queries (final): ${topQueries.length} Einträge`);
     }
 
     // ========== GA4 ERGEBNISSE VERARBEITEN ==========
