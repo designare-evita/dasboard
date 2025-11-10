@@ -1,7 +1,8 @@
 // SOFORT-FIX: Verbesserte Version der /api/landingpages/refresh-gsc/route.ts
 // mit detailliertem Logging zur Fehlerdiagnose
 // ✅ KORRIGIERT: Übergibt 5 Argumente an getGscDataForPagesWithComparison
-// ✅ FIX (NEU): Fehlerhaften JOIN auf 'users.project_id' entfernt, der zum DB-Absturz führte.
+// ✅ FIX: Fehlerhaften JOIN auf 'users.project_id' entfernt
+// ✅ FIX (NEU): Linter-Fehler ('no-explicit-any' und 'no-unused-vars') behoben
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
@@ -163,11 +164,7 @@ export async function POST(req: NextRequest) {
   const client = await sql.connect();
   try {
     // 1. Projekt-Infos holen
-    // ===================================================================
     // KORREKTUR: 'projects' JOIN entfernt, da 'users.project_id' nicht existiert.
-    // 'p.domain' wird nicht mehr abgerufen, 'gsc_site_url' ist auf 'users'.
-    // Die Domain im Debug-Log ist jetzt 'N/A', aber die Funktion stürzt nicht ab.
-    // ===================================================================
     const { rows: projectRows } = await client.query<User & { domain?: string }>(
       `SELECT users.* FROM users 
        WHERE users.id::text = $1`,
@@ -188,8 +185,11 @@ export async function POST(req: NextRequest) {
 
     debugLog.projectInfo = {
       email: project.email,
-      // KORREKTUR: 'project.domain' existiert nicht mehr, 'N/A' als Fallback
-      domain: (project as any).domain || 'N/A (JOIN entfernt)',
+      // ===================================================================
+      // KORREKTUR: 'as any' entfernt. Greift jetzt sicher auf
+      // die optionale 'domain'-Eigenschaft zu.
+      // ===================================================================
+      domain: project.domain || 'N/A (JOIN entfernt)',
       gsc_site_url: siteUrl,
       has_gsc: !!siteUrl && siteUrl.length > 0,
     };
@@ -238,6 +238,10 @@ export async function POST(req: NextRequest) {
     // Fallback-Property aus siteUrl ableiten
     let fallbackProperty: string | null = null;
     if (siteUrl && (siteUrl.startsWith('http://') || siteUrl.startsWith('https://'))) {
+      // ===================================================================
+      // KORREKTUR: Unbenutzte 'e'-Variable (Fehler 251:16)
+      // 'catch (e)' wird zu 'catch (error)' und 'error' wird geloggt.
+      // ===================================================================
       try {
         const urlObj = new URL(siteUrl);
         let host = urlObj.hostname.toLowerCase();
@@ -248,10 +252,11 @@ export async function POST(req: NextRequest) {
         if (domainProperty !== siteUrl) {
           fallbackProperty = domainProperty;
         }
-      } catch (e) {
+      } catch (error) {
         const errorMsg = `[GSC Refresh] ⚠️ Konnte keine Fallback-Domain aus ${siteUrl} ableiten.`;
-        console.warn(errorMsg);
-        debugLog.errors?.push(errorMsg);
+        const specificError = error instanceof Error ? error.message : String(error);
+        console.warn(errorMsg, specificError);
+        debugLog.errors?.push(`${errorMsg} - ${specificError}`);
       }
     }
 
