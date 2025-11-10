@@ -1,6 +1,7 @@
 // SOFORT-FIX: Verbesserte Version der /api/landingpages/refresh-gsc/route.ts
 // mit detailliertem Logging zur Fehlerdiagnose
-// ✅ KORRIGIERT: Übergibt jetzt 5 Argumente an getGscDataForPagesWithComparison
+// ✅ KORRIGIERT: Übergibt 5 Argumente an getGscDataForPagesWithComparison
+// ✅ FIX (NEU): Fehlerhaften JOIN auf 'users.project_id' entfernt, der zum DB-Absturz führte.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
@@ -10,8 +11,7 @@ import { getGscDataForPagesWithComparison } from '@/lib/google-api';
 import type { User } from '@/types';
 
 // ==================================================================
-// NEUE TYPEN für das detaillierte Debug-Log
-// Diese ersetzen 'any' und machen den Code typsicher.
+// TYPEN für das detaillierte Debug-Log
 // ==================================================================
 type DebugDateRange = {
   startDate: string;
@@ -19,15 +19,15 @@ type DebugDateRange = {
 };
 
 type DebugProjectInfo = {
-  email: string | undefined; // E-Mail kommt von `project.email`
-  domain: string | undefined; // Domain kommt von `project.domain`
-  gsc_site_url: string | null | undefined; // Kann null oder undefined sein
+  email: string | undefined;
+  domain: string | null | undefined; // Kann jetzt null/undefined sein
+  gsc_site_url: string | null | undefined;
   has_gsc: boolean;
 };
 
 type DebugLandingpages = {
   count: number;
-  message?: string; // Für den "nicht gefunden" Fall
+  message?: string;
   sampleUrls?: string[];
   allUrls?: string[];
 };
@@ -66,7 +66,7 @@ interface RefreshDebugLog {
   };
   gscQuery?: {
     siteUrl: string | null;
-    fallbackUrl?: string | null; // NEU
+    fallbackUrl?: string | null;
     urlsSent: number;
   };
   gscResponse?: DebugGscResponse;
@@ -162,11 +162,14 @@ export async function POST(req: NextRequest) {
 
   const client = await sql.connect();
   try {
-    // 1. Projekt-Infos holen (inkl. E-Mail und Domain für Debugging)
-    const { rows: projectRows } = await client.query<User & { domain: string }>(
-      `SELECT users.*, p.domain 
-       FROM users 
-       LEFT JOIN projects p ON users.project_id = p.id
+    // 1. Projekt-Infos holen
+    // ===================================================================
+    // KORREKTUR: 'projects' JOIN entfernt, da 'users.project_id' nicht existiert.
+    // 'p.domain' wird nicht mehr abgerufen, 'gsc_site_url' ist auf 'users'.
+    // Die Domain im Debug-Log ist jetzt 'N/A', aber die Funktion stürzt nicht ab.
+    // ===================================================================
+    const { rows: projectRows } = await client.query<User & { domain?: string }>(
+      `SELECT users.* FROM users 
        WHERE users.id::text = $1`,
       [projectId],
     );
@@ -185,7 +188,8 @@ export async function POST(req: NextRequest) {
 
     debugLog.projectInfo = {
       email: project.email,
-      domain: project.domain,
+      // KORREKTUR: 'project.domain' existiert nicht mehr, 'N/A' als Fallback
+      domain: (project as any).domain || 'N/A (JOIN entfernt)',
       gsc_site_url: siteUrl,
       has_gsc: !!siteUrl && siteUrl.length > 0,
     };
@@ -231,10 +235,7 @@ export async function POST(req: NextRequest) {
     console.log(`Current:  ${currentRange.startDate} bis ${currentRange.endDate}`);
     console.log(`Previous: ${previousRange.startDate} bis ${previousRange.endDate}`);
 
-    // ===================================================================
-    // NEU: Fallback-Property aus siteUrl ableiten
-    // (Logik kopiert aus 'google-data-loader.ts' / 'cron/route.ts')
-    // ===================================================================
+    // Fallback-Property aus siteUrl ableiten
     let fallbackProperty: string | null = null;
     if (siteUrl && (siteUrl.startsWith('http://') || siteUrl.startsWith('https://'))) {
       try {
@@ -253,7 +254,6 @@ export async function POST(req: NextRequest) {
         debugLog.errors?.push(errorMsg);
       }
     }
-    // ===================================================================
 
     // 4. GSC-Daten abrufen
     debugLog.gscQuery = {
@@ -265,17 +265,14 @@ export async function POST(req: NextRequest) {
     console.log(`[GSC Refresh] Site URL: ${siteUrl}`);
     console.log(`[GSC Refresh] Anzahl URLs: ${pageUrls.length}`);
 
-    // ===================================================================
-    // GEÄNDERT: 'fallbackProperty' als 2. Argument hinzugefügt
-    // ===================================================================
+    // KORRIGIERTER AUFRUF mit 5 Argumenten
     const gscDataMap = await getGscDataForPagesWithComparison(
       siteUrl,
-      fallbackProperty, // Das fehlende 5. Argument
+      fallbackProperty, // Das 5. Argument
       pageUrls,
       currentRange,
       previousRange
     );
-    // ===================================================================
 
     // 5. GSC-Antwort analysieren (für Debugging)
     const matchedUrls: string[] = [];
