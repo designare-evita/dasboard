@@ -2,8 +2,9 @@
 // ✅ KORRIGIERTE VERSION mit bidirektionalem URL-Matching
 // ✅ NEU: Mit Fallback-Logik für getGscDataForPagesWithComparison
 // ✅ OPTIMIERT: Mit "Early Exit" Fallback und reduzierten Varianten
+// ✅ BEREINIGT: Linter-Fehler (any types, unused vars) behoben
 
-import { google } from 'googleapis';
+import { google, analyticsdata_v1beta, searchconsole_v1 } from 'googleapis';
 import { JWT } from 'google-auth-library';
 
 // =============================================================================
@@ -15,10 +16,7 @@ interface DailyDataPoint {
   value: number;
 }
 
-interface DateRangeData {
-  total: number;
-  daily: DailyDataPoint[];
-}
+// 'DateRangeData' war unbenutzt und wurde entfernt.
 
 export interface TopQueryData {
   query: string;
@@ -64,8 +62,9 @@ export interface GscPageData {
 
 // Globale Variable für den JWT-Client, um Wiederverwendung zu ermöglichen
 let jwtClient: JWT | null = null;
-let analyticsDataClient: any | null = null;
-let searchConsoleClient: any | null = null;
+// GEÄNDERT: 'any' entfernt
+let analyticsDataClient: analyticsdata_v1beta.Analyticsdata | null = null;
+let searchConsoleClient: searchconsole_v1.Searchconsole | null = null;
 
 /**
  * Erstellt und authentifiziert einen Google JWT-Client.
@@ -158,14 +157,7 @@ async function getSearchConsoleClient() {
 // HILFSFUNKTIONEN
 // =============================================================================
 
-/**
- * Formatiert eine Zahl (z.B. 1000) in einen String (z.B. "1.0k").
- */
-function formatNumber(num: number): string {
-  if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-  if (num >= 1000) return (num / 1000).toFixed(1) + 'k';
-  return num.toString();
-}
+// 'formatNumber' war unbenutzt und wurde entfernt.
 
 /**
  * Berechnet die prozentuale Veränderung.
@@ -382,17 +374,17 @@ export async function getAiTrafficData(
     'perplexity|phind|you\\.com|neeva|chatgpt|gemini\\.google|bard\\.google|claude\\.ai';
 
   try {
-    // 1. Abfrage: Gesamt-Sitzungen und Nutzer
+    // 1. Abfrage: Gesamt-Nutzer (wird für AI-Bericht verwendet)
+    // GEÄNDERT: Unbenutztes 'totalSessions' entfernt
     const totalReport = await analytics.properties.runReport({
       property: `properties/${propertyId}`,
       requestBody: {
         dateRanges,
-        metrics: [{ name: 'sessions' }, { name: 'totalUsers' }],
+        metrics: [{ name: 'totalUsers' }],
       },
     });
     const totals = totalReport.data.totals?.[0]?.metricValues;
-    const totalSessions = parseInt(totals?.[0]?.value || '0', 10);
-    const totalUsers = parseInt(totals?.[1]?.value || '0', 10);
+    const totalUsers = parseInt(totals?.[0]?.value || '0', 10);
 
     // 2. Abfrage: Sitzungen nach Quelle (gefiltert nach AI)
     const sourceReport = await analytics.properties.runReport({
@@ -512,7 +504,8 @@ async function rawGscQueryByPages(
   startDate: string,
   endDate: string,
   pageUrls: string[], // Dies sind die URL-Varianten
-): Promise<any[]> {
+  // GEÄNDERT: Rückgabetyp von 'any[]' zu spezifischem Typ
+): Promise<searchconsole_v1.Schema$ApiDataRow[]> {
   // console.log(`[GSC RAW] Starte rawGscQueryByPages für ${siteUrl} mit ${pageUrls.length} URL-Varianten`);
   
   if (pageUrls.length === 0) {
@@ -521,7 +514,8 @@ async function rawGscQueryByPages(
   }
 
   const webmasters = await getSearchConsoleClient();
-  const allRows: any[] = [];
+  // GEÄNDERT: 'any[]' zu spezifischem Typ
+  const allRows: searchconsole_v1.Schema$ApiDataRow[] = [];
   
   // GSC API hat ein Limit von 2000 URLs pro 'page' Filter
   const CHUNK_SIZE = 2000;
@@ -598,8 +592,6 @@ export async function getGscDataForPagesWithComparison(
 ): Promise<Map<string, GscPageData>> {
   
   // Importiere die Matching-Funktionen HIER, da sie nur hier gebraucht werden.
-  // Dies verhindert Zirkel-Importe, falls 'improved-url-matching'
-  // selbst 'google-api' importieren würde (was es nicht tut, aber sicher ist sicher).
   const { 
     createSmartUrlVariants, 
     normalizeUrlImproved 
@@ -656,19 +648,12 @@ export async function getGscDataForPagesWithComparison(
     }
 
     // 2. GSC API-Abfrage in Chunks
-    const allApiRows: any[] = [];
+    // GEÄNDERT: 'any[]' zu spezifischem Typ
+    const allApiRows: searchconsole_v1.Schema$ApiDataRow[] = [];
     const CHUNK_SIZE = 20; // Limit für 'equals'-Filter in GSC API ist ca. 20-50
-    const chunks: string[][] = [];
+    
+    // GEÄNDERT: Unbenutzte 'chunks'-Variable entfernt.
 
-    // Wir müssen die *Varianten* chunken, basierend auf den *DB-URLs*
-    // Jede DB-URL und ihre Varianten werden zu einem Filter-Block
-    
-    // Falscher Ansatz: allVariants zu chunken.
-    // Richtiger Ansatz: DB-URLs chunken und DANN Varianten erstellen?
-    // NEIN, das Log zeigt "Sende 5456 URL-Varianten"
-    // Das Log zeigt "Aufruf wird in 273 Chunks aufgeteilt."
-    // 5456 / 273 = ca. 20. Das bedeutet, `allVariants` wird gechunkt.
-    
     // Das ist SEHR ineffizient, aber wir folgen dem Log:
     const variantChunks: string[][] = [];
     for (let i = 0; i < allVariants.length; i += CHUNK_SIZE) {
