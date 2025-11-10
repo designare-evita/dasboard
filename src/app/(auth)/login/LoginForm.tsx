@@ -3,7 +3,8 @@
 
 import Image from 'next/image';
 import { signIn } from 'next-auth/react';
-import { useSearchParams } from 'next/navigation';
+// KORREKTUR 1: useRouter importieren
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
 // Icons für den neuen Stil hinzugefügt
 import { BoxArrowInRight, ExclamationTriangleFill } from 'react-bootstrap-icons';
@@ -13,31 +14,49 @@ import { motion } from 'framer-motion';
 export default function LoginForm() {
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get('callbackUrl') || '/';
+  
+  // KORREKTUR 2: router initialisieren
+  const router = useRouter(); 
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false); // Ladezustand für Feedback
 
+  // KORREKTUR 3: Handler, um Fehler beim Tippen zu löschen
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (error) setError(''); // Fehler löschen
+    setEmail(e.target.value);
+  };
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (error) setError(''); // Fehler löschen
+    setPassword(e.target.value);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsLoading(true); // Ladevorgang starten
 
+    // KORREKTUR 4: redirect: false verwenden, um Fehler abzufangen
     const result = await signIn('credentials', {
-      redirect: true, // Behält die Weiterleitung bei Erfolg bei
+      redirect: false, // WICHTIG: Nicht automatisch weiterleiten
       callbackUrl,
       email,
       password,
     });
 
-    // signIn() mit redirect:true leitet bei Erfolg automatisch weiter.
-    // Nur wenn ein Fehler auftritt (z.B. falsches Passwort), bleibt der Nutzer hier.
+    setIsLoading(false); // Ladevorgang stoppen
+
+    // KORREKTUR 5: Spezifischen Fehler anzeigen oder manuell weiterleiten
     if (result?.error) {
-      setError('E-Mail oder Passwort ungültig.');
-      setIsLoading(false); // Ladevorgang bei Fehler stoppen
+      // result.error enthält jetzt die Meldung aus auth.ts
+      // z.B. "Das Passwort ist nicht korrekt"
+      setError(result.error);
+    } else if (result?.ok) {
+      // Login war erfolgreich, jetzt manuell weiterleiten
+      router.push(callbackUrl);
     }
-    // Bei Erfolg ist kein setIsLoading(false) nötig, da die Seite wechselt.
   };
 
   return (
@@ -77,7 +96,8 @@ export default function LoginForm() {
               name="email"
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              // KORREKTUR 6: Neuen Handler verwenden
+              onChange={handleEmailChange}
               required
               // ✨ HIER IST DIE KORREKTUR: (py-5 zu py-2 geändert) ✨
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-50"
@@ -97,7 +117,8 @@ export default function LoginForm() {
               name="password"
               type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              // KORREKTUR 7: Neuen Handler verwenden
+              onChange={handlePasswordChange}
               required
               // (Dieses war korrekt mit py-2)
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-50"
@@ -109,6 +130,7 @@ export default function LoginForm() {
             // KORREKTUR: Fehlermeldung mit Icon
             <div className="p-3 text-center text-red-800 bg-red-50 border border-red-200 rounded-md flex items-center justify-center gap-2">
               <ExclamationTriangleFill size={16} />
+              {/* Zeigt jetzt den dynamischen Fehler an */}
               <p>{error}</p>
             </div>
           )}
