@@ -1,5 +1,5 @@
 // src/lib/improved-url-matching.ts
-// Verbesserte URL-Matching-Logik für GSC-Landingpages
+// OPTIMIERT: Mit 'isDomainProperty'-Flag zur Reduzierung von Varianten
 
 /**
  * Normalisiert eine URL für das Matching
@@ -49,13 +49,13 @@ export function normalizeUrlImproved(url: string): string {
 
 /**
  * Erstellt intelligente URL-Varianten für das Matching
- * Berücksichtigt:
- * - Sprachpräfixe (bidirektional)
- * - Mit/ohne trailing slash
- * - Mit/ohne www
- * - http/https
+ * NEU: Akzeptiert 'isDomainProperty', um Sprach-Fallbacks zu deaktivieren
  */
-export function createSmartUrlVariants(url: string): string[] {
+export function createSmartUrlVariants(
+  url: string,
+  // NEU: Flag, um die exzessive Variantenerstellung zu steuern
+  isDomainProperty: boolean = false 
+): string[] {
   const variants: Set<string> = new Set();
   
   try {
@@ -64,7 +64,7 @@ export function createSmartUrlVariants(url: string): string[] {
     const originalPath = urlObj.pathname;
     const search = urlObj.search;
     
-    // Host-Varianten
+    // Host-Varianten (immer nötig)
     const hosts = [host];
     if (host.startsWith('www.')) {
       hosts.push(host.substring(4));
@@ -72,63 +72,72 @@ export function createSmartUrlVariants(url: string): string[] {
       hosts.push(`www.${host}`);
     }
     
-    // Path-Varianten mit Sprach-Handling
+    // Path-Varianten (Basis)
     const pathVariants = new Set<string>();
-    
-    // Original-Path
     pathVariants.add(originalPath);
     
-    // Trailing slash Varianten
+    // Trailing slash Varianten (immer nötig)
     if (originalPath !== '/' && originalPath.endsWith('/')) {
       pathVariants.add(originalPath.slice(0, -1));
     } else if (originalPath !== '/') {
       pathVariants.add(originalPath + '/');
     }
-    
-    // Sprachpräfix-Erkennung: /de/, /en/, etc.
-    const langPattern = /^\/([a-z]{2})(\/|$)/i;
-    const langMatch = originalPath.match(langPattern);
-    
-    if (langMatch) {
-      // URL HAT Sprachpräfix → Erstelle Variante OHNE
-      const pathWithoutLang = originalPath.replace(langPattern, '/');
+
+    // =================================================================
+    // START ÄNDERUNG: Sprach-Fallbacks überspringen
+    //
+    // Dieser Block wird NUR ausgeführt, wenn es KEINE Domain-Property ist.
+    // Das ist die Hauptursache für die 88 Varianten und die langsamen Abfragen.
+    // =================================================================
+    if (!isDomainProperty) {
+      // Sprachpräfix-Erkennung: /de/, /en/, etc.
+      const langPattern = /^\/([a-z]{2})(\/|$)/i;
+      const langMatch = originalPath.match(langPattern);
       
-      if (pathWithoutLang !== originalPath) {
-        pathVariants.add(pathWithoutLang);
+      if (langMatch) {
+        // URL HAT Sprachpräfix → Erstelle Variante OHNE
+        const pathWithoutLang = originalPath.replace(langPattern, '/');
         
-        // Trailing slash für pathWithoutLang
-        if (pathWithoutLang !== '/' && pathWithoutLang.endsWith('/')) {
-          pathVariants.add(pathWithoutLang.slice(0, -1));
-        } else if (pathWithoutLang !== '/') {
-          pathVariants.add(pathWithoutLang + '/');
+        if (pathWithoutLang !== originalPath) {
+          pathVariants.add(pathWithoutLang);
+          
+          // Trailing slash für pathWithoutLang
+          if (pathWithoutLang !== '/' && pathWithoutLang.endsWith('/')) {
+            pathVariants.add(pathWithoutLang.slice(0, -1));
+          } else if (pathWithoutLang !== '/') {
+            pathVariants.add(pathWithoutLang + '/');
+          }
         }
-      }
-    } else {
-      // URL HAT KEIN Sprachpräfix → Erstelle Varianten MIT häufigen Sprachen
-      const commonLangs = ['de', 'en', 'fr', 'es', 'it'];
-      
-      for (const lang of commonLangs) {
-        if (originalPath === '/') {
-          pathVariants.add(`/${lang}/`);
-          pathVariants.add(`/${lang}`);
-        } else {
-          // Pfad mit Sprache vorne
-          const withLang = originalPath.startsWith('/') 
-            ? `/${lang}${originalPath}` 
-            : `/${lang}/${originalPath}`;
-          
-          pathVariants.add(withLang);
-          
-          // Trailing slash Varianten
-          if (withLang.endsWith('/')) {
-            pathVariants.add(withLang.slice(0, -1));
+      } else {
+        // URL HAT KEIN Sprachpräfix → Erstelle Varianten MIT häufigen Sprachen
+        const commonLangs = ['de', 'en', 'fr', 'es', 'it'];
+        
+        for (const lang of commonLangs) {
+          if (originalPath === '/') {
+            pathVariants.add(`/${lang}/`);
+            pathVariants.add(`/${lang}`);
           } else {
-            pathVariants.add(withLang + '/');
+            // Pfad mit Sprache vorne
+            const withLang = originalPath.startsWith('/') 
+              ? `/${lang}${originalPath}` 
+              : `/${lang}/${originalPath}`;
+            
+            pathVariants.add(withLang);
+            
+            // Trailing slash Varianten
+            if (withLang.endsWith('/')) {
+              pathVariants.add(withLang.slice(0, -1));
+            } else {
+              pathVariants.add(withLang + '/');
+            }
           }
         }
       }
     }
-    
+    // =================================================================
+    // ENDE ÄNDERUNG
+    // =================================================================
+
     // Kombiniere alle Varianten
     const protocols = ['https://', 'http://'];
     
@@ -159,6 +168,8 @@ export function debugUrlMatching(url: string): {
   normalizedVariants: string[];
 } {
   const normalized = normalizeUrlImproved(url);
+  // Ruft createSmartUrlVariants mit Standardwert (isDomainProperty: false) auf,
+  // was für Debugging-Zwecke korrekt ist.
   const variants = createSmartUrlVariants(url);
   const normalizedVariants = variants.map(v => normalizeUrlImproved(v));
   
@@ -200,7 +211,10 @@ export function findMatchingDbUrl(
   
   // 2. Versuche Match über Varianten
   for (const dbUrl of dbUrls) {
-    const variants = createSmartUrlVariants(dbUrl);
+    // Hier rufen wir mit (isDomainProperty: false) auf, da wir die
+    // volle Matching-Power wollen, um eine DB-URL mit einer GSC-URL
+    // zu verknüpfen (z.B. mit/ohne Sprachcode)
+    const variants = createSmartUrlVariants(dbUrl, false);
     const normalizedVariants = variants.map(v => normalizeUrlImproved(v));
     
     if (normalizedVariants.includes(gscNormalized)) {
