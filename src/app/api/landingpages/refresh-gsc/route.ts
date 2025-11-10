@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
     const session = await getServerSession(authOptions);
     const user = session?.user;
 
-    if (!user || (user.role !== 'ADMIN' && user.role !== 'SUPERADMIN')) {
+    if (!user) {
       return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
     }
 
