@@ -3,6 +3,7 @@
 // ✅ NEU: Mit Fallback-Logik für getGscDataForPagesWithComparison
 // ✅ OPTIMIERT: Mit "Early Exit" Fallback und reduzierten Varianten
 // ✅ BEREINIGT: Linter-Fehler (any types, unused vars) behoben
+// ✅ FIX: JWT-Konstruktor an moderne 1-Argument-Signatur angepasst
 
 import { google, analyticsdata_v1beta, searchconsole_v1 } from 'googleapis';
 import { JWT } from 'google-auth-library';
@@ -15,8 +16,6 @@ interface DailyDataPoint {
   date: string;
   value: number;
 }
-
-// 'DateRangeData' war unbenutzt und wurde entfernt.
 
 export interface TopQueryData {
   query: string;
@@ -62,7 +61,6 @@ export interface GscPageData {
 
 // Globale Variable für den JWT-Client, um Wiederverwendung zu ermöglichen
 let jwtClient: JWT | null = null;
-// GEÄNDERT: 'any' entfernt
 let analyticsDataClient: analyticsdata_v1beta.Analyticsdata | null = null;
 let searchConsoleClient: searchconsole_v1.Searchconsole | null = null;
 
@@ -72,15 +70,12 @@ let searchConsoleClient: searchconsole_v1.Searchconsole | null = null;
 async function getGoogleAuthClient(): Promise<JWT> {
   // Wenn der Client bereits existiert, gib ihn zurück
   if (jwtClient) {
-    // Stelle sicher, dass der Token gültig ist, bevor du ihn zurückgibst
     if (
       jwtClient.credentials.expiry_date &&
       jwtClient.credentials.expiry_date > Date.now() + 60000 // 1 Min Puffer
     ) {
-      // console.log('[Google Auth] Wiederverwende existierenden JWT-Client.');
       return jwtClient;
     }
-    // console.log('[Google Auth] JWT-Client ist abgelaufen, erstelle neuen...');
   }
 
   const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
@@ -93,18 +88,28 @@ async function getGoogleAuthClient(): Promise<JWT> {
     throw new Error('Google API-Authentifizierungsdaten fehlen.');
   }
 
-  // console.log('[Google Auth] Erstelle neuen JWT-Client...');
-
-  jwtClient = new google.auth.JWT(
-    clientEmail,
-    undefined,
-    privateKey,
-    [
+  // ===================================================================
+  // KORREKTUR: Von 5 Argumenten zu 1 Options-Objekt
+  //
+  // ALT (verursacht den Typ-Fehler):
+  // jwtClient = new google.auth.JWT(
+  //   clientEmail,
+  //   undefined,
+  //   privateKey,
+  //   [...],
+  //   undefined
+  // );
+  //
+  // NEU (korrekt für aktuelle Bibliotheks-Versionen):
+  // ===================================================================
+  jwtClient = new google.auth.JWT({
+    email: clientEmail,
+    key: privateKey,
+    scopes: [
       'https://www.googleapis.com/auth/analytics.readonly',
       'https://www.googleapis.com/auth/webmasters.readonly',
     ],
-    undefined, // impersonated user (optional)
-  );
+  });
 
   try {
     await jwtClient.authorize();
@@ -156,8 +161,6 @@ async function getSearchConsoleClient() {
 // =============================================================================
 // HILFSFUNKTIONEN
 // =============================================================================
-
-// 'formatNumber' war unbenutzt und wurde entfernt.
 
 /**
  * Berechnet die prozentuale Veränderung.
@@ -375,7 +378,6 @@ export async function getAiTrafficData(
 
   try {
     // 1. Abfrage: Gesamt-Nutzer (wird für AI-Bericht verwendet)
-    // GEÄNDERT: Unbenutztes 'totalSessions' entfernt
     const totalReport = await analytics.properties.runReport({
       property: `properties/${propertyId}`,
       requestBody: {
@@ -504,7 +506,6 @@ async function rawGscQueryByPages(
   startDate: string,
   endDate: string,
   pageUrls: string[], // Dies sind die URL-Varianten
-  // GEÄNDERT: Rückgabetyp von 'any[]' zu spezifischem Typ
 ): Promise<searchconsole_v1.Schema$ApiDataRow[]> {
   // console.log(`[GSC RAW] Starte rawGscQueryByPages für ${siteUrl} mit ${pageUrls.length} URL-Varianten`);
   
@@ -514,7 +515,6 @@ async function rawGscQueryByPages(
   }
 
   const webmasters = await getSearchConsoleClient();
-  // GEÄNDERT: 'any[]' zu spezifischem Typ
   const allRows: searchconsole_v1.Schema$ApiDataRow[] = [];
   
   // GSC API hat ein Limit von 2000 URLs pro 'page' Filter
@@ -547,8 +547,6 @@ async function rawGscQueryByPages(
             },
           ],
           // WICHTIG: rowLimit muss hoch sein, um alle Ergebnisse zu bekommen
-          // Da wir nach 'page' aggregieren, sollte die Anzahl der Zeilen
-          // maximal der Anzahl der URLs im Chunk entsprechen (CHUNK_SIZE).
           rowLimit: CHUNK_SIZE + 10, 
         },
       });
@@ -575,13 +573,6 @@ async function rawGscQueryByPages(
 /**
  * Hauptfunktion (exportiert): Ruft GSC-Daten für Landingpages ab,
  * inklusive Vergleichszeitraum und Fallback-Logik (Standard vs. Domain Property).
- *
- * @param standardProperty - Die primäre GSC-Property (z.B. https://domain.de/)
- * @param fallbackProperty - Die Domain-Property (z.B. sc-domain:domain.de)
- * @param pageUrls - Die Liste der *originalen* DB-URLs
- * @param currentRange - {startDate, endDate}
- * @param previousRange - {startDate, endDate}
- * @returns - Eine Map [dbUrl: string, GscPageData]
  */
 export async function getGscDataForPagesWithComparison(
   standardProperty: string,
@@ -591,7 +582,7 @@ export async function getGscDataForPagesWithComparison(
   previousRange: { startDate: string; endDate: string },
 ): Promise<Map<string, GscPageData>> {
   
-  // Importiere die Matching-Funktionen HIER, da sie nur hier gebraucht werden.
+  // Importiere die Matching-Funktionen HIER
   const { 
     createSmartUrlVariants, 
     normalizeUrlImproved 
@@ -600,7 +591,6 @@ export async function getGscDataForPagesWithComparison(
 
   // ===========================================================================
   // HELFERFUNKTION (in Scope)
-  // Verarbeitet die Abfrage für EINEN Zeitraum und EINE Property
   // ===========================================================================
   async function queryGscDataForPages(
     property: string,
@@ -613,22 +603,17 @@ export async function getGscDataForPagesWithComparison(
 
     // 1. URL-Varianten und Normalisierungs-Map erstellen
     const allVariants: string[] = [];
-    
-    // Map<normalizedUrl, dbUrl>
     const normalizationMap = new Map<string, string>(); 
     
-    // NEU: Prüfen, ob es eine Domain-Property ist
     const isDomainProperty = property.startsWith('sc-domain:');
     if (isDomainProperty) {
       console.log(`[GSC] ✅ Domain-Property erkannt. Reduziere URL-Varianten.`);
     }
 
     for (const dbUrl of dbUrls) {
-      // GEÄNDERT: 'isDomainProperty'-Flag übergeben
       const variants = createSmartUrlVariants(dbUrl, isDomainProperty);
       allVariants.push(...variants);
       
-      // Map für alle Varianten und die normalisierte DB-URL erstellen
       const normalizedDbUrl = normalizeUrlImproved(dbUrl);
       normalizationMap.set(normalizedDbUrl, dbUrl); // Direktes Match
       for (const variant of variants) {
@@ -639,7 +624,6 @@ export async function getGscDataForPagesWithComparison(
     console.log(`[GSC] Erstellt: ${normalizationMap.size} Normalisierungs-Mappings`);
     console.log(`[GSC] Sende ${allVariants.length} URL-Varianten an die API`);
 
-    // Debugging für eine URL (falls nötig)
     if (dbUrls.length > 0) {
       const debugUrl = dbUrls[0].substring(0, 50) + "...";
       const debugVariants = createSmartUrlVariants(dbUrls[0], isDomainProperty);
@@ -648,13 +632,9 @@ export async function getGscDataForPagesWithComparison(
     }
 
     // 2. GSC API-Abfrage in Chunks
-    // GEÄNDERT: 'any[]' zu spezifischem Typ
     const allApiRows: searchconsole_v1.Schema$ApiDataRow[] = [];
-    const CHUNK_SIZE = 20; // Limit für 'equals'-Filter in GSC API ist ca. 20-50
+    const CHUNK_SIZE = 20; 
     
-    // GEÄNDERT: Unbenutzte 'chunks'-Variable entfernt.
-
-    // Das ist SEHR ineffizient, aber wir folgen dem Log:
     const variantChunks: string[][] = [];
     for (let i = 0; i < allVariants.length; i += CHUNK_SIZE) {
       variantChunks.push(allVariants.slice(i, i + CHUNK_SIZE));
@@ -682,18 +662,13 @@ export async function getGscDataForPagesWithComparison(
           console.log(`[GSC] Chunk ${i + 1}: ${apiRows.length} Zeilen empfangen`);
           allApiRows.push(...apiRows);
           
-          // NEU: Zähler für frühen Abbruch
           totalRowsReceived += apiRows.length;
-          emptyChunksCount = 0; // Zurücksetzen, wenn Daten gefunden wurden
+          emptyChunksCount = 0; // Zurücksetzen
         } else {
           console.log(`[GSC] Chunk ${i + 1}: 0 Zeilen empfangen`);
-          
-          // NEU: Zähler für frühen Abbruch
           emptyChunksCount++;
         }
 
-        // NEU: Prüfung für frühen Abbruch
-        // Nur abbrechen, wenn die ERSTEN Chunks leer sind
         if (emptyChunksCount >= MAX_EMPTY_CHUNKS_BEFORE_FALLBACK && totalRowsReceived === 0) {
           console.warn(`[GSC] ⚠️ Abbruch nach ${emptyChunksCount} leeren Chunks (insgesamt 0 Zeilen).`);
           break; // Verlässt die Chunk-Schleife
@@ -701,7 +676,6 @@ export async function getGscDataForPagesWithComparison(
         
       } catch (error) {
         console.error(`[GSC] ❌ Fehler in Chunk ${i + 1}:`, error);
-        // Fahre fort, aber zähle als leeren Chunk
         emptyChunksCount++;
       }
     }
@@ -709,7 +683,6 @@ export async function getGscDataForPagesWithComparison(
     console.log(`[GSC] API-Abfrage abgeschlossen. ${allApiRows.length} Gesamtzeilen empfangen.`);
 
     // 3. Ergebnisse aggregieren und normalisieren
-    // Map<dbUrl, AggregatedData>
     const resultMap = new Map<string, { clicks: number; impressions: number; positions: number[]; count: number }>();
 
     for (const row of allApiRows) {
@@ -734,11 +707,7 @@ export async function getGscDataForPagesWithComparison(
         current.clicks += data.clicks;
         current.impressions += data.impressions;
         
-        // Position ist ein Durchschnitt. Wir müssen sie sammeln und mitteln.
-        // Wichtig: Nur hinzufügen, wenn Impressionen vorhanden sind.
         if (data.impressions > 0) {
-          // Position muss mit Impressionen gewichtet werden, aber das ist zu komplex.
-          // Wir mitteln einfach die API-Antworten.
           current.positions.push(data.position);
           current.count++;
         }
@@ -750,7 +719,6 @@ export async function getGscDataForPagesWithComparison(
     for (const [dbUrl, data] of resultMap.entries()) {
       let avgPosition = 0;
       if (data.count > 0) {
-        // Einfacher Durchschnitt der API-Antworten
         avgPosition = data.positions.reduce((a, b) => a + b, 0) / data.count;
       }
       
@@ -809,8 +777,6 @@ export async function getGscDataForPagesWithComparison(
       const current = currentMap.get(url) || { clicks: 0, impressions: 0, position: 0 };
       const previous = previousMap.get(url) || { clicks: 0, impressions: 0, position: 0 };
 
-      // Position 0 ist ungültig, setzen wir sie auf null (oder behalten sie, wenn sie echt 0 ist?)
-      // GSC API gibt Position > 0 zurück. 0 bedeutet "keine Daten".
       const currentPos = current.position > 0 ? current.position : 0;
       const previousPos = previous.position > 0 ? previous.position : 0;
 
@@ -825,7 +791,6 @@ export async function getGscDataForPagesWithComparison(
         
         position: currentPos,
         position_prev: previousPos,
-        // Positionsänderung: Niedriger ist besser
         position_change: calculateChange(previousPos, currentPos) 
       });
     }
