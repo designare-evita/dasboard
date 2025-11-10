@@ -418,4 +418,35 @@ export async function POST(req: NextRequest) {
         possibleIssues:
           updatedCount === 0
             ? [
-                gscDataMap.size === 0
+                gscDataMap.size === 0 ? 'GSC liefert keine Daten' : null,
+                'URL-Normalisierung schlägt fehl',
+                'Sprachpräfix-Problem',
+                'GSC Site URL falsch konfiguriert',
+              ].filter(Boolean)
+            : [],
+      },
+    });
+  } catch (error) {
+    try {
+      await client.query('ROLLBACK');
+    } catch (rollbackError) {
+      console.error('[GSC Refresh] Rollback-Fehler:', rollbackError);
+    }
+
+    console.error('[GSC Refresh] ❌ FEHLER:', error);
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unbekannter Fehler';
+    debugLog.errors?.push(errorMessage);
+
+    return NextResponse.json(
+      {
+        message: 'Fehler beim Synchronisieren der GSC-Daten.',
+        error: errorMessage,
+        debug: debugLog, // Sende Log auch bei Fehler
+      },
+      { status: 500 },
+    );
+  } finally {
+    client.release();
+  }
+}
