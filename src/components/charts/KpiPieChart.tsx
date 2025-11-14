@@ -9,6 +9,7 @@ import {
   Cell,
   Tooltip,
   Legend,
+  PieLabelRenderProps,
 } from 'recharts';
 import { ChartEntry } from '@/lib/dashboard-shared';
 import { cn } from '@/lib/utils';
@@ -143,7 +144,10 @@ export default function KpiPieChart({
               cy="50%"
               outerRadius="80%"
               labelLine={false}
-              label={({ percent }: { percent: number }) => `${(percent * 100).toFixed(0)}%`}
+              label={(props: PieLabelRenderProps) => {
+                const percent = props.percent ?? 0;
+                return `${(percent * 100).toFixed(0)}%`;
+              }}
             >
               {data.map((entry, index) => (
                 <Cell key={`cell-${index}`} fill={entry.fill} stroke={entry.fill} />
