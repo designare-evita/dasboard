@@ -1,4 +1,4 @@
-// src/lib/google-api.ts
+// src/lib/google-api.ts (KORRIGIERT - trend verwendet 'sessions' statt 'value')
 
 import { google } from 'googleapis';
 import { JWT } from 'google-auth-library';
@@ -21,11 +21,9 @@ interface TopQueryData {
   impressions: number;
   ctr: number;
   position: number;
-} // <-- Die schließende Klammer ist hier (Zeile 24)
+}
 
-// <-- Zeile 25 ist leer
-
-export interface AiTrafficData { // <-- Zeile 26, auf die der Fehler zeigt
+export interface AiTrafficData {
   totalSessions: number;
   totalUsers: number;
 
@@ -43,7 +41,7 @@ export interface AiTrafficData { // <-- Zeile 26, auf die der Fehler zeigt
   }>;
   trend: Array<{
     date: string;
-    value: number;
+    sessions: number; // ✅ KORRIGIERT: Muss 'sessions' heißen, nicht 'value'
   }>;
 }
 
@@ -385,7 +383,7 @@ export async function getAiTrafficData(
           metric: { metricName: 'sessions' }, 
           desc: true 
         }],
-        limit: '1000', // String statt Number
+        limit: '1000',
       },
     });
 
@@ -406,7 +404,7 @@ export async function getAiTrafficData(
           dimension: { dimensionName: 'date' }, 
           desc: false 
         }],
-        limit: '10000', // String statt Number
+        limit: '10000',
       },
     });
 
@@ -428,7 +426,6 @@ export async function getAiTrafficData(
       const sessions = parseInt(row.metricValues?.[0]?.value || '0', 10);
       const users = parseInt(row.metricValues?.[1]?.value || '0', 10);
 
-      // Prüfe, ob es eine KI-Quelle ist
       const fullSource = `${source}${medium ? `/${medium}` : ''}`;
       
       if (isAiSource(fullSource) || isAiSource(source)) {
@@ -454,7 +451,7 @@ export async function getAiTrafficData(
       const source = row.dimensionValues?.[1]?.value || '';
       const medium = row.dimensionValues?.[2]?.value || '';
       const sessions = parseInt(row.metricValues?.[0]?.value || '0', 10);
-const fullSource = `${source}${medium ? `/${medium}` : ''}`; // ✅ HINZUGEFÜGT
+      const fullSource = `${source}${medium ? `/${medium}` : ''}`;
 
       if (isAiSource(fullSource) || isAiSource(source)) {
         const date = formatDateToISO(rawDate);
@@ -468,18 +465,18 @@ const fullSource = `${source}${medium ? `/${medium}` : ''}`; // ✅ HINZUGEFÜGT
         source,
         sessions,
         users: usersBySource[source] || 0,
-        percentage: totalSessions > 0 ? (sessions / totalSessions) * 100 : 0, // Anteil am KI-Traffic
+        percentage: totalSessions > 0 ? (sessions / totalSessions) * 100 : 0,
       }))
       .sort((a, b) => b.sessions - a.sessions)
       .slice(0, 5);
 
     console.log('[AI-Traffic] Top AI Sources:', topAiSources);
 
-    // Trend-Daten formatieren
-   const trend = Object.entries(trendMap)
+    // ✅ KORRIGIERT: Trend-Daten mit 'sessions' statt 'value'
+    const trend = Object.entries(trendMap)
       .map(([date, sessions]) => ({
-        date: date, // Wichtig: YYYY-MM-DD Format für Recharts beibehalten
-        value: sessions, // ✅ 'sessions' zu 'value' umbenannt
+        date: date, // YYYY-MM-DD Format für Recharts
+        sessions: sessions, // ✅ Muss 'sessions' heißen für dashboard-shared.ts
       }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
@@ -501,7 +498,6 @@ const fullSource = `${source}${medium ? `/${medium}` : ''}`; // ✅ HINZUGEFÜGT
       endDate 
     });
 
-    // Fallback mit leeren Daten statt Fehler zu werfen
     return {
       totalSessions: 0,
       totalUsers: 0,
@@ -541,7 +537,7 @@ export async function getGa4DimensionReport(
           metric: { metricName: 'sessions' },
           desc: true,
         }],
-        limit: '10', // Wir nehmen die Top 10
+        limit: '10',
       },
     });
     
@@ -554,52 +550,43 @@ export async function getGa4DimensionReport(
       results.push({ name, value: sessions });
     }
     
-    // Berechne "Sonstige", wenn mehr als 6 Kategorien vorhanden sind
     if (results.length > 6) {
       const top5 = results.slice(0, 5);
       const otherValue = results.slice(5).reduce((acc, curr) => acc + curr.value, 0);
       
-      // Füge "Sonstige" hinzu, wenn es einen Wert gibt
       if (otherValue > 0) {
         return [
           ...top5,
           { name: 'Sonstige', value: otherValue }
         ];
       }
-      return top5; // Sonst nur Top 5
+      return top5;
     }
     
     return results;
   } catch (error: unknown) {
     console.error(`[GA4] Fehler beim Abrufen des ${dimensionName}-Reports:`, error);
-    // Bei Fehler leeres Array zurückgeben
     return [];
   }
 }
 
 
 // ==================================================================
-// --- NEUER CODE FÜR LANDINGPAGE-DATEN ---
+// --- LANDINGPAGE-DATEN ---
 // ==================================================================
 
-/**
- * Typ für die GSC-Daten einer einzelnen Landingpage mit Vergleichswerten.
- */
 export interface GscPageData {
   clicks: number;
   clicks_prev: number;
-  clicks_change: number; // (clicks - clicks_prev)
+  clicks_change: number;
   impressions: number;
   impressions_prev: number;
-  impressions_change: number; // (impressions - impressions_prev)
+  impressions_change: number;
   position: number;
   position_prev: number;
-  position_change: number; // (position_prev - position)
+  position_change: number;
 }
 
-/**
- * Interne Hilfsfunktion: Ruft GSC-Daten für eine Liste von Seiten in einem Zeitraum ab
- */
 async function queryGscDataForPages(
   siteUrl: string,
   startDate: string,
@@ -607,7 +594,6 @@ async function queryGscDataForPages(
   pageUrls: string[]
 ): Promise<Map<string, { clicks: number; impressions: number; position: number }>> {
   
-  // Verhindert API-Aufruf, wenn keine URLs angefordert werden
   if (pageUrls.length === 0) {
     return new Map();
   }
@@ -624,7 +610,6 @@ async function queryGscDataForPages(
         dimensions: ['page'],
         type: 'web',
         aggregationType: 'byPage',
-        // Filtert, um nur die angeforderten URLs abzurufen
         dimensionFilterGroups: [
           {
             filters: pageUrls.map(pageUrl => ({
@@ -634,7 +619,6 @@ async function queryGscDataForPages(
             }))
           }
         ],
-        // Begrenzt die Rückgabe auf die Anzahl der URLs (max 5000)
         rowLimit: Math.min(pageUrls.length, 5000)
       },
     });
@@ -648,7 +632,6 @@ async function queryGscDataForPages(
         resultMap.set(page, {
           clicks: row.clicks || 0,
           impressions: row.impressions || 0,
-          // GSC gibt Position 0 zurück, wenn keine Daten vorhanden sind
           position: row.position || 0 
         });
       }
@@ -656,15 +639,10 @@ async function queryGscDataForPages(
     return resultMap;
   } catch (error: unknown) {
     console.error(`[GSC] Fehler beim Abrufen der Page-Daten (${startDate} - ${endDate}):`, error);
-    // Einen leeren Map zurückgeben, damit Promise.all nicht fehlschlägt
     return new Map();
   }
 }
 
-/**
- * Ruft GSC-Daten (Klicks, Impressionen, Position) für eine Liste von Seiten
- * für zwei Zeiträume (aktuell und vorher) ab und berechnet die Differenz.
- */
 export async function getGscDataForPagesWithComparison(
   siteUrl: string,
   pageUrls: string[],
@@ -672,7 +650,6 @@ export async function getGscDataForPagesWithComparison(
   previousRange: { startDate: string, endDate: string }
 ): Promise<Map<string, GscPageData>> {
   
-  // 1. Parallele Anfragen für beide Zeiträume
   const [currentDataMap, previousDataMap] = await Promise.all([
     queryGscDataForPages(siteUrl, currentRange.startDate, currentRange.endDate, pageUrls),
     queryGscDataForPages(siteUrl, previousRange.startDate, previousRange.endDate, pageUrls)
@@ -680,29 +657,22 @@ export async function getGscDataForPagesWithComparison(
 
   const resultMap = new Map<string, GscPageData>();
 
-  // 2. Daten kombinieren und Differenzen berechnen
-  // Wir iterieren über die angeforderten URLs, um sicherzustellen, dass alle enthalten sind,
-  // selbst wenn sie in einem der Zeiträume keine Daten hatten.
   for (const url of pageUrls) {
     const current = currentDataMap.get(url) || { clicks: 0, impressions: 0, position: 0 };
     const previous = previousDataMap.get(url) || { clicks: 0, impressions: 0, position: 0 };
 
-    // Spezielle Positionsbehandlung: 0 bedeutet "keine Daten", nicht Position 0
     const currentPos = current.position || 0;
     const prevPos = previous.position || 0;
 
-    // Positionsänderung nur berechnen, wenn beide Werte > 0 sind
-    // (Achtung: niedrigere Position ist besser, daher prev - current)
     let posChange = 0;
     if (currentPos > 0 && prevPos > 0) {
       posChange = prevPos - currentPos;
     } else if (currentPos > 0 && prevPos === 0) {
-      posChange = 0; // Neu gerankt (könnte auch als +Infinity interpretiert werden)
+      posChange = 0;
     } else if (currentPos === 0 && prevPos > 0) {
-      posChange = 0; // Ranking verloren (könnte auch als -Infinity interpretiert werden)
+      posChange = 0;
     }
     
-    // Runden der Positionsänderung auf 2 Nachkommastellen
     const roundedPosChange = Math.round(posChange * 100) / 100;
 
     resultMap.set(url, {
@@ -714,7 +684,7 @@ export async function getGscDataForPagesWithComparison(
       impressions_prev: previous.impressions,
       impressions_change: current.impressions - previous.impressions,
       
-      position: Math.round(currentPos * 100) / 100, // Position auf 2 Nachkommastellen runden
+      position: Math.round(currentPos * 100) / 100,
       position_prev: Math.round(prevPos * 100) / 100,
       position_change: roundedPosChange
     });
