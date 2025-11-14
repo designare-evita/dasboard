@@ -513,6 +513,71 @@ const fullSource = `${source}${medium ? `/${medium}` : ''}`; // ✅ HINZUGEFÜGT
 }
 
 
+/**
+ * Ruft einen GA4-Bericht für eine einzelne Dimension ab
+ * (z.B. Land, Channel, Gerät)
+ */
+export async function getGa4DimensionReport(
+  propertyId: string,
+  startDate: string,
+  endDate: string,
+  dimensionName: 'country' | 'sessionDefaultChannelGroup' | 'deviceCategory'
+): Promise<Array<{ name: string; value: number }>> {
+  
+  const formattedPropertyId = propertyId.startsWith('properties/')
+    ? propertyId
+    : `properties/${propertyId}`;
+  const auth = createAuth();
+  const analytics = google.analyticsdata({ version: 'v1beta', auth });
+  
+  try {
+    const response = await analytics.properties.runReport({
+      property: formattedPropertyId,
+      requestBody: {
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: dimensionName }],
+        metrics: [{ name: 'sessions' }],
+        orderBys: [{
+          metric: { metricName: 'sessions' },
+          desc: true,
+        }],
+        limit: '10', // Wir nehmen die Top 10
+      },
+    });
+    
+    const rows = response.data.rows || [];
+    const results: Array<{ name: string; value: number }> = [];
+    
+    for (const row of rows) {
+      const name = row.dimensionValues?.[0]?.value || 'Unknown';
+      const sessions = parseInt(row.metricValues?.[0]?.value || '0', 10);
+      results.push({ name, value: sessions });
+    }
+    
+    // Berechne "Sonstige", wenn mehr als 6 Kategorien vorhanden sind
+    if (results.length > 6) {
+      const top5 = results.slice(0, 5);
+      const otherValue = results.slice(5).reduce((acc, curr) => acc + curr.value, 0);
+      
+      // Füge "Sonstige" hinzu, wenn es einen Wert gibt
+      if (otherValue > 0) {
+        return [
+          ...top5,
+          { name: 'Sonstige', value: otherValue }
+        ];
+      }
+      return top5; // Sonst nur Top 5
+    }
+    
+    return results;
+  } catch (error: unknown) {
+    console.error(`[GA4] Fehler beim Abrufen des ${dimensionName}-Reports:`, error);
+    // Bei Fehler leeres Array zurückgeben
+    return [];
+  }
+}
+
+
 // ==================================================================
 // --- NEUER CODE FÜR LANDINGPAGE-DATEN ---
 // ==================================================================
