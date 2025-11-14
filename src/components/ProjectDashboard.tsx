@@ -1,11 +1,12 @@
 // src/components/ProjectDashboard.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { 
   ProjectDashboardData, 
   ActiveKpi, 
-  normalizeFlatKpis 
+  normalizeFlatKpis,
+  ChartEntry // ✅ NEU: ChartEntry importieren
 } from '@/lib/dashboard-shared';
 import KpiCardsGrid from '@/components/KpiCardsGrid';
 import KpiTrendChart from '@/components/charts/KpiTrendChart';
@@ -16,6 +17,11 @@ import SemrushTopKeywords from '@/components/SemrushTopKeywords';
 import SemrushTopKeywords02 from '@/components/SemrushTopKeywords02';
 import DashboardHeader from '@/components/DashboardHeader';
 import { useSession } from 'next-auth/react'; 
+
+// ✅ NEU: Die drei neuen Diagramm-Komponenten importieren
+import CountryChart from './CountryChart';
+import ChannelChart from './ChannelChart';
+import DeviceChart from './DeviceChart';
 
 interface ProjectDashboardProps {
   data: ProjectDashboardData;
@@ -28,6 +34,9 @@ interface ProjectDashboardProps {
   semrushTrackingId?: string | null;
   semrushTrackingId02?: string | null;
   onPdfExport?: () => void;
+  countryData?: ChartEntry[];
+  channelData?: ChartEntry[];
+  deviceData?: ChartEntry[];
 }
 
 export default function ProjectDashboard({
@@ -40,7 +49,10 @@ export default function ProjectDashboard({
   faviconUrl, // ✅ NEU: Prop hier entgegennehmen
   semrushTrackingId,
   semrushTrackingId02,
-  onPdfExport
+  onPdfExport,
+  countryData,
+  channelData,
+  deviceData
 }: ProjectDashboardProps) {
   
   // (Rest der Komponente bleibt gleich...)
@@ -112,6 +124,13 @@ export default function ProjectDashboard({
         </div>
       </div>
 
+      {/* ✅ NEU: Kreisdiagramm-Sektion */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+        <CountryChart data={data.countryData} isLoading={isLoading} />
+        <ChannelChart data={data.channelData} isLoading={isLoading} />
+        <DeviceChart data={data.deviceData} isLoading={isLoading} />
+      </div>
+      
       {/* Semrush Keywords */}
       {hasSemrushConfig && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
