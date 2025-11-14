@@ -145,7 +145,7 @@ export default function KpiPieChart({
               outerRadius="80%"
               labelLine={false}
               label={(props: PieLabelRenderProps) => {
-                const percent = props.percent ?? 0;
+                const percent = Number(props.percent ?? 0);
                 return `${(percent * 100).toFixed(0)}%`;
               }}
             >
