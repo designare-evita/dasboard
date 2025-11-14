@@ -13,7 +13,8 @@ import {
   ArrowRightSquare
 } from 'react-bootstrap-icons';
 import {
-  ProjectDashboardData
+  ProjectDashboardData,
+  ChartEntry
 } from '@/lib/dashboard-shared';
 import ProjectDashboard from '@/components/ProjectDashboard';
 import LandingpageApproval from '@/components/LandingpageApproval';
@@ -233,6 +234,10 @@ function CustomerDashboard({
           faviconUrl={user.favicon_url} // ✅ KORREKTUR: Favicon-URL hinzugefügt
           semrushTrackingId={user.semrush_tracking_id}
           semrushTrackingId02={user.semrush_tracking_id_02}
+          // ✅ NEU: Daten an das Dashboard weitergeben
+          countryData={data.countryData}
+          channelData={data.channelData}
+          deviceData={data.deviceData}
         />
 
         <div className="mt-8">
