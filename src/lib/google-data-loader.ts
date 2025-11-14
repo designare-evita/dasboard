@@ -1,4 +1,4 @@
-// src/lib/google-data-loader.ts (VERBESSERT)
+// src/lib/google-data-loader.ts (VERBESSERT + KREISDIAGRAMME)
 
 import { sql } from '@vercel/postgres';
 import { User } from '@/types';
@@ -7,9 +7,10 @@ import {
   getAnalyticsData,
   getTopQueries,
   getAiTrafficData,
+  getGa4DimensionReport, // ✅ NEU: Für Kreisdiagramm-Daten
   type AiTrafficData
 } from '@/lib/google-api';
-import { ProjectDashboardData } from '@/lib/dashboard-shared';
+import { ProjectDashboardData, ChartEntry } from '@/lib/dashboard-shared'; // ✅ NEU: ChartEntry importieren
 
 // ========== KONSTANTEN ==========
 const CACHE_DURATION_HOURS = 48; // 48-Stunden-Cache
@@ -41,6 +42,56 @@ function calculateChange(current: number, previous: number): number {
   if (previousNum === 0) return currentNum > 0 ? 100 : 0;
   const change = ((currentNum - previousNum) / previousNum) * 100;
   return Math.round(change * 10) / 10;
+}
+
+// ========== KREISDIAGRAMM-HILFSFUNKTIONEN ==========
+// ✅ NEU: Farbpaletten für die Diagramme
+const PIE_COLORS_CHANNELS = [
+  '#2563eb', // Organic Search
+  '#f59e0b', // Paid Search
+  '#10b981', // Direct
+  '#6366f1', // Referral
+  '#ec4899', // Social
+  '#6b7280', // Sonstige
+];
+
+const PIE_COLORS_DEVICES = [
+  '#3b82f6', // desktop
+  '#16a34a', // mobile
+  '#f97316', // tablet
+  '#6b7280', // Sonstige
+];
+
+const PIE_COLORS_COUNTRIES = [
+  '#3b82f6', '#60a5fa', '#93c5fd', // Blau-Töne
+  '#10b981', '#34d399', '#6ee7b7', // Grün-Töne
+  '#f59e0b', '#fcd34d', '#fef08a', // Gelb-Töne
+  '#6b7280', // Sonstige
+];
+
+// ✅ NEU: Helper zum Formatieren der Daten für Kuchendiagramme
+function formatPieData(
+  data: Array<{ name: string; value: number }>, 
+  colorPalette: string[]
+): ChartEntry[] {
+  // Übersetzungen für häufige Werte
+  const translations: Record<string, string> = {
+    'Organic Search': 'Organisch',
+    'Paid Search': 'Bezahlt',
+    'Direct': 'Direkt',
+    'Referral': 'Verweise',
+    'Organic Social': 'Social Media',
+    'desktop': 'Desktop',
+    'mobile': 'Smartphone',
+    'tablet': 'Tablet',
+    '(not set)': 'Unbekannt',
+  };
+
+  return data.map((item, index) => ({
+    ...item,
+    name: translations[item.name] || item.name,
+    fill: colorPalette[index % colorPalette.length],
+  }));
 }
 
 // ========== DATENLADE-FUNKTION ==========
@@ -90,6 +141,10 @@ async function fetchFreshGoogleData(user: Partial<User>, dateRange: string = '30
   let gaPrevious: { sessions: { total: number }, totalUsers: { total: number } } = DEFAULT_GA_PREVIOUS;
   let aiTrafficCurrent: AiTrafficData = DEFAULT_AI_TRAFFIC;
   let aiTrafficPrevious: AiTrafficData = DEFAULT_AI_TRAFFIC;
+  // ✅ NEU: Initialisierung für Kreisdiagramm-Daten
+  let countryData: ChartEntry[] = [];
+  let channelData: ChartEntry[] = [];
+  let deviceData: ChartEntry[] = [];
 
   try {
     console.log(`[Google Cache FETCH] 🔄 Lade frische Google-Daten für ${user.email} (${dateRange})`);
@@ -115,7 +170,11 @@ async function fetchFreshGoogleData(user: Partial<User>, dateRange: string = '30
         getAnalyticsData(user.ga4_property_id, sDateCurrent, eDateCurrent),
         getAnalyticsData(user.ga4_property_id, sDatePrevious, eDatePrevious),
         getAiTrafficData(user.ga4_property_id, sDateCurrent, eDateCurrent),
-        getAiTrafficData(user.ga4_property_id, sDatePrevious, eDatePrevious)
+        getAiTrafficData(user.ga4_property_id, sDatePrevious, eDatePrevious),
+        // ✅ NEU: Drei neue Abfragen für die Kreisdiagramme
+        getGa4DimensionReport(user.ga4_property_id, sDateCurrent, eDateCurrent, 'country'),
+        getGa4DimensionReport(user.ga4_property_id, sDateCurrent, eDateCurrent, 'sessionDefaultChannelGroup'),
+        getGa4DimensionReport(user.ga4_property_id, sDateCurrent, eDateCurrent, 'deviceCategory')
       );
     } else {
       console.log(`[Google Cache FETCH] ⚠️ GA4 nicht konfiguriert`);
@@ -186,6 +245,31 @@ async function fetchFreshGoogleData(user: Partial<User>, dateRange: string = '30
       } else {
         console.error(`[Google Cache FETCH] ❌ AI Traffic Previous failed:`, ga4Results[3].reason);
       }
+      
+      // ✅ NEU: Verarbeitung der Kreisdiagramm-Daten
+      if (ga4Results[4]?.status === 'fulfilled') {
+        const rawData = ga4Results[4].value as Array<{ name: string; value: number }>;
+        countryData = formatPieData(rawData, PIE_COLORS_COUNTRIES);
+        console.log(`[Google Cache FETCH] ✅ Länder-Daten: ${countryData.length} Segmente`);
+      } else {
+        console.error(`[Google Cache FETCH] ❌ Länder-Daten failed:`, ga4Results[4]?.reason);
+      }
+      
+      if (ga4Results[5]?.status === 'fulfilled') {
+        const rawData = ga4Results[5].value as Array<{ name: string; value: number }>;
+        channelData = formatPieData(rawData, PIE_COLORS_CHANNELS);
+        console.log(`[Google Cache FETCH] ✅ Channel-Daten: ${channelData.length} Segmente`);
+      } else {
+        console.error(`[Google Cache FETCH] ❌ Channel-Daten failed:`, ga4Results[5]?.reason);
+      }
+      
+      if (ga4Results[6]?.status === 'fulfilled') {
+        const rawData = ga4Results[6].value as Array<{ name: string; value: number }>;
+        deviceData = formatPieData(rawData, PIE_COLORS_DEVICES);
+        console.log(`[Google Cache FETCH] ✅ Geräte-Daten: ${deviceData.length} Segmente`);
+      } else {
+        console.error(`[Google Cache FETCH] ❌ Geräte-Daten failed:`, ga4Results[6]?.reason);
+      }
     }
 
     // ========== DATEN AUFBEREITEN ==========
@@ -206,7 +290,7 @@ async function fetchFreshGoogleData(user: Partial<User>, dateRange: string = '30
       : 0;
 
     // ========== RÜCKGABEOBJEKT ERSTELLEN ==========
-    const result = {
+    const result: ProjectDashboardData = { // ✅ NEU: Expliziter Typ
       kpis: {
         clicks: {
           value: gscCurrent.clicks.total ?? 0,
@@ -237,7 +321,11 @@ async function fetchFreshGoogleData(user: Partial<User>, dateRange: string = '30
         totalUsers: gaCurrent.totalUsers.daily ?? [],
       },
       topQueries,
-      aiTraffic: aiTrafficCurrent 
+      aiTraffic: aiTrafficCurrent,
+      // ✅ NEU: Hinzufügen der Kreisdiagramm-Daten
+      countryData,
+      channelData,
+      deviceData,
     };
 
     console.log(`[Google Cache FETCH] ✅ Dashboard-Daten erfolgreich aufbereitet`);
