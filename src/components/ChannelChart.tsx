@@ -1,8 +1,7 @@
 // src/components/ChannelChart.tsx
 'use client';
 import { ChartEntry } from '@/lib/dashboard-shared';
-import KpiPieChart from '@/components/charts/KpiPieChart';
-
+import KpiPieChart from './charts/KpiPieChart';
 interface Props {
   data?: ChartEntry[];
   isLoading?: boolean;
