@@ -22,8 +22,20 @@ interface KpiPieChartProps {
   className?: string;
 }
 
+// Typen für Tooltip
+interface TooltipPayload {
+  payload: ChartEntry;
+  percent: number;
+  value: number;
+}
+
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: TooltipPayload[];
+}
+
 // Benutzerdefinierter Tooltip
-const CustomTooltip = ({ active, payload }: any) => {
+const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     const percent = payload[0].percent;
@@ -42,12 +54,23 @@ const CustomTooltip = ({ active, payload }: any) => {
   return null;
 };
 
+// Typen für Legend
+interface LegendPayloadItem {
+  value: string;
+  color: string;
+  payload: ChartEntry;
+}
+
+interface CustomLegendProps {
+  payload?: LegendPayloadItem[];
+}
+
 // Benutzerdefiniertes Legend
-const CustomLegend = (props: any) => {
+const CustomLegend = (props: CustomLegendProps) => {
   const { payload } = props;
   return (
     <ul className="flex flex-col gap-1.5 pt-4">
-      {payload.map((entry: any, index: number) => (
+      {payload?.map((entry: LegendPayloadItem, index: number) => (
         <li key={`item-${index}`} className="flex items-center gap-2">
           <div
             className="w-3 h-3 rounded-full flex-shrink-0"
