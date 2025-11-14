@@ -143,7 +143,7 @@ export default function KpiPieChart({
               cy="50%"
               outerRadius="80%"
               labelLine={false}
-              label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
+              label={({ percent }: { percent: number }) => `${(percent * 100).toFixed(0)}%`}
             >
               {data.map((entry, index) => (
                 <Cell key={`cell-${index}`} fill={entry.fill} stroke={entry.fill} />
