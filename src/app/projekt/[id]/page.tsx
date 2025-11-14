@@ -6,7 +6,8 @@ import { useParams } from 'next/navigation';
 import useSWR from 'swr';
 import { type DateRangeOption } from '@/components/DateRangeSelector';
 import {
-  ProjectDashboardData
+  ProjectDashboardData,
+  ChartEntry // ✅ NEU: Import für Kreisdiagramm-Daten
 } from '@/lib/dashboard-shared';
 import ProjectDashboard from '@/components/ProjectDashboard';
 import { ArrowRepeat, ExclamationTriangleFill } from 'react-bootstrap-icons';
@@ -16,6 +17,7 @@ interface FetchError extends Error {
   status?: number;
 }
 
+// Der Fetcher bleibt unverändert
 const fetcher = (url: string) => fetch(url).then(async (res) => {
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({ message: res.statusText }));
@@ -34,6 +36,8 @@ export default function ProjektDetailPage() {
   const [dateRange, setDateRange] = useState<DateRangeOption>('30d');
 
   // Google-Daten (kritisch)
+  // Der SWR-Hook ist bereits korrekt typisiert (ProjectDashboardData)
+  // und empfängt automatisch die neuen Daten (countryData, channelData, deviceData)
   const { 
     data: googleData, 
     isLoading: isLoadingGoogle, 
@@ -43,7 +47,7 @@ export default function ProjektDetailPage() {
     fetcher
   );
 
-  // ✅ NEU: User/Domain-Daten SWR-Typ erweitert
+  // User/Domain-Daten (bleibt unverändert)
   const { 
     data: userData,
     isLoading: isLoadingUser 
@@ -52,18 +56,15 @@ export default function ProjektDetailPage() {
     email?: string;
     semrush_tracking_id?: string | null;
     semrush_tracking_id_02?: string | null;
-    favicon_url?: string | null; // ✅ NEU: favicon_url hinzugefügt
+    favicon_url?: string | null;
   }>(
     projectId ? `/api/users/${projectId}` : null,
     fetcher
   );
 
-  // ... (Restlicher Code der Komponente bleibt gleich) ...
-  
   useEffect(() => {
     if (userData) {
       console.log('[ProjektPage] User-Daten geladen:', userData);
-      console.log('[ProjektPage] Domain:', userData.domain);
     }
   }, [userData]);
 
@@ -75,6 +76,7 @@ export default function ProjektDetailPage() {
     }
   };
 
+  // Zugriffs-Check (bleibt unverändert)
   useEffect(() => {
     if (sessionStatus === 'authenticated' && session?.user && 
         session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN' &&
@@ -83,6 +85,7 @@ export default function ProjektDetailPage() {
     }
   }, [sessionStatus, session, projectId]);
 
+  // Loading-State (bleibt unverändert)
   if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-[calc(100vh-200px)]">
@@ -92,6 +95,7 @@ export default function ProjektDetailPage() {
     );
   }
 
+  // Error-State (bleibt unverändert)
   const error = errorGoogle as FetchError | undefined;
   if (error) {
     console.error("Fehler beim Laden der Projektdaten:", error);
@@ -118,16 +122,20 @@ export default function ProjektDetailPage() {
     );
   }
   
+  // ✅ KORREKTUR: Fallback-Objekt um die neuen Diagramm-Daten erweitert
   const finalGoogleData: ProjectDashboardData = googleData ?? { 
     kpis: {}, 
     aiTraffic: undefined, 
-    topQueries: [] 
+    topQueries: [],
+    countryData: [], // Default für Länder
+    channelData: [], // Default für Channels
+    deviceData: [],  // Default für Geräte
   }; 
 
-  // ✅ DEBUG: Logge finale Daten vor Übergabe
+  // Debug-Log (bleibt unverändert)
   console.log('[ProjektPage] Finale Daten:', {
     domain: userData?.domain,
-    faviconUrl: userData?.favicon_url, // ✅ NEU
+    faviconUrl: userData?.favicon_url,
     semrushTrackingId: userData?.semrush_tracking_id,
     semrushTrackingId02: userData?.semrush_tracking_id_02
   });
@@ -142,9 +150,14 @@ export default function ProjektDetailPage() {
         onPdfExport={handlePdfExport}
         projectId={projectId}
         domain={userData?.domain}
-        faviconUrl={userData?.favicon_url} // ✅ NEU: Prop weitergeben
+        faviconUrl={userData?.favicon_url}
         semrushTrackingId={userData?.semrush_tracking_id}
         semrushTrackingId02={userData?.semrush_tracking_id_02}
+        
+        // ✅ NEU: Die Daten aus finalGoogleData werden an das Dashboard übergeben
+        countryData={finalGoogleData.countryData}
+        channelData={finalGoogleData.channelData}
+        deviceData={finalGoogleData.deviceData}
       />
     </div>
   );
