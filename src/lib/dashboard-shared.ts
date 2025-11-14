@@ -47,6 +47,15 @@ export interface AiTrafficData {
 }
 
 /**
+ * Ein Eintrag für ein Kuchendiagramm
+ */
+export type ChartEntry = {
+  name: string;
+  value: number;
+  fill: string; // Farbe für das Diagrammsegment
+};
+
+/**
  * Die Struktur für die Dashboard-Daten,
  * die von beiden Seiten (page.tsx und [id]/page.tsx) verwendet wird.
  */
@@ -65,6 +74,10 @@ export interface ProjectDashboardData {
   };
   topQueries?: TopQueryData[];
   aiTraffic?: AiTrafficData;
+  // Daten für die drei Kreisdiagramme
+  countryData?: ChartEntry[];
+  channelData?: ChartEntry[];
+  deviceData?: ChartEntry[];
 }
 
 
