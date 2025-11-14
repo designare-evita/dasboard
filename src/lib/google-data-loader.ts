@@ -305,8 +305,7 @@ async function fetchFreshGoogleData(user: Partial<User>, dateRange: string = '30
           change: calculateChange(gaCurrent.sessions.total ?? 0, gaPrevious.sessions.total ?? 0),
           aiTraffic: {
             value: aiTrafficCurrent.totalSessions,
-            percentage: aiSessionsPercentage,
-            change: aiTrafficCurrent.totalSessionsChange
+            percentage: aiSessionsPercentage
           }
         },
         totalUsers: {
