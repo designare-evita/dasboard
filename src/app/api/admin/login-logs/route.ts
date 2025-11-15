@@ -1,8 +1,7 @@
 // src/app/api/admin/login-logs/route.ts
 import { NextResponse } from 'next/server';
 import { sql } from '@vercel/postgres';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { getServerSession } from '@/lib/get-session';
 import { unstable_noStore as noStore } from 'next/cache';
 
 // Typdefinition für die Rückgabe
@@ -18,7 +17,7 @@ export async function GET(request: Request) {
   noStore();
   
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession();
 
     // Nur Superadmins dürfen dieses Logbuch sehen
     if (session?.user?.role !== 'SUPERADMIN') {
