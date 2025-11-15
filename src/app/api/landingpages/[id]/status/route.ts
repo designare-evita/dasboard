@@ -1,10 +1,9 @@
 // src/app/api/landingpages/[id]/status/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { auth } from '@/lib/auth'; // KORRIGIERT: Import von auth
 import { sql } from '@vercel/postgres';
-import * as Brevo from '@getbrevo/brevo'; // NEU: Brevo importieren
+import * as Brevo from '@getbrevo/brevo'; 
 
 // NEU: Brevo API-Client initialisieren
 const apiInstance = new Brevo.TransactionalEmailsApi();
@@ -45,7 +44,7 @@ export async function PUT(
 ) {
   try {
     const { id: landingpageId } = await params;
-    const session = await getServerSession(authOptions);
+    const session = await auth(); // KORRIGIERT: auth() aufgerufen
 
     if (!session?.user?.email) {
       return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
