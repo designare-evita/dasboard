@@ -66,25 +66,21 @@ export const authOptions: NextAuthOptions = {
           throw new Error('Authentifizierungsfehler');
         }
         
-        // ✅ ==============================================
-        // ✅ KORREKTUR: Logging OHNE try...catch
-        // ✅ ==============================================
-        // Wenn DIESER Teil fehlschlägt, bricht der gesamte Login ab
-        // und die Fehlermeldung wird auf dem Login-Bildschirm angezeigt.
+        // ==============================================
+        // Login-Ereignis protokollieren (OHNE try...catch für Debugging)
+        // ==============================================
         
         console.log('[Authorize] Versuche, Login-Ereignis zu protokollieren...');
         
-        // Wir versuchen es jetzt ohne den `::uuid` Cast und lassen @vercel/postgres
-        // die Typumwandlung des String-UUID selbst übernehmen.
         await sql`
           INSERT INTO login_logs (user_id, user_email, user_role)
           VALUES (${user.id}, ${user.email}, ${user.role});
         `;
         
         console.log('[Authorize] Login-Ereignis erfolgreich protokolliert.');
-        // ✅ ==============================================
-        // ✅ ENDE KORREKTUR
-        // ✅ ==============================================
+        // ==============================================
+        // ENDE
+        // ==============================================
 
 
         // (Logo-URL-Abruf bleibt unverändert)
@@ -98,7 +94,6 @@ export const authOptions: NextAuthOptions = {
               logo_url = logoRows[0].logo_url;
             }
           } catch (logoError) {
-            // Dieser Fehler ist nicht-fatal, wir loggen ihn nur
             console.error('[Authorize] Fehler beim Abrufen des Logos (nicht-fatal):', logoError);
           }
         }
@@ -115,7 +110,6 @@ export const authOptions: NextAuthOptions = {
       }
     })
   ],
-  // (Rest der Datei bleibt unverändert)
   session: {
     strategy: 'jwt',
     maxAge: 60 * 60, // 60 Minuten
@@ -125,20 +119,26 @@ export const authOptions: NextAuthOptions = {
     signIn: '/login',
   },
   callbacks: {
+    // JWT mit Benutzerdaten anreichern
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        // @ts-expect-error
+        // ✅ KORREKTUR: Beschreibung hinzugefügt
+        // @ts-expect-error Das 'user'-Objekt wird im 'authorize'-Callback dynamisch erweitert
         token.role = user.role;
-        // @ts-expect-error
+        // ✅ KORREKTUR: Beschreibung hinzugefügt
+        // @ts-expect-error Das 'user'-Objekt wird im 'authorize'-Callback dynamisch erweitert
         token.mandant_id = user.mandant_id;
-        // @ts-expect-error
+        // ✅ KORREKTUR: Beschreibung hinzugefügt
+        // @ts-expect-error Das 'user'-Objekt wird im 'authorize'-Callback dynamisch erweitert
         token.permissions = user.permissions;
-        // @ts-expect-error
+        // ✅ KORREKTUR: Beschreibung hinzugefügt
+        // @ts-expect-error Das 'user'-Objekt wird im 'authorize'-Callback dynamisch erweitert
         token.logo_url = user.logo_url;
       }
       return token;
     },
+    // Session mit den Daten aus dem JWT anreichern
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.id as string;
