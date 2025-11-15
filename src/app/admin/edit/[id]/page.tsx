@@ -1,7 +1,7 @@
 // src/app/admin/edit/[id]/page.tsx
 
 import { sql } from '@vercel/postgres';
-import { getServerSession } from 'next-auth';
+import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import type { User } from '@/types';
