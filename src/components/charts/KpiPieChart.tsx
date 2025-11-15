@@ -39,13 +39,23 @@ interface CustomTooltipProps {
 const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
-    const percent = payload[0].percent;
+    // WICHTIG: Der percent Wert in payload ist bereits korrekt (0.84 = 84%)
+    const rawPercent = payload[0].percent;
     
-    // ✅ KORREKTUR: Recharts liefert percent als Dezimalwert (0.84 = 84%)
-    // Wir müssen mit 100 multiplizieren für die Prozentanzeige
-    const percentValue = typeof percent === 'number'
-      ? percent * 100 
-      : 0;
+    // Debug-Log um zu sehen, was wir bekommen
+    console.log('Tooltip percent raw:', rawPercent, 'type:', typeof rawPercent);
+    
+    // Sichere Konvertierung zu Prozent
+    let percentValue = 0;
+    if (typeof rawPercent === 'number' && !isNaN(rawPercent)) {
+      // Wenn rawPercent zwischen 0 und 1 liegt, multipliziere mit 100
+      if (rawPercent >= 0 && rawPercent <= 1) {
+        percentValue = rawPercent * 100;
+      } else {
+        // Falls es schon ein Prozentwert ist (sollte nicht passieren)
+        percentValue = rawPercent;
+      }
+    }
     
     return (
       <div className="bg-white px-3 py-2 rounded-lg shadow-lg border border-gray-200">
@@ -73,24 +83,66 @@ interface CustomLegendProps {
   payload?: LegendPayloadItem[];
 }
 
-// Benutzerdefiniertes Legend
+// Benutzerdefiniertes Legend mit Prozentwerten
 const CustomLegend = (props: CustomLegendProps) => {
   const { payload } = props;
+  
+  // Berechne Gesamtsumme für Prozentberechnung
+  const total = payload?.reduce((sum, entry) => sum + (entry.payload?.value || 0), 0) || 0;
+  
   return (
     <ul className="flex flex-col gap-1.5 pt-4">
-      {payload?.map((entry: LegendPayloadItem, index: number) => (
-        <li key={`item-${index}`} className="flex items-center gap-2">
-          <div
-            className="w-3 h-3 rounded-full flex-shrink-0"
-            style={{ backgroundColor: entry.color }}
-          />
-          <span className="text-xs text-gray-700 truncate">
-            {entry.value} ({entry.payload.value.toLocaleString('de-DE')})
-          </span>
-        </li>
-      ))}
+      {payload?.map((entry: LegendPayloadItem, index: number) => {
+        const percent = total > 0 ? ((entry.payload.value / total) * 100).toFixed(1) : '0';
+        return (
+          <li key={`item-${index}`} className="flex items-center gap-2">
+            <div
+              className="w-3 h-3 rounded-full flex-shrink-0"
+              style={{ backgroundColor: entry.color }}
+            />
+            <span className="text-xs text-gray-700 truncate">
+              {entry.value} ({entry.payload.value.toLocaleString('de-DE')} - {percent}%)
+            </span>
+          </li>
+        );
+      })}
     </ul>
   );
+};
+
+// Hilfsfunktion für Label-Rendering mit besserer Fehlerbehandlung
+const renderCustomLabel = (props: PieLabelRenderProps): string => {
+  // Debug-Log
+  console.log('Label props:', props);
+  
+  // Extrahiere den percent-Wert aus props
+  const rawPercent = props.percent;
+  
+  // Prüfe verschiedene Möglichkeiten
+  if (typeof rawPercent === 'number' && !isNaN(rawPercent)) {
+    // Wenn es ein Dezimalwert ist (0-1), multipliziere mit 100
+    if (rawPercent >= 0 && rawPercent <= 1) {
+      const percentValue = rawPercent * 100;
+      return `${Math.round(percentValue)}%`;
+    }
+    // Wenn es schon ein Prozentwert ist (sollte nicht passieren)
+    return `${Math.round(rawPercent)}%`;
+  }
+  
+  // Fallback: Berechne manuell aus den Daten
+  if (props.value && props.payload && Array.isArray(props.payload)) {
+    const total = props.payload.reduce((sum: number, item: any) => {
+      return sum + (typeof item.value === 'number' ? item.value : 0);
+    }, 0);
+    
+    if (total > 0 && typeof props.value === 'number') {
+      const manualPercent = (props.value / total) * 100;
+      return `${Math.round(manualPercent)}%`;
+    }
+  }
+  
+  // Letzter Fallback
+  return '0%';
 };
 
 export default function KpiPieChart({
@@ -99,6 +151,19 @@ export default function KpiPieChart({
   isLoading = false,
   className,
 }: KpiPieChartProps) {
+  
+  // Debug-Log für eingehende Daten
+  React.useEffect(() => {
+    if (data && data.length > 0) {
+      console.log('KpiPieChart data:', data);
+      const total = data.reduce((sum, item) => sum + item.value, 0);
+      console.log('Total value:', total);
+      data.forEach(item => {
+        const percent = (item.value / total) * 100;
+        console.log(`${item.name}: ${item.value} = ${percent.toFixed(1)}%`);
+      });
+    }
+  }, [data]);
   
   if (isLoading) {
     return (
@@ -151,17 +216,7 @@ export default function KpiPieChart({
               cy="50%"
               outerRadius="70%"
               labelLine={false}
-              label={(props: PieLabelRenderProps) => {
-                // ✅ WICHTIGE KORREKTUR: 
-                // props.percent kommt bereits als Dezimalwert (0.14 = 14%)
-                // TypeScript-sicher mit expliziter Nummer-Konvertierung
-                const percentValue = typeof props.percent === 'number' 
-                  ? props.percent 
-                  : 0;
-                
-                // Multipliziere mit 100 für die Prozentanzeige
-                return `${(percentValue * 100).toFixed(0)}%`;
-              }}
+              label={renderCustomLabel}
             >
               {data.map((entry, index) => (
                 <Cell key={`cell-${index}`} fill={entry.fill} stroke={entry.fill} />
