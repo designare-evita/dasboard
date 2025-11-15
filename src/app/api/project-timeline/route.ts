@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     
-    // KORRIGIERT: Tippfehler behoben (BENUTTER -> BENUTZER)
+    // KORRIGIERT (Fix 3 - Tippfehler)
     if (session?.user?.role !== 'BENUTZER') {
       // Diese Route ist primär für die Kunden-Ansicht gedacht
       return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 403 });
@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
     });
 
     // 3. Hole GSC-Daten (Reichweite/Impressionen) seit Projektstart
-    let gscData = []; // Initialisiert als Array
+    let gscData = []; 
     if (gscSiteUrl) {
       try {
         const today = new Date();
@@ -81,14 +81,13 @@ export async function GET(request: NextRequest) {
 
         console.log(`[Timeline API] Rufe GSC-Daten ab für ${gscSiteUrl} von ${startDateStr} bis ${endDateStr}`);
         
-        // GSC-Daten (nur Impressionen, täglich) holen
-        // GEÄNDERT (Fix 2)
+        // KORRIGIERT (Fix 3): Überflüssige Argumente entfernt
         const gscResult = await getSearchConsoleData(
           gscSiteUrl,
           startDateStr,
-          endDateStr,
-          ['impressions'], 
-          'date'
+          endDateStr
+          // ['impressions'], // ENTFERNT (Fix 3)
+          // 'date' // ENTFERNT (Fix 3)
         );
         
         // NEU (Fix 2): Nur das Array der Impressionen zuweisen
