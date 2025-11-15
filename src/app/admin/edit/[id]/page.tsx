@@ -1,8 +1,7 @@
 // src/app/admin/edit/[id]/page.tsx
 
 import { sql } from '@vercel/postgres';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/lib/auth';
+import { getServerSession } from '@/lib/get-session';
 import { redirect } from 'next/navigation';
 import type { User } from '@/types';
 import EditUserForm from './EditUserForm';
@@ -98,7 +97,7 @@ async function getAllProjects(): Promise<Project[]> {
 // --- Hauptkomponente der Seite ---
 
 export default async function EditUserPage({ params }: PageProps) {
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession();
 
   if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
     redirect('/');
