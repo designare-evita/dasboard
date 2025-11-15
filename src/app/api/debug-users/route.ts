@@ -2,12 +2,11 @@
 
 import { sql } from '@vercel/postgres';
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { auth } from '@/lib/auth'; // KORRIGIERT: Import von auth
 
 export async function GET() {
   // Stellt sicher, dass nur ein Super Admin diese Aktion ausführen kann
-  const session = await getServerSession(authOptions);
+  const session = await auth(); // KORRIGIERT: auth() aufgerufen
   if (session?.user?.role !== 'SUPERADMIN') {
     return NextResponse.json({ message: 'Nicht autorisiert. Nur für Super Admins.' }, { status: 401 });
   }
