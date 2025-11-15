@@ -1,7 +1,7 @@
 // src/app/admin/edit/[id]/page.tsx
 
 import { sql } from '@vercel/postgres';
-import { auth } from '@/lib/auth';
+import { auth } from '@/lib/auth'; // KORRIGIERT: auth statt getServerSession
 import { redirect } from 'next/navigation';
 import type { User } from '@/types';
 import EditUserForm from './EditUserForm';
@@ -97,7 +97,7 @@ async function getAllProjects(): Promise<Project[]> {
 // --- Hauptkomponente der Seite ---
 
 export default async function EditUserPage({ params }: PageProps) {
-  const session = await getServerSession();
+  const session = await auth(); // KORRIGIERT: auth() statt getServerSession()
 
   if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
     redirect('/');
@@ -112,7 +112,7 @@ export default async function EditUserPage({ params }: PageProps) {
         <div className="min-h-screen bg-gray-50 p-8">
             <div className="p-8 text-center bg-white rounded-lg shadow-md max-w-2xl mx-auto mt-10">
                 <h2 className="text-xl font-bold text-red-600 mb-4">❌ Ungültige ID</h2>
-                {/* ... restlicher Fehlercode ... */}
+                <p>Die angegebene Benutzer-ID ist ungültig.</p>
             </div>
         </div>
     );
@@ -137,7 +137,8 @@ export default async function EditUserPage({ params }: PageProps) {
         <div className="min-h-screen bg-gray-50 p-8">
             <div className="p-8 bg-white rounded-lg shadow-md max-w-2xl mx-auto mt-10">
                 <h2 className="text-xl font-bold text-red-600 mb-4">Benutzer nicht gefunden</h2>
-                {/* ... restlicher Fehlercode ... */}
+                <p>Der Benutzer mit der ID {id} konnte nicht geladen werden.</p>
+                {loadError && <p className="text-sm text-gray-500 mt-2">{loadError}</p>}
             </div>
         </div>
     );
