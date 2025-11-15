@@ -6,7 +6,6 @@ import {
   ResponsiveContainer,
   ComposedChart,
   Area,
-  Bar,
   XAxis,
   YAxis,
   Tooltip,
@@ -23,7 +22,7 @@ import {
   HourglassSplit,
   BoxSeam
 } from 'react-bootstrap-icons';
-import { addMonths, format, differenceInMonths, differenceInCalendarDays } from 'date-fns';
+import { addMonths, format, differenceInCalendarDays } from 'date-fns';
 import { de } from 'date-fns/locale';
 
 // Typen für die API-Antwort
@@ -50,6 +49,18 @@ interface TimelineData {
   gscImpressionTrend: GscDataPoint[];
 }
 
+// Typen für Tooltip
+interface TooltipPayload {
+  dataKey: string;
+  value: number;
+}
+
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: TooltipPayload[];
+  label?: string;
+}
+
 // SWR Fetcher
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -59,13 +70,13 @@ const formatImpressions = (value: number) => {
 };
 
 // Tooltip-Inhalt
-const CustomTooltip = ({ active, payload, label }: any) => {
+const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
   if (active && payload && payload.length) {
     return (
       <div className="bg-white p-3 shadow-md rounded border border-gray-200">
-        <p className="font-bold text-gray-800">{format(new Date(label), 'd. MMMM yyyy', { locale: de })}</p>
+        <p className="font-bold text-gray-800">{label ? format(new Date(label), 'd. MMMM yyyy', { locale: de }) : ''}</p>
         <p className="text-sm text-indigo-600">
-          Reichweite: {formatImpressions(payload.find((p: any) => p.dataKey === 'impressions')?.value || 0)}
+          Reichweite: {formatImpressions(payload.find((p) => p.dataKey === 'impressions')?.value || 0)}
         </p>
       </div>
     );
@@ -261,9 +272,7 @@ export default function ProjectTimelineWidget() {
         </div>
       ) : (
         <p className="text-sm text-gray-500 italic text-center py-8">
-          {session.user?.gsc_site_url 
-            ? 'Es werden noch keine Reichweiten-Daten von Google empfangen.' 
-            : 'Keine Google Search Console (gsc_site_url) für dieses Projekt konfiguriert.'}
+          Es werden noch keine Reichweiten-Daten von Google empfangen.
         </p>
       )}
     </div>
