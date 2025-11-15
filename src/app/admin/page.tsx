@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState, FormEvent } from 'react';
 import Link from 'next/link';
 import { User } from '@/types';
-// KEIN Import für die globale 'Button' Komponente mehr
+// Icons importiert
 import {
   Pencil,
   Trash,
@@ -15,27 +15,28 @@ import {
   InfoCircleFill,
   ExclamationTriangleFill,
   People,
-  FileText // Icon für Redaktionsplan
-} from 'react-bootstrap-icons'; // Icons importiert
+  FileText 
+} from 'react-bootstrap-icons'; 
 
-// ✅ NEU: LogoManager importieren
+// ✅ KORREKTUR: Beide Superadmin-Komponenten importieren
 import LogoManager from './LogoManager';
+import LoginLogbook from './LoginLogbook'; // Importiert das neue Logbuch
 
 export default function AdminPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
 
-  // State management for the component
+  // State management (unverändert)
   const [message, setMessage] = useState<string>('');
   const [users, setUsers] = useState<User[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState<boolean>(true);
   const [selectedRole, setSelectedRole] = useState<'BENUTZER' | 'ADMIN'>('BENUTZER');
-  const [isSubmitting, setIsSubmitting] = useState(false); // Ladezustand für Formular
+  const [isSubmitting, setIsSubmitting] = useState(false); 
 
-  // Check if the current user is a Superadmin
+  // Check if the current user is a Superadmin (unverändert)
   const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
 
-  // Fetches the list of users from the API
+  // Fetches the list of users from the API (unverändert)
   const fetchUsers = async (): Promise<void> => {
     setIsLoadingUsers(true);
     try {
@@ -54,18 +55,18 @@ export default function AdminPage() {
     }
   };
 
-  // Load users when the component mounts and the session is authenticated
+  // Load users when the component mounts (unverändert)
   useEffect(() => {
     if (status === 'authenticated') {
       void fetchUsers();
     }
   }, [status]);
 
-  // Handles the form submission for creating a new user
+  // Handles the form submission for creating a new user (unverändert)
   const handleSubmit = async (e: FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
     setMessage('Erstelle Benutzer...');
-    setIsSubmitting(true); // Ladevorgang starten
+    setIsSubmitting(true); 
 
     const formData = new FormData(e.currentTarget);
     const rawData = Object.fromEntries(formData) as Record<string, unknown>;
@@ -106,9 +107,8 @@ export default function AdminPage() {
     }
   };
 
-  // Handles deleting a user
+  // Handles deleting a user (unverändert)
   const handleDelete = async (userId: string): Promise<void> => {
-    // (Unverändert)
     if (!window.confirm('Sind Sie sicher, dass Sie diesen Nutzer endgültig löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.')) {
         return;
     }
@@ -142,6 +142,7 @@ export default function AdminPage() {
   // Render the admin page UI
   return (
   <div className="p-8 mt-8 max-w-7xl mx-auto bg-gray-50 min-h-screen">
+      {/* Header */}
       <div className="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Admin-Bereich</h1>
@@ -149,7 +150,7 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* (Nachrichtenanzeige - Unverändert) */}
+      {/* Nachrichtenanzeige */}
       {message && (
         <div className={`my-4 p-4 border rounded-md flex items-center gap-2 ${
           message.startsWith('Fehler:')
@@ -163,7 +164,8 @@ export default function AdminPage() {
 
       {/* --- User Management Grid --- */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-6">
-        {/* User Creation Form (Unverändert) */}
+        
+        {/* User Creation Form */}
         <div className="bg-white p-6 rounded-lg shadow-md h-fit border border-gray-200">
           <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
             <PersonPlus size={22} /> Neuen Nutzer anlegen
@@ -332,7 +334,7 @@ export default function AdminPage() {
           </form>
         </div>
 
-        {/* (Vorhandene Nutzer Liste - Unverändert) */}
+        {/* Vorhandene Nutzer Liste */}
         <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
           <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
             <People size={22} /> Vorhandene Nutzer
@@ -392,9 +394,12 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* ✅ NEU: LogoManager-Komponente, nur für Superadmin sichtbar */}
+      {/* ✅ KORREKTUR: Grid für Superadmin-Tools (LogoManager & LoginLogbook) */}
       {isSuperAdmin && (
-        <LogoManager />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
+          <LogoManager />
+          <LoginLogbook />
+        </div>
       )}
     </div>
   );
