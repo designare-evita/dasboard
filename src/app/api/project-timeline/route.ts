@@ -20,7 +20,6 @@ export async function GET(request: NextRequest) {
     
     // KORRIGIERT (Fix: Tippfehler)
     if (session?.user?.role !== 'BENUTZER') {
-      // Diese Route ist primär für die Kunden-Ansicht gedacht
       return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 403 });
     }
 
@@ -88,16 +87,17 @@ export async function GET(request: NextRequest) {
           endDateStr
         );
         
-        // KORRIGIERT (Fix 4): Wir brauchen das 'rows'-Array *innerhalb* des 'impressions'-Objekts
-        if (gscResult && gscResult.impressions && gscResult.impressions.rows) {
-          gscData = gscResult.impressions.rows; // Holen das Array
+        // KORRIGIERT (Fix 5): Das Trend-Array ist 'gscResult.rows', 
+        // während 'gscResult.impressions' nur die Gesamtsumme enthält.
+        if (gscResult && gscResult.rows) {
+          gscData = gscResult.rows; // Holen das Array
         }
         
       } catch (gscError) {
-        console.error('[Timeline API] Fehler beim Abrufen der GSC-Daten:', gscError);
+        console.error('[GET /api/project-timeline] Fehler beim Abrufen der GSC-Daten:', gscError);
       }
     } else {
-      console.warn('[Timeline API] Keine gsc_site_url für Benutzer konfiguriert.');
+      console.warn('[GET /api/project-timeline] Keine gsc_site_url für Benutzer konfiguriert.');
     }
 
     // 4. Daten kombinieren und zurückgeben
@@ -109,7 +109,7 @@ export async function GET(request: NextRequest) {
       progress: {
         counts: statusCounts,
         percentage: statusCounts.Total > 0 
-          ? (statusCounts['Freigegeben'] / statusCounts.Total) * 100 
+          ? (statusCounts['FreigeGeben'] / statusCounts.Total) * 100 
           : 0,
       },
       gscImpressionTrend: gscData,
