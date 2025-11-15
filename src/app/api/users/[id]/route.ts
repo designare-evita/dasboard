@@ -1,6 +1,4 @@
 // src/app/api/users/[id]/route.ts
-// ✅ AKTUALISIERT mit favicon_url
-
 import { NextResponse, NextRequest } from 'next/server';
 import { sql } from '@vercel/postgres';
 import bcrypt from 'bcryptjs';
@@ -8,6 +6,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { User } from '@/types';
 export const revalidate = 0;
+
 // Handler zum Abrufen eines einzelnen Benutzers
 export async function GET(
   request: NextRequest,
@@ -26,7 +25,7 @@ export async function GET(
       role: sessionRole, 
       id: sessionId, 
       mandant_id: sessionMandantId, 
-      permissions: sessionPermissions // KORREKTUR: Berechtigungen des Admins laden
+      permissions: sessionPermissions
     } = session.user;
     
     const isAdmin = sessionRole === 'ADMIN' || sessionRole === 'SUPERADMIN';
@@ -52,7 +51,9 @@ export async function GET(
         semrush_tracking_id_02,
         mandant_id,
         permissions,
-        favicon_url -- ✅ HINZUGEFÜGT
+        favicon_url,
+        project_start_date,      -- ✅ NEU
+        project_duration_months  -- ✅ NEU
       FROM users
       WHERE id = ${targetUserId}::uuid;
     `;
@@ -64,7 +65,7 @@ export async function GET(
     
     const userToGet = rows[0];
 
-    // --- KORRIGIERTE BERECHTIGUNGSPRÜFUNG ---
+    // --- BERECHTIGUNGSPRÜFUNG ---
     if (sessionRole === 'ADMIN') {
       // 1. Admin darf nur Benutzer des eigenen Mandanten sehen
       if (userToGet.mandant_id !== sessionMandantId) {
@@ -73,13 +74,12 @@ export async function GET(
       
       // 2. Admin darf andere Admins nur mit Berechtigung sehen
       const kannAdminsVerwalten = sessionPermissions?.includes('kann_admins_verwalten');
-      // Prüfen, ob das Ziel ein Admin ist UND es NICHT das eigene Profil ist UND die Berechtigung fehlt
       if (userToGet.role === 'ADMIN' && !isOwnProfile && !kannAdminsVerwalten) {
           console.warn(`[GET /api/users/${targetUserId}] Zugriff verweigert. Admin ${sessionId} hat keine Berechtigung für Admin ${targetUserId}.`);
           return NextResponse.json({ message: 'Sie haben keine Berechtigung, diesen Admin anzuzeigen' }, { status: 403 });
       }
     }
-    // SUPERADMIN darf alles (außer GET/isOwnProfile, was bereits abgedeckt ist)
+    // SUPERADMIN darf alles
 
     console.log(`[GET /api/users/${targetUserId}] ✅ Benutzer gefunden:`, userToGet.email);
     
@@ -112,7 +112,6 @@ export async function PUT(
     
     const isOwnProfile = sessionId === targetUserId;
 
-    // Nur Admins/Superadmins dürfen Updates durchführen
     if (sessionRole !== 'ADMIN' && sessionRole !== 'SUPERADMIN') {
       return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
     }
@@ -128,9 +127,11 @@ export async function PUT(
         semrush_tracking_id,
         semrush_tracking_id_02,
         password,
-        mandant_id, // NEU
-        permissions,  // NEU (als string[])
-        favicon_url // ✅ HINZUGEFÜGT
+        mandant_id, 
+        permissions,  
+        favicon_url,
+        project_start_date,      // ✅ NEU
+        project_duration_months  // ✅ NEU
     } = body;
 
     if (!email) {
@@ -146,30 +147,20 @@ export async function PUT(
     }
     const targetUser = existingUsers[0];
 
-    // --- KORRIGIERTE BERECHTIGUNGSPRÜFUNG (WER DARF WEN BEARBEITEN) ---
+    // --- BERECHTIGUNGSPRÜFUNG (WER DARF WEN BEARBEITEN) ---
     if (sessionRole === 'ADMIN') {
-      // 1. Admin darf keinen Superadmin bearbeiten
       if (targetUser.role === 'SUPERADMIN') {
         return NextResponse.json({ message: 'Admins dürfen keine Superadmins bearbeiten' }, { status: 403 });
       }
-      
-      // 2. Admin darf nur Benutzer im EIGENEN Mandanten bearbeiten
       if (targetUser.mandant_id !== sessionMandantId) {
         return NextResponse.json({ message: 'Sie dürfen nur Benutzer Ihres eigenen Mandanten bearbeiten' }, { status: 403 });
       }
-
-      // 3. Admin (Klasse 1) darf andere Admins im Mandanten bearbeiten
       const kannAdminsVerwalten = sessionPermissions?.includes('kann_admins_verwalten');
-      // Prüfen, ob das Ziel ein Admin ist UND es NICHT das eigene Profil ist UND die Berechtigung fehlt
       if (targetUser.role === 'ADMIN' && !isOwnProfile && !kannAdminsVerwalten) {
          console.warn(`[PUT /api/users/${targetUserId}] Zugriff verweigert. Admin ${sessionId} hat keine Berechtigung für Admin ${targetUserId}.`);
          return NextResponse.json({ message: 'Sie haben keine Berechtigung, andere Admins zu bearbeiten' }, { status: 403 });
       }
-
-      // 4. Ein normaler Admin darf mandant_id oder permissions nicht ändern (außer er bearbeitet sich selbst, aber das Feld wird im UI ausgeblendet)
       if ((body.mandant_id !== targetUser.mandant_id || body.permissions) && !kannAdminsVerwalten) {
-         // Wir lassen Admins ihre eigenen Profil-Details (z.B. Passwort) ändern,
-         // aber verhindern, dass sie ihre eigenen Berechtigungen oder Mandanten ändern.
          if (body.mandant_id || body.permissions) {
             return NextResponse.json({ message: 'Nur Superadmins (oder Admins mit Sonderrechten) dürfen Mandanten und Berechtigungen ändern' }, { status: 403 });
          }
@@ -177,11 +168,9 @@ export async function PUT(
     }
     
     if (sessionRole === 'SUPERADMIN') {
-      // Superadmin darf Ziel nicht zu Superadmin machen (Sicherheit)
       if (targetUser.role !== 'SUPERADMIN' && body.role === 'SUPERADMIN') {
          return NextResponse.json({ message: 'Die Zuweisung der SUPERADMIN-Rolle ist über die API nicht gestattet.' }, { status: 403 });
       }
-      // Superadmin darf sich nicht selbst bearbeiten (Sicherheit)
       if (isOwnProfile) {
          return NextResponse.json({ message: 'Superadmins können sich nicht selbst über die API bearbeiten.' }, { status: 403 });
       }
@@ -203,9 +192,13 @@ export async function PUT(
     
     console.log(`[PUT /api/users/${targetUserId}] Update-Anfrage...`);
     
-    // Konvertiere JS-Array ['label1'] in Postgres-Array-String '{label1}'
     const permissionsArray = Array.isArray(permissions) ? permissions : [];
     const permissionsPgString = `{${permissionsArray.join(',')}}`;
+
+    // ✅ NEU: Werte aufbereiten
+    const duration = project_duration_months ? parseInt(String(project_duration_months), 10) : null;
+    const startDate = project_start_date ? new Date(project_start_date).toISOString() : null;
+
 
     const { rows } = password && password.trim().length > 0
       ? // Query MIT Passwort
@@ -221,14 +214,17 @@ export async function PUT(
             semrush_tracking_id_02 = ${semrush_tracking_id_02 || null},
             mandant_id = ${mandant_id || null},
             permissions = ${permissionsPgString},
-            favicon_url = ${favicon_url || null}, -- ✅ HINZUGEFÜGT
+            favicon_url = ${favicon_url || null},
+            project_start_date = ${startDate},          -- ✅ NEU
+            project_duration_months = ${duration},      -- ✅ NEU
             password = ${await bcrypt.hash(password, 10)}
           WHERE id = ${targetUserId}::uuid
           RETURNING
             id::text as id, email, role, domain, 
             gsc_site_url, ga4_property_id, 
             semrush_project_id, semrush_tracking_id, semrush_tracking_id_02,
-            mandant_id, permissions, favicon_url; -- ✅ HINZUGEFÜGT
+            mandant_id, permissions, favicon_url,
+            project_start_date, project_duration_months; -- ✅ NEU
         `
       : // Query OHNE Passwort (password bleibt unverändert!)
         await sql<User>`
@@ -243,13 +239,16 @@ export async function PUT(
             semrush_tracking_id_02 = ${semrush_tracking_id_02 || null},
             mandant_id = ${mandant_id || null},
             permissions = ${permissionsPgString},
-            favicon_url = ${favicon_url || null} -- ✅ HINZUGEFÜGT
+            favicon_url = ${favicon_url || null},
+            project_start_date = ${startDate},          -- ✅ NEU
+            project_duration_months = ${duration}       -- ✅ NEU
           WHERE id = ${targetUserId}::uuid
           RETURNING
             id::text as id, email, role, domain, 
             gsc_site_url, ga4_property_id, 
             semrush_project_id, semrush_tracking_id, semrush_tracking_id_02,
-            mandant_id, permissions, favicon_url; -- ✅ HINZUGEFÜGT
+            mandant_id, permissions, favicon_url,
+            project_start_date, project_duration_months; -- ✅ NEU
         `;
 
     if (rows.length === 0) {
@@ -310,7 +309,7 @@ export async function DELETE(
     }
     const targetUser = existingUsers[0];
 
-    // --- KORRIGIERTE BERECHTIGUNGSPRÜFUNG (WER DARF WEN LÖSCHEN) ---
+    // --- BERECHTIGUNGSPRÜFUNG (WER DARF WEN LÖSCHEN) ---
     if (sessionRole === 'ADMIN') {
       if (targetUser.role === 'SUPERADMIN') {
         return NextResponse.json({ message: 'Admins dürfen keine Superadmins löschen' }, { status: 403 });
@@ -319,11 +318,9 @@ export async function DELETE(
         return NextResponse.json({ message: 'Sie dürfen nur Benutzer Ihres eigenen Mandanten löschen' }, { status: 403 });
       }
       const kannAdminsVerwalten = sessionPermissions?.includes('kann_admins_verwalten');
-      // Prüfen, ob das Ziel ein Admin ist UND es NICHT das eigene Profil ist UND die Berechtigung fehlt
       if (targetUser.role === 'ADMIN' && !isOwnProfile && !kannAdminsVerwalten) {
          return NextResponse.json({ message: 'Sie haben keine Berechtigung, andere Admins zu löschen' }, { status: 403 });
       }
-      // Admins dürfen sich nicht selbst löschen
       if (isOwnProfile) {
          return NextResponse.json({ message: 'Admins können sich nicht selbst löschen.' }, { status: 403 });
       }
@@ -341,7 +338,6 @@ export async function DELETE(
     `;
 
     if (result.rowCount === 0) {
-      // Sollte theoretisch nicht passieren, da wir oben schon geprüft haben
       return NextResponse.json({ message: "Benutzer nicht gefunden" }, { status: 404 });
     }
 
