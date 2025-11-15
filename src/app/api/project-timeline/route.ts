@@ -1,7 +1,7 @@
 // src/app/api/project-timeline/route.ts
 import { NextResponse, NextRequest } from 'next/server';
 import { sql } from '@vercel/postgres';
-import { getServerSession } from 'next-auth/next';
+import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getSearchConsoleData } from '@/lib/google-api';
 import { User } from '@/types';
@@ -18,7 +18,6 @@ export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (session?.user?.role !== 'BENUTZER') {
-      // Diese Route ist primär für die Kunden-Ansicht gedacht
       return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 403 });
     }
 
@@ -68,33 +67,26 @@ export async function GET(request: NextRequest) {
     });
 
     // 3. Hole GSC-Daten (Reichweite/Impressionen) seit Projektstart
-    
-    // ✅ KORREKTUR 1: Variable korrekt initialisieren (als Array für die Trenddaten)
     let gscImpressionTrend: { date: string; value: number }[] = [];
 
     if (gscSiteUrl) {
       try {
         const today = new Date();
-        // GSC-Daten haben oft 2 Tage Verzögerung
         const endDate = new Date(today);
         endDate.setDate(endDate.getDate() - 2); 
         
         const endDateStr = formatDate(endDate);
         const startDateStr = formatDate(startDate);
         
-        // Sicherstellen, dass das Startdatum nicht nach dem Enddatum liegt
         if (startDateStr < endDateStr) {
           console.log(`[Timeline API] Rufe GSC-Daten ab für ${gscSiteUrl} von ${startDateStr} bis ${endDateStr}`);
           
-          // ✅ KORREKTUR 2: `getSearchConsoleData` korrekt aufrufen (ohne Extra-Argumente)
           const gscDataResult = await getSearchConsoleData(
             gscSiteUrl,
             startDateStr,
             endDateStr
-            // Die überflüssigen Argumente ['impressions'] und 'date' wurden entfernt.
           );
           
-          // ✅ KORREKTUR 3: Den gewünschten Teil des Objekts (impressions.daily) zuweisen
           gscImpressionTrend = gscDataResult.impressions.daily;
 
         } else {
@@ -103,7 +95,6 @@ export async function GET(request: NextRequest) {
         
       } catch (gscError) {
         console.error('[Timeline API] Fehler beim Abrufen der GSC-Daten:', gscError);
-        // Fehler ist nicht fatal, Widget wird ohne Graphen geladen
       }
     } else {
       console.warn('[Timeline API] Keine gsc_site_url für Benutzer konfiguriert.');
@@ -121,7 +112,6 @@ export async function GET(request: NextRequest) {
           ? (statusCounts['Freigegeben'] / statusCounts.Total) * 100 
           : 0,
       },
-      // ✅ KORREKTUR 4: Die korrekte Variable übergeben
       gscImpressionTrend: gscImpressionTrend,
     });
 
