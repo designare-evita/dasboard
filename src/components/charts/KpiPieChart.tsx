@@ -131,7 +131,7 @@ const renderCustomLabel = (props: PieLabelRenderProps): string => {
   
   // Fallback: Berechne manuell aus den Daten
   if (props.value && props.payload && Array.isArray(props.payload)) {
-    const total = props.payload.reduce((sum: number, item: any) => {
+    const total = props.payload.reduce((sum: number, item: ChartEntry) => {
       return sum + (typeof item.value === 'number' ? item.value : 0);
     }, 0);
     
