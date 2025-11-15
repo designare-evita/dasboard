@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     
-    // KORRIGIERT (Fix 3 - Tippfehler)
+    // KORRIGIERT (Fix: Tippfehler)
     if (session?.user?.role !== 'BENUTZER') {
       // Diese Route ist primär für die Kunden-Ansicht gedacht
       return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 403 });
@@ -86,13 +86,11 @@ export async function GET(request: NextRequest) {
           gscSiteUrl,
           startDateStr,
           endDateStr
-          // ['impressions'], // ENTFERNT (Fix 3)
-          // 'date' // ENTFERNT (Fix 3)
         );
         
-        // NEU (Fix 2): Nur das Array der Impressionen zuweisen
-        if (gscResult && gscResult.impressions) {
-          gscData = gscResult.impressions;
+        // KORRIGIERT (Fix 4): Wir brauchen das 'rows'-Array *innerhalb* des 'impressions'-Objekts
+        if (gscResult && gscResult.impressions && gscResult.impressions.rows) {
+          gscData = gscResult.impressions.rows; // Holen das Array
         }
         
       } catch (gscError) {
