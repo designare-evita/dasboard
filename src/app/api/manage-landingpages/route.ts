@@ -2,11 +2,10 @@
 
 import { NextResponse } from 'next/server';
 import { sql } from '@vercel/postgres';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { auth } from '@/lib/auth'; // KORRIGIERT: Import von auth
 
 export async function GET() {
-  const session = await getServerSession(authOptions);
+  const session = await auth(); // KORRIGIERT: auth() aufgerufen
   
   if (session?.user?.role !== 'ADMIN' && session?.user?.role !== 'SUPERADMIN') {
     return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
@@ -178,7 +177,6 @@ export async function GET() {
         </div>
 
         <div class="grid">
-          <!-- Debug: Alle Landingpages anzeigen -->
           <div class="card">
             <h2>🔍 Debug-Informationen</h2>
             <button class="button" onclick="debugLandingpages()">
@@ -189,7 +187,6 @@ export async function GET() {
             </p>
           </div>
 
-          <!-- Test-Landingpages erstellen -->
           <div class="card">
             <h2>➕ Test-Daten erstellen</h2>
             <select id="userSelect" class="select">
@@ -204,7 +201,6 @@ export async function GET() {
           </div>
         </div>
 
-        <!-- Batch-Operationen -->
         <div class="card" style="margin-bottom: 20px;">
           <h2>⚡ Batch-Operationen</h2>
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px;">
@@ -220,7 +216,6 @@ export async function GET() {
           </p>
         </div>
 
-        <!-- Ergebnis-Anzeige -->
         <div id="result"></div>
       </div>
 
