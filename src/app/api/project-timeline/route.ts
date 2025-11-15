@@ -1,7 +1,7 @@
 // src/app/api/project-timeline/route.ts
 import { NextResponse, NextRequest } from 'next/server';
 import { sql } from '@vercel/postgres';
-import { getServerSession } from 'next-auth';
+import { getServerSession } from 'next/auth';
 import { authOptions } from '@/lib/auth';
 import { getSearchConsoleData } from '@/lib/google-api';
 import { User } from '@/types';
@@ -26,7 +26,6 @@ export async function GET(request: NextRequest) {
     const gscSiteUrl = session.user.gsc_site_url;
 
     // 1. Hole Projekt-Details (Start, Dauer) aus der DB
-    // Wir holen die aktuellsten Daten, falls sie im Admin-Panel geändert wurden
     const { rows: userRows } = await sql<User>`
       SELECT 
         project_start_date, 
@@ -63,29 +62,44 @@ export async function GET(request: NextRequest) {
 
     statusRows.forEach(row => {
       if (row.status in statusCounts) {
-        statusCounts[row.status as keyof typeof statusCounts] = parseInt(row.count, 10);
+        statusCounts[row.status as keyof typeof statusCounts] = parseInt(String(row.count), 10);
       }
-      statusCounts['Total'] += parseInt(row.count, 10);
+      statusCounts['Total'] += parseInt(String(row.count), 10);
     });
 
     // 3. Hole GSC-Daten (Reichweite/Impressionen) seit Projektstart
-    let gscData = [];
+    
+    // ✅ KORREKTUR 1: Variable korrekt initialisieren (als Array für die Trenddaten)
+    let gscImpressionTrend: { date: string; value: number }[] = [];
+
     if (gscSiteUrl) {
       try {
         const today = new Date();
-        const endDateStr = formatDate(today);
-        const startDateStr = formatDate(startDate);
-
-        console.log(`[Timeline API] Rufe GSC-Daten ab für ${gscSiteUrl} von ${startDateStr} bis ${endDateStr}`);
+        // GSC-Daten haben oft 2 Tage Verzögerung
+        const endDate = new Date(today);
+        endDate.setDate(endDate.getDate() - 2); 
         
-        // GSC-Daten (nur Impressionen, täglich) holen
-        gscData = await getSearchConsoleData(
-          gscSiteUrl,
-          startDateStr,
-          endDateStr,
-          ['impressions'], // Nur Impressionen (Reichweite)
-          'date' // Täglich
-        );
+        const endDateStr = formatDate(endDate);
+        const startDateStr = formatDate(startDate);
+        
+        // Sicherstellen, dass das Startdatum nicht nach dem Enddatum liegt
+        if (startDateStr < endDateStr) {
+          console.log(`[Timeline API] Rufe GSC-Daten ab für ${gscSiteUrl} von ${startDateStr} bis ${endDateStr}`);
+          
+          // ✅ KORREKTUR 2: `getSearchConsoleData` korrekt aufrufen (ohne Extra-Argumente)
+          const gscDataResult = await getSearchConsoleData(
+            gscSiteUrl,
+            startDateStr,
+            endDateStr
+            // Die überflüssigen Argumente ['impressions'] und 'date' wurden entfernt.
+          );
+          
+          // ✅ KORREKTUR 3: Den gewünschten Teil des Objekts (impressions.daily) zuweisen
+          gscImpressionTrend = gscDataResult.impressions.daily;
+
+        } else {
+           console.log('[Timeline API] Projektstart liegt in der Zukunft oder zu nah am Enddatum. Überspringe GSC-Abruf.');
+        }
         
       } catch (gscError) {
         console.error('[Timeline API] Fehler beim Abrufen der GSC-Daten:', gscError);
@@ -107,7 +121,8 @@ export async function GET(request: NextRequest) {
           ? (statusCounts['Freigegeben'] / statusCounts.Total) * 100 
           : 0,
       },
-      gscImpressionTrend: gscData,
+      // ✅ KORREKTUR 4: Die korrekte Variable übergeben
+      gscImpressionTrend: gscImpressionTrend,
     });
 
   } catch (error) {
