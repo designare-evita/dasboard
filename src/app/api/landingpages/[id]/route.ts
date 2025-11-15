@@ -1,12 +1,11 @@
 // src/app/api/landingpages/[id]/route.ts
 import { NextResponse, NextRequest } from 'next/server';
 import { sql } from '@vercel/postgres';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { auth } from '@/lib/auth'; // KORRIGIERT: Import von auth
 
 // Helper-Funktion für Admin-Check
 async function isAdminSession() {
-  const session = await getServerSession(authOptions);
+  const session = await auth(); // KORRIGIERT: auth() aufgerufen
   return session?.user?.role === 'ADMIN' || session?.user?.role === 'SUPERADMIN';
 }
 
@@ -104,7 +103,7 @@ export async function DELETE(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await auth(); // KORRIGIERT: auth() aufgerufen
     
     // Nur Admin und Superadmin dürfen löschen
     if (!session?.user?.id || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
