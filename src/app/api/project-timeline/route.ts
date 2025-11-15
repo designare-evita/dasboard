@@ -1,7 +1,7 @@
 // src/app/api/project-timeline/route.ts
 import { NextResponse, NextRequest } from 'next/server';
 import { sql } from '@vercel/postgres';
-import { getServerSession } from 'next/auth';
+import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { getSearchConsoleData } from '@/lib/google-api';
 import { User } from '@/types';
