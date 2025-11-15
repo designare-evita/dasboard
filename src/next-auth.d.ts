@@ -1,5 +1,4 @@
 // src/next-auth.d.ts
-
 import 'next-auth';
 import { DefaultSession } from 'next-auth';
 
@@ -16,9 +15,10 @@ declare module 'next-auth' {
     user: {
       id: string;
       role: 'BENUTZER' | 'ADMIN' | 'SUPERADMIN';
-      mandant_id?: string | null; // NEU
-      permissions?: string[]; // NEU
-      logo_url?: string | null; // ✅ NEU: Logo-URL für den Mandanten
+      mandant_id?: string | null;
+      permissions?: string[];
+      logo_url?: string | null;
+      gsc_site_url?: string | null; // ✅ HINZUGEFÜGT
     } & DefaultSession['user'];
   }
 }
@@ -32,8 +32,9 @@ declare module 'next-auth/jwt' {
     accessToken?: string;
     refreshToken?: string;
     role: 'BENUTZER' | 'ADMIN' | 'SUPERADMIN';
-    mandant_id?: string | null; // NEU
-    permissions?: string[]; // NEU
-    logo_url?: string | null; // ✅ NEU: Logo-URL für den Mandanten
+    mandant_id?: string | null;
+    permissions?: string[];
+    logo_url?: string | null;
+    gsc_site_url?: string | null; // ✅ HINZUGEFÜGT
   }
 }
