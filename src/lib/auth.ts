@@ -14,7 +14,7 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" }
       },
       async authorize(credentials) {
-        noStore();
+        noStore(); // Caching für Login-Anfragen deaktivieren
 
         if (!credentials?.email || !credentials.password) {
           throw new Error('E-Mail oder Passwort fehlt');
@@ -23,12 +23,13 @@ export const authOptions: NextAuthOptions = {
         const normalizedEmail = credentials.email.toLowerCase().trim();
         console.log('[Authorize] Suche Benutzer:', normalizedEmail);
 
-        // Wir teilen den try...catch Block auf
         let user;
         try {
-          // 1. Benutzerdaten holen
+          // 1. Benutzerdaten holen (INKLUSIVE GSC_SITE_URL)
           const { rows } = await sql`
-            SELECT id, email, password, role, mandant_id, permissions 
+            SELECT 
+              id, email, password, role, mandant_id, permissions,
+              gsc_site_url -- ✅ HINZUGEFÜGT
             FROM users 
             WHERE email = ${normalizedEmail}
           `;
@@ -67,23 +68,28 @@ export const authOptions: NextAuthOptions = {
         }
         
         // ==============================================
-        // Login-Ereignis protokollieren (OHNE try...catch für Debugging)
+        // Login-Ereignis protokollieren
         // ==============================================
         
-        console.log('[Authorize] Versuche, Login-Ereignis zu protokollieren...');
-        
-        await sql`
-          INSERT INTO login_logs (user_id, user_email, user_role)
-          VALUES (${user.id}, ${user.email}, ${user.role});
-        `;
-        
-        console.log('[Authorize] Login-Ereignis erfolgreich protokolliert.');
+        try {
+          console.log('[Authorize] Versuche, Login-Ereignis zu protokollieren...');
+          
+          await sql`
+            INSERT INTO login_logs (user_id, user_email, user_role)
+            VALUES (${user.id}, ${user.email}, ${user.role});
+          `;
+          
+          console.log('[Authorize] Login-Ereignis erfolgreich protokolliert.');
+        } catch (logError) {
+          // Fehler nur loggen, nicht den Login abbrechen
+          console.error('[Authorize] FEHLER beim Protokollieren des Logins (nicht-fatal):', logError);
+        }
         // ==============================================
         // ENDE
         // ==============================================
 
 
-        // (Logo-URL-Abruf bleibt unverändert)
+        // Logo-URL-Abruf
         let logo_url: string | null = null;
         if (user.mandant_id) {
           try {
@@ -98,7 +104,7 @@ export const authOptions: NextAuthOptions = {
           }
         }
 
-        // (Return bleibt unverändert)
+        // 3. Auth-Objekt zurückgeben (INKLUSIVE GSC_SITE_URL)
         return {
           id: user.id,
           email: user.email,
@@ -106,6 +112,7 @@ export const authOptions: NextAuthOptions = {
           mandant_id: user.mandant_id,
           permissions: user.permissions || [],
           logo_url: logo_url,
+          gsc_site_url: user.gsc_site_url || null, // ✅ HINZUGEFÜGT
         };
       }
     })
@@ -119,26 +126,25 @@ export const authOptions: NextAuthOptions = {
     signIn: '/login',
   },
   callbacks: {
-    // JWT mit Benutzerdaten anreichern
+    // 4. JWT mit Benutzerdaten anreichern
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        // ✅ KORREKTUR: Beschreibung hinzugefügt
         // @ts-expect-error Das 'user'-Objekt wird im 'authorize'-Callback dynamisch erweitert
         token.role = user.role;
-        // ✅ KORREKTUR: Beschreibung hinzugefügt
         // @ts-expect-error Das 'user'-Objekt wird im 'authorize'-Callback dynamisch erweitert
         token.mandant_id = user.mandant_id;
-        // ✅ KORREKTUR: Beschreibung hinzugefügt
         // @ts-expect-error Das 'user'-Objekt wird im 'authorize'-Callback dynamisch erweitert
         token.permissions = user.permissions;
-        // ✅ KORREKTUR: Beschreibung hinzugefügt
         // @ts-expect-error Das 'user'-Objekt wird im 'authorize'-Callback dynamisch erweitert
         token.logo_url = user.logo_url;
+        // @ts-expect-error Das 'user'-Objekt wird im 'authorize'-Callback dynamisch erweitert
+        token.gsc_site_url = user.gsc_site_url; // ✅ HINZUGEFÜGT
       }
       return token;
     },
-    // Session mit den Daten aus dem JWT anreichern
+    
+    // 5. Session mit den Daten aus dem JWT anreichern
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.id as string;
@@ -146,6 +152,7 @@ export const authOptions: NextAuthOptions = {
         session.user.mandant_id = token.mandant_id as string | null | undefined;
         session.user.permissions = token.permissions as string[] | undefined;
         session.user.logo_url = token.logo_url as string | null | undefined;
+        session.user.gsc_site_url = token.gsc_site_url as string | null | undefined; // ✅ HINZUGEFÜGT
       }
       return session;
     },
