@@ -1,8 +1,7 @@
 // src/app/api/project-timeline/route.ts
 import { NextResponse, NextRequest } from 'next/server';
 import { sql } from '@vercel/postgres';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { auth } from '@/lib/auth'; // KORRIGIERT: Import von auth
 import { getSearchConsoleData } from '@/lib/google-api';
 import { User } from '@/types';
 import { unstable_noStore as noStore } from 'next/cache';
@@ -16,7 +15,7 @@ export async function GET(request: NextRequest) {
   noStore(); // Caching für diese dynamische Route verhindern
   
   try {
-    const session = await getServerSession(authOptions);
+    const session = await auth(); // KORRIGIERT: auth() aufgerufen
     if (session?.user?.role !== 'BENUTZER') {
       return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 403 });
     }
