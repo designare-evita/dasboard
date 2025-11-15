@@ -4,7 +4,7 @@ import { sql } from '@vercel/postgres';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getSearchConsoleData } from '@/lib/google-api';
-import { User } from '@/types';
+import { User } from '@/types'; // Stelle sicher, dass der Typ 'User' auch 'gsc_site_url' enthält
 import { unstable_noStore as noStore } from 'next/cache';
 
 // Hilfsfunktion: Format YYYY-MM-DD
@@ -23,14 +23,15 @@ export async function GET(request: NextRequest) {
     }
 
     const userId = session.user.id;
-    const gscSiteUrl = session.user.gsc_site_url;
-
-    // 1. Hole Projekt-Details (Start, Dauer) aus der DB
+    // const gscSiteUrl = session.user.gsc_site_url; // ENTFERNT: Diese Zeile hat den Typfehler verursacht
+    
+    // 1. Hole Projekt-Details (Start, Dauer, GSC-URL) aus der DB
     // Wir holen die aktuellsten Daten, falls sie im Admin-Panel geändert wurden
     const { rows: userRows } = await sql<User>`
       SELECT 
         project_start_date, 
-        project_duration_months 
+        project_duration_months,
+        gsc_site_url -- NEU: gsc_site_url hier mit abfragen
       FROM users 
       WHERE id = ${userId}::uuid;
     `;
@@ -40,6 +41,7 @@ export async function GET(request: NextRequest) {
     }
     
     const project = userRows[0];
+    const gscSiteUrl = project.gsc_site_url; // NEU: Variable hier aus dem DB-Ergebnis holen
     const startDate = project.project_start_date ? new Date(project.project_start_date) : new Date();
     const duration = project.project_duration_months || 6;
 
@@ -70,7 +72,7 @@ export async function GET(request: NextRequest) {
 
     // 3. Hole GSC-Daten (Reichweite/Impressionen) seit Projektstart
     let gscData = [];
-    if (gscSiteUrl) {
+    if (gscSiteUrl) { // Diese Bedingung funktioniert jetzt mit der Variable aus der DB
       try {
         const today = new Date();
         const endDateStr = formatDate(today);
