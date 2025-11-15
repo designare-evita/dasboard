@@ -3,7 +3,14 @@
 
 import { useState, FormEvent, useEffect } from 'react';
 import { User } from '@/types';
-import { Pencil, ArrowRepeat, CheckCircle } from 'react-bootstrap-icons';
+// ✅ NEUE ICONS HINZUGEFÜGT (aus Version 2)
+import { 
+  Pencil, 
+  ArrowRepeat, 
+  CheckCircle, 
+  CalendarEvent, 
+  ClockHistory 
+} from 'react-bootstrap-icons';
 
 interface EditUserFormProps {
   user: User;
@@ -11,8 +18,24 @@ interface EditUserFormProps {
   isSuperAdmin: boolean; // Info, ob der EINGELOGGTE Benutzer Superadmin ist
 }
 
+// ✅ NEU: Hilfsfunktion, um Datum in 'YYYY-MM-DD' zu formatieren (aus Version 2)
+const formatDateForInput = (date: Date | string | null | undefined): string => {
+  if (!date) return '';
+  try {
+    const d = new Date(date);
+    // Korrigiert Zeitzonen-Probleme, indem lokales Datum genommen wird
+    const year = d.getFullYear();
+    const month = (d.getMonth() + 1).toString().padStart(2, '0');
+    const day = d.getDate().toString().padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  } catch (e) {
+    return '';
+  }
+};
+
+
 export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: EditUserFormProps) {
-  // (Form States)
+  // ✅ NEUE FELDER IM STATE (aus Version 2)
   const [formData, setFormData] = useState({
     email: '',
     mandantId: '',
@@ -24,6 +47,8 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
     semrushTrackingId: '',
     semrushTrackingId02: '',
     favicon_url: '',
+    project_start_date: '',    // ✅ NEU
+    project_duration_months: '6', // ✅ NEU (Standard 6)
   });
 
   const [password, setPassword] = useState('');
@@ -31,7 +56,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
 
-  // (useEffect zum Füllen)
+  // ✅ USEEFFECT ANGEPASST (aus Version 2)
   useEffect(() => {
     if (user) {
       setFormData({
@@ -45,6 +70,8 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
         semrushTrackingId: user.semrush_tracking_id || '',
         semrushTrackingId02: user.semrush_tracking_id_02 || '',
         favicon_url: user.favicon_url || '',
+        project_start_date: formatDateForInput(user.project_start_date), // ✅ NEU
+        project_duration_months: String(user.project_duration_months || 6), // ✅ NEU
       });
       setPassword('');
       setMessage('');
@@ -52,7 +79,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
     }
   }, [user]);
 
-  // (handleInputChange)
+  // (handleInputChange - Unverändert)
   const handleInputChange = (field: keyof typeof formData, value: string) => {
     setFormData(prev => ({
       ...prev,
@@ -60,7 +87,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
     }));
   };
 
-  // (handleSubmit - KORRIGIERTE VERSION)
+  // ✅ HANDLESUBMIT ANGEPASST (Kombination aus Version 1 & 2)
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setMessage('💾 Speichere Änderungen...');
@@ -72,7 +99,8 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
         .map(p => p.trim())
         .filter(p => p.length > 0);
 
-      const payload: Record<string, string | string[] | null> = {
+      // (Typ 'any' aus Version 2 übernommen, um gemischte Typen (string, int, array) zu erlauben)
+      const payload: Record<string, any> = {
         email: formData.email,
         mandant_id: formData.mandantId || null,
         permissions: (isSuperAdmin && user.role === 'ADMIN') ? permissionsArray : null,
@@ -85,12 +113,18 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
         semrush_project_id: formData.semrushProjectId || null,
         semrush_tracking_id: formData.semrushTrackingId || null,
         semrush_tracking_id_02: formData.semrushTrackingId02 || null,
+
+        // ✅ NEUE FELDER (aus Version 2)
+        project_start_date: formData.project_start_date || null,
+        project_duration_months: parseInt(formData.project_duration_months, 10) || 6,
       };
       
+      // (Logik aus Version 1)
       if (!isSuperAdmin || user.role !== 'ADMIN') {
         delete payload.permissions;
       }
       
+      // (Logik aus Version 1)
       if (password && password.trim().length > 0) {
         payload.password = password;
       }
@@ -101,11 +135,11 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
         body: JSON.stringify(payload),
       });
 
-      // ✅ KORREKTUR 1: 'result' als 'unknown' typisieren (sicherer als 'any')
+      // ✅ KORREKTUR 1 (aus Version 1): 'result' als 'unknown' typisieren
       const result: unknown = await response.json();
 
       if (!response.ok) {
-        // ✅ KORREKTUR 2: Type-Guard, um sicher auf Fehler-Properties zuzugreifen
+        // ✅ KORREKTUR 2 (aus Version 1): Type-Guard für Fehler
         let errorMessage = `HTTP ${response.status}: Ein Fehler ist aufgetreten.`;
         if (typeof result === 'object' && result !== null) {
             const errorObj = result as { message?: string; error?: string };
@@ -114,12 +148,12 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
         throw new Error(errorMessage);
       }
 
-      // ✅ KORREKTUR 3: 'result' als 'User' typisieren (jetzt ist es sicher)
+      // ✅ KORREKTUR 3 (aus Version 1): 'result' als 'User' typisieren
       const updatedUser = result as User;
 
-      // (Restlicher Success-Code - Aktualisiert mit 'updatedUser')
+      // (Success-Code - Kombiniert aus Version 1 und 2)
       setFormData({
-        // ✅ KORREKTUR 4: 'updatedUser' statt 'result' verwenden
+        // ✅ KORREKTUR 4 (aus Version 1): 'updatedUser' statt 'result'
         email: updatedUser.email || '',
         mandantId: updatedUser.mandant_id || '',
         permissions: updatedUser.permissions?.join(', ') || '',
@@ -130,6 +164,9 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
         semrushTrackingId: updatedUser.semrush_tracking_id || '',
         semrushTrackingId02: updatedUser.semrush_tracking_id_02 || '',
         favicon_url: updatedUser.favicon_url || '',
+        // ✅ NEUE FELDER (aus Version 2)
+        project_start_date: formatDateForInput(updatedUser.project_start_date),
+        project_duration_months: String(updatedUser.project_duration_months || 6),
       });
       setPassword('');
       setMessage('');
@@ -183,7 +220,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
           />
         </div>
 
-        {/* --- Mandant & Berechtigungen --- */}
+        {/* --- Mandant & Berechtigungen (aus Version 1) --- */}
         <div className="border-t pt-4 mt-4">
           <label className="block text-sm font-medium text-gray-700">Mandant-ID (Label)</label>
           <input
@@ -220,92 +257,108 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
         {/* --- Wrapper für BENUTZER-spezifische Felder --- */}
         {user.role === 'BENUTZER' && (
           <>
-            {/* --- Domain & Google Sektion --- */}
-            <div className="border-t pt-4 mt-4">
-              <label className="block text-sm font-medium text-gray-700">Domain</label>
-              <input
-                type="text"
-                value={formData.domain}
-                onChange={(e) => handleInputChange('domain', e.target.value)}
-                placeholder="z.B. www.kundendomain.at"
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
-                disabled={isSubmitting}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Favicon URL
-                {formData.favicon_url && (
-                  <span className="ml-2 text-xs text-green-600">✓ Gesetzt</span>
-                )}
-              </label>
-              <input
-                type="text"
-                value={formData.favicon_url}
-                onChange={(e) => handleInputChange('favicon_url', e.target.value)}
-                placeholder="Optional: https://example.com/favicon.png"
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
-                disabled={isSubmitting}
-              />
-              {formData.favicon_url && (
-                <p className="mt-1 text-xs text-gray-500">Aktueller Wert: {formData.favicon_url}</p>
-              )}
-            </div>
-
-            {/* (GSC Site URL) */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                GSC Site URL
-                {formData.gscSiteUrl && (
-                  <span className="ml-2 text-xs text-green-600">✓ Gesetzt</span>
-                )}
-              </label>
-              <input
-                type="text"
-                value={formData.gscSiteUrl}
-                onChange={(e) => handleInputChange('gscSiteUrl', e.target.value)}
-                placeholder="z.B. sc-domain:kundendomain.at"
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
-                disabled={isSubmitting}
-              />
-              {formData.gscSiteUrl && (
-                <p className="mt-1 text-xs text-gray-500">Aktueller Wert: {formData.gscSiteUrl}</p>
-              )}
-            </div>
-
-            {/* (GA4 Property ID) */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                GA4 Property ID
-                {formData.ga4PropertyId && (
-                  <span className="ml-2 text-xs text-green-600">✓ Gesetzt</span>
-                )}
-              </label>
-              <input
-                type="text"
-                value={formData.ga4PropertyId}
-                onChange={(e) => handleInputChange('ga4PropertyId', e.target.value)}
-                placeholder="z.B. 123456789"
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
-                disabled={isSubmitting}
-              />
-              {formData.ga4PropertyId && (
-                <p className="mt-1 text-xs text-gray-500">Aktueller Wert: {formData.ga4PropertyId}</p>
-              )}
-            </div>
-
-
-            {/* ========== SEMRUSH SECTION ========== */}
+            {/* --- ✅ NEU: Projekt-Timeline Sektion (aus Version 2) --- */}
             <fieldset className="border-t pt-4 mt-4">
+              <legend className="text-sm font-medium text-gray-700 mb-2">Projekt-Timeline</legend>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Startdatum */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 flex items-center gap-1">
+                    <CalendarEvent size={14} /> Projekt-Startdatum
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.project_start_date}
+                    onChange={(e) => handleInputChange('project_start_date', e.target.value)}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    disabled={isSubmitting}
+                  />
+                </div>
+                {/* Dauer */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 flex items-center gap-1">
+                    <ClockHistory size={14} /> Projektdauer (Monate)
+                  </label>
+                  <select
+                    value={formData.project_duration_months}
+                    onChange={(e) => handleInputChange('project_duration_months', e.target.value)}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    disabled={isSubmitting}
+                  >
+                    <option value="6">6 Monate</option>
+                    <option value="12">12 Monate</option>
+                    <option value="18">18 Monate</option>
+                    <option value="24">24 Monate</option>
+                  </select>
+                </div>
+              </div>
+            </fieldset>
+
+            {/* --- ✅ RESTRUKTURIERT: Konfiguration (aus Version 2) --- */}
+            <fieldset className="border-t pt-4 mt-4">
+              <legend className="text-sm font-medium text-gray-700 mb-2">Konfiguration</legend>
+              
+              {/* (Domain) */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700">Domain</label>
+                <input
+                  type="text"
+                  value={formData.domain}
+                  onChange={(e) => handleInputChange('domain', e.target.value)}
+                  placeholder="z.B. www.kundendomain.at"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
+                  disabled={isSubmitting}
+                />
+              </div>
+
+              {/* (Favicon URL) */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700">Favicon URL</label>
+                <input
+                  type="text"
+                  value={formData.favicon_url}
+                  onChange={(e) => handleInputChange('favicon_url', e.target.value)}
+                  placeholder="Optional: https://example.com/favicon.png"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
+                  disabled={isSubmitting}
+                />
+              </div>
+
+              {/* (GSC Site URL) */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700">GSC Site URL</label>
+                <input
+                  type="text"
+                  value={formData.gscSiteUrl}
+                  onChange={(e) => handleInputChange('gscSiteUrl', e.target.value)}
+                  placeholder="z.B. sc-domain:kundendomain.at"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
+                  disabled={isSubmitting}
+                />
+              </div>
+
+              {/* (GA4 Property ID) */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700">GA4 Property ID</label>
+                <input
+                  type="text"
+                  value={formData.ga4PropertyId}
+                  onChange={(e) => handleInputChange('ga4PropertyId', e.target.value)}
+                  placeholder="z.B. 123456789"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
+                  disabled={isSubmitting}
+                />
+              </div>
+            </fieldset>
+
+            {/* ========== ✅ RESTRUKTURIERT: SEMRUSH SECTION ========== */}
+            <fieldset className="border-t pt-4 mt-4">
+              <legend className="text-sm font-medium text-gray-700 mb-2">Semrush</legend>
               
               {/* (Semrush Projekt ID) */}
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700">
                   Semrush Projekt ID
-                  {formData.semrushProjectId && (
-                    <span className="ml-2 text-xs text-green-600">✓ Gesetzt</span>
-                  )}
                 </label>
                 <input
                   type="text"
@@ -315,18 +368,12 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
                   disabled={isSubmitting}
                 />
-                {formData.semrushProjectId && (
-                  <p className="mt-1 text-xs text-gray-500">Aktueller Wert: {formData.semrushProjectId}</p>
-                )}
               </div>
 
               {/* (Semrush Tracking-ID (Kampagne 1)) */}
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700">
                   Semrush Tracking-ID (Kampagne 1)
-                  {formData.semrushTrackingId && (
-                    <span className="ml-2 text-xs text-green-600">✓ Gesetzt</span>
-                  )}
                 </label>
                 <input
                   type="text"
@@ -336,18 +383,12 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
                   disabled={isSubmitting}
                 />
-                {formData.semrushTrackingId && (
-                  <p className="mt-1 text-xs text-gray-500">Aktueller Wert: {formData.semrushTrackingId}</p>
-                )}
               </div>
 
               {/* (Semrush Tracking-ID 02 (Kampagne 2)) */}
               <div>
                 <label className="block text-sm font-medium text-gray-700">
                   Semrush Tracking-ID (Kampagne 2)
-                  {formData.semrushTrackingId02 && (
-                    <span className="ml-2 text-xs text-green-600">✓ Gesetzt</span>
-                  )}
                 </label>
                 <input
                   type="text"
@@ -357,9 +398,6 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
                   disabled={isSubmitting}
                 />
-                {formData.semrushTrackingId02 && (
-                  <p className="mt-1 text-xs text-gray-500">Aktueller Wert: {formData.semrushTrackingId02}</p>
-                )}
                 <p className="mt-1 text-xs text-gray-400">Optional: Für eine zweite Kampagne/Tracking</p>
               </div>
             </fieldset>
