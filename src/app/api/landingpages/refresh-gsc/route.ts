@@ -1,8 +1,7 @@
 // src/app/api/landingpages/refresh-gsc/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { auth } from '@/lib/auth'; // KORRIGIERT: Import von auth
 import { sql, type QueryResult } from '@vercel/postgres'; // SQL-Client
 import { getGscDataForPagesWithComparison } from '@/lib/google-api'; // Unsere GSC-Funktion
 import type { User } from '@/types';
@@ -66,7 +65,7 @@ export async function POST(request: NextRequest) {
   
   try {
     // 1. Authentifizierung und Autorisierung
-    const session = await getServerSession(authOptions);
+    const session = await auth(); // KORRIGIERT: auth() aufgerufen
     const user = session?.user;
 
     if (!user) {
@@ -93,6 +92,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ message: 'Zugriff auf dieses Projekt verweigert' }, { status: 403 });
       }
     }
+    // SUPERADMIN hat immer Zugriff (wird durch user-Check oben abgedeckt)
 
     // 4. Benötigte Daten laden (GSC Site URL und Landingpage-URLs)
     const { rows: projectRows } = await sql<Pick<User, 'gsc_site_url'>>`
