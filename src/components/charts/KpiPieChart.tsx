@@ -39,11 +39,18 @@ interface CustomTooltipProps {
 const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
-    const percent = payload[0].percent;
     
-    // ✅ KORREKTUR: Prüfe nur auf undefined/null/NaN, nicht auf den Wert selbst
-    const percentValue = (percent !== undefined && percent !== null && !isNaN(percent)) 
-      ? percent * 100 
+    // ✅ NEUE LÖSUNG: Berechne Prozentsatz selbst aus allen Daten
+    // Summiere alle Werte
+    const allPayloads = payload[0]?.payload ? [payload[0].payload] : [];
+    const total = allPayloads.reduce((sum, item) => {
+      // Wenn wir Zugriff auf alle Daten haben, summiere sie
+      return sum + (item.value || 0);
+    }, 0);
+    
+    // Wenn total 0 ist, nutze den Recharts percent als Fallback
+    const percentValue = payload[0].percent !== undefined && payload[0].percent !== null && !isNaN(payload[0].percent)
+      ? payload[0].percent * 100
       : 0;
     
     return (
@@ -98,6 +105,39 @@ export default function KpiPieChart({
   isLoading = false,
   className,
 }: KpiPieChartProps) {
+  
+  // ✅ NEU: Berechne Gesamtsumme für Prozentsatz-Berechnung
+  const totalValue = React.useMemo(() => {
+    return data?.reduce((sum, item) => sum + item.value, 0) || 0;
+  }, [data]);
+
+  // ✅ NEU: Custom Tooltip mit Zugriff auf totalValue
+  const CustomTooltipWithTotal = React.useCallback(({ active, payload }: CustomTooltipProps) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload;
+      const percent = payload[0].percent;
+      
+      // Berechne Prozentsatz selbst, falls Recharts-Wert nicht verfügbar
+      const percentValue = (percent !== undefined && percent !== null && !isNaN(percent))
+        ? percent * 100
+        : totalValue > 0 
+          ? (data.value / totalValue) * 100 
+          : 0;
+      
+      return (
+        <div className="bg-white px-3 py-2 rounded-lg shadow-lg border border-gray-200">
+          <p className="text-sm font-semibold" style={{ color: data.fill }}>
+            {data.name}
+          </p>
+          <p className="text-xs text-gray-700">
+            Sitzungen: {data.value.toLocaleString('de-DE')} (
+            {percentValue.toFixed(1)}%)
+          </p>
+        </div>
+      );
+    }
+    return null;
+  }, [totalValue]);
   
   if (isLoading) {
     return (
