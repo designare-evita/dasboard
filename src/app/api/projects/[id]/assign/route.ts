@@ -1,9 +1,9 @@
 // src/app/api/projects/[id]/assign/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-// KORREKTUR: 'Session' importieren, um 'any' zu ersetzen
-import { getServerSession, type Session } from 'next-auth'; 
-import { authOptions } from '@/lib/auth';
+// KORREKTUR: 'Session' importieren und auth
+import { type Session } from 'next-auth'; 
+import { auth } from '@/lib/auth'; // KORRIGIERT
 import { sql } from '@vercel/postgres';
 
 // Berechtigungsprüfung: Darf der eingeloggte Admin Zuweisungen ändern?
@@ -24,7 +24,7 @@ export async function POST(
 ) {
   try {
     const { id: projectId } = await params;
-    const session = await getServerSession(authOptions);
+    const session = await auth(); // KORRIGIERT: auth() aufgerufen
     
     console.log('[POST /api/projects/[id]/assign] Start');
     
@@ -95,7 +95,7 @@ export async function DELETE(
 ) {
   try {
     const { id: projectId } = await params;
-    const session = await getServerSession(authOptions);
+    const session = await auth(); // KORRIGIERT: auth() aufgerufen
     
     console.log('[DELETE /api/projects/[id]/assign] Start');
 
