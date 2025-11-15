@@ -20,6 +20,10 @@ export interface User {
   semrush_organic_traffic?: number;
   semrush_last_fetched?: string; // Kommt als String/Date von der DB
   favicon_url?: string;
+
+  // ✅ NEU: Felder für Projekt-Timeline
+  project_start_date?: Date | null;
+  project_duration_months?: number | null;
 }
 
 export interface Landingpage {
