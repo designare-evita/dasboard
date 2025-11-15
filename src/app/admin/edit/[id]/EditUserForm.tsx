@@ -28,10 +28,27 @@ const formatDateForInput = (date: Date | string | null | undefined): string => {
     const month = (d.getMonth() + 1).toString().padStart(2, '0');
     const day = d.getDate().toString().padStart(2, '0');
     return `${year}-${month}-${day}`;
-  } catch (e) {
+  } catch { // ✅ KORREKTUR 1: 'e' entfernt, da es nicht verwendet wird
     return '';
   }
 };
+
+// ✅ KORREKTUR 2 (NEU): Typdefinition für das API-Payload (behebt @typescript-eslint/no-explicit-any)
+interface ApiPayload {
+  email: string;
+  mandant_id: string | null;
+  permissions?: string[] | null; // Optional, da es evtl. gelöscht wird
+  domain: string | null;
+  gsc_site_url: string | null;
+  ga4_property_id: string | null;
+  favicon_url: string | null;
+  semrush_project_id: string | null;
+  semrush_tracking_id: string | null;
+  semrush_tracking_id_02: string | null;
+  project_start_date: string | null; 
+  project_duration_months: number | null; 
+  password?: string; // Optional
+}
 
 
 export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: EditUserFormProps) {
@@ -99,8 +116,8 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
         .map(p => p.trim())
         .filter(p => p.length > 0);
 
-      // (Typ 'any' aus Version 2 übernommen, um gemischte Typen (string, int, array) zu erlauben)
-      const payload: Record<string, any> = {
+      // ✅ KORREKTUR 2: Expliziten Typ 'ApiPayload' statt 'any' verwenden
+      const payload: ApiPayload = {
         email: formData.email,
         mandant_id: formData.mandantId || null,
         permissions: (isSuperAdmin && user.role === 'ADMIN') ? permissionsArray : null,
@@ -184,6 +201,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
   };
 
   // --- Rendering des Formulars ---
+  // (Restlicher JSX-Code bleibt unverändert)
   return (
     <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
       <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
