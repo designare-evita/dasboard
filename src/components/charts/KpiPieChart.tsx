@@ -153,15 +153,13 @@ export default function KpiPieChart({
               label={(props: PieLabelRenderProps) => {
                 // ✅ WICHTIGE KORREKTUR: 
                 // props.percent kommt bereits als Dezimalwert (0.14 = 14%)
-                // Wir müssen ihn NICHT mit 100 multiplizieren für die Anzeige
-                const percent = props.percent ?? 0;
+                // TypeScript-sicher mit expliziter Nummer-Konvertierung
+                const percentValue = typeof props.percent === 'number' 
+                  ? props.percent 
+                  : 0;
                 
-                // Für die Anzeige: Wenn percent bereits zwischen 0 und 1 ist
-                if (percent >= 0 && percent <= 1) {
-                  return `${(percent * 100).toFixed(0)}%`;
-                }
-                // Falls percent bereits als Prozentwert kommt (sollte nicht passieren)
-                return `${percent.toFixed(0)}%`;
+                // Multipliziere mit 100 für die Prozentanzeige
+                return `${(percentValue * 100).toFixed(0)}%`;
               }}
             >
               {data.map((entry, index) => (
