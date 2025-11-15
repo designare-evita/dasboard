@@ -41,8 +41,9 @@ const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
     const data = payload[0].payload;
     const percent = payload[0].percent;
     
-    // ✅ KORREKTUR: Prüfe nur auf undefined/null/NaN, nicht auf den Wert selbst
-    const percentValue = (percent !== undefined && percent !== null && !isNaN(percent)) 
+    // ✅ KORREKTUR: Recharts liefert percent als Dezimalwert (0.84 = 84%)
+    // Wir müssen mit 100 multiplizieren für die Prozentanzeige
+    const percentValue = typeof percent === 'number'
       ? percent * 100 
       : 0;
     
