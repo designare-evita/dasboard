@@ -20,6 +20,9 @@ import ProjectDashboard from '@/components/ProjectDashboard';
 import LandingpageApproval from '@/components/LandingpageApproval';
 import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector';
 
+// ✅ NEU: Import für das Timeline Widget
+import ProjectTimelineWidget from '@/components/ProjectTimelineWidget';
+
 export default function HomePage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -100,7 +103,7 @@ export default function HomePage() {
     setDateRange(range);
     // ✅ Trigger explizit einen neuen Fetch
     if (session?.user.role === 'BENUTZER') {
-      fetchData(range);
+      void fetchData(range);
     }
   };
 
@@ -222,7 +225,12 @@ function CustomerDashboard({
 
   return (
     <div className="p-4 md:p-8 bg-gray-50 min-h-screen">
-      <main>
+      <main className="space-y-8">
+        
+        {/* Das neue Timeline Widget */}
+        <ProjectTimelineWidget />
+
+        {/* Das Haupt-Dashboard */}
         <ProjectDashboard
           data={data}
           isLoading={isLoading}
@@ -239,10 +247,14 @@ function CustomerDashboard({
           channelData={data.channelData}
           deviceData={data.deviceData}
         />
-
+        
+        {/*
         <div className="mt-8">
           <LandingpageApproval />
         </div>
+        */}
+        {/* LandingpageApproval wird jetzt über /dashboard/freigabe aufgerufen */}
+
       </main>
     </div>
   );
