@@ -17,21 +17,20 @@ export async function GET(request: NextRequest) {
   
   try {
     const session = await getServerSession(authOptions);
-    
-    // KORRIGIERT (Fix: Tippfehler)
     if (session?.user?.role !== 'BENUTZER') {
+      // Diese Route ist primär für die Kunden-Ansicht gedacht
       return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 403 });
     }
 
     const userId = session.user.id;
-    // const gscSiteUrl = session.user.gsc_site_url; // ENTFERNT (Fix 1)
+    const gscSiteUrl = session.user.gsc_site_url;
 
-    // 1. Hole Projekt-Details (Start, Dauer, GSC-URL) aus der DB
+    // 1. Hole Projekt-Details (Start, Dauer) aus der DB
+    // Wir holen die aktuellsten Daten, falls sie im Admin-Panel geändert wurden
     const { rows: userRows } = await sql<User>`
       SELECT 
         project_start_date, 
-        project_duration_months,
-        gsc_site_url -- NEU (Fix 1)
+        project_duration_months 
       FROM users 
       WHERE id = ${userId}::uuid;
     `;
@@ -41,7 +40,6 @@ export async function GET(request: NextRequest) {
     }
     
     const project = userRows[0];
-    const gscSiteUrl = project.gsc_site_url; // NEU (Fix 1)
     const startDate = project.project_start_date ? new Date(project.project_start_date) : new Date();
     const duration = project.project_duration_months || 6;
 
@@ -71,7 +69,7 @@ export async function GET(request: NextRequest) {
     });
 
     // 3. Hole GSC-Daten (Reichweite/Impressionen) seit Projektstart
-    let gscData = []; 
+    let gscData = [];
     if (gscSiteUrl) {
       try {
         const today = new Date();
@@ -80,24 +78,21 @@ export async function GET(request: NextRequest) {
 
         console.log(`[Timeline API] Rufe GSC-Daten ab für ${gscSiteUrl} von ${startDateStr} bis ${endDateStr}`);
         
-        // KORRIGIERT (Fix 3): Überflüssige Argumente entfernt
-        const gscResult = await getSearchConsoleData(
+        // GSC-Daten (nur Impressionen, täglich) holen
+        gscData = await getSearchConsoleData(
           gscSiteUrl,
           startDateStr,
-          endDateStr
+          endDateStr,
+          ['impressions'], // Nur Impressionen (Reichweite)
+          'date' // Täglich
         );
         
-        // KORRIGIERT (Fix 5): Das Trend-Array ist 'gscResult.rows', 
-        // während 'gscResult.impressions' nur die Gesamtsumme enthält.
-        if (gscResult && gscResult.rows) {
-          gscData = gscResult.rows; // Holen das Array
-        }
-        
       } catch (gscError) {
-        console.error('[GET /api/project-timeline] Fehler beim Abrufen der GSC-Daten:', gscError);
+        console.error('[Timeline API] Fehler beim Abrufen der GSC-Daten:', gscError);
+        // Fehler ist nicht fatal, Widget wird ohne Graphen geladen
       }
     } else {
-      console.warn('[GET /api/project-timeline] Keine gsc_site_url für Benutzer konfiguriert.');
+      console.warn('[Timeline API] Keine gsc_site_url für Benutzer konfiguriert.');
     }
 
     // 4. Daten kombinieren und zurückgeben
@@ -109,7 +104,7 @@ export async function GET(request: NextRequest) {
       progress: {
         counts: statusCounts,
         percentage: statusCounts.Total > 0 
-          ? (statusCounts['FreigeGeben'] / statusCounts.Total) * 100 
+          ? (statusCounts['Freigegeben'] / statusCounts.Total) * 100 
           : 0,
       },
       gscImpressionTrend: gscData,
