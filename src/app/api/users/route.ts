@@ -128,7 +128,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST: Neuen Benutzer erstellen
+// POST: Neuen Benutzer erstellen (✅ AKTUALISIERT mit Projekt-Datum/Dauer)
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
 
@@ -151,7 +151,9 @@ export async function POST(req: NextRequest) {
       semrush_project_id, 
       semrush_tracking_id, 
       semrush_tracking_id_02,
-      favicon_url // ✅ HINZUGEFÜGT: favicon_url aus dem Body lesen
+      favicon_url,
+      project_start_date,     // ✅ NEU
+      project_duration_months // ✅ NEU
     } = body;
 
     if (!email || !password || !role) {
@@ -197,12 +199,18 @@ export async function POST(req: NextRequest) {
     const permissionsArray = Array.isArray(permissions) ? permissions : [];
     const permissionsPgString = `{${permissionsArray.join(',')}}`;
 
+    // ✅ NEU: Werte aufbereiten (Standardmäßig HEUTE und 6 Monate, falls nicht angegeben)
+    const duration = project_duration_months ? parseInt(String(project_duration_months), 10) : 6;
+    const startDate = project_start_date ? new Date(project_start_date).toISOString() : new Date().toISOString();
+
     const { rows: newUsers } = await sql<User>`
       INSERT INTO users (
         email, password, role, mandant_id, permissions,
         domain, gsc_site_url, ga4_property_id,
         semrush_project_id, semrush_tracking_id, semrush_tracking_id_02,
-        favicon_url, -- ✅ HINZUGEFÜGT
+        favicon_url,
+        project_start_date,     // ✅ NEU
+        project_duration_months, // ✅ NEU
         "createdByAdminId"
       )
       VALUES (
@@ -211,10 +219,12 @@ export async function POST(req: NextRequest) {
         ${permissionsPgString},
         ${domain || null}, ${gsc_site_url || null}, ${ga4_property_id || null},
         ${semrush_project_id || null}, ${semrush_tracking_id || null}, ${semrush_tracking_id_02 || null},
-        ${favicon_url || null}, -- ✅ HINZUGEFÜGT
+        ${favicon_url || null},
+        ${startDate},             // ✅ NEU
+        ${duration},              // ✅ NEU
         ${createdByAdminId}
       )
-      RETURNING id, email, role, domain, mandant_id, permissions, favicon_url`; // ✅ HINZUGEFÜGT
+      RETURNING id, email, role, domain, mandant_id, permissions, favicon_url, project_start_date, project_duration_months`; // ✅ NEU
       
     const newUser = newUsers[0];
 
