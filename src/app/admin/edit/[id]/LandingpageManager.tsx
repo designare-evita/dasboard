@@ -45,7 +45,7 @@ export default function LandingpageManager({ userId }: Props) {
   // Funktion zum Erstellen und Herunterladen der XLSX-Vorlage
   const downloadTemplate = async () => {
     // Dynamischer Import, da es sich um Client-Code handelt
-    const xlsx = await import('xlsx');
+   const xlsx = await import('@e965/xlsx');
     const ws = xlsx.utils.aoa_to_sheet([
         ["Landingpage-URL", "Haupt-Keyword", "Weitere Keywords", "Suchvolumen", "Aktuelle Pos."],
         ["https://beispiel.de/seite-1", "Beispiel Keyword", "Noch ein Keyword", 1000, 15]
