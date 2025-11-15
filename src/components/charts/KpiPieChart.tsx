@@ -40,6 +40,12 @@ const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     const percent = payload[0].percent;
+    
+    // ✅ KORREKTUR: Sichere Prozent-Berechnung mit Fallback
+    const percentValue = typeof percent === 'number' && !isNaN(percent) 
+      ? percent * 100 
+      : 0;
+    
     return (
       <div className="bg-white px-3 py-2 rounded-lg shadow-lg border border-gray-200">
         <p className="text-sm font-semibold" style={{ color: data.fill }}>
@@ -47,7 +53,7 @@ const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
         </p>
         <p className="text-xs text-gray-700">
           Sitzungen: {data.value.toLocaleString('de-DE')} (
-          {(percent * 100).toFixed(1)}%)
+          {percentValue.toFixed(1)}%)
         </p>
       </div>
     );
@@ -142,7 +148,7 @@ export default function KpiPieChart({
               nameKey="name"
               cx="50%"
               cy="50%"
-              outerRadius="80%"
+              outerRadius="70%"
               labelLine={false}
               label={(props: PieLabelRenderProps) => {
                 const percent = Number(props.percent ?? 0);
