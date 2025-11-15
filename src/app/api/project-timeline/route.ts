@@ -4,7 +4,7 @@ import { sql } from '@vercel/postgres';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getSearchConsoleData } from '@/lib/google-api';
-import { User } from '@/types'; // Stelle sicher, dass der Typ 'User' auch 'gsc_site_url' enthält
+import { User } from '@/types';
 import { unstable_noStore as noStore } from 'next/cache';
 
 // Hilfsfunktion: Format YYYY-MM-DD
@@ -17,21 +17,21 @@ export async function GET(request: NextRequest) {
   
   try {
     const session = await getServerSession(authOptions);
-    if (session?.user?.role !== 'BENUTZER') {
+    if (session?.user?.role !== 'BENUTTER') {
       // Diese Route ist primär für die Kunden-Ansicht gedacht
       return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 403 });
     }
 
     const userId = session.user.id;
-    // const gscSiteUrl = session.user.gsc_site_url; // ENTFERNT: Diese Zeile hat den Typfehler verursacht
-    
+    // const gscSiteUrl = session.user.gsc_site_url; // ENTFERNT: Verursacht Typfehler (Fix 1)
+
     // 1. Hole Projekt-Details (Start, Dauer, GSC-URL) aus der DB
     // Wir holen die aktuellsten Daten, falls sie im Admin-Panel geändert wurden
     const { rows: userRows } = await sql<User>`
       SELECT 
         project_start_date, 
         project_duration_months,
-        gsc_site_url -- NEU: gsc_site_url hier mit abfragen
+        gsc_site_url -- NEU: gsc_site_url hier mit abfragen (Fix 1)
       FROM users 
       WHERE id = ${userId}::uuid;
     `;
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
     }
     
     const project = userRows[0];
-    const gscSiteUrl = project.gsc_site_url; // NEU: Variable hier aus dem DB-Ergebnis holen
+    const gscSiteUrl = project.gsc_site_url; // NEU: Variable hier aus dem DB-Ergebnis holen (Fix 1)
     const startDate = project.project_start_date ? new Date(project.project_start_date) : new Date();
     const duration = project.project_duration_months || 6;
 
@@ -71,8 +71,8 @@ export async function GET(request: NextRequest) {
     });
 
     // 3. Hole GSC-Daten (Reichweite/Impressionen) seit Projektstart
-    let gscData = [];
-    if (gscSiteUrl) { // Diese Bedingung funktioniert jetzt mit der Variable aus der DB
+    let gscData = []; // Diese Zeile ist ok, gscData ist als Array initialisiert
+    if (gscSiteUrl) {
       try {
         const today = new Date();
         const endDateStr = formatDate(today);
@@ -81,13 +81,20 @@ export async function GET(request: NextRequest) {
         console.log(`[Timeline API] Rufe GSC-Daten ab für ${gscSiteUrl} von ${startDateStr} bis ${endDateStr}`);
         
         // GSC-Daten (nur Impressionen, täglich) holen
-        gscData = await getSearchConsoleData(
+        // GEÄNDERT: (Fix 2)
+        // Die Funktion gibt ein Objekt zurück, wir brauchen aber nur das 'impressions'-Array
+        const gscResult = await getSearchConsoleData(
           gscSiteUrl,
           startDateStr,
           endDateStr,
           ['impressions'], // Nur Impressionen (Reichweite)
           'date' // Täglich
         );
+        
+        // NEU: Nur das Array der Impressionen der Variable zuweisen
+        if (gscResult && gscResult.impressions) {
+          gscData = gscResult.impressions;
+        }
         
       } catch (gscError) {
         console.error('[Timeline API] Fehler beim Abrufen der GSC-Daten:', gscError);
@@ -109,7 +116,7 @@ export async function GET(request: NextRequest) {
           ? (statusCounts['Freigegeben'] / statusCounts.Total) * 100 
           : 0,
       },
-      gscImpressionTrend: gscData,
+      gscImpressionTrend: gscData, // gscData ist jetzt korrekt das Array
     });
 
   } catch (error) {
