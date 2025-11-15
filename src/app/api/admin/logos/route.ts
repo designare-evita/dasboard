@@ -1,15 +1,14 @@
 // src/app/api/admin/logos/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { auth } from '@/lib/auth'; // KORRIGIERT: Import von auth
 import { sql } from '@vercel/postgres';
 
 /**
  * GET: Lädt alle aktuellen Mandanten-Logos (Nur für Superadmin)
  */
 export async function GET(request: NextRequest) {
-  const session = await getServerSession(authOptions);
+  const session = await auth(); // KORRIGIERT: auth() aufgerufen
   if (session?.user?.role !== 'SUPERADMIN') {
     return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 403 });
   }
@@ -33,7 +32,7 @@ export async function GET(request: NextRequest) {
  * POST: Speichert oder aktualisiert ein Mandanten-Logo (Nur für Superadmin)
  */
 export async function POST(request: NextRequest) {
-  const session = await getServerSession(authOptions);
+  const session = await auth(); // KORRIGIERT: auth() aufgerufen
   if (session?.user?.role !== 'SUPERADMIN') {
     return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 403 });
   }
@@ -77,7 +76,7 @@ export async function POST(request: NextRequest) {
  * DELETE: Löscht ein Mandanten-Logo (Nur für Superadmin)
  */
 export async function DELETE(request: NextRequest) {
-  const session = await getServerSession(authOptions);
+  const session = await auth(); // KORRIGIERT: auth() aufgerufen
   if (session?.user?.role !== 'SUPERADMIN') {
     return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 403 });
   }
