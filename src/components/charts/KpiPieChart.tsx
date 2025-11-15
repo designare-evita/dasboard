@@ -41,8 +41,8 @@ const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
     const data = payload[0].payload;
     const percent = payload[0].percent;
     
-    // ✅ KORREKTUR: Sichere Prozent-Berechnung mit Fallback
-    const percentValue = typeof percent === 'number' && !isNaN(percent) 
+    // ✅ KORREKTUR: Prüfe nur auf undefined/null/NaN, nicht auf den Wert selbst
+    const percentValue = (percent !== undefined && percent !== null && !isNaN(percent)) 
       ? percent * 100 
       : 0;
     
