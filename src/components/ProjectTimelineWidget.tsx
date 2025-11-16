@@ -34,15 +34,10 @@ interface StatusCounts {
   'Freigegeben': number;
   'Total': number;
 }
-
-// --- KORREKTUR 1: Typ-Definition an die API angepasst ---
-// Die API liefert { date: string, value: number }
 interface GscDataPoint {
   date: string;
   value: number; // 'value' enthält die Impressionen
 }
-// --- ENDE KORREKTUR 1 ---
-
 interface TimelineData {
   project: {
     startDate: string;
@@ -64,7 +59,7 @@ interface TooltipPayload {
 interface CustomTooltipProps {
   active?: boolean;
   payload?: TooltipPayload[];
-  label?: string;
+  label?: string; // Label ist hier ein Timestamp (Zahl)
 }
 
 // SWR Fetcher
@@ -78,9 +73,12 @@ const formatImpressions = (value: number) => {
 // Tooltip-Inhalt
 const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
   if (active && payload && payload.length) {
+    // KORREKTUR: Label ist ein Timestamp, muss in ein Datum konvertiert werden
+    const dateLabel = typeof label === 'number' ? new Date(label) : (typeof label === 'string' ? new Date(label) : new Date());
+    
     return (
       <div className="bg-white p-3 shadow-md rounded border border-gray-200">
-        <p className="font-bold text-gray-800">{label ? format(new Date(label), 'd. MMMM yyyy', { locale: de }) : ''}</p>
+        <p className="font-bold text-gray-800">{format(dateLabel, 'd. MMMM yyyy', { locale: de })}</p>
         <p className="text-sm text-indigo-600">
           Reichweite: {formatImpressions(payload.find((p) => p.dataKey === 'impressions')?.value || 0)}
         </p>
@@ -130,13 +128,12 @@ export default function ProjectTimelineWidget() {
   const elapsedProjectDays = differenceInCalendarDays(today, startDate);
   const timeElapsedPercentage = Math.max(0, Math.min(100, (elapsedProjectDays / totalProjectDays) * 100));
 
-  // --- KORREKTUR 2: Daten-Mapping angepasst ---
-  // Wir mappen von { date: "...", value: ... } zu { date: "...", impressions: ... }
+  // --- KORREKTUR: 'date' in einen numerischen Timestamp umwandeln ---
   const chartData = gscImpressionTrend.map(d => ({
-    date: d.date,
-    impressions: d.value, // d.value (Impressionen) wird 'impressions' zugewiesen
+    date: new Date(d.date).getTime(), // <-- HIER IST DIE ÄNDERUNG
+    impressions: d.value,
   }));
-  // --- ENDE KORREKTUR 2 ---
+  // --- ENDE KORREKTUR ---
   
   // X-Achsen-Ticks (Start, Heute, Ende)
   const xTicks = [
@@ -235,7 +232,8 @@ export default function ProjectTimelineWidget() {
                 dataKey="date"
                 stroke="#6b7280"
                 fontSize={11}
-                tickFormatter={(dateStr) => format(new Date(dateStr), 'd. MMM', { locale: de })}
+                // KORREKTUR: tickFormatter muss jetzt eine Zahl (Timestamp) zurückerhalten
+                tickFormatter={(timestamp) => format(new Date(timestamp), 'd. MMM', { locale: de })}
                 domain={[startDate.getTime(), endDate.getTime()]}
                 type="number"
                 ticks={xTicks}
@@ -253,7 +251,7 @@ export default function ProjectTimelineWidget() {
                 formatter={(value) => <span className="text-gray-700">{value}</span>}
               />
               
-              {/* Reichweiten-Kurve (greift jetzt auf 'impressions' zu) */}
+              {/* Reichweiten-Kurve */}
               <Area
                 type="monotone"
                 dataKey="impressions"
