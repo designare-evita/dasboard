@@ -6,12 +6,11 @@ import { NextResponse, NextRequest } from 'next/server';
 import { sql } from '@vercel/postgres';
 import bcrypt from 'bcryptjs';
 import { User } from '@/types';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { auth } from '@/lib/auth'; // KORRIGIERT: Import von auth
 
 // GET: Benutzer abrufen (mit korrekter Berechtigungs-Logik)
 export async function GET(request: NextRequest) {
-  const session = await getServerSession(authOptions);
+  const session = await auth(); // KORRIGIERT: auth() aufgerufen
 
   console.log('[/api/users] GET Request');
   console.log('[/api/users] User:', session?.user?.email, 'Role:', session?.user?.role);
@@ -130,7 +129,7 @@ export async function GET(request: NextRequest) {
 
 // POST: Neuen Benutzer erstellen (✅ AKTUALISIERT mit Projekt-Datum/Dauer)
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions);
+  const session = await auth(); // KORRIGIERT: auth() aufgerufen
 
   if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
     return NextResponse.json({ message: "Zugriff verweigert" }, { status: 403 });
