@@ -74,7 +74,11 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
 
   useEffect(() => {
     if (user) {
-      setFormData({
+      console.log('[EditUserForm] useEffect - user.project_timeline_active:', user.project_timeline_active);
+      console.log('[EditUserForm] useEffect - typeof:', typeof user.project_timeline_active);
+      console.log('[EditUserForm] useEffect - Boolean():', Boolean(user.project_timeline_active));
+      
+      const newFormData = {
         email: user.email || '',
         mandantId: user.mandant_id || '',
         permissions: user.permissions?.join(', ') || '',
@@ -88,7 +92,10 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
         project_start_date: formatDateForInput(user.project_start_date), 
         project_duration_months: String(user.project_duration_months || 6),
         project_timeline_active: Boolean(user.project_timeline_active), // KORREKTUR: Explizit als Boolean casten
-      });
+      };
+      
+      console.log('[EditUserForm] useEffect - newFormData.project_timeline_active:', newFormData.project_timeline_active);
+      setFormData(newFormData);
       setPassword('');
       setMessage('');
       setSuccessMessage('');
@@ -314,7 +321,10 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
                     id="project_timeline_active"
                     name="project_timeline_active" // WICHTIG
                     checked={formData.project_timeline_active}
-                    onChange={handleInputChange}
+                    onChange={(e) => {
+                      console.log('[EditUserForm] Checkbox onChange - checked:', e.target.checked);
+                      handleInputChange(e);
+                    }}
                     disabled={isSubmitting}
                     className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
                   />
@@ -324,6 +334,10 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
                     <ToggleOff size={20} className="text-gray-400" />
                   )}
                   Projekt-Timeline Widget auf Dashboard anzeigen
+                  {/* DEBUG INFO */}
+                  <span className="text-xs text-gray-400 ml-2">
+                    (State: {String(formData.project_timeline_active)})
+                  </span>
                 </label>
               </div>
 
