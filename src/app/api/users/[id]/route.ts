@@ -51,7 +51,7 @@ export async function GET(
         favicon_url,
         project_start_date,      
         project_duration_months,
-        project_timeline_active  -- KORREKTUR: Feld hinzugefügt
+        project_timeline_active::boolean as project_timeline_active  -- KORREKTUR: Als boolean casten
       FROM users
       WHERE id = ${targetUserId}::uuid;
     `;
