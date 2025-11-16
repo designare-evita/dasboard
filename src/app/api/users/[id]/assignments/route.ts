@@ -2,8 +2,8 @@
 // KORRIGIERT: Verwendet manuelle Transaktionen (BEGIN/COMMIT/ROLLBACK)
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession, type Session } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { type Session } from 'next-auth'; // KORRIGIERT: Session-Typ behalten
+import { auth } from '@/lib/auth'; // KORRIGIERT: Import von auth
 import { sql } from '@vercel/postgres'; // Nur den Haupt-SQL-Import verwenden
 
 /**
@@ -34,7 +34,7 @@ export async function PUT(
   try {
     // Die ID des Admins, der bearbeitet wird
     const { id: targetUserId } = await params;
-    const session = await getServerSession(authOptions);
+    const session = await auth(); // KORRIGIERT: auth() aufgerufen
 
     console.log(
       `[PUT /api/users/${targetUserId}/assignments] Start Zuweisungs-Update...`
