@@ -87,36 +87,86 @@ export async function GET(request: NextRequest) {
       ? Math.round((counts.Freigegeben / counts.Total) * 100)
       : 0;
 
-    // 5. GSC-Impressionen-Trend laden (letzte 90 Tage)
+    // 5. GSC-Impressionen-Trend laden (letzte 90 Tage) - MIT CACHE
     let gscImpressionTrend: Array<{ date: string; value: number }> = [];
     
     if (user.gsc_site_url) {
       try {
-        // Importiere die Google API Funktion
-        const { getSearchConsoleData } = await import('@/lib/google-api');
-        
-        const ninetyDaysAgo = new Date();
-        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        
-        const startDate = ninetyDaysAgo.toISOString().split('T')[0];
-        const endDate = yesterday.toISOString().split('T')[0];
-        
-        console.log('[project-timeline] Hole GSC-Daten von', startDate, 'bis', endDate);
-        
-        const gscData = await getSearchConsoleData(
-          user.gsc_site_url, 
-          startDate, 
-          endDate
-        );
+        // Prüfe zuerst den Cache
+        const cacheKey = `${userId}_timeline_gsc`;
+        const { rows: cacheRows } = await sql`
+          SELECT data, last_fetched
+          FROM google_data_cache
+          WHERE user_id::text = ${userId} 
+            AND date_range = 'timeline_90d'
+        `;
 
-        gscImpressionTrend = gscData.impressions.daily.map(point => ({
-          date: point.date,
-          value: point.value
-        }));
+        let useCache = false;
+        if (cacheRows.length > 0) {
+          const cache = cacheRows[0];
+          const lastFetched = new Date(cache.last_fetched);
+          const now = new Date();
+          const ageInHours = (now.getTime() - lastFetched.getTime()) / (1000 * 60 * 60);
 
-        console.log('[project-timeline] ✅ GSC-Trend-Datenpunkte:', gscImpressionTrend.length);
+          // Cache ist 48 Stunden gültig
+          if (ageInHours < 48) {
+            console.log('[project-timeline] ✅ Cache HIT - Nutze gecachte GSC-Daten');
+            gscImpressionTrend = cache.data.gscImpressionTrend || [];
+            useCache = true;
+          } else {
+            console.log('[project-timeline] ⏰ Cache STALE - Hole frische Daten');
+          }
+        } else {
+          console.log('[project-timeline] ❌ Cache MISS - Hole frische Daten');
+        }
+
+        // Falls kein gültiger Cache, hole frische Daten
+        if (!useCache) {
+          const { getSearchConsoleData } = await import('@/lib/google-api');
+          
+          const ninetyDaysAgo = new Date();
+          ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+          const yesterday = new Date();
+          yesterday.setDate(yesterday.getDate() - 1);
+          
+          const startDate = ninetyDaysAgo.toISOString().split('T')[0];
+          const endDate = yesterday.toISOString().split('T')[0];
+          
+          console.log('[project-timeline] 🔄 Hole GSC-Daten von Google API:', startDate, '-', endDate);
+          
+          const gscData = await getSearchConsoleData(
+            user.gsc_site_url, 
+            startDate, 
+            endDate
+          );
+
+          gscImpressionTrend = gscData.impressions.daily.map(point => ({
+            date: point.date,
+            value: point.value
+          }));
+
+          console.log('[project-timeline] ✅ GSC-Daten geladen:', gscImpressionTrend.length, 'Datenpunkte');
+
+          // Schreibe in Cache
+          try {
+            await sql`
+              INSERT INTO google_data_cache (user_id, date_range, data, last_fetched)
+              VALUES (
+                ${userId}::uuid, 
+                'timeline_90d', 
+                ${JSON.stringify({ gscImpressionTrend })}::jsonb, 
+                NOW()
+              )
+              ON CONFLICT (user_id, date_range)
+              DO UPDATE SET 
+                data = ${JSON.stringify({ gscImpressionTrend })}::jsonb,
+                last_fetched = NOW();
+            `;
+            console.log('[project-timeline] 💾 Cache erfolgreich geschrieben');
+          } catch (cacheWriteError) {
+            console.error('[project-timeline] ⚠️ Fehler beim Cache-Schreiben:', cacheWriteError);
+          }
+        }
       } catch (gscError) {
         console.error('[project-timeline] ❌ Fehler beim Laden der GSC-Daten:', gscError);
         // Trend bleibt leer, aber Anfrage schlägt nicht fehl
