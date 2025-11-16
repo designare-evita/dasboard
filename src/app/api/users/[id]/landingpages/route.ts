@@ -1,8 +1,7 @@
 // src/app/api/users/[id]/landingpages/route.ts
 
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { auth } from '@/lib/auth'; // KORRIGIERT: Import von auth
 import { sql } from '@vercel/postgres';
 import { Landingpage } from '@/types';
 
@@ -20,7 +19,7 @@ export async function GET(request: Request, { params }: RouteParams) {
     const { id: userId } = await params;
     
     // 1. Authentifizierung prüfen
-    const session = await getServerSession(authOptions);
+    const session = await auth(); // KORRIGIERT: auth() aufgerufen
     
     // Prüfen, ob der User eingeloggt ist UND
     // entweder der User selbst oder ein Admin die Daten abfragt.
