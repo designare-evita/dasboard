@@ -92,31 +92,33 @@ export async function GET(request: NextRequest) {
     
     if (user.gsc_site_url) {
       try {
-        // Hole GSC-Daten aus der Landingpage-Tabelle
-        // (Alternative: Direkt von GSC API holen, aber das ist langsamer)
+        // Importiere die Google API Funktion
+        const { getSearchConsoleData } = await import('@/lib/google-api');
+        
         const ninetyDaysAgo = new Date();
         ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
         
-        const { rows: gscRows } = await sql`
-          SELECT 
-            DATE(gsc_last_updated) as date,
-            SUM(gsc_impressionen) as impressions
-          FROM landingpages
-          WHERE user_id::text = ${userId}
-            AND gsc_last_updated >= ${ninetyDaysAgo.toISOString()}
-            AND gsc_impressionen IS NOT NULL
-          GROUP BY DATE(gsc_last_updated)
-          ORDER BY date ASC
-        `;
+        const startDate = ninetyDaysAgo.toISOString().split('T')[0];
+        const endDate = yesterday.toISOString().split('T')[0];
+        
+        console.log('[project-timeline] Hole GSC-Daten von', startDate, 'bis', endDate);
+        
+        const gscData = await getSearchConsoleData(
+          user.gsc_site_url, 
+          startDate, 
+          endDate
+        );
 
-        gscImpressionTrend = gscRows.map(row => ({
-          date: row.date,
-          value: parseInt(row.impressions, 10)
+        gscImpressionTrend = gscData.impressions.daily.map(point => ({
+          date: point.date,
+          value: point.value
         }));
 
-        console.log('[project-timeline] GSC-Trend-Datenpunkte:', gscImpressionTrend.length);
+        console.log('[project-timeline] ✅ GSC-Trend-Datenpunkte:', gscImpressionTrend.length);
       } catch (gscError) {
-        console.error('[project-timeline] Fehler beim Laden der GSC-Daten:', gscError);
+        console.error('[project-timeline] ❌ Fehler beim Laden der GSC-Daten:', gscError);
         // Trend bleibt leer, aber Anfrage schlägt nicht fehl
       }
     }
