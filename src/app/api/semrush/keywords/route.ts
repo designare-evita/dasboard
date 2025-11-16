@@ -1,7 +1,6 @@
 // src/app/api/semrush/keywords/route.ts (DEBUG VERSION - Findet Cache-Problem)
 import { NextResponse, NextRequest } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { auth } from '@/lib/auth'; // KORRIGIERT: Import von auth
 import { sql } from '@vercel/postgres';
 import { getSemrushKeywordsWithFallback } from '@/lib/semrush-api-handler';
 
@@ -24,7 +23,7 @@ export async function GET(request: NextRequest) {
   };
 
   try {
-    const session = await getServerSession(authOptions);
+    const session = await auth(); // KORRIGIERT: auth() aufgerufen
 
     if (!session?.user?.email) {
       return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
