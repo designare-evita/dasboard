@@ -87,7 +87,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
         favicon_url: user.favicon_url || '',
         project_start_date: formatDateForInput(user.project_start_date), 
         project_duration_months: String(user.project_duration_months || 6),
-        project_timeline_active: user.project_timeline_active || false, // NEU
+        project_timeline_active: Boolean(user.project_timeline_active), // KORREKTUR: Explizit als Boolean casten
       });
       setPassword('');
       setMessage('');
@@ -180,7 +180,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
         favicon_url: updatedUser.favicon_url || '',
         project_start_date: formatDateForInput(updatedUser.project_start_date),
         project_duration_months: String(updatedUser.project_duration_months || 6),
-        project_timeline_active: updatedUser.project_timeline_active || false, // NEU
+        project_timeline_active: Boolean(updatedUser.project_timeline_active), // KORREKTUR: Explizit als Boolean casten
       });
       setPassword('');
       setMessage('');
