@@ -24,7 +24,7 @@ export interface User {
   // ✅ NEU: Felder für Projekt-Timeline
   project_start_date?: Date | null;
   project_duration_months?: number | null;
-  project_timeline_active?: boolean | null;
+  project_timeline_active?: boolean | null; // <-- NEUE ZEILE
 }
 
 export interface Landingpage {
