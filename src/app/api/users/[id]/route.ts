@@ -2,7 +2,7 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { sql } from '@vercel/postgres';
 import bcrypt from 'bcryptjs';
-import { auth } from '@/lib/auth'; // KORRIGIERT: Import von auth
+import { auth } from '@/lib/auth'; 
 import { User } from '@/types';
 export const revalidate = 0;
 
@@ -11,11 +11,10 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id: targetUserId } = await params; // Umbenannt zu targetUserId für Klarheit
+  const { id: targetUserId } = await params; 
   try {
-    const session = await auth(); // KORRIGIERT: auth() aufgerufen
+    const session = await auth(); 
     
-    // Berechtigungsprüfung: Admins ODER der Benutzer selbst
     if (!session?.user) {
       return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
     }
@@ -51,8 +50,9 @@ export async function GET(
         mandant_id,
         permissions,
         favicon_url,
-        project_start_date,      -- ✅ NEU
-        project_duration_months  -- ✅ NEU
+        project_start_date,      
+        project_duration_months,
+        project_timeline_active  -- KORREKTUR: Feld hinzugefügt
       FROM users
       WHERE id = ${targetUserId}::uuid;
     `;
@@ -66,12 +66,9 @@ export async function GET(
 
     // --- BERECHTIGUNGSPRÜFUNG ---
     if (sessionRole === 'ADMIN') {
-      // 1. Admin darf nur Benutzer des eigenen Mandanten sehen
       if (userToGet.mandant_id !== sessionMandantId) {
          return NextResponse.json({ message: 'Zugriff auf diesen Mandanten verweigert' }, { status: 403 });
       }
-      
-      // 2. Admin darf andere Admins nur mit Berechtigung sehen
       const kannAdminsVerwalten = sessionPermissions?.includes('kann_admins_verwalten');
       if (userToGet.role === 'ADMIN' && !isOwnProfile && !kannAdminsVerwalten) {
           console.warn(`[GET /api/users/${targetUserId}] Zugriff verweigert. Admin ${sessionId} hat keine Berechtigung für Admin ${targetUserId}.`);
@@ -96,7 +93,7 @@ export async function PUT(
 ) {
   const { id: targetUserId } = await params;
   try {
-    const session = await auth(); // KORRIGIERT: auth() aufgerufen
+    const session = await auth(); 
     
     if (!session?.user) {
       return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
@@ -129,15 +126,15 @@ export async function PUT(
         mandant_id, 
         permissions,  
         favicon_url,
-        project_start_date,      // ✅ NEU
-        project_duration_months  // ✅ NEU
+        project_start_date,
+        project_duration_months,
+        project_timeline_active // KORREKTUR: Feld hinzugefügt
     } = body;
 
     if (!email) {
       return NextResponse.json({ message: 'E-Mail ist erforderlich' }, { status: 400 });
     }
 
-    // Benutzer-Existenzprüfung (Zielbenutzer)
     const { rows: existingUsers } = await sql`
       SELECT role, mandant_id FROM users WHERE id = ${targetUserId}::uuid
     `;
@@ -146,7 +143,7 @@ export async function PUT(
     }
     const targetUser = existingUsers[0];
 
-    // --- BERECHTIGUNGSPRÜFUNG (WER DARF WEN BEARBEITEN) ---
+    // --- BERECHTIGUNGSPRÜFUNG ---
     if (sessionRole === 'ADMIN') {
       if (targetUser.role === 'SUPERADMIN') {
         return NextResponse.json({ message: 'Admins dürfen keine Superadmins bearbeiten' }, { status: 403 });
@@ -178,7 +175,6 @@ export async function PUT(
 
     const normalizedEmail = email.toLowerCase().trim();
 
-    // E-Mail-Konfliktprüfung
     const { rows: emailCheck } = await sql`
       SELECT id FROM users
       WHERE email = ${normalizedEmail} AND id::text != ${targetUserId};
@@ -194,9 +190,10 @@ export async function PUT(
     const permissionsArray = Array.isArray(permissions) ? permissions : [];
     const permissionsPgString = `{${permissionsArray.join(',')}}`;
 
-    // ✅ NEU: Werte aufbereiten
     const duration = project_duration_months ? parseInt(String(project_duration_months), 10) : null;
     const startDate = project_start_date ? new Date(project_start_date).toISOString() : null;
+    // KORREKTUR: Boolean-Wert korrekt verarbeiten
+    const timelineActive = typeof project_timeline_active === 'boolean' ? project_timeline_active : false;
 
 
     const { rows } = password && password.trim().length > 0
@@ -214,8 +211,9 @@ export async function PUT(
             mandant_id = ${mandant_id || null},
             permissions = ${permissionsPgString},
             favicon_url = ${favicon_url || null},
-            project_start_date = ${startDate},          -- ✅ NEU
-            project_duration_months = ${duration},      -- ✅ NEU
+            project_start_date = ${startDate},
+            project_duration_months = ${duration},
+            project_timeline_active = ${timelineActive}, -- KORREKTUR
             password = ${await bcrypt.hash(password, 10)}
           WHERE id = ${targetUserId}::uuid
           RETURNING
@@ -223,9 +221,9 @@ export async function PUT(
             gsc_site_url, ga4_property_id, 
             semrush_project_id, semrush_tracking_id, semrush_tracking_id_02,
             mandant_id, permissions, favicon_url,
-            project_start_date, project_duration_months; -- ✅ NEU
+            project_start_date, project_duration_months, project_timeline_active; -- KORREKTUR
         `
-      : // Query OHNE Passwort (password bleibt unverändert!)
+      : // Query OHNE Passwort
         await sql<User>`
           UPDATE users
           SET 
@@ -239,15 +237,16 @@ export async function PUT(
             mandant_id = ${mandant_id || null},
             permissions = ${permissionsPgString},
             favicon_url = ${favicon_url || null},
-            project_start_date = ${startDate},          -- ✅ NEU
-            project_duration_months = ${duration}       -- ✅ NEU
+            project_start_date = ${startDate},
+            project_duration_months = ${duration},
+            project_timeline_active = ${timelineActive} -- KORREKTUR
           WHERE id = ${targetUserId}::uuid
           RETURNING
             id::text as id, email, role, domain, 
             gsc_site_url, ga4_property_id, 
             semrush_project_id, semrush_tracking_id, semrush_tracking_id_02,
             mandant_id, permissions, favicon_url,
-            project_start_date, project_duration_months; -- ✅ NEU
+            project_start_date, project_duration_months, project_timeline_active; -- KORREKTUR
         `;
 
     if (rows.length === 0) {
@@ -270,7 +269,7 @@ export async function PUT(
   }
 }
 
-// Handler zum Löschen eines Benutzers
+// ... (DELETE-Handler bleibt unverändert) ...
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
