@@ -59,7 +59,7 @@ interface TooltipPayload {
 interface CustomTooltipProps {
   active?: boolean;
   payload?: TooltipPayload[];
-  label?: string; // Label ist hier ein Timestamp (Zahl)
+  label?: string | number; // Label ist hier ein Timestamp (Zahl)
 }
 
 // SWR Fetcher
@@ -73,7 +73,6 @@ const formatImpressions = (value: number) => {
 // Tooltip-Inhalt
 const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
   if (active && payload && payload.length) {
-    // KORREKTUR: Label ist ein Timestamp, muss in ein Datum konvertiert werden
     const dateLabel = typeof label === 'number' ? new Date(label) : (typeof label === 'string' ? new Date(label) : new Date());
     
     return (
@@ -88,12 +87,27 @@ const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
   return null;
 };
 
+// --- KORREKTUR 1: Props-Interface hinzufügen ---
+interface ProjectTimelineWidgetProps {
+  projectId?: string; // Optional: Für Admins, die ein bestimmtes Projekt ansehen
+}
+
 // Die Hauptkomponente
-export default function ProjectTimelineWidget() {
+export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidgetProps) {
+  
+  // --- KORREKTUR 2: API-URL dynamisch bauen ---
+  // Wenn eine projectId übergeben wird (Admin-Ansicht), füge sie als Query-Parameter hinzu.
+  // Wenn nicht (Kunden-Ansicht), rufe die Route ohne Parameter auf.
+  const apiUrl = projectId 
+    ? `/api/project-timeline?projectId=${projectId}` 
+    : '/api/project-timeline';
+  
   const { data, error, isLoading } = useSWR<TimelineData>(
-    '/api/project-timeline',
+    apiUrl, // Benutze die dynamische URL
     fetcher
   );
+  // --- ENDE KORREKTUR 2 ---
+
 
   if (isLoading) {
     return (
@@ -105,13 +119,18 @@ export default function ProjectTimelineWidget() {
   }
 
   if (error || !data) {
-    console.error('SWR Fehler:', error);
+    console.error('SWR Fehler:', error, 'Daten:', data);
+    // Spezifischere Fehlermeldung, falls die API einen Fehler zurückgibt (z.B. 403)
+    const apiErrorMessage = (error && typeof error === 'object' && 'message' in error) 
+      ? (error as { message: string }).message 
+      : 'Fehler beim Laden der Timeline-Daten.';
+      
     return (
       <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
         <h2 className="text-xl font-bold mb-2 flex items-center gap-2">
           <BarChart size={20} /> Projekt-Fortschritt
         </h2>
-        <p className="text-red-600">Fehler beim Laden der Timeline-Daten.</p>
+        <p className="text-red-600">{apiErrorMessage}</p>
       </div>
     );
   }
@@ -119,21 +138,22 @@ export default function ProjectTimelineWidget() {
   const { project, progress, gscImpressionTrend } = data;
   const { counts, percentage } = progress;
 
-  const startDate = new Date(project.startDate);
-  const endDate = addMonths(startDate, project.durationMonths);
+  // Prüfen, ob project-Daten vorhanden sind, sonst Fallback
+  const startDate = project?.startDate ? new Date(project.startDate) : new Date();
+  const duration = project?.durationMonths || 6;
+  const endDate = addMonths(startDate, duration);
   const today = new Date();
 
   // Berechne Projektfortschritt in % (Zeit)
-  const totalProjectDays = differenceInCalendarDays(endDate, startDate);
+  const totalProjectDays = differenceInCalendarDays(endDate, startDate) || 1; // Verhindere Division durch 0
   const elapsedProjectDays = differenceInCalendarDays(today, startDate);
   const timeElapsedPercentage = Math.max(0, Math.min(100, (elapsedProjectDays / totalProjectDays) * 100));
 
-  // --- KORREKTUR: 'date' in einen numerischen Timestamp umwandeln ---
-  const chartData = gscImpressionTrend.map(d => ({
-    date: new Date(d.date).getTime(), // <-- HIER IST DIE ÄNDERUNG
+  // Daten für GSC-Chart aufbereiten
+  const chartData = (gscImpressionTrend || []).map(d => ({
+    date: new Date(d.date).getTime(), 
     impressions: d.value,
   }));
-  // --- ENDE KORREKTUR ---
   
   // X-Achsen-Ticks (Start, Heute, Ende)
   const xTicks = [
@@ -232,7 +252,6 @@ export default function ProjectTimelineWidget() {
                 dataKey="date"
                 stroke="#6b7280"
                 fontSize={11}
-                // KORREKTUR: tickFormatter muss jetzt eine Zahl (Timestamp) zurückerhalten
                 tickFormatter={(timestamp) => format(new Date(timestamp), 'd. MMM', { locale: de })}
                 domain={[startDate.getTime(), endDate.getTime()]}
                 type="number"
