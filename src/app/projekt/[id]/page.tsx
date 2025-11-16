@@ -7,11 +7,12 @@ import useSWR from 'swr';
 import { type DateRangeOption } from '@/components/DateRangeSelector';
 import {
   ProjectDashboardData,
-  ChartEntry // ✅ NEU: Import für Kreisdiagramm-Daten
+  ChartEntry
 } from '@/lib/dashboard-shared';
 import ProjectDashboard from '@/components/ProjectDashboard';
 import { ArrowRepeat, ExclamationTriangleFill } from 'react-bootstrap-icons';
 import { useSession } from 'next-auth/react';
+import ProjectTimelineWidget from '@/components/ProjectTimelineWidget'; // <-- KORREKTUR 1: Importieren
 
 interface FetchError extends Error {
   status?: number;
@@ -36,8 +37,6 @@ export default function ProjektDetailPage() {
   const [dateRange, setDateRange] = useState<DateRangeOption>('30d');
 
   // Google-Daten (kritisch)
-  // Der SWR-Hook ist bereits korrekt typisiert (ProjectDashboardData)
-  // und empfängt automatisch die neuen Daten (countryData, channelData, deviceData)
   const { 
     data: googleData, 
     isLoading: isLoadingGoogle, 
@@ -122,17 +121,17 @@ export default function ProjektDetailPage() {
     );
   }
   
-  // ✅ KORREKTUR: Fallback-Objekt um die neuen Diagramm-Daten erweitert
+  // Fallback-Objekt (unverändert)
   const finalGoogleData: ProjectDashboardData = googleData ?? { 
     kpis: {}, 
     aiTraffic: undefined, 
     topQueries: [],
-    countryData: [], // Default für Länder
-    channelData: [], // Default für Channels
-    deviceData: [],  // Default für Geräte
+    countryData: [],
+    channelData: [],
+    deviceData: [], 
   }; 
 
-  // Debug-Log (bleibt unverändert)
+  // Debug-Log (unverändert)
   console.log('[ProjektPage] Finale Daten:', {
     domain: userData?.domain,
     faviconUrl: userData?.favicon_url,
@@ -142,23 +141,28 @@ export default function ProjektDetailPage() {
 
   return (
    <div className="p-4 sm:p-6 md:p-8">
-      <ProjectDashboard
-        data={finalGoogleData} 
-        isLoading={isLoading} 
-        dateRange={dateRange}
-        onDateRangeChange={setDateRange}
-        onPdfExport={handlePdfExport}
-        projectId={projectId}
-        domain={userData?.domain}
-        faviconUrl={userData?.favicon_url}
-        semrushTrackingId={userData?.semrush_tracking_id}
-        semrushTrackingId02={userData?.semrush_tracking_id_02}
-        
-        // ✅ NEU: Die Daten aus finalGoogleData werden an das Dashboard übergeben
-        countryData={finalGoogleData.countryData}
-        channelData={finalGoogleData.channelData}
-        deviceData={finalGoogleData.deviceData}
-      />
+      {/* KORREKTUR 2: Wrapper `main` mit `space-y-8` hinzugefügt */}
+      <main className="space-y-8">
+        {/* KORREKTUR 3: Widget hier hinzugefügt und projectId übergeben */}
+        <ProjectTimelineWidget projectId={projectId} />
+
+        <ProjectDashboard
+          data={finalGoogleData} 
+          isLoading={isLoading} 
+          dateRange={dateRange}
+          onDateRangeChange={setDateRange}
+          onPdfExport={handlePdfExport}
+          projectId={projectId}
+          domain={userData?.domain}
+          faviconUrl={userData?.favicon_url}
+          semrushTrackingId={userData?.semrush_tracking_id}
+          semrushTrackingId02={userData?.semrush_tracking_id_02}
+          
+          countryData={finalGoogleData.countryData}
+          channelData={finalGoogleData.channelData}
+          deviceData={finalGoogleData.deviceData}
+        />
+      </main>
     </div>
   );
 }
