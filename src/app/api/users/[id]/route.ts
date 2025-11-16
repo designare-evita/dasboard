@@ -51,7 +51,7 @@ export async function GET(
         favicon_url,
         project_start_date,      
         project_duration_months,
-        project_timeline_active
+        project_timeline_active  -- KORREKTUR: Feld hinzugefügt
       FROM users
       WHERE id = ${targetUserId}::uuid;
     `;
@@ -121,7 +121,7 @@ export async function PUT(
         favicon_url,
         project_start_date,
         project_duration_months,
-        project_timeline_active 
+        project_timeline_active // KORREKTUR: Feld hinzugefügt
     } = body;
 
     if (!email) {
@@ -136,7 +136,7 @@ export async function PUT(
     }
     const targetUser = existingUsers[0];
 
-    // --- BERECHTIGUNGSPRÜFUNG ---
+    // --- BERECHTIGUNGSPRÜFUNG (bleibt gleich) ---
     if (sessionRole === 'ADMIN') {
       if (targetUser.role === 'SUPERADMIN') {
         return NextResponse.json({ message: 'Admins dürfen keine Superadmins bearbeiten' }, { status: 403 });
@@ -154,7 +154,6 @@ export async function PUT(
          }
       }
     }
-    
     if (sessionRole === 'SUPERADMIN') {
       if (targetUser.role !== 'SUPERADMIN' && body.role === 'SUPERADMIN') {
          return NextResponse.json({ message: 'Die Zuweisung der SUPERADMIN-Rolle ist über die API nicht gestattet.' }, { status: 403 });
@@ -184,6 +183,7 @@ export async function PUT(
 
     const duration = project_duration_months ? parseInt(String(project_duration_months), 10) : null;
     const startDate = project_start_date ? new Date(project_start_date).toISOString() : null;
+    // KORREKTUR: Boolean-Wert korrekt verarbeiten (wichtig!)
     const timelineActive = typeof project_timeline_active === 'boolean' ? project_timeline_active : false;
 
 
@@ -204,7 +204,7 @@ export async function PUT(
             favicon_url = ${favicon_url || null},
             project_start_date = ${startDate},
             project_duration_months = ${duration},
-            project_timeline_active = ${timelineActive},
+            project_timeline_active = ${timelineActive}, -- KORREKTUR
             password = ${await bcrypt.hash(password, 10)}
           WHERE id = ${targetUserId}::uuid
           RETURNING
@@ -212,7 +212,7 @@ export async function PUT(
             gsc_site_url, ga4_property_id, 
             semrush_project_id, semrush_tracking_id, semrush_tracking_id_02,
             mandant_id, permissions, favicon_url,
-            project_start_date, project_duration_months, project_timeline_active;
+            project_start_date, project_duration_months, project_timeline_active; -- KORREKTUR
         `
       : // Query OHNE Passwort
         await sql<User>`
@@ -229,15 +229,15 @@ export async function PUT(
             permissions = ${permissionsPgString},
             favicon_url = ${favicon_url || null},
             project_start_date = ${startDate},
-            project_duration_months = ${duration}, 
-            project_timeline_active = ${timelineActive}
+            project_duration_months = ${duration},
+            project_timeline_active = ${timelineActive} -- KORREKTUR (kein Komma am Ende)
           WHERE id = ${targetUserId}::uuid
           RETURNING
             id::text as id, email, role, domain, 
             gsc_site_url, ga4_property_id, 
             semrush_project_id, semrush_tracking_id, semrush_tracking_id_02,
             mandant_id, permissions, favicon_url,
-            project_start_date, project_duration_months, project_timeline_active;
+            project_start_date, project_duration_months, project_timeline_active; -- KORREKTUR
         `;
 
     if (rows.length === 0) {
@@ -265,6 +265,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // ... (DELETE-Handler bleibt unverändert) ...
   const { id: targetUserId } = await params;
   try {
     const session = await auth(); 
