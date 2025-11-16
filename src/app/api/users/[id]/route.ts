@@ -2,8 +2,7 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { sql } from '@vercel/postgres';
 import bcrypt from 'bcryptjs';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { auth } from '@/lib/auth'; // KORRIGIERT: Import von auth
 import { User } from '@/types';
 export const revalidate = 0;
 
@@ -14,7 +13,7 @@ export async function GET(
 ) {
   const { id: targetUserId } = await params; // Umbenannt zu targetUserId für Klarheit
   try {
-    const session = await getServerSession(authOptions);
+    const session = await auth(); // KORRIGIERT: auth() aufgerufen
     
     // Berechtigungsprüfung: Admins ODER der Benutzer selbst
     if (!session?.user) {
@@ -97,7 +96,7 @@ export async function PUT(
 ) {
   const { id: targetUserId } = await params;
   try {
-    const session = await getServerSession(authOptions);
+    const session = await auth(); // KORRIGIERT: auth() aufgerufen
     
     if (!session?.user) {
       return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
@@ -278,7 +277,7 @@ export async function DELETE(
 ) {
   const { id: targetUserId } = await params;
   try {
-    const session = await getServerSession(authOptions);
+    const session = await auth(); // KORRIGIERT: auth() aufgerufen
     
     if (!session?.user) {
       return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
