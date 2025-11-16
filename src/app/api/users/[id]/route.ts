@@ -15,6 +15,7 @@ export async function GET(
   try {
     const session = await auth(); 
     
+    // Berechtigungsprüfung: Admins ODER der Benutzer selbst
     if (!session?.user) {
       return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
     }
@@ -33,8 +34,6 @@ export async function GET(
       return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
     }
 
-    console.log(`[GET /api/users/${targetUserId}] Benutzerdaten abrufen... (angefragt von: ${session.user.email})`);
-
     // Lade Zieldaten
     const { rows } = await sql<User>`
       SELECT
@@ -52,13 +51,12 @@ export async function GET(
         favicon_url,
         project_start_date,      
         project_duration_months,
-        project_timeline_active  -- KORRIGIERT: Feld hinzugefügt
+        project_timeline_active
       FROM users
       WHERE id = ${targetUserId}::uuid;
     `;
 
     if (rows.length === 0) {
-      console.warn(`[GET /api/users/${targetUserId}] Benutzer nicht gefunden`);
       return NextResponse.json({ message: 'Benutzer nicht gefunden' }, { status: 404 });
     }
     
@@ -71,17 +69,12 @@ export async function GET(
       }
       const kannAdminsVerwalten = sessionPermissions?.includes('kann_admins_verwalten');
       if (userToGet.role === 'ADMIN' && !isOwnProfile && !kannAdminsVerwalten) {
-          console.warn(`[GET /api/users/${targetUserId}] Zugriff verweigert. Admin ${sessionId} hat keine Berechtigung für Admin ${targetUserId}.`);
           return NextResponse.json({ message: 'Sie haben keine Berechtigung, diesen Admin anzuzeigen' }, { status: 403 });
       }
     }
-    // SUPERADMIN darf alles
-
-    console.log(`[GET /api/users/${targetUserId}] ✅ Benutzer gefunden:`, userToGet.email);
     
     return NextResponse.json(userToGet);
   } catch (error) {
-    console.error(`[GET /api/users/${targetUserId}] Fehler:`, error);
     return NextResponse.json({ message: 'Interner Serverfehler' }, { status: 500 });
   }
 }
@@ -153,7 +146,6 @@ export async function PUT(
       }
       const kannAdminsVerwalten = sessionPermissions?.includes('kann_admins_verwalten');
       if (targetUser.role === 'ADMIN' && !isOwnProfile && !kannAdminsVerwalten) {
-         console.warn(`[PUT /api/users/${targetUserId}] Zugriff verweigert. Admin ${sessionId} hat keine Berechtigung für Admin ${targetUserId}.`);
          return NextResponse.json({ message: 'Sie haben keine Berechtigung, andere Admins zu bearbeiten' }, { status: 403 });
       }
       if ((body.mandant_id !== targetUser.mandant_id || body.permissions) && !kannAdminsVerwalten) {
@@ -237,8 +229,8 @@ export async function PUT(
             permissions = ${permissionsPgString},
             favicon_url = ${favicon_url || null},
             project_start_date = ${startDate},
-            project_duration_months = ${duration},
-            project_timeline_active = ${timelineActive} -- ❗️❗️ HIER HAT DAS KOMMA GEFEHLT ❗️❗️
+            project_duration_months = ${duration}, 
+            project_timeline_active = ${timelineActive}
           WHERE id = ${targetUserId}::uuid
           RETURNING
             id::text as id, email, role, domain, 
@@ -297,7 +289,6 @@ export async function DELETE(
 
     console.log(`[DELETE /api/users/${targetUserId}] Lösche Benutzer...`);
 
-    // Benutzer-Existenzprüfung (Zielbenutzer)
     const { rows: existingUsers } = await sql`
       SELECT role, mandant_id FROM users WHERE id = ${targetUserId}::uuid
     `;
