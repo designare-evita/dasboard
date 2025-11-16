@@ -62,8 +62,17 @@ interface CustomTooltipProps {
   label?: string | number; // Label ist hier ein Timestamp (Zahl)
 }
 
-// SWR Fetcher
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
+// KORREKTUR: SWR Fetcher, der API-Fehler (wie 403) abfängt
+const fetcher = (url: string) => fetch(url).then((res) => {
+  if (!res.ok) {
+    // Wirf einen Fehler, damit SWR ihn in 'error' speichert
+    return res.json().then(errorData => {
+      throw new Error(errorData.message || 'Fehler beim Laden der Timeline-Daten.');
+    });
+  }
+  return res.json();
+});
+
 
 // Hilfsfunktion für Tooltip-Formatierung
 const formatImpressions = (value: number) => {
@@ -87,7 +96,6 @@ const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
   return null;
 };
 
-// --- KORREKTUR 1: Props-Interface hinzufügen ---
 interface ProjectTimelineWidgetProps {
   projectId?: string; // Optional: Für Admins, die ein bestimmtes Projekt ansehen
 }
@@ -95,19 +103,14 @@ interface ProjectTimelineWidgetProps {
 // Die Hauptkomponente
 export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidgetProps) {
   
-  // --- KORREKTUR 2: API-URL dynamisch bauen ---
-  // Wenn eine projectId übergeben wird (Admin-Ansicht), füge sie als Query-Parameter hinzu.
-  // Wenn nicht (Kunden-Ansicht), rufe die Route ohne Parameter auf.
   const apiUrl = projectId 
     ? `/api/project-timeline?projectId=${projectId}` 
     : '/api/project-timeline';
   
   const { data, error, isLoading } = useSWR<TimelineData>(
-    apiUrl, // Benutze die dynamische URL
+    apiUrl,
     fetcher
   );
-  // --- ENDE KORREKTUR 2 ---
-
 
   if (isLoading) {
     return (
@@ -118,44 +121,36 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
     );
   }
 
-  if (error || !data) {
-    console.error('SWR Fehler:', error, 'Daten:', data);
-    // Spezifischere Fehlermeldung, falls die API einen Fehler zurückgibt (z.B. 403)
-    const apiErrorMessage = (error && typeof error === 'object' && 'message' in error) 
-      ? (error as { message: string }).message 
-      : 'Fehler beim Laden der Timeline-Daten.';
-      
-    return (
-      <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
-        <h2 className="text-xl font-bold mb-2 flex items-center gap-2">
-          <BarChart size={20} /> Projekt-Fortschritt
-        </h2>
-        <p className="text-red-600">{apiErrorMessage}</p>
-      </div>
-    );
+  // --- KORREKTUR: Widget ausblenden bei Fehler (z.B. "Nicht aktiviert") ---
+  if (error) {
+    console.warn(`[ProjectTimelineWidget] Wird ausgeblendet. Grund: ${error.message}`);
+    return null; // <-- Blendet die Komponente stillschweigend aus
   }
+  
+  // Wenn keine Daten vorhanden sind, auch ausblenden
+  if (!data || !data.project) {
+    console.warn(`[ProjectTimelineWidget] Wird ausgeblendet. Grund: Keine Daten.`);
+    return null;
+  }
+  // --- ENDE KORREKTUR ---
 
   const { project, progress, gscImpressionTrend } = data;
   const { counts, percentage } = progress;
 
-  // Prüfen, ob project-Daten vorhanden sind, sonst Fallback
   const startDate = project?.startDate ? new Date(project.startDate) : new Date();
   const duration = project?.durationMonths || 6;
   const endDate = addMonths(startDate, duration);
   const today = new Date();
 
-  // Berechne Projektfortschritt in % (Zeit)
-  const totalProjectDays = differenceInCalendarDays(endDate, startDate) || 1; // Verhindere Division durch 0
+  const totalProjectDays = differenceInCalendarDays(endDate, startDate) || 1; 
   const elapsedProjectDays = differenceInCalendarDays(today, startDate);
   const timeElapsedPercentage = Math.max(0, Math.min(100, (elapsedProjectDays / totalProjectDays) * 100));
 
-  // Daten für GSC-Chart aufbereiten
   const chartData = (gscImpressionTrend || []).map(d => ({
     date: new Date(d.date).getTime(), 
     impressions: d.value,
   }));
   
-  // X-Achsen-Ticks (Start, Heute, Ende)
   const xTicks = [
     startDate.getTime(),
     today.getTime(),
@@ -179,7 +174,6 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
           </span>
         </div>
         
-        {/* Gestapelter Fortschrittsbalken */}
         {counts.Total > 0 ? (
           <div className="flex w-full h-4 bg-gray-200 rounded-full overflow-hidden">
             <div
@@ -202,7 +196,6 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
           <p className="text-sm text-gray-500 italic">Noch keine Landingpages angelegt.</p>
         )}
         
-        {/* Legende für den Balken */}
         <div className="flex justify-end space-x-4 mt-2 text-xs">
           <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-green-500"></span> Freigegeben</span>
           <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-yellow-500"></span> In Prüfung</span>
@@ -270,7 +263,6 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
                 formatter={(value) => <span className="text-gray-700">{value}</span>}
               />
               
-              {/* Reichweiten-Kurve */}
               <Area
                 type="monotone"
                 dataKey="impressions"
@@ -282,7 +274,6 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
                 dot={false}
               />
               
-              {/* Vertikale Linie für "Heute" */}
               <ReferenceLine 
                 x={today.getTime()} 
                 stroke="#fb923c" 
