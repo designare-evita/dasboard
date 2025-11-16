@@ -12,6 +12,7 @@ import {
   Legend,
   CartesianGrid,
   ReferenceLine,
+  Label, // <-- KORREKTUR 1: Label importieren
 } from 'recharts';
 import { 
   BarChart, 
@@ -264,7 +265,8 @@ export default function ProjectTimelineWidget() {
                 strokeDasharray="4 4" 
                 strokeWidth={2}
               >
-                <Legend payload={[{ value: 'Heute', type: 'line', color: '#fb923c' }]} />
+                {/* KORREKTUR 2: <Legend> durch <Label> ersetzt */}
+                <Label value="Heute" position="top" fill="#fb923c" fontSize={11} />
               </ReferenceLine>
               
             </ComposedChart>
