@@ -12,7 +12,7 @@ import {
   Legend,
   CartesianGrid,
   ReferenceLine,
-  Label, // <-- KORREKTUR 1: Label importieren
+  Label,
 } from 'recharts';
 import { 
   BarChart, 
@@ -34,10 +34,15 @@ interface StatusCounts {
   'Freigegeben': number;
   'Total': number;
 }
+
+// --- KORREKTUR 1: Typ-Definition an die API angepasst ---
+// Die API liefert { date: string, value: number }
 interface GscDataPoint {
-  keys: [string]; // Datum (z.B. "2024-10-25")
-  impressions: number;
+  date: string;
+  value: number; // 'value' enthält die Impressionen
 }
+// --- ENDE KORREKTUR 1 ---
+
 interface TimelineData {
   project: {
     startDate: string;
@@ -125,11 +130,13 @@ export default function ProjectTimelineWidget() {
   const elapsedProjectDays = differenceInCalendarDays(today, startDate);
   const timeElapsedPercentage = Math.max(0, Math.min(100, (elapsedProjectDays / totalProjectDays) * 100));
 
-  // Daten für GSC-Chart aufbereiten
+  // --- KORREKTUR 2: Daten-Mapping angepasst ---
+  // Wir mappen von { date: "...", value: ... } zu { date: "...", impressions: ... }
   const chartData = gscImpressionTrend.map(d => ({
-    date: d.keys[0],
-    impressions: d.impressions,
+    date: d.date,
+    impressions: d.value, // d.value (Impressionen) wird 'impressions' zugewiesen
   }));
+  // --- ENDE KORREKTUR 2 ---
   
   // X-Achsen-Ticks (Start, Heute, Ende)
   const xTicks = [
@@ -246,7 +253,7 @@ export default function ProjectTimelineWidget() {
                 formatter={(value) => <span className="text-gray-700">{value}</span>}
               />
               
-              {/* Reichweiten-Kurve */}
+              {/* Reichweiten-Kurve (greift jetzt auf 'impressions' zu) */}
               <Area
                 type="monotone"
                 dataKey="impressions"
@@ -265,7 +272,6 @@ export default function ProjectTimelineWidget() {
                 strokeDasharray="4 4" 
                 strokeWidth={2}
               >
-                {/* KORREKTUR 2: <Legend> durch <Label> ersetzt */}
                 <Label value="Heute" position="top" fill="#fb923c" fontSize={11} />
               </ReferenceLine>
               
