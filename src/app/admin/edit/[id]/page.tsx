@@ -29,7 +29,7 @@ interface UserWithAssignments extends User {
 async function getUserData(id: string): Promise<UserWithAssignments | null> {
   try {
     console.log('[getUserData] 🔍 Suche Benutzer mit ID:', id);
-    // 1. Benutzerdaten laden
+    // 1. Benutzerdaten laden (KORRIGIERT)
     const { rows: users } = await sql`
       SELECT
         id::text as id,
@@ -42,7 +42,11 @@ async function getUserData(id: string): Promise<UserWithAssignments | null> {
         COALESCE(ga4_property_id, '') as ga4_property_id,
         COALESCE(semrush_project_id, '') as semrush_project_id,
         COALESCE(semrush_tracking_id, '') as semrush_tracking_id,
-        COALESCE(semrush_tracking_id_02, '') as semrush_tracking_id_02
+        COALESCE(semrush_tracking_id_02, '') as semrush_tracking_id_02,
+        favicon_url,
+        project_start_date,
+        project_duration_months,
+        project_timeline_active::boolean as project_timeline_active
       FROM users
       WHERE id::text = ${id}`;
       
