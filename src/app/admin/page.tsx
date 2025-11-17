@@ -18,9 +18,8 @@ import {
   FileText 
 } from 'react-bootstrap-icons'; 
 
-// ✅ KORREKTUR: Beide Superadmin-Komponenten importieren
 import LogoManager from './LogoManager';
-import LoginLogbook from './LoginLogbook'; // Importiert das neue Logbuch
+import LoginLogbook from './LoginLogbook'; 
 
 export default function AdminPage() {
   const { data: session, status } = useSession();
@@ -80,7 +79,7 @@ export default function AdminPage() {
     const payload = { 
       ...rawData, 
       role: selectedRole,
-      permissions: isSuperAdmin ? permissionsArray : []
+      permissions: (isSuperAdmin && selectedRole === 'ADMIN') ? permissionsArray : [] // Nur übergeben, wenn Admin
     };
 
     try {
@@ -207,23 +206,27 @@ export default function AdminPage() {
               />
             </div>
             
-            {(isSuperAdmin || selectedRole === 'BENUTZER') && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Mandant-ID (Label)</label>
-                <input
-                  name="mandant_id"
-                  type="text"
-                  required
-                  readOnly={!isSuperAdmin}
-                  value={!isSuperAdmin ? session?.user?.mandant_id || '' : undefined}
-                  placeholder={isSuperAdmin ? "z.B. max-online (Gruppe)" : "Wird von Ihrem Konto geerbt"}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
-                  disabled={isSubmitting}
-                />
-              </div>
-            )}
+            {/* Mandant-ID (Label) - Zeigt Superadmin-Platzhalter oder erbt von Admin */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Mandant-ID (Label)</label>
+              <input
+                name="mandant_id"
+                type="text"
+                required
+                readOnly={!isSuperAdmin}
+                defaultValue={!isSuperAdmin ? session?.user?.mandant_id || '' : undefined} // defaultValue verwenden
+                placeholder={isSuperAdmin ? "z.B. max-online (Gruppe)" : "Wird von Ihrem Konto geerbt"}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
+                disabled={isSubmitting || !isSuperAdmin} // Für Nicht-Superadmins komplett sperren
+              />
+            </div>
 
-            {isSuperAdmin && (
+            {/* +++ KORREKTUR HIER +++
+                Dieses Feld wird nur angezeigt, wenn:
+                1. Der User ein SuperAdmin ist
+                2. UND die ausgewählte Rolle "ADMIN" ist
+            */}
+            {isSuperAdmin && selectedRole === 'ADMIN' && (
               <div>
                 <label className="block text-sm font-medium text-gray-700">Berechtigungen (Klasse)</label>
                 <input
@@ -239,6 +242,7 @@ export default function AdminPage() {
               </div>
             )}
 
+            {/* Diese Felder werden nur für "KUNDE (BENUTZER)" angezeigt */}
             {selectedRole === 'BENUTZER' && (
               <>
                 <div>
@@ -334,7 +338,7 @@ export default function AdminPage() {
           </form>
         </div>
 
-        {/* Vorhandene Nutzer Liste */}
+        {/* Vorhandene Nutzer Liste (Unverändert) */}
         <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
           <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
             <People size={22} /> Vorhandene Nutzer
@@ -394,7 +398,7 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* ✅ KORREKTUR: Grid für Superadmin-Tools (LogoManager & LoginLogbook) */}
+      {/* Superadmin-Tools (Unverändert) */}
       {isSuperAdmin && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
           <LogoManager />
