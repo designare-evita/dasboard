@@ -32,7 +32,7 @@ export interface AiTrafficData {
   totalSessions: number;
   totalUsers: number;
   sessionsBySource: {
-    [source: string]: number;
+    : number;
   };
   topAiSources: Array<{
     source: string;
@@ -54,6 +54,17 @@ export type ChartEntry = {
   value: number;
   fill: string; // Farbe für das Diagrammsegment
 };
+
+// +++ NEU: Schnittstelle für API-Fehler +++
+/**
+ * Speichert den Fehlerstatus von GSC oder GA4, falls eine API fehlschlägt.
+ */
+export interface ApiErrorStatus {
+  gsc?: string; // Fehlermeldung für GSC
+  ga4?: string; // Fehlermeldung für GA4
+}
+// +++ ENDE NEU +++
+
 
 /**
  * Die Struktur für die Dashboard-Daten,
@@ -78,6 +89,9 @@ export interface ProjectDashboardData {
   countryData?: ChartEntry[];
   channelData?: ChartEntry[];
   deviceData?: ChartEntry[];
+  
+  // +++ NEU: apiErrors-Feld hinzugefügt +++
+  apiErrors?: ApiErrorStatus;
 }
 
 
@@ -118,6 +132,12 @@ export function normalizeFlatKpis(input?: ProjectDashboardData['kpis']) {
  * Prüft, ob sinnvolle KPI- oder Chart-Daten vorhanden sind.
  */
 export function hasDashboardData(data: ProjectDashboardData): boolean {
+  // +++ NEU: Prüft auch auf Fehler. Wenn Fehler da sind, sollen Daten als "nicht vorhanden" gelten.
+  if (data.apiErrors?.gsc && data.apiErrors?.ga4) {
+    return false; // Wenn beide APIs fehlschlagen, zeige nichts.
+  }
+  // +++ ENDE NEU +++
+
   const k = normalizeFlatKpis(data.kpis);
   
   const hasAnyKpiValue =
