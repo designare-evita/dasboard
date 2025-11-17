@@ -8,9 +8,9 @@ import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeS
 import { Button } from "@/components/ui/button";
 
 interface DashboardHeaderProps {
-  domain?: string;
+  domain?: string; // Bleibt, wird aber nicht mehr angezeigt (nur für Favicon-Logik)
   projectId?: string;
-  faviconUrl?: string | null; // ✅ NEU: Favicon-URL hinzugefügt
+  faviconUrl?: string | null;
   dateRange: DateRangeOption;
   onDateRangeChange: (range: DateRangeOption) => void;
   onPdfExport: () => void;
@@ -19,7 +19,7 @@ interface DashboardHeaderProps {
 export default function DashboardHeader({
   domain,
   projectId,
-  faviconUrl, // ✅ NEU: Prop hier entgegennehmen
+  faviconUrl,
   dateRange,
   onDateRangeChange,
   onPdfExport
@@ -31,26 +31,24 @@ export default function DashboardHeader({
         
         {/* Linke Seite: Titel und ID */}
         <div>
-        {/* ✅ START: h1-Tag angepasst ("Dashboard" entfernt) */}
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2.5">
-            {/* Das Wort "Dashboard" wurde entfernt */}
-            
+            {/* Favicon bleibt */}
             {faviconUrl && (
               <Image
                 src={faviconUrl}
                 alt="Projekt-Favicon"
-                width={24} // 24x24 Pixel
+                width={24}
                 height={24}
-                className="w-6 h-6 rounded" // Stellt sicher, dass es 24px ist
-                // Versteckt das Icon, wenn es nicht geladen werden kann
+                className="w-6 h-6 rounded"
                 onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
               />
             )}
             
-            {/* Zeigt die Domain (ohne Doppelpunkt), wenn vorhanden */}
-            {domain ? <span>{domain}</span> : ''}
+            {/* KORREKTUR: Domain entfernt, stattdessen "Statistiken" */}
+            <span>Statistiken</span>
           </h1>
-          {/* ✅ ENDE: h1-Tag Anpassung */}
+          
+          {/* ID und Info-Text bleiben */}
           {projectId && (
             <p className="text-xs text-gray-400 mt-1">
               ID: {projectId}
@@ -61,16 +59,13 @@ export default function DashboardHeader({
           </span>
         </div>
         
-        {/* Rechte Seite: Wrapper für Buttons */}
+        {/* Rechte Seite: Wrapper für Buttons (unverändert) */}
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-          {/* Zeitraum-Buttons */}
           <DateRangeSelector
             value={dateRange}
             onChange={onDateRangeChange}
             className="w-full sm:w-auto"
           />
-          
-          {/* PDF Button */}
           <Button
             onClick={onPdfExport}
             title="Als PDF exportieren"
