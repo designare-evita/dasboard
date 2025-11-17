@@ -1,21 +1,26 @@
 // src/types/dashboard.ts
 
+// Basis KPI-Typ ohne aiTraffic
 export type KPI = {
   value: number;
   change: number;
+};
+
+// Spezielle Version mit aiTraffic (wird in dashboard-shared verwendet)
+export type KpiDatum = KPI & {
   aiTraffic?: {
     value: number;
     percentage: number;
   };
 };
 
-// ✅ NEU: 'ChartPoint' als eigenen Typ exportieren
+// ChartPoint als eigenen Typ exportieren
 export type ChartPoint = {
   date: string;
   value: number;
 };
 
-// ✅ ALT: 'ChartData' verwendet jetzt 'ChartPoint'
+// ChartData verwendet jetzt ChartPoint
 export type ChartData = ChartPoint[];
 
 export type TopQueryData = {
@@ -24,24 +29,6 @@ export type TopQueryData = {
   impressions: number;
   ctr: number;
   position: number;
-};
-
-export type AiTrafficData = {
-  totalSessions: number;
-  totalUsers: number;
-  sessionsBySource: {
-    [source: string]: number;
-  };
-  topAiSources: Array<{
-    source: string;
-    sessions: number;
-    users: number;
-    percentage: number;
-  }>;
-  trend: Array<{
-    date: string;
-    sessions: number;
-  }>;
 };
 
 export type ActiveKpi = 'clicks' | 'impressions' | 'sessions' | 'totalUsers';
@@ -57,4 +44,3 @@ export const KPI_TAB_META: Record<ActiveKpi, KpiMetadata> = {
   sessions: { title: 'Sitzungen', color: '#10b981' },
   totalUsers: { title: 'Nutzer', color: '#f59e0b' },
 };
-
