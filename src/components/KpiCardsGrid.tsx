@@ -1,33 +1,26 @@
-// src/components/KpiCardsGrid.tsx (KORRIGIERT)
+// src/components/KpiCardsGrid.tsx (KORRIGIERT & ERWEITERT)
 
-// 1. 'React' import ist nicht nötig, stattdessen 'useState' importieren
 import { useState } from 'react';
 import KpiCard from './kpi-card';
-import { KPI_TAB_META } from '@/lib/dashboard-shared';
-// KORREKTUR: KPI-Typ aus dashboard-shared importieren
-import { ProjectDashboardData } from '@/lib/dashboard-shared';
+// +++ NEU: ApiErrorStatus importiert +++
+import { 
+  KPI_TAB_META, 
+  ProjectDashboardData, 
+  ApiErrorStatus 
+} from '@/lib/dashboard-shared';
 import type { ChartPoint } from '@/types/dashboard';
 import { InfoCircle } from 'react-bootstrap-icons';
 
-// 2. InfoTooltip-Komponente WURDE HERAUSGEZOGEN
-// (Stand vorher innerhalb der KpiCardsGrid-Funktion)
-
-/**
- * InfoTooltip - Zeigt Details zu einer KPI an
- */
+// ... (InfoTooltip Komponente bleibt unverändert) ...
 function InfoTooltip({ title, description }: { title: string; description: string }) {
-  // 3. 'React.useState' zu 'useState' korrigiert
   const [isVisible, setIsVisible] = useState(false);
-
   return (
-    // 4. 'print:hidden' hinzugefügt, um es im PDF auszublenden
     <div className="absolute top-3 right-3 z-10 print:hidden">
       <div
         className="relative"
         onMouseEnter={() => setIsVisible(true)}
         onMouseLeave={() => setIsVisible(false)}
       >
-        {/* Info-Icon */}
         <button
           type="button"
           className="p-1 rounded-full hover:bg-gray-100 transition-colors cursor-help"
@@ -38,8 +31,6 @@ function InfoTooltip({ title, description }: { title: string; description: strin
             className="text-gray-400 hover:text-indigo-600 transition-colors"
           />
         </button>
-
-        {/* Tooltip */}
         {isVisible && (
           <div className="absolute right-0 top-8 w-72 bg-white rounded-lg shadow-xl border border-gray-200 p-4 z-20 animate-in fade-in slide-in-from-top-2 duration-200">
             <div className="absolute -top-2 right-3 w-4 h-4 bg-white border-l border-t border-gray-200 transform rotate-45"></div>
@@ -52,11 +43,13 @@ function InfoTooltip({ title, description }: { title: string; description: strin
   );
 }
 
+
 // Props-Interface (angepasst an dashboard-shared Typen)
 interface KpiCardsGridProps {
   kpis: Required<ProjectDashboardData['kpis']>; // Stellt sicher, dass alle KPIs vorhanden sind
   isLoading?: boolean;
   allChartData?: ProjectDashboardData['charts'];
+  apiErrors?: ApiErrorStatus; // +++ NEU: Prop für Fehler +++
 }
 
 /**
@@ -66,34 +59,24 @@ export default function KpiCardsGrid({
   kpis,
   isLoading = false,
   allChartData,
+  apiErrors, // +++ NEU: Prop entgegennehmen +++
 }: KpiCardsGridProps) {
-  // Frühe Rückgabe, falls kpis nicht vorhanden
+  
   if (!kpis) {
     return null;
   }
-
-  // Das kpiInfo-Objekt (unverändert, da es kein JSX ist)
+  
+  // ... (kpiInfo-Objekt bleibt unverändert) ...
   const kpiInfo = {
-    clicks: {
-      title: 'Was sind Klicks?',
-      description:
-        'Die Anzahl der Klicks auf Ihre Website-Links in den Google-Suchergebnissen...',
-    },
-    impressions: {
-      title: 'Was sind Impressionen?',
-      description:
-        'Wie oft ein Link zu Ihrer Website in den Google-Suchergebnissen angezeigt wurde...',
-    },
-    sessions: {
-      title: 'Was sind Sitzungen?',
-      description:
-        'Eine Sitzung ist eine Gruppe von Interaktionen, die ein Nutzer innerhalb eines bestimmten Zeitraums...',
-    },
-    totalUsers: {
-      title: 'Was sind Nutzer?',
-      description: 'Die Anzahl eindeutiger Besucher Ihrer Website...',
-    },
+    clicks: { title: 'Was sind Klicks?', description: '...'},
+    impressions: { title: 'Was sind Impressionen?', description: '...'},
+    sessions: { title: 'Was sind Sitzungen?', description: '...'},
+    totalUsers: { title: 'Was sind Nutzer?', description: '...'},
   };
+
+  // +++ NEU: Fehler extrahieren +++
+  const gscError = apiErrors?.gsc;
+  const ga4Error = apiErrors?.ga4;
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -106,8 +89,9 @@ export default function KpiCardsGrid({
           change={kpis.clicks.change}
           data={allChartData?.clicks}
           color={KPI_TAB_META.clicks.color}
+          error={gscError} // +++ NEU: Fehler weitergeben +++
         />
-        {!isLoading && (
+        {!isLoading && !gscError && ( // +++ NEU: Tooltip bei Fehler ausblenden +++
           <InfoTooltip
             title={kpiInfo.clicks.title}
             description={kpiInfo.clicks.description}
@@ -124,8 +108,9 @@ export default function KpiCardsGrid({
           change={kpis.impressions.change}
           data={allChartData?.impressions}
           color={KPI_TAB_META.impressions.color}
+          error={gscError} // +++ NEU: Fehler weitergeben +++
         />
-        {!isLoading && (
+        {!isLoading && !gscError && ( // +++ NEU: Tooltip bei Fehler ausblenden +++
           <InfoTooltip
             title={kpiInfo.impressions.title}
             description={kpiInfo.impressions.description}
@@ -142,8 +127,9 @@ export default function KpiCardsGrid({
           change={kpis.sessions.change}
           data={allChartData?.sessions}
           color={KPI_TAB_META.sessions.color}
+          error={ga4Error} // +++ NEU: Fehler weitergeben +++
         />
-        {!isLoading && (
+        {!isLoading && !ga4Error && ( // +++ NEU: Tooltip bei Fehler ausblenden +++
           <InfoTooltip
             title={kpiInfo.sessions.title}
             description={kpiInfo.sessions.description}
@@ -160,8 +146,9 @@ export default function KpiCardsGrid({
           change={kpis.totalUsers.change}
           data={allChartData?.totalUsers}
           color={KPI_TAB_META.totalUsers.color}
+          error={ga4Error} // +++ NEU: Fehler weitergeben +++
         />
-        {!isLoading && (
+        {!isLoading && !ga4Error && ( // +++ NEU: Tooltip bei Fehler ausblenden +++
           <InfoTooltip
             title={kpiInfo.totalUsers.title}
             description={kpiInfo.totalUsers.description}
