@@ -28,7 +28,7 @@ const ChangeIndicator: React.FC<{ change?: number }> = ({ change }) => {
 };
 
 // --- KORREKTUR 2: Lokales Interface entfernt ---
-// interface AiTrafficCardProps { ... } // <--- ENTFERNT
+// interface AiTrafficCardProps { ... } // <--- WURDE ENTFERNT
 
 export default function AiTrafficCard({
   totalSessions = 0,
