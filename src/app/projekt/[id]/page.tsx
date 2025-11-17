@@ -12,7 +12,7 @@ import {
 import ProjectDashboard from '@/components/ProjectDashboard';
 import { ArrowRepeat, ExclamationTriangleFill } from 'react-bootstrap-icons';
 import { useSession } from 'next-auth/react';
-import ProjectTimelineWidget from '@/components/ProjectTimelineWidget'; // <-- KORREKTUR 1: Importieren
+import ProjectTimelineWidget from '@/components/ProjectTimelineWidget';
 
 interface FetchError extends Error {
   status?: number;
@@ -75,7 +75,7 @@ export default function ProjektDetailPage() {
     }
   };
 
-  // Zugriffs-Check (bleibt unverändert)
+  // ... (Zugriffs-Check und Loading-State bleiben unverändert) ...
   useEffect(() => {
     if (sessionStatus === 'authenticated' && session?.user && 
         session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN' &&
@@ -84,7 +84,6 @@ export default function ProjektDetailPage() {
     }
   }, [sessionStatus, session, projectId]);
 
-  // Loading-State (bleibt unverändert)
   if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-[calc(100vh-200px)]">
@@ -121,7 +120,7 @@ export default function ProjektDetailPage() {
     );
   }
   
-  // Fallback-Objekt (unverändert)
+  // +++ KORREKTUR: Fallback-Objekt um apiErrors erweitert +++
   const finalGoogleData: ProjectDashboardData = googleData ?? { 
     kpis: {}, 
     aiTraffic: undefined, 
@@ -129,25 +128,18 @@ export default function ProjektDetailPage() {
     countryData: [],
     channelData: [],
     deviceData: [], 
+    apiErrors: undefined, // Wichtig für den Fall, dass googleData null ist
   }; 
 
-  // Debug-Log (unverändert)
-  console.log('[ProjektPage] Finale Daten:', {
-    domain: userData?.domain,
-    faviconUrl: userData?.favicon_url,
-    semrushTrackingId: userData?.semrush_tracking_id,
-    semrushTrackingId02: userData?.semrush_tracking_id_02
-  });
+  // ... (Debug-Log bleibt unverändert) ...
 
   return (
    <div className="p-4 sm:p-6 md:p-8">
-      {/* KORREKTUR 2: Wrapper `main` mit `space-y-8` hinzugefügt */}
       <main className="space-y-8">
-        {/* KORREKTUR 3: Widget hier hinzugefügt und projectId übergeben */}
         <ProjectTimelineWidget projectId={projectId} />
 
         <ProjectDashboard
-          data={finalGoogleData} 
+          data={finalGoogleData} // finalGoogleData enthält jetzt apiErrors
           isLoading={isLoading} 
           dateRange={dateRange}
           onDateRangeChange={setDateRange}
