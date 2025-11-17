@@ -1,9 +1,9 @@
-// src/app/page.tsx (FINALE KORREKTUR - Domain & Favicon & ApiErrors)
+// src/app/page.tsx
 'use client';
 
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react'; // useCallback entfernt, da nicht mehr benötigt
 import Link from 'next/link';
 import { User } from '@/types';
 import {
@@ -27,37 +27,34 @@ export default function HomePage() {
   const router = useRouter();
 
   const [dashboardData, setDashboardData] = useState<ProjectDashboardData | null>(null);
-  const [projects, setProjects] = useState<User[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [projects, setProjects] = useState<User[]>([]); // Für Admins
+  const [isLoading, setIsLoading] = useState(true); // Genereller Ladezustand
   const [error, setError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<DateRangeOption>('30d');
   
   const [customerUser, setCustomerUser] = useState<User | null>(null);
-  const [isLoadingCustomer, setIsLoadingCustomer] = useState(true);
+  const [isLoadingCustomer, setIsLoadingCustomer] = useState(true); // Nur für initiales Laden des Users
 
-  // (fetchData bleibt gleich)
-  const fetchData = useCallback(async (range: DateRangeOption) => {
-    setIsLoading(true);
+  // Diese Funktion lädt die Google-Daten für einen bestimmten Zeitraum
+  const fetchGoogleData = async (range: DateRangeOption) => {
+    setIsLoading(true); // Signalisiert, dass Diagramme/KPIs laden
     setError(null);
     try {
       const googleResponse = await fetch(`/api/data?dateRange=${range}`);
-
       if (!googleResponse.ok) {
         const errorResult = await googleResponse.json();
         throw new Error(errorResult.message || 'Fehler beim Laden der Google-Daten');
       }
-      
       const googleResult = await googleResponse.json();
-      setDashboardData(googleResult); // Hier werden apiErrors mitgeladen
-
+      setDashboardData(googleResult);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Ein unbekannter Fehler ist aufgetreten');
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  };
 
-  // (useEffect bleibt gleich)
+  // Effekt für das INITIALE Laden der Seite
   useEffect(() => {
     if (status === 'authenticated') {
       if (session.user.role === 'ADMIN' || session.user.role === 'SUPERADMIN') {
@@ -74,33 +71,34 @@ export default function HomePage() {
             setIsLoading(false);
           });
       } else if (session.user.role === 'BENUTZER') {
-        setIsLoadingCustomer(true);
+        setIsLoadingCustomer(true); // Startet Laden des Kunden-Profils
         
         fetch(`/api/users/${session.user.id}`)
           .then(res => res.json())
           .then(userData => {
-            console.log('[HomePage] ✅ User-Daten geladen:', userData.email, 'Domain:', userData.domain);
             setCustomerUser(userData);
-            return fetchData(dateRange);
+            // Sobald wir den User haben, laden wir die INITIALEN Google-Daten
+            return fetchGoogleData(dateRange); // Verwendet den initialen dateRange-State
           })
           .catch(err => {
             console.error('[HomePage] ❌ Fehler beim Laden der User-Daten:', err);
             setError(err.message);
           })
           .finally(() => {
-            setIsLoadingCustomer(false);
+            setIsLoadingCustomer(false); // Kunde geladen (oder fehlgeschlagen)
           });
       }
     } else if (status === 'unauthenticated') {
       router.push('/login');
     }
-  }, [status, session, router, dateRange, fetchData]); 
+    // WICHTIG: Dieser Effekt läuft nur einmal, wenn sich die Session ändert
+  }, [status, session, router]); // dateRange und fetchData wurden hier entfernt
 
-  // (Handler bleiben gleich)
+  // Handler für Datumsänderung
   const handleDateRangeChange = (range: DateRangeOption) => {
-    setDateRange(range);
+    setDateRange(range); // 1. State für den Selector aktualisieren
     if (session?.user.role === 'BENUTZER') {
-      void fetchData(range);
+      void fetchGoogleData(range); // 2. Daten für den neuen Bereich laden
     }
   };
 
@@ -110,10 +108,10 @@ export default function HomePage() {
     }
   };
 
-  // (Lade- & Fehler-Status bleiben gleich)
-  if (status === 'loading' || 
-      (session?.user.role === 'BENUTZER' && isLoadingCustomer) ||
-      (session?.user.role === 'BENUTZER' && isLoading && !dashboardData && !error)) {
+  // --- Render-Zustände ---
+
+  // Zeigt Lade-Spinner, während die Session ODER der Kunde ODER die initialen Daten geladen werden
+  if (status === 'loading' || isLoadingCustomer || (isLoading && !dashboardData && !error)) {
     return (
       <div className="flex justify-center items-center min-h-screen bg-gray-50">
         <ArrowRepeat className="animate-spin text-indigo-600" size={40} />
@@ -133,7 +131,6 @@ export default function HomePage() {
     );
   }
 
-  // (AdminDashboard-Rendering bleibt gleich)
   if (session?.user.role === 'ADMIN' || session?.user.role === 'SUPERADMIN') {
     return (
       <AdminDashboard 
@@ -144,11 +141,9 @@ export default function HomePage() {
   }
 
   if (session?.user.role === 'BENUTZER' && dashboardData && customerUser) {
-    console.log('[HomePage] 🎯 Rendering CustomerDashboard mit Domain:', customerUser.domain);
-    
     return (
       <CustomerDashboard
-        data={dashboardData} // dashboardData enthält jetzt apiErrors
+        data={dashboardData}
         isLoading={isLoading}
         dateRange={dateRange}
         onDateRangeChange={handleDateRangeChange}
@@ -224,11 +219,14 @@ function CustomerDashboard({
     <div className="p-4 md:p-8 bg-gray-50 min-h-screen">
       <main className="space-y-8">
         
-        <ProjectTimelineWidget projectId={user.id} />
+        {/* Zeigt Timeline nur an, wenn sie für den User aktiviert ist */}
+        {user.project_timeline_active && (
+          <ProjectTimelineWidget projectId={user.id} />
+        )}
 
         <ProjectDashboard
-          data={data} // data enthält apiErrors
-          isLoading={isLoading}
+          data={data}
+          isLoading={isLoading} // Diese Prop steuert jetzt die Ladeanzeigen im Dashboard
           dateRange={dateRange}
           onDateRangeChange={onDateRangeChange}
           onPdfExport={onPdfExport}
@@ -238,14 +236,11 @@ function CustomerDashboard({
           semrushTrackingId={user.semrush_tracking_id}
           semrushTrackingId02={user.semrush_tracking_id_02}
           
-          // Props für Kreisdiagramme werden jetzt aus data geholt
           countryData={data.countryData}
           channelData={data.channelData}
           deviceData={data.deviceData}
         />
         
-        {/* LandingpageApproval wird jetzt über /dashboard/freigabe aufgerufen */}
-
       </main>
     </div>
   );
