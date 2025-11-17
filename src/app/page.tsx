@@ -35,7 +35,7 @@ export default function HomePage() {
   const [customerUser, setCustomerUser] = useState<User | null>(null);
   const [isLoadingCustomer, setIsLoadingCustomer] = useState(true);
 
-  // ... (fetchData, useEffect, handleDateRangeChange, handlePdfExport bleiben unverändert) ...
+  // (fetchData bleibt gleich)
   const fetchData = useCallback(async (range: DateRangeOption) => {
     setIsLoading(true);
     setError(null);
@@ -48,15 +48,16 @@ export default function HomePage() {
       }
       
       const googleResult = await googleResponse.json();
-      setDashboardData(googleResult);
+      setDashboardData(googleResult); // Hier werden apiErrors mitgeladen
 
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Ein unbekannter Fehler ist aufgetreten');
     } finally {
       setIsLoading(false);
     }
-  }, []); 
+  }, []);
 
+  // (useEffect bleibt gleich)
   useEffect(() => {
     if (status === 'authenticated') {
       if (session.user.role === 'ADMIN' || session.user.role === 'SUPERADMIN') {
@@ -95,6 +96,7 @@ export default function HomePage() {
     }
   }, [status, session, router, dateRange, fetchData]); 
 
+  // (Handler bleiben gleich)
   const handleDateRangeChange = (range: DateRangeOption) => {
     setDateRange(range);
     if (session?.user.role === 'BENUTZER') {
@@ -108,7 +110,7 @@ export default function HomePage() {
     }
   };
 
-  // ... (Lade- und Fehler-Zustände bleiben unverändert) ...
+  // (Lade- & Fehler-Status bleiben gleich)
   if (status === 'loading' || 
       (session?.user.role === 'BENUTZER' && isLoadingCustomer) ||
       (session?.user.role === 'BENUTZER' && isLoading && !dashboardData && !error)) {
@@ -131,7 +133,7 @@ export default function HomePage() {
     );
   }
 
-  // ... (AdminDashboard-Rendering bleibt unverändert) ...
+  // (AdminDashboard-Rendering bleibt gleich)
   if (session?.user.role === 'ADMIN' || session?.user.role === 'SUPERADMIN') {
     return (
       <AdminDashboard 
@@ -156,7 +158,6 @@ export default function HomePage() {
     );
   }
 
-  // ... (Fallback-Rendering bleibt unverändert) ...
   return (
     <div className="flex justify-center items-center min-h-screen bg-gray-50">
       <p>Lädt Dashboard...</p>
@@ -164,18 +165,45 @@ export default function HomePage() {
   );
 }
 
-// ... (AdminDashboard-Komponente bleibt unverändert) ...
+// (AdminDashboard-Komponente bleibt unverändert)
 function AdminDashboard({ projects, isLoading }: { projects: User[], isLoading: boolean }) {
-  // ... (JSX für AdminDashboard)
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
-      {/* ... */}
+      <div className="max-w-7xl mx-auto">
+        <h1 className="text-3xl font-bold text-gray-900 mb-8">Alle Projekte</h1>
+        {isLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="bg-white p-6 rounded-lg shadow-md border border-gray-200 animate-pulse">
+                <div className="h-5 bg-gray-200 rounded w-3/4 mb-3"></div>
+                <div className="h-4 bg-gray-200 rounded w-1/2 mb-4"></div>
+                <div className="h-9 bg-gray-200 rounded w-1/3"></div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {projects.map(project => (
+              <Link href={`/projekt/${project.id}`} key={project.id} legacyBehavior>
+                <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200 hover:shadow-xl hover:border-indigo-300 transition-all cursor-pointer flex flex-col justify-between h-full min-h-[160px]">
+                  <div>
+                    <h2 className="text-lg font-bold text-gray-900 truncate mb-1">{project.domain || project.email}</h2>
+                    <p className="text-sm text-gray-500 mb-4 truncate">{project.domain ? project.email : 'Keine Domain zugewiesen'}</p>
+                  </div>
+                  <span className="text-indigo-600 hover:text-indigo-800 text-sm font-medium flex items-center gap-1.5 transition-colors">
+                    Dashboard anzeigen <ArrowRightSquare size={14} />
+                  </span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-
-// +++ KORREKTUR: CustomerDashboard leitet apiErrors weiter +++
+// (CustomerDashboard-Rendering ist jetzt korrekt)
 function CustomerDashboard({
   data,
   isLoading,
@@ -196,7 +224,7 @@ function CustomerDashboard({
     <div className="p-4 md:p-8 bg-gray-50 min-h-screen">
       <main className="space-y-8">
         
-        <ProjectTimelineWidget />
+        <ProjectTimelineWidget projectId={user.id} />
 
         <ProjectDashboard
           data={data} // data enthält apiErrors
@@ -209,6 +237,8 @@ function CustomerDashboard({
           faviconUrl={user.favicon_url}
           semrushTrackingId={user.semrush_tracking_id}
           semrushTrackingId02={user.semrush_tracking_id_02}
+          
+          // Props für Kreisdiagramme werden jetzt aus data geholt
           countryData={data.countryData}
           channelData={data.channelData}
           deviceData={data.deviceData}
