@@ -31,9 +31,6 @@ export interface KpiWithAiTraffic extends KPI {
   };
 }
 
-// export type KPI = { ... } // (Bereits in dashboard.ts definiert, hier nicht duplizieren)
-
-
 // +++ NEU: AiTrafficCardProps hierher verschoben +++
 // Diese Schnittstelle definiert die Props für die React-Komponente
 export interface AiTrafficCardProps {
