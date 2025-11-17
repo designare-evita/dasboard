@@ -1,4 +1,4 @@
-// src/lib/google-data-loader.ts (VERBESSERT + KREISDIAGRAMME)
+// src/lib/google-data-loader.ts (VERBESSERT + KREISDIAGRAMME + FEHLERBEHANDLUNG)
 
 import { sql } from '@vercel/postgres';
 import { User } from '@/types';
@@ -10,7 +10,12 @@ import {
   getGa4DimensionReport, // ✅ NEU: Für Kreisdiagramm-Daten
   type AiTrafficData
 } from '@/lib/google-api';
-import { ProjectDashboardData, ChartEntry } from '@/lib/dashboard-shared'; // ✅ NEU: ChartEntry importieren
+// +++ NEU: ApiErrorStatus importiert +++
+import { 
+  ProjectDashboardData, 
+  ChartEntry, 
+  ApiErrorStatus 
+} from '@/lib/dashboard-shared';
 
 // ========== KONSTANTEN ==========
 const CACHE_DURATION_HOURS = 48; // 48-Stunden-Cache
@@ -31,6 +36,7 @@ const DEFAULT_AI_TRAFFIC: AiTrafficData = {
 };
 
 // ========== HILFSFUNKTIONEN ==========
+// ... (formatDate, calculateChange, formatPieData und Farbkonstanten bleiben unverändert) ...
 function formatDate(date: Date): string {
   return date.toISOString().split('T')[0];
 }
@@ -44,49 +50,26 @@ function calculateChange(current: number, previous: number): number {
   return Math.round(change * 10) / 10;
 }
 
-// ========== KREISDIAGRAMM-HILFSFUNKTIONEN ==========
-// ✅ NEU: Farbpaletten für die Diagramme
 const PIE_COLORS_CHANNELS = [
-  '#2563eb', // Organic Search
-  '#f59e0b', // Paid Search
-  '#10b981', // Direct
-  '#6366f1', // Referral
-  '#ec4899', // Social
-  '#6b7280', // Sonstige
+  '#2563eb', '#f59e0b', '#10b981', '#6366f1', '#ec4899', '#6b7280',
 ];
-
 const PIE_COLORS_DEVICES = [
-  '#3b82f6', // desktop
-  '#16a34a', // mobile
-  '#f97316', // tablet
-  '#6b7280', // Sonstige
+  '#3b82f6', '#16a34a', '#f97316', '#6b7280',
 ];
-
 const PIE_COLORS_COUNTRIES = [
-  '#3b82f6', '#60a5fa', '#93c5fd', // Blau-Töne
-  '#10b981', '#34d399', '#6ee7b7', // Grün-Töne
-  '#f59e0b', '#fcd34d', '#fef08a', // Gelb-Töne
-  '#6b7280', // Sonstige
+  '#3b82f6', '#60a5fa', '#93c5fd', '#10b981', '#34d399', '#6ee7b7',
+  '#f59e0b', '#fcd34d', '#fef08a', '#6b7280',
 ];
 
-// ✅ NEU: Helper zum Formatieren der Daten für Kuchendiagramme
 function formatPieData(
   data: Array<{ name: string; value: number }>, 
   colorPalette: string[]
 ): ChartEntry[] {
-  // Übersetzungen für häufige Werte
   const translations: Record<string, string> = {
-    'Organic Search': 'Organisch',
-    'Paid Search': 'Bezahlt',
-    'Direct': 'Direkt',
-    'Referral': 'Verweise',
-    'Organic Social': 'Social Media',
-    'desktop': 'Desktop',
-    'mobile': 'Smartphone',
-    'tablet': 'Tablet',
-    '(not set)': 'Unbekannt',
+    'Organic Search': 'Organisch', 'Paid Search': 'Bezahlt', 'Direct': 'Direkt',
+    'Referral': 'Verweise', 'Organic Social': 'Social Media', 'desktop': 'Desktop',
+    'mobile': 'Smartphone', 'tablet': 'Tablet', '(not set)': 'Unbekannt',
   };
-
   return data.map((item, index) => ({
     ...item,
     name: translations[item.name] || item.name,
@@ -94,42 +77,37 @@ function formatPieData(
   }));
 }
 
+
 // ========== DATENLADE-FUNKTION ==========
 async function fetchFreshGoogleData(user: Partial<User>, dateRange: string = '30d') {
   
-  // Prüfe, ob überhaupt Datenquellen konfiguriert sind
   if (!user.gsc_site_url && !user.ga4_property_id) {
     console.warn(`[Google Cache FETCH] ⚠️ Benutzer ${user.email} hat WEDER GSC noch GA4 konfiguriert`);
     return null;
   }
 
-  // ========== ZEITBEREICHS-BERECHNUNG ==========
+  // ... (Zeitberechnung sDateCurrent, eDateCurrent etc. bleiben unverändert) ...
   const today = new Date();
   const endDateCurrent = new Date(today);
   endDateCurrent.setDate(endDateCurrent.getDate() - 1); 
-  
   const startDateCurrent = new Date(endDateCurrent);
   let daysBack: number;
-  
   switch (dateRange) {
     case '3m': daysBack = 90; break;
     case '6m': daysBack = 180; break;
     case '12m': daysBack = 365; break;
     case '30d': default: daysBack = 29; break;
   }
-  
   startDateCurrent.setDate(startDateCurrent.getDate() - daysBack);
-  
   const endDatePrevious = new Date(startDateCurrent);
   endDatePrevious.setDate(endDatePrevious.getDate() - 1);
   const startDatePrevious = new Date(endDatePrevious);
   startDatePrevious.setDate(startDatePrevious.getDate() - daysBack);
-  
   const sDateCurrent = formatDate(startDateCurrent);
   const eDateCurrent = formatDate(endDateCurrent);
   const sDatePrevious = formatDate(startDatePrevious);
   const eDatePrevious = formatDate(endDatePrevious);
-
+  
   console.log(`[Google Cache FETCH] 📅 Zeitraum Aktuell: ${sDateCurrent} bis ${eDateCurrent}`);
   console.log(`[Google Cache FETCH] 📅 Zeitraum Vorher: ${sDatePrevious} bis ${eDatePrevious}`);
 
@@ -141,10 +119,13 @@ async function fetchFreshGoogleData(user: Partial<User>, dateRange: string = '30
   let gaPrevious: { sessions: { total: number }, totalUsers: { total: number } } = DEFAULT_GA_PREVIOUS;
   let aiTrafficCurrent: AiTrafficData = DEFAULT_AI_TRAFFIC;
   let aiTrafficPrevious: AiTrafficData = DEFAULT_AI_TRAFFIC;
-  // ✅ NEU: Initialisierung für Kreisdiagramm-Daten
   let countryData: ChartEntry[] = [];
   let channelData: ChartEntry[] = [];
   let deviceData: ChartEntry[] = [];
+  
+  // +++ NEU: Initialisiere das apiErrors-Objekt +++
+  const apiErrors: ApiErrorStatus = {};
+
 
   try {
     console.log(`[Google Cache FETCH] 🔄 Lade frische Google-Daten für ${user.email} (${dateRange})`);
@@ -162,6 +143,8 @@ async function fetchFreshGoogleData(user: Partial<User>, dateRange: string = '30
       );
     } else {
       console.log(`[Google Cache FETCH] ⚠️ GSC nicht konfiguriert`);
+      // +++ NEU: Fehler setzen, wenn nicht konfiguriert +++
+      apiErrors.gsc = 'GSC ist für diesen Benutzer nicht konfiguriert.';
     }
 
     if (user.ga4_property_id) {
@@ -171,13 +154,14 @@ async function fetchFreshGoogleData(user: Partial<User>, dateRange: string = '30
         getAnalyticsData(user.ga4_property_id, sDatePrevious, eDatePrevious),
         getAiTrafficData(user.ga4_property_id, sDateCurrent, eDateCurrent),
         getAiTrafficData(user.ga4_property_id, sDatePrevious, eDatePrevious),
-        // ✅ NEU: Drei neue Abfragen für die Kreisdiagramme
         getGa4DimensionReport(user.ga4_property_id, sDateCurrent, eDateCurrent, 'country'),
         getGa4DimensionReport(user.ga4_property_id, sDateCurrent, eDateCurrent, 'sessionDefaultChannelGroup'),
         getGa4DimensionReport(user.ga4_property_id, sDateCurrent, eDateCurrent, 'deviceCategory')
       );
     } else {
       console.log(`[Google Cache FETCH] ⚠️ GA4 nicht konfiguriert`);
+      // +++ NEU: Fehler setzen, wenn nicht konfiguriert +++
+      apiErrors.ga4 = 'GA4 ist für diesen Benutzer nicht konfiguriert.';
     }
 
     // ========== PARALLEL FETCHING ==========
@@ -192,83 +176,94 @@ async function fetchFreshGoogleData(user: Partial<User>, dateRange: string = '30
     const fetchDuration = Date.now() - startTime;
     console.log(`[Google Cache FETCH] ⏱️ API-Abfragen abgeschlossen in ${fetchDuration}ms`);
 
-    // ========== GSC ERGEBNISSE VERARBEITEN ==========
+    // ========== GSC ERGEBNISSE VERARBEITEN (MODIFIZIERT) ==========
     if (gscResults.length > 0) {
+      // Prüfe gscCurrent (Index 0)
       if (gscResults[0].status === 'fulfilled') {
         gscCurrent = gscResults[0].value as GscData;
         console.log(`[Google Cache FETCH] ✅ GSC Current: ${gscCurrent.clicks.total} Klicks`);
       } else {
-        console.error(`[Google Cache FETCH] ❌ GSC Current failed:`, gscResults[0].reason);
+        const reason = gscResults[0].reason;
+        // +++ FEHLER SPEICHERN +++
+        apiErrors.gsc = reason instanceof Error ? reason.message : String(reason);
+        console.error(`[Google Cache FETCH] ❌ GSC Current failed:`, apiErrors.gsc);
       }
       
+      // Prüfe gscPrevious (Index 1)
       if (gscResults[1].status === 'fulfilled') {
         gscPrevious = gscResults[1].value as typeof gscPrevious;
         console.log(`[Google Cache FETCH] ✅ GSC Previous: ${gscPrevious.clicks.total} Klicks`);
       } else {
+        // +++ FEHLER SPEICHERN (falls noch nicht geschehen) +++
+        if (!apiErrors.gsc) {
+            const reason = gscResults[1].reason;
+            apiErrors.gsc = reason instanceof Error ? reason.message : String(reason);
+        }
         console.error(`[Google Cache FETCH] ❌ GSC Previous failed:`, gscResults[1].reason);
       }
       
+      // Top Queries (Fehler hier ist nicht kritisch für KPIs)
       if (gscResults[2].status === 'fulfilled') {
         topQueries = gscResults[2].value as TopQueryData;
         console.log(`[Google Cache FETCH] ✅ Top Queries: ${topQueries.length} Einträge`);
       } else {
         console.error(`[Google Cache FETCH] ❌ Top Queries failed:`, gscResults[2].reason);
+        // +++ Optional: Fehler auch hier speichern +++
+        // if (!apiErrors.gsc) apiErrors.gsc = "Fehler bei TopQueries";
       }
     }
 
-    // ========== GA4 ERGEBNISSE VERARBEITEN ==========
+    // ========== GA4 ERGEBNISSE VERARBEITEN (MODIFIZIERT) ==========
     if (ga4Results.length > 0) {
+      // Prüfe gaCurrent (Index 0)
       if (ga4Results[0].status === 'fulfilled') {
         gaCurrent = ga4Results[0].value as GaData;
         console.log(`[Google Cache FETCH] ✅ GA4 Current: ${gaCurrent.sessions.total} Sitzungen`);
       } else {
-        console.error(`[Google Cache FETCH] ❌ GA4 Current failed:`, ga4Results[0].reason);
+        const reason = ga4Results[0].reason;
+        // +++ FEHLER SPEICHERN +++
+        apiErrors.ga4 = reason instanceof Error ? reason.message : String(reason);
+        console.error(`[Google Cache FETCH] ❌ GA4 Current failed:`, apiErrors.ga4);
       }
       
+      // Prüfe gaPrevious (Index 1)
       if (ga4Results[1].status === 'fulfilled') {
         gaPrevious = ga4Results[1].value as typeof gaPrevious;
         console.log(`[Google Cache FETCH] ✅ GA4 Previous: ${gaPrevious.sessions.total} Sitzungen`);
       } else {
+        // +++ FEHLER SPEICHERN (falls noch nicht geschehen) +++
+        if (!apiErrors.ga4) {
+            const reason = ga4Results[1].reason;
+            apiErrors.ga4 = reason instanceof Error ? reason.message : String(reason);
+        }
         console.error(`[Google Cache FETCH] ❌ GA4 Previous failed:`, ga4Results[1].reason);
       }
       
-      if (ga4Results[2].status === 'fulfilled') {
+      // (Restliche GA4-Verarbeitung bleibt gleich, da sie nicht-kritisch für KPIs sind)
+      if (ga4Results[2]?.status === 'fulfilled') {
         aiTrafficCurrent = ga4Results[2].value as AiTrafficData;
-        console.log(`[Google Cache FETCH] ✅ AI Traffic Current: ${aiTrafficCurrent.totalSessions} Sitzungen`);
       } else {
-        console.error(`[Google Cache FETCH] ❌ AI Traffic Current failed:`, ga4Results[2].reason);
+        console.error(`[Google Cache FETCH] ❌ AI Traffic Current failed:`, ga4Results[2]?.reason);
       }
-      
-      if (ga4Results[3].status === 'fulfilled') {
+      if (ga4Results[3]?.status === 'fulfilled') {
         aiTrafficPrevious = ga4Results[3].value as AiTrafficData;
-        console.log(`[Google Cache FETCH] ✅ AI Traffic Previous: ${aiTrafficPrevious.totalSessions} Sitzungen`);
       } else {
-        console.error(`[Google Cache FETCH] ❌ AI Traffic Previous failed:`, ga4Results[3].reason);
+        console.error(`[Google Cache FETCH] ❌ AI Traffic Previous failed:`, ga4Results[3]?.reason);
       }
-      
-      // ✅ NEU: Verarbeitung der Kreisdiagramm-Daten
       if (ga4Results[4]?.status === 'fulfilled') {
-        const rawData = ga4Results[4].value as Array<{ name: string; value: number }>;
-        countryData = formatPieData(rawData, PIE_COLORS_COUNTRIES);
-        console.log(`[Google Cache FETCH] ✅ Länder-Daten: ${countryData.length} Segmente`);
+        countryData = formatPieData(ga4Results[4].value as Array<{ name: string; value: number }>, PIE_COLORS_COUNTRIES);
       } else {
-        console.error(`[Google Cache FETCH] ❌ Länder-Daten failed:`, ga4Results[4]?.reason);
+         console.error(`[Google Cache FETCH] ❌ Länder-Daten failed:`, ga4Results[4]?.reason);
       }
-      
       if (ga4Results[5]?.status === 'fulfilled') {
-        const rawData = ga4Results[5].value as Array<{ name: string; value: number }>;
-        channelData = formatPieData(rawData, PIE_COLORS_CHANNELS);
-        console.log(`[Google Cache FETCH] ✅ Channel-Daten: ${channelData.length} Segmente`);
+        channelData = formatPieData(ga4Results[5].value as Array<{ name: string; value: number }>, PIE_COLORS_CHANNELS);
       } else {
-        console.error(`[Google Cache FETCH] ❌ Channel-Daten failed:`, ga4Results[5]?.reason);
+         console.error(`[Google Cache FETCH] ❌ Channel-Daten failed:`, ga4Results[5]?.reason);
       }
-      
-      if (ga4Results[6]?.status === 'fulfilled') {
-        const rawData = ga4Results[6].value as Array<{ name: string; value: number }>;
-        deviceData = formatPieData(rawData, PIE_COLORS_DEVICES);
-        console.log(`[Google Cache FETCH] ✅ Geräte-Daten: ${deviceData.length} Segmente`);
+       if (ga4Results[6]?.status === 'fulfilled') {
+        deviceData = formatPieData(ga4Results[6].value as Array<{ name: string; value: number }>, PIE_COLORS_DEVICES);
       } else {
-        console.error(`[Google Cache FETCH] ❌ Geräte-Daten failed:`, ga4Results[6]?.reason);
+         console.error(`[Google Cache FETCH] ❌ Geräte-Daten failed:`, ga4Results[6]?.reason);
       }
     }
 
@@ -290,7 +285,7 @@ async function fetchFreshGoogleData(user: Partial<User>, dateRange: string = '30
       : 0;
 
     // ========== RÜCKGABEOBJEKT ERSTELLEN ==========
-    const result: ProjectDashboardData = { // ✅ NEU: Expliziter Typ
+    const result: ProjectDashboardData = {
       kpis: {
         clicks: {
           value: gscCurrent.clicks.total ?? 0,
@@ -321,10 +316,11 @@ async function fetchFreshGoogleData(user: Partial<User>, dateRange: string = '30
       },
       topQueries,
       aiTraffic: aiTrafficCurrent,
-      // ✅ NEU: Hinzufügen der Kreisdiagramm-Daten
       countryData,
       channelData,
       deviceData,
+      // +++ NEU: Hinzufügen des apiErrors-Objekts (nur wenn es Einträge hat) +++
+      apiErrors: Object.keys(apiErrors).length > 0 ? apiErrors : undefined,
     };
 
     console.log(`[Google Cache FETCH] ✅ Dashboard-Daten erfolgreich aufbereitet`);
@@ -370,13 +366,18 @@ export async function getOrFetchGoogleData(user: Partial<User>, dateRange: strin
       console.log(`[Google Cache] 📦 Cache-Zeitstempel: ${lastFetched.toISOString()}`);
       console.log(`[Google Cache] 📦 Cache-Gültigkeit: ${CACHE_DURATION_HOURS} Stunden`);
 
-      if (ageInHours < CACHE_DURATION_HOURS) {
+      // +++ NEU: Logik, um Cache bei Fehlern schneller zu invalidieren +++
+      const cachedData = cache.data as GoogleCacheData;
+      if (cachedData?.apiErrors && ageInHours > 1) {
+         console.log(`[Google Cache] ⏰ CACHE STALE (FAST) - Gecachte Daten enthalten API-Fehler. Versuche erneuten Fetch.`);
+      } else if (ageInHours < CACHE_DURATION_HOURS) {
         console.log(`[Google Cache] ✅ CACHE HIT - Nutze gecachte Daten`);
         console.log(`========== GOOGLE CACHE END ==========\n`);
         return { ...(cache.data as GoogleCacheData), fromCache: true };
+      } else {
+         console.log(`[Google Cache] ⏰ CACHE STALE - Cache ist veraltet (${ageInHours.toFixed(2)}h > ${CACHE_DURATION_HOURS}h)`);
       }
-      
-      console.log(`[Google Cache] ⏰ CACHE STALE - Cache ist veraltet (${ageInHours.toFixed(2)}h > ${CACHE_DURATION_HOURS}h)`);
+
     } else {
       console.log(`[Google Cache] ❌ CACHE MISS - Kein Cache-Eintrag gefunden`);
     }
@@ -396,7 +397,16 @@ export async function getOrFetchGoogleData(user: Partial<User>, dateRange: strin
   } catch (fetchError) {
     console.error('[Google Cache] ❌ Fehler beim Fetchen der Daten:', fetchError);
     console.log(`========== GOOGLE CACHE END ==========\n`);
-    throw fetchError;
+    // +++ NEU: Gebe einen Fehler-Wrapper zurück, statt zu werfen +++
+    return {
+      kpis: { clicks: ZERO_KPI, impressions: ZERO_KPI, sessions: ZERO_KPI, totalUsers: ZERO_KPI },
+      charts: {}, topQueries: [],
+      apiErrors: { 
+        gsc: fetchError instanceof Error ? fetchError.message : 'Allgemeiner GSC-Fehler',
+        ga4: fetchError instanceof Error ? fetchError.message : 'Allgemeiner GA4-Fehler'
+      },
+      fromCache: false
+    } as ProjectDashboardData & { fromCache: boolean };
   }
 
   if (!freshData) {
