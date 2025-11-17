@@ -11,9 +11,12 @@ import {
 import type { ChartPoint } from '@/types/dashboard';
 import { InfoCircle } from 'react-bootstrap-icons';
 
-// ... (InfoTooltip Komponente bleibt unverändert) ...
+/**
+ * InfoTooltip - Zeigt Details zu einer KPI an
+ */
 function InfoTooltip({ title, description }: { title: string; description: string }) {
   const [isVisible, setIsVisible] = useState(false);
+
   return (
     <div className="absolute top-3 right-3 z-10 print:hidden">
       <div
@@ -21,6 +24,7 @@ function InfoTooltip({ title, description }: { title: string; description: strin
         onMouseEnter={() => setIsVisible(true)}
         onMouseLeave={() => setIsVisible(false)}
       >
+        {/* Info-Icon */}
         <button
           type="button"
           className="p-1 rounded-full hover:bg-gray-100 transition-colors cursor-help"
@@ -31,6 +35,8 @@ function InfoTooltip({ title, description }: { title: string; description: strin
             className="text-gray-400 hover:text-indigo-600 transition-colors"
           />
         </button>
+
+        {/* Tooltip */}
         {isVisible && (
           <div className="absolute right-0 top-8 w-72 bg-white rounded-lg shadow-xl border border-gray-200 p-4 z-20 animate-in fade-in slide-in-from-top-2 duration-200">
             <div className="absolute -top-2 right-3 w-4 h-4 bg-white border-l border-t border-gray-200 transform rotate-45"></div>
@@ -42,7 +48,6 @@ function InfoTooltip({ title, description }: { title: string; description: strin
     </div>
   );
 }
-
 
 // Props-Interface (angepasst an dashboard-shared Typen)
 interface KpiCardsGridProps {
@@ -66,12 +71,26 @@ export default function KpiCardsGrid({
     return null;
   }
   
-  // ... (kpiInfo-Objekt bleibt unverändert) ...
   const kpiInfo = {
-    clicks: { title: 'Was sind Klicks?', description: '...'},
-    impressions: { title: 'Was sind Impressionen?', description: '...'},
-    sessions: { title: 'Was sind Sitzungen?', description: '...'},
-    totalUsers: { title: 'Was sind Nutzer?', description: '...'},
+    clicks: {
+      title: 'Was sind Klicks?',
+      description:
+        'Die Anzahl der Klicks auf Ihre Website-Links in den Google-Suchergebnissen...',
+    },
+    impressions: {
+      title: 'Was sind Impressionen?',
+      description:
+        'Wie oft ein Link zu Ihrer Website in den Google-Suchergebnissen angezeigt wurde...',
+    },
+    sessions: {
+      title: 'Was sind Sitzungen?',
+      description:
+        'Eine Sitzung ist eine Gruppe von Interaktionen, die ein Nutzer innerhalb eines bestimmten Zeitraums...',
+    },
+    totalUsers: {
+      title: 'Was sind Nutzer?',
+      description: 'Die Anzahl eindeutiger Besucher Ihrer Website...',
+    },
   };
 
   // +++ NEU: Fehler extrahieren +++
