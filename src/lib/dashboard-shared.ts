@@ -1,12 +1,24 @@
 // src/lib/dashboard-shared.ts
 import { DateRangeOption } from "@/components/DateRangeSelector";
-// Importiere Typen aus ihren Originaldateien
+
+// --- KORREKTUR START ---
+// 1. Importiere Typen, damit sie IN DIESER DATEI verfügbar sind
+import type { 
+  KpiDatum, 
+  ChartPoint, 
+  TopQueryData, 
+  ActiveKpi 
+} from '@/types/dashboard';
+
+// 2. Exportiere Typen, damit ANDERE DATEIEN sie von hier importieren können
 export type { 
   KpiDatum, 
   ChartPoint, 
   TopQueryData, 
   ActiveKpi 
 } from '@/types/dashboard';
+// --- KORREKTUR ENDE ---
+
 import type { AiTrafficData } from '@/types/ai-traffic';
 
 
@@ -22,7 +34,6 @@ export type ChartEntry = {
 };
 
 /**
- * +++ NEU +++
  * Speichert den Fehlerstatus von GSC oder GA4, falls eine API fehlschlägt.
  */
 export interface ApiErrorStatus {
@@ -54,7 +65,6 @@ export interface ProjectDashboardData {
   channelData?: ChartEntry[];
   deviceData?: ChartEntry[];
   
-  // +++ NEU: apiErrors-Feld hinzugefügt +++
   apiErrors?: ApiErrorStatus;
   
   // Wird vom Loader hinzugefügt, um den Cache-Status anzuzeigen
@@ -66,7 +76,6 @@ export interface ProjectDashboardData {
 
 /**
  * Metadaten für die Chart-Tabs (Titel und Farbe).
- * (Bleibt gleich)
  */
 export const KPI_TAB_META: Record<ActiveKpi, { title: string; color: string }> = {
   clicks: { title: 'Klicks', color: '#3b82f6' },
@@ -77,7 +86,6 @@ export const KPI_TAB_META: Record<ActiveKpi, { title: string; color: string }> =
 
 /**
  * Ein Standard-KPI-Objekt für den Fall, dass keine Daten vorhanden sind.
- * (Bleibt gleich)
  */
 export const ZERO_KPI: KpiDatum = { value: 0, change: 0 };
 
@@ -86,7 +94,6 @@ export const ZERO_KPI: KpiDatum = { value: 0, change: 0 };
 
 /**
  * Stellt sicher, dass die KPI-Daten immer ein valides Objekt sind.
- * (Bleibt gleich)
  */
 export function normalizeFlatKpis(input?: ProjectDashboardData['kpis']) {
   return {
@@ -99,7 +106,6 @@ export function normalizeFlatKpis(input?: ProjectDashboardData['kpis']) {
 
 /**
  * Prüft, ob sinnvolle KPI- oder Chart-Daten vorhanden sind.
- * (Angepasst, um apiErrors zu berücksichtigen)
  */
 export function hasDashboardData(data: ProjectDashboardData): boolean {
   // Wenn beide APIs fehlschlagen, zeige den "Keine Daten"-Screen
