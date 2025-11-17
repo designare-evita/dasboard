@@ -26,7 +26,7 @@ import {
 import { addMonths, format, differenceInCalendarDays } from 'date-fns';
 import { de } from 'date-fns/locale';
 
-// Typen für die API-Antwort
+// (Typen bleiben gleich)
 interface StatusCounts {
   'Offen': number;
   'In Prüfung': number;
@@ -36,7 +36,7 @@ interface StatusCounts {
 }
 interface GscDataPoint {
   date: string;
-  value: number; // 'value' enthält die Impressionen
+  value: number;
 }
 interface TimelineData {
   project: {
@@ -49,23 +49,19 @@ interface TimelineData {
   };
   gscImpressionTrend: GscDataPoint[];
 }
-
-// Typen für Tooltip
 interface TooltipPayload {
   dataKey: string;
   value: number;
 }
-
 interface CustomTooltipProps {
   active?: boolean;
   payload?: TooltipPayload[];
-  label?: string | number; // Label ist hier ein Timestamp (Zahl)
+  label?: string | number;
 }
 
-// KORREKTUR: SWR Fetcher, der API-Fehler (wie 403) abfängt
+// (Fetcher bleibt gleich)
 const fetcher = (url: string) => fetch(url).then((res) => {
   if (!res.ok) {
-    // Wirf einen Fehler, damit SWR ihn in 'error' speichert
     return res.json().then(errorData => {
       throw new Error(errorData.message || 'Fehler beim Laden der Timeline-Daten.');
     });
@@ -73,13 +69,10 @@ const fetcher = (url: string) => fetch(url).then((res) => {
   return res.json();
 });
 
-
-// Hilfsfunktion für Tooltip-Formatierung
+// (CustomTooltip und formatImpressions bleiben gleich)
 const formatImpressions = (value: number) => {
   return new Intl.NumberFormat('de-DE').format(value);
 };
-
-// Tooltip-Inhalt
 const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
   if (active && payload && payload.length) {
     const dateLabel = typeof label === 'number' ? new Date(label) : (typeof label === 'string' ? new Date(label) : new Date());
@@ -96,12 +89,15 @@ const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
   return null;
 };
 
+
+// +++ KORREKTUR: Props erweitert +++
 interface ProjectTimelineWidgetProps {
-  projectId?: string; // Optional: Für Admins, die ein bestimmtes Projekt ansehen
+  projectId?: string;
+  domain?: string | null; // Domain hinzugefügt
 }
 
 // Die Hauptkomponente
-export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidgetProps) {
+export default function ProjectTimelineWidget({ projectId, domain }: ProjectTimelineWidgetProps) {
   
   const apiUrl = projectId 
     ? `/api/project-timeline?projectId=${projectId}` 
@@ -121,49 +117,40 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
     );
   }
 
-  // --- KORREKTUR: Widget ausblenden bei Fehler (z.B. "Nicht aktiviert") ---
-  if (error) {
-    console.warn(`[ProjectTimelineWidget] Wird ausgeblendet. Grund: ${error.message}`);
-    return null; // <-- Blendet die Komponente stillschweigend aus
-  }
-  
-  // Wenn keine Daten vorhanden sind, auch ausblenden
-  if (!data || !data.project) {
-    console.warn(`[ProjectTimelineWidget] Wird ausgeblendet. Grund: Keine Daten.`);
+  if (error || !data || !data.project) {
+    console.warn(`[ProjectTimelineWidget] Wird ausgeblendet. Grund: ${error?.message || 'Keine Daten.'}`);
     return null;
   }
-  // --- ENDE KORREKTUR ---
 
+  // (Datenextraktion bleibt gleich)
   const { project, progress, gscImpressionTrend } = data;
   const { counts, percentage } = progress;
-
   const startDate = project?.startDate ? new Date(project.startDate) : new Date();
   const duration = project?.durationMonths || 6;
   const endDate = addMonths(startDate, duration);
   const today = new Date();
-
   const totalProjectDays = differenceInCalendarDays(endDate, startDate) || 1; 
   const elapsedProjectDays = differenceInCalendarDays(today, startDate);
   const timeElapsedPercentage = Math.max(0, Math.min(100, (elapsedProjectDays / totalProjectDays) * 100));
-
   const chartData = (gscImpressionTrend || []).map(d => ({
     date: new Date(d.date).getTime(), 
     impressions: d.value,
   }));
-  
-  const xTicks = [
-    startDate.getTime(),
-    today.getTime(),
-    endDate.getTime()
-  ];
+  const xTicks = [ startDate.getTime(), today.getTime(), endDate.getTime() ];
   
   return (
     <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
-      <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-        <BarChart size={20} /> Projekt-Fortschritt
+      
+      {/* +++ KORREKTUR: Titel angepasst +++ */}
+      <h2 className="text-xl font-bold mb-4 flex items-center gap-2 flex-wrap">
+        <BarChart size={20} />
+        <span>Projekt-Fortschritt</span>
+        {domain && (
+          <span className="text-indigo-600 font-semibold">: {domain}</span>
+        )}
       </h2>
 
-      {/* --- 1. Fortschritts-Balken (Landingpages) --- */}
+      {/* --- 1. Fortschritts-Balken (Landingpages) --- (Unverändert) */}
       <div className="mb-6">
         <div className="flex justify-between items-center mb-1">
           <span className="text-sm font-medium text-gray-700">
@@ -173,7 +160,6 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
             {counts.Freigegeben} / {counts.Total}
           </span>
         </div>
-        
         {counts.Total > 0 ? (
           <div className="flex w-full h-4 bg-gray-200 rounded-full overflow-hidden">
             <div
@@ -195,7 +181,6 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
         ) : (
           <p className="text-sm text-gray-500 italic">Noch keine Landingpages angelegt.</p>
         )}
-        
         <div className="flex justify-end space-x-4 mt-2 text-xs">
           <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-green-500"></span> Freigegeben</span>
           <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-yellow-500"></span> In Prüfung</span>
@@ -203,7 +188,7 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
         </div>
       </div>
 
-      {/* --- 2. KPI-Übersicht --- */}
+      {/* --- 2. KPI-Übersicht --- (Unverändert) */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 text-center">
         <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
           <CheckCircle size={24} className="text-green-600 mx-auto mb-1" />
@@ -227,12 +212,12 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
         </div>
       </div>
 
-      {/* --- 3. Graphen-Titel --- */}
+      {/* --- 3. Graphen-Titel --- (Unverändert) */}
       <h3 className="text-lg font-semibold mb-4 mt-8 pt-4 border-t flex items-center gap-2">
         <GraphUpArrow size={18} /> Reichweiten-Entwicklung (Impressionen)
       </h3>
 
-      {/* --- 4. Reichweiten-Chart --- */}
+      {/* --- 4. Reichweiten-Chart --- (Unverändert) */}
       {chartData.length > 0 ? (
         <div className="w-full h-80">
           <ResponsiveContainer width="100%" height="100%">
@@ -262,7 +247,6 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
                 height={36}
                 formatter={(value) => <span className="text-gray-700">{value}</span>}
               />
-              
               <Area
                 type="monotone"
                 dataKey="impressions"
@@ -273,7 +257,6 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
                 strokeWidth={2}
                 dot={false}
               />
-              
               <ReferenceLine 
                 x={today.getTime()} 
                 stroke="#fb923c" 
@@ -282,7 +265,6 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
               >
                 <Label value="Heute" position="top" fill="#fb923c" fontSize={11} />
               </ReferenceLine>
-              
             </ComposedChart>
           </ResponsiveContainer>
         </div>
