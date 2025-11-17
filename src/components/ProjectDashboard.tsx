@@ -6,8 +6,7 @@ import {
   ProjectDashboardData, 
   ActiveKpi, 
   normalizeFlatKpis,
-  ChartEntry,
-  ApiErrorStatus // +++ NEU: Importieren +++
+  ChartEntry
 } from '@/lib/dashboard-shared';
 import KpiCardsGrid from '@/components/KpiCardsGrid';
 import KpiTrendChart from '@/components/charts/KpiTrendChart';
@@ -30,14 +29,13 @@ interface ProjectDashboardProps {
   onDateRangeChange: (range: DateRangeOption) => void;
   projectId?: string;
   domain?: string;
-  faviconUrl?: string | null; 
+  faviconUrl?: string | null;
   semrushTrackingId?: string | null;
   semrushTrackingId02?: string | null;
   onPdfExport?: () => void;
   countryData?: ChartEntry[];
   channelData?: ChartEntry[];
   deviceData?: ChartEntry[];
-  // apiErrors Prop wird implizit durch data: ProjectDashboardData übergeben
 }
 
 export default function ProjectDashboard({
@@ -51,20 +49,19 @@ export default function ProjectDashboard({
   semrushTrackingId,
   semrushTrackingId02,
   onPdfExport,
-  countryData,
-  channelData,
-  deviceData
+  // countryData, channelData, deviceData werden jetzt aus data geholt
 }: ProjectDashboardProps) {
   
   const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
   const { data: session } = useSession();
+  
+  // Daten aus dem Haupt-Datenobjekt extrahieren
   const normalizedKpis = normalizeFlatKpis(data.kpis);
+  const apiErrors = data.apiErrors; // +++ NEU: Fehler extrahieren +++
+  
   const hasKampagne1Config = !!semrushTrackingId;
   const hasKampagne2Config = !!semrushTrackingId02;
   const hasSemrushConfig = hasKampagne1Config || hasKampagne2Config;
-
-  // +++ NEU: Fehler extrahieren +++
-  const apiErrors = data.apiErrors;
 
   return (
     <>
@@ -78,7 +75,7 @@ export default function ProjectDashboard({
           console.warn('PDF Export functionality not implemented');
         })}
       />
-      
+
       {/* KPI Cards */}
       <div className="mt-6">
         <KpiCardsGrid
@@ -95,8 +92,8 @@ export default function ProjectDashboard({
           activeKpi={activeKpi}
           onKpiChange={setActiveKpi}
           allChartData={data.charts}
-          // +++ NEU: Fehler an Chart weitergeben, um ggf. GSC/GA4-Charts auszublenden +++
-          apiErrors={apiErrors}
+          // (Optional: apiErrors hier übergeben, um Charts bei Fehler auszublenden)
+          // apiErrors={apiErrors} 
         />
       </div>
 
@@ -104,9 +101,21 @@ export default function ProjectDashboard({
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mt-6">
         <div className="xl:col-span-1">
           <AiTrafficCard 
-            // ... (alle props)
-            // +++ NEU: Fehler an AI-Traffic-Card weitergeben +++
-            error={apiErrors?.ga4}
+            totalSessions={data.aiTraffic?.totalSessions ?? 0}
+            totalUsers={data.aiTraffic?.totalUsers ?? 0}
+            percentage={data.kpis?.sessions?.aiTraffic?.percentage ?? 0}
+            totalSessionsChange={data.aiTraffic?.totalSessionsChange}
+            totalUsersChange={data.aiTraffic?.totalUsersChange}
+            trend={(data.aiTraffic?.trend ?? []).map(item => ({
+              date: item.date,
+              // KORREKTUR: Daten-Schlüssel anpassen (value vs sessions)
+              value: (item as any).value ?? (item as any).sessions ?? 0
+            }))}
+            topAiSources={data.aiTraffic?.topAiSources ?? []}
+            className="h-full"
+            isLoading={isLoading}
+            dateRange={dateRange}
+            error={apiErrors?.ga4} // +++ NEU: Fehler weitergeben +++
           />
         </div>
         
@@ -116,17 +125,28 @@ export default function ProjectDashboard({
             isLoading={isLoading}
             className="h-full"
             dateRange={dateRange}
-             // +++ NEU: Fehler an Top-Queries-Liste weitergeben +++
-            error={apiErrors?.gsc}
+            error={apiErrors?.gsc} // +++ NEU: Fehler weitergeben +++
           />
         </div>
       </div>
 
       {/* Kreisdiagramm-Sektion */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
-        <CountryChart data={data.countryData} isLoading={isLoading} error={apiErrors?.ga4} />
-        <ChannelChart data={data.channelData} isLoading={isLoading} error={apiErrors?.ga4} />
-        <DeviceChart data={data.deviceData} isLoading={isLoading} error={apiErrors?.ga4} />
+        <CountryChart 
+          data={data.countryData} 
+          isLoading={isLoading} 
+          error={apiErrors?.ga4} // +++ NEU: Fehler weitergeben +++
+        />
+        <ChannelChart 
+          data={data.channelData} 
+          isLoading={isLoading} 
+          error={apiErrors?.ga4} // +++ NEU: Fehler weitergeben +++
+        />
+        <DeviceChart 
+          data={data.deviceData} 
+          isLoading={isLoading} 
+          error={apiErrors?.ga4} // +++ NEU: Fehler weitergeben +++
+        />
       </div>
       
       {/* Semrush Keywords */}
