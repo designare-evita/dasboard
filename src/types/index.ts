@@ -4,13 +4,13 @@
 export interface User {
   id: string;
   email: string;
-  password?: string; // Das Passwort sollte nie an das Frontend gesendet werden
+  password?: string;
   role: 'SUPERADMIN' | 'ADMIN' | 'BENUTZER';
-  mandant_id?: string | null; // NEU: Das "Label" / die Gruppe
-  permissions?: string[]; // NEU: Die "Klasse" / Berechtigungen
+  mandant_id?: string | null;
+  permissions?: string[];
   domain?: string;
-  gsc_site_url?: string; // NEU: Feld für die GSC URL
-  ga4_property_id?: string; // NEU: Feld für die GA4 ID
+  gsc_site_url?: string;
+  ga4_property_id?: string;
   semrush_project_id?: string | null;
   semrush_tracking_id?: string | null;
   semrush_tracking_id_02?: string | null;
@@ -18,13 +18,11 @@ export interface User {
   createdAt: Date;
   semrush_organic_keywords?: number;
   semrush_organic_traffic?: number;
-  semrush_last_fetched?: string; // Kommt als String/Date von der DB
+  semrush_last_fetched?: string;
   favicon_url?: string;
-
-  // ✅ NEU: Felder für Projekt-Timeline
   project_start_date?: Date | null;
   project_duration_months?: number | null;
-  project_timeline_active?: boolean | null; // <-- NEUE ZEILE
+  project_timeline_active?: boolean | null;
 }
 
 export interface Landingpage {
@@ -33,8 +31,6 @@ export interface Landingpage {
   status: 'Offen' | 'In Prüfung' | 'Gesperrt' | 'Freigegeben';
   haupt_keyword?: string;
   weitere_keywords?: string;
-
-  // GSC-Felder:
   gsc_klicks: number | null;
   gsc_klicks_change: number | null;
   gsc_impressionen: number | null;
@@ -46,3 +42,20 @@ export interface Landingpage {
 }
 
 export type LandingpageStatus = Landingpage['status'];
+
+// Re-export dashboard types
+export type {
+  KPI,
+  KpiDatum,
+  ChartPoint,
+  ChartData,
+  TopQueryData,
+  ActiveKpi,
+  KpiMetadata
+} from './dashboard';
+
+// Re-export ai-traffic types
+export type {
+  AiTrafficData,
+  AiTrafficCardProps
+} from './ai-traffic';
