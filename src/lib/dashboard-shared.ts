@@ -1,7 +1,7 @@
 // src/lib/dashboard-shared.ts
 import { DateRangeOption } from "@/components/DateRangeSelector";
 // Importiere Typen aus ihren Originaldateien
-import type { 
+export type { 
   KpiDatum, 
   ChartPoint, 
   TopQueryData, 
