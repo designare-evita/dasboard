@@ -7,24 +7,26 @@ import {
   getAnalyticsData,
   getTopQueries,
   getAiTrafficData,
-  getGa4DimensionReport, // ✅ NEU: Für Kreisdiagramm-Daten
+  getGa4DimensionReport,
   type AiTrafficData
 } from '@/lib/google-api';
-// +++ NEU: ApiErrorStatus importiert +++
+// +++ KORREKTUR: Typen aus dashboard-shared importieren +++
 import { 
   ProjectDashboardData, 
   ChartEntry, 
-  ApiErrorStatus 
+  ApiErrorStatus,
+  ZERO_KPI
 } from '@/lib/dashboard-shared';
+import type { TopQueryData, ChartPoint as DailyDataPoint } from '@/types/dashboard';
 
 // ========== KONSTANTEN ==========
 const CACHE_DURATION_HOURS = 48; // 48-Stunden-Cache
 
-interface DailyDataPoint { date: string; value: number; }
+// Typ-Aliase für Klarheit
 type GscData = { clicks: { total: number, daily: DailyDataPoint[] }, impressions: { total: number, daily: DailyDataPoint[] } };
 type GaData = { sessions: { total: number, daily: DailyDataPoint[] }, totalUsers: { total: number, daily: DailyDataPoint[] } };
-type TopQueryData = Array<{ query: string; clicks: number; impressions: number; ctr: number; position: number; }>;
 
+// (Standard-Werte bleiben gleich)
 const DEFAULT_GSC_DATA: GscData = { clicks: { total: 0, daily: [] }, impressions: { total: 0, daily: [] } };
 const DEFAULT_GSC_PREVIOUS = { clicks: { total: 0 }, impressions: { total: 0 } };
 const DEFAULT_GA_DATA: GaData = { sessions: { total: 0, daily: [] }, totalUsers: { total: 0, daily: [] } };
@@ -36,7 +38,7 @@ const DEFAULT_AI_TRAFFIC: AiTrafficData = {
 };
 
 // ========== HILFSFUNKTIONEN ==========
-// ... (formatDate, calculateChange, formatPieData und Farbkonstanten bleiben unverändert) ...
+// (formatDate, calculateChange, formatPieData und Farbkonstanten bleiben unverändert)
 function formatDate(date: Date): string {
   return date.toISOString().split('T')[0];
 }
@@ -107,7 +109,7 @@ async function fetchFreshGoogleData(user: Partial<User>, dateRange: string = '30
   const eDateCurrent = formatDate(endDateCurrent);
   const sDatePrevious = formatDate(startDatePrevious);
   const eDatePrevious = formatDate(endDatePrevious);
-  
+
   console.log(`[Google Cache FETCH] 📅 Zeitraum Aktuell: ${sDateCurrent} bis ${eDateCurrent}`);
   console.log(`[Google Cache FETCH] 📅 Zeitraum Vorher: ${sDatePrevious} bis ${eDatePrevious}`);
 
@@ -130,7 +132,7 @@ async function fetchFreshGoogleData(user: Partial<User>, dateRange: string = '30
   try {
     console.log(`[Google Cache FETCH] 🔄 Lade frische Google-Daten für ${user.email} (${dateRange})`);
 
-    // ========== PROMISES VORBEREITEN ==========
+    // ========== PROMISES VORBEREITEN (MODIFIZIERT) ==========
     const gscPromises = [];
     const ga4Promises = [];
 
@@ -208,8 +210,6 @@ async function fetchFreshGoogleData(user: Partial<User>, dateRange: string = '30
         console.log(`[Google Cache FETCH] ✅ Top Queries: ${topQueries.length} Einträge`);
       } else {
         console.error(`[Google Cache FETCH] ❌ Top Queries failed:`, gscResults[2].reason);
-        // +++ Optional: Fehler auch hier speichern +++
-        // if (!apiErrors.gsc) apiErrors.gsc = "Fehler bei TopQueries";
       }
     }
 
@@ -239,7 +239,7 @@ async function fetchFreshGoogleData(user: Partial<User>, dateRange: string = '30
         console.error(`[Google Cache FETCH] ❌ GA4 Previous failed:`, ga4Results[1].reason);
       }
       
-      // (Restliche GA4-Verarbeitung bleibt gleich, da sie nicht-kritisch für KPIs sind)
+      // (Restliche GA4-Verarbeitung bleibt gleich)
       if (ga4Results[2]?.status === 'fulfilled') {
         aiTrafficCurrent = ga4Results[2].value as AiTrafficData;
       } else {
@@ -368,7 +368,7 @@ export async function getOrFetchGoogleData(user: Partial<User>, dateRange: strin
 
       // +++ NEU: Logik, um Cache bei Fehlern schneller zu invalidieren +++
       const cachedData = cache.data as GoogleCacheData;
-      if (cachedData?.apiErrors && ageInHours > 1) {
+      if (cachedData?.apiErrors && ageInHours > 1) { // Invalidiere fehlerhaften Cache schon nach 1 Stunde
          console.log(`[Google Cache] ⏰ CACHE STALE (FAST) - Gecachte Daten enthalten API-Fehler. Versuche erneuten Fetch.`);
       } else if (ageInHours < CACHE_DURATION_HOURS) {
         console.log(`[Google Cache] ✅ CACHE HIT - Nutze gecachte Daten`);
@@ -397,16 +397,18 @@ export async function getOrFetchGoogleData(user: Partial<User>, dateRange: strin
   } catch (fetchError) {
     console.error('[Google Cache] ❌ Fehler beim Fetchen der Daten:', fetchError);
     console.log(`========== GOOGLE CACHE END ==========\n`);
+    
     // +++ NEU: Gebe einen Fehler-Wrapper zurück, statt zu werfen +++
-    return {
+    // Dies stellt sicher, dass der Cache auch Fehler speichert
+    const errorMsg = fetchError instanceof Error ? fetchError.message : 'Allgemeiner Fetch-Fehler';
+    freshData = {
       kpis: { clicks: ZERO_KPI, impressions: ZERO_KPI, sessions: ZERO_KPI, totalUsers: ZERO_KPI },
       charts: {}, topQueries: [],
       apiErrors: { 
-        gsc: fetchError instanceof Error ? fetchError.message : 'Allgemeiner GSC-Fehler',
-        ga4: fetchError instanceof Error ? fetchError.message : 'Allgemeiner GA4-Fehler'
+        gsc: `Fetch-Fehler: ${errorMsg}`,
+        ga4: `Fetch-Fehler: ${errorMsg}`
       },
-      fromCache: false
-    } as ProjectDashboardData & { fromCache: boolean };
+    } as ProjectDashboardData;
   }
 
   if (!freshData) {
