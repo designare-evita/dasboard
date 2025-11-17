@@ -1,5 +1,5 @@
 // src/types/ai-traffic.ts
-import type { ChartPoint, KPI } from './dashboard'; // Importiere ChartPoint und KPI
+import type { ChartPoint, KpiDatum } from './dashboard';
 
 export interface AiTrafficData {
   totalSessions: number;
@@ -23,19 +23,10 @@ export interface AiTrafficData {
   totalUsersChange?: number;
 }
 
-export interface KpiWithAiTraffic extends KPI {
-  aiTraffic?: {
-    value: number;
-    change: number;
-    percentage: number;
-  };
-}
-
-// +++ NEU: AiTrafficCardProps hierher verschoben +++
-// Diese Schnittstelle definiert die Props für die React-Komponente
+// Props für die AiTrafficCard React-Komponente
 export interface AiTrafficCardProps {
-  totalSessions: number;
-  totalUsers: number;
+  totalSessions?: number;
+  totalUsers?: number;
   percentage?: number;
   
   totalSessionsChange?: number;
@@ -45,7 +36,7 @@ export interface AiTrafficCardProps {
   // da die ProjectDashboard-Komponente die Daten transformiert.
   trend?: ChartPoint[]; 
 
-  topAiSources: Array<{
+  topAiSources?: Array<{
     source: string;
     sessions: number;
     users: number;
@@ -54,5 +45,5 @@ export interface AiTrafficCardProps {
   isLoading?: boolean;
   dateRange?: string;
   className?: string;
-  error?: string | null; // Fehler-Prop (aus vorheriger Korrektur)
+  error?: string | null;
 }
