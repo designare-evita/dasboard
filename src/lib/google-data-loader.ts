@@ -31,7 +31,8 @@ const DEFAULT_GSC_DATA: GscData = { clicks: { total: 0, daily: [] }, impressions
 const DEFAULT_GSC_PREVIOUS = { clicks: { total: 0 }, impressions: { total: 0 } };
 const DEFAULT_GA_DATA: GaData = { sessions: { total: 0, daily: [] }, totalUsers: { total: 0, daily: [] } };
 const DEFAULT_GA_PREVIOUS = { sessions: { total: 0 }, totalUsers: { total: 0 } };
-const DEFAULT_TOP_QUERIES: TopQueryData = [];
+// +++ KORREKTUR HIER: TopQueryData zu TopQueryData[] +++
+const DEFAULT_TOP_QUERIES: TopQueryData[] = [];
 const DEFAULT_AI_TRAFFIC: AiTrafficData = {
   totalSessions: 0, totalUsers: 0, sessionsBySource: {}, topAiSources: [], trend: [],
   totalSessionsChange: 0, totalUsersChange: 0,
@@ -116,7 +117,8 @@ async function fetchFreshGoogleData(user: Partial<User>, dateRange: string = '30
   // ========== DATEN-INITIALISIERUNG ==========
   let gscCurrent: GscData = DEFAULT_GSC_DATA;
   let gscPrevious: { clicks: { total: number }, impressions: { total: number } } = DEFAULT_GSC_PREVIOUS;
-  let topQueries: TopQueryData = DEFAULT_TOP_QUERIES;
+  // +++ KORREKTUR HIER: TopQueryData zu TopQueryData[] +++
+  let topQueries: TopQueryData[] = DEFAULT_TOP_QUERIES;
   let gaCurrent: GaData = DEFAULT_GA_DATA;
   let gaPrevious: { sessions: { total: number }, totalUsers: { total: number } } = DEFAULT_GA_PREVIOUS;
   let aiTrafficCurrent: AiTrafficData = DEFAULT_AI_TRAFFIC;
@@ -125,7 +127,6 @@ async function fetchFreshGoogleData(user: Partial<User>, dateRange: string = '30
   let channelData: ChartEntry[] = [];
   let deviceData: ChartEntry[] = [];
   
-  // +++ NEU: Initialisiere das apiErrors-Objekt +++
   const apiErrors: ApiErrorStatus = {};
 
 
@@ -145,7 +146,6 @@ async function fetchFreshGoogleData(user: Partial<User>, dateRange: string = '30
       );
     } else {
       console.log(`[Google Cache FETCH] ⚠️ GSC nicht konfiguriert`);
-      // +++ NEU: Fehler setzen, wenn nicht konfiguriert +++
       apiErrors.gsc = 'GSC ist für diesen Benutzer nicht konfiguriert.';
     }
 
@@ -162,7 +162,6 @@ async function fetchFreshGoogleData(user: Partial<User>, dateRange: string = '30
       );
     } else {
       console.log(`[Google Cache FETCH] ⚠️ GA4 nicht konfiguriert`);
-      // +++ NEU: Fehler setzen, wenn nicht konfiguriert +++
       apiErrors.ga4 = 'GA4 ist für diesen Benutzer nicht konfiguriert.';
     }
 
@@ -186,7 +185,6 @@ async function fetchFreshGoogleData(user: Partial<User>, dateRange: string = '30
         console.log(`[Google Cache FETCH] ✅ GSC Current: ${gscCurrent.clicks.total} Klicks`);
       } else {
         const reason = gscResults[0].reason;
-        // +++ FEHLER SPEICHERN +++
         apiErrors.gsc = reason instanceof Error ? reason.message : String(reason);
         console.error(`[Google Cache FETCH] ❌ GSC Current failed:`, apiErrors.gsc);
       }
@@ -196,7 +194,6 @@ async function fetchFreshGoogleData(user: Partial<User>, dateRange: string = '30
         gscPrevious = gscResults[1].value as typeof gscPrevious;
         console.log(`[Google Cache FETCH] ✅ GSC Previous: ${gscPrevious.clicks.total} Klicks`);
       } else {
-        // +++ FEHLER SPEICHERN (falls noch nicht geschehen) +++
         if (!apiErrors.gsc) {
             const reason = gscResults[1].reason;
             apiErrors.gsc = reason instanceof Error ? reason.message : String(reason);
@@ -206,7 +203,8 @@ async function fetchFreshGoogleData(user: Partial<User>, dateRange: string = '30
       
       // Top Queries (Fehler hier ist nicht kritisch für KPIs)
       if (gscResults[2].status === 'fulfilled') {
-        topQueries = gscResults[2].value as TopQueryData;
+        // +++ KORREKTUR HIER: TopQueryData zu TopQueryData[] +++
+        topQueries = gscResults[2].value as TopQueryData[];
         console.log(`[Google Cache FETCH] ✅ Top Queries: ${topQueries.length} Einträge`);
       } else {
         console.error(`[Google Cache FETCH] ❌ Top Queries failed:`, gscResults[2].reason);
@@ -221,7 +219,6 @@ async function fetchFreshGoogleData(user: Partial<User>, dateRange: string = '30
         console.log(`[Google Cache FETCH] ✅ GA4 Current: ${gaCurrent.sessions.total} Sitzungen`);
       } else {
         const reason = ga4Results[0].reason;
-        // +++ FEHLER SPEICHERN +++
         apiErrors.ga4 = reason instanceof Error ? reason.message : String(reason);
         console.error(`[Google Cache FETCH] ❌ GA4 Current failed:`, apiErrors.ga4);
       }
@@ -231,7 +228,6 @@ async function fetchFreshGoogleData(user: Partial<User>, dateRange: string = '30
         gaPrevious = ga4Results[1].value as typeof gaPrevious;
         console.log(`[Google Cache FETCH] ✅ GA4 Previous: ${gaPrevious.sessions.total} Sitzungen`);
       } else {
-        // +++ FEHLER SPEICHERN (falls noch nicht geschehen) +++
         if (!apiErrors.ga4) {
             const reason = ga4Results[1].reason;
             apiErrors.ga4 = reason instanceof Error ? reason.message : String(reason);
@@ -239,7 +235,6 @@ async function fetchFreshGoogleData(user: Partial<User>, dateRange: string = '30
         console.error(`[Google Cache FETCH] ❌ GA4 Previous failed:`, ga4Results[1].reason);
       }
       
-      // (Restliche GA4-Verarbeitung bleibt gleich)
       if (ga4Results[2]?.status === 'fulfilled') {
         aiTrafficCurrent = ga4Results[2].value as AiTrafficData;
       } else {
@@ -319,7 +314,6 @@ async function fetchFreshGoogleData(user: Partial<User>, dateRange: string = '30
       countryData,
       channelData,
       deviceData,
-      // +++ NEU: Hinzufügen des apiErrors-Objekts (nur wenn es Einträge hat) +++
       apiErrors: Object.keys(apiErrors).length > 0 ? apiErrors : undefined,
     };
 
@@ -366,7 +360,6 @@ export async function getOrFetchGoogleData(user: Partial<User>, dateRange: strin
       console.log(`[Google Cache] 📦 Cache-Zeitstempel: ${lastFetched.toISOString()}`);
       console.log(`[Google Cache] 📦 Cache-Gültigkeit: ${CACHE_DURATION_HOURS} Stunden`);
 
-      // +++ NEU: Logik, um Cache bei Fehlern schneller zu invalidieren +++
       const cachedData = cache.data as GoogleCacheData;
       if (cachedData?.apiErrors && ageInHours > 1) { // Invalidiere fehlerhaften Cache schon nach 1 Stunde
          console.log(`[Google Cache] ⏰ CACHE STALE (FAST) - Gecachte Daten enthalten API-Fehler. Versuche erneuten Fetch.`);
@@ -398,8 +391,6 @@ export async function getOrFetchGoogleData(user: Partial<User>, dateRange: strin
     console.error('[Google Cache] ❌ Fehler beim Fetchen der Daten:', fetchError);
     console.log(`========== GOOGLE CACHE END ==========\n`);
     
-    // +++ NEU: Gebe einen Fehler-Wrapper zurück, statt zu werfen +++
-    // Dies stellt sicher, dass der Cache auch Fehler speichert
     const errorMsg = fetchError instanceof Error ? fetchError.message : 'Allgemeiner Fetch-Fehler';
     freshData = {
       kpis: { clicks: ZERO_KPI, impressions: ZERO_KPI, sessions: ZERO_KPI, totalUsers: ZERO_KPI },
