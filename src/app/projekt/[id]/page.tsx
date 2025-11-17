@@ -135,20 +135,23 @@ export default function ProjectPage() {
     );
   }
 
-  // --- Erfolgreiches Rendering (nur wenn dashboardData UND projectUser geladen sind) ---
+ // --- Erfolgreiches Rendering ---
   if (dashboardData && projectUser) {
     return (
       <div className="p-4 md:p-8 bg-gray-50 min-h-screen">
         <main className="space-y-8">
           
-          {/* Zeigt Timeline nur an, wenn sie für den User aktiviert ist */}
+          {/* +++ KORREKTUR: "domain" wird übergeben +++ */}
           {projectUser.project_timeline_active && (
-            <ProjectTimelineWidget projectId={projectId} />
+            <ProjectTimelineWidget 
+              projectId={projectId} 
+              domain={projectUser.domain} // Domain hier hinzugefügt
+            />
           )}
 
           <ProjectDashboard
             data={dashboardData}
-            isLoading={isLoading} // Diese Prop steuert jetzt die Ladeanzeigen
+            isLoading={isLoading}
             dateRange={dateRange}
             onDateRangeChange={handleDateRangeChange}
             onPdfExport={handlePdfExport}
@@ -166,7 +169,7 @@ export default function ProjectPage() {
     );
   }
   
-  // Fallback, falls etwas Unerwartetes passiert
+  // (Restlicher Fallback bleibt gleich)
   return (
     <div className="flex justify-center items-center min-h-screen bg-gray-50">
       <p>Dashboard konnte nicht geladen werden.</p>
