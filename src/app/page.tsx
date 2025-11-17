@@ -219,14 +219,17 @@ function CustomerDashboard({
     <div className="p-4 md:p-8 bg-gray-50 min-h-screen">
       <main className="space-y-8">
         
-        {/* Zeigt Timeline nur an, wenn sie für den User aktiviert ist */}
+        {/* +++ KORREKTUR: "domain" wird übergeben +++ */}
         {user.project_timeline_active && (
-          <ProjectTimelineWidget projectId={user.id} />
+          <ProjectTimelineWidget 
+            projectId={user.id} 
+            domain={user.domain} // Domain hier hinzugefügt
+          />
         )}
 
         <ProjectDashboard
           data={data}
-          isLoading={isLoading} // Diese Prop steuert jetzt die Ladeanzeigen im Dashboard
+          isLoading={isLoading}
           dateRange={dateRange}
           onDateRangeChange={onDateRangeChange}
           onPdfExport={onPdfExport}
