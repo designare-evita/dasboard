@@ -645,37 +645,48 @@ async function queryGscDataForPages(
 
 export async function getGscDataForPagesWithComparison(
   siteUrl: string,
-  pageUrls: string[],
-  currentRange: { startDate: string, endDate: string },
-  previousRange: { startDate: string, endDate: string }
+  pageUrls: string[], // URLs aus der DB (Original-Schreibweise)
+  currentRange: { startDate: string; endDate: string },
+  previousRange: { startDate: string; endDate: string }
 ): Promise<Map<string, GscPageData>> {
   
+  // 1. Beide Anfragen parallel starten
   const [currentDataMap, previousDataMap] = await Promise.all([
-    queryGscDataForPages(siteUrl, currentRange.startDate, currentRange.endDate, pageUrls),
-    queryGscDataForPages(siteUrl, previousRange.startDate, previousRange.endDate, pageUrls)
+    getGscDataForPagesInternal(siteUrl, currentRange.startDate, currentRange.endDate, pageUrls),
+    getGscDataForPagesInternal(siteUrl, previousRange.startDate, previousRange.endDate, pageUrls)
   ]);
 
   const resultMap = new Map<string, GscPageData>();
+  const processedUrls = new Set<string>();
 
-  for (const url of pageUrls) {
-    const current = currentDataMap.get(url) || { clicks: 0, impressions: 0, position: 0 };
-    const previous = previousDataMap.get(url) || { clicks: 0, impressions: 0, position: 0 };
+  // 2. Gehe die DB-URLs durch
+  for (const dbUrl of pageUrls) {
+    // Wir normalisieren, um die Daten in den GSC-Maps zu FINDEN...
+    const normalizedUrl = normalizeGscUrl(dbUrl);
+
+    // (Optional: Schutz vor Duplikaten, falls DB inkonsistent ist)
+    if (processedUrls.has(normalizedUrl)) {
+      continue; 
+    }
+    processedUrls.add(normalizedUrl);
+
+    // 3. Daten abrufen (mit normalisiertem Schlüssel)
+    const current = currentDataMap.get(normalizedUrl) || { clicks: 0, impressions: 0, position: 0 };
+    const previous = previousDataMap.get(normalizedUrl) || { clicks: 0, impressions: 0, position: 0 };
 
     const currentPos = current.position || 0;
     const prevPos = previous.position || 0;
 
     let posChange = 0;
     if (currentPos > 0 && prevPos > 0) {
-      posChange = prevPos - currentPos;
-    } else if (currentPos > 0 && prevPos === 0) {
-      posChange = 0;
-    } else if (currentPos === 0 && prevPos > 0) {
-      posChange = 0;
+      posChange = prevPos - currentPos; // Bessere Position (niedriger) ist positiv
     }
     
     const roundedPosChange = Math.round(posChange * 100) / 100;
 
-    resultMap.set(url, {
+    // 4. ⭐️ WICHTIG: Wir speichern das Ergebnis unter der ORIGINAL-URL (dbUrl)
+    //    Damit findet Ihre API-Route die ID in der pageIdMap garantiert wieder.
+    resultMap.set(dbUrl, {
       clicks: current.clicks,
       clicks_prev: previous.clicks,
       clicks_change: current.clicks - previous.clicks,
@@ -684,9 +695,9 @@ export async function getGscDataForPagesWithComparison(
       impressions_prev: previous.impressions,
       impressions_change: current.impressions - previous.impressions,
       
-      position: Math.round(currentPos * 100) / 100,
-      position_prev: Math.round(prevPos * 100) / 100,
-      position_change: roundedPosChange
+      position: currentPos, 
+      position_prev: prevPos,
+      position_change: roundedPosChange,
     });
   }
 
