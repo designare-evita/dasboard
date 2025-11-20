@@ -9,7 +9,8 @@ import {
   Google, 
   FileEarmarkExcel, 
   CheckCircle, 
-  ExclamationTriangle 
+  ExclamationTriangle,
+  ArrowRepeat
 } from 'react-bootstrap-icons';
 
 type Props = { userId: string };
