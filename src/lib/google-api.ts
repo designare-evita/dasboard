@@ -15,7 +15,7 @@ interface DateRangeData {
   daily: DailyDataPoint[];
 }
 
-export interface TopQueryData {
+interface TopQueryData {
   query: string;
   clicks: number;
   impressions: number;
@@ -31,7 +31,7 @@ export interface AiTrafficData {
   totalUsersChange?: number;
   
   sessionsBySource: {
-    : number; // KORREKTUR: [key: string] hinzugefügt
+    [key: string]: number;
   };
   topAiSources: Array<{
     source: string;
@@ -125,7 +125,7 @@ export async function getGoogleSheetData(sheetId: string): Promise<any[]> {
     const data = rows.slice(1).map(row => {
       const obj: Record<string, string> = {};
       headers.forEach((header, index) => {
-        const key = header?.toString().trim();
+        const key = header?.trim();
         // Wenn die Zeile kürzer ist als die Header, ist der Wert undefined -> leerer String
         const val = row[index] ? row[index].toString().trim() : '';
         if (key) {
@@ -274,36 +274,35 @@ export async function getTopQueries(
         endDate,
         dimensions: ["query"],
         type: "web",
-        rowLimit: 100,
-        dataState: "all",
         aggregationType: "byProperty",
+        rowLimit: 10,
       },
     });
 
-    const allQueries = res.data.rows?.map((row) => ({
-      query: row.keys?.[0] || "N/A",
+    const rows = res.data.rows || [];
+    return rows.map((row) => ({
+      query: row.keys?.[0] || "",
       clicks: row.clicks || 0,
       impressions: row.impressions || 0,
       ctr: row.ctr || 0,
       position: row.position || 0,
-    })) || [];
-
-    return allQueries
-      .sort((a, b) => b.clicks - a.clicks)
-      .slice(0, 100);
-
+    }));
   } catch (error: unknown) {
-    console.error("[GSC] Fehler beim Abrufen der Top Queries:", error);
-    console.error("[GSC] Request Details:", { siteUrl, startDate, endDate });
+    console.error("[Top Queries] Fehler:", error);
     return [];
   }
 }
 
-export async function getAnalyticsData(
+export async function getGa4OverviewData(
   propertyId: string,
   startDate: string,
   endDate: string
-): Promise<{ sessions: DateRangeData; totalUsers: DateRangeData }> {
+): Promise<{
+  totalSessions: number;
+  totalUsers: number;
+  avgSessionDuration: number;
+  bounceRate: number;
+}> {
   const formattedPropertyId = propertyId.startsWith('properties/')
     ? propertyId
     : `properties/${propertyId}`;
@@ -316,50 +315,72 @@ export async function getAnalyticsData(
       property: formattedPropertyId,
       requestBody: {
         dateRanges: [{ startDate, endDate }],
+        metrics: [
+          { name: 'sessions' },
+          { name: 'totalUsers' },
+          { name: 'averageSessionDuration' },
+          { name: 'bounceRate' },
+        ],
+      },
+    });
+
+    const row = response.data.rows?.[0];
+    if (!row) {
+      return {
+        totalSessions: 0,
+        totalUsers: 0,
+        avgSessionDuration: 0,
+        bounceRate: 0,
+      };
+    }
+
+    return {
+      totalSessions: parseInt(row.metricValues?.[0]?.value || '0', 10),
+      totalUsers: parseInt(row.metricValues?.[1]?.value || '0', 10),
+      avgSessionDuration: parseFloat(row.metricValues?.[2]?.value || '0'),
+      bounceRate: parseFloat(row.metricValues?.[3]?.value || '0') * 100,
+    };
+  } catch (error: unknown) {
+    console.error('[GA4] Fehler beim Abrufen der Übersichtsdaten:', error);
+    return {
+      totalSessions: 0,
+      totalUsers: 0,
+      avgSessionDuration: 0,
+      bounceRate: 0,
+    };
+  }
+}
+
+export async function getGa4TrafficTrend(
+  propertyId: string,
+  startDate: string,
+  endDate: string
+): Promise<Array<{ date: string; sessions: number }>> {
+  const formattedPropertyId = propertyId.startsWith('properties/')
+    ? propertyId
+    : `properties/${propertyId}`;
+  const auth = createAuth();
+  const analytics = google.analyticsdata({ version: 'v1beta', auth });
+
+  try {
+    const response = await analytics.properties.runReport({
+      property: formattedPropertyId,
+      requestBody: {
+        dateRanges: [{ startDate, endDate }],
         dimensions: [{ name: 'date' }],
-        metrics: [{ name: 'sessions' }, { name: 'totalUsers' }],
-        orderBys: [{
-          dimension: { dimensionName: 'date' },
-          desc: false,
-        }],
+        metrics: [{ name: 'sessions' }],
+        orderBys: [{ dimension: { dimensionName: 'date' }, desc: false }],
       },
     });
 
     const rows = response.data.rows || [];
-    const sessionsDaily: DailyDataPoint[] = [];
-    const usersDaily: DailyDataPoint[] = [];
-    let totalSessions = 0;
-    let totalUsers = 0;
-
-    for (const row of rows) {
-      const rawDate = row.dimensionValues?.[0]?.value;
-      const date = rawDate?.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3') ?? '';
-      const sessions = parseInt(row.metricValues?.[0]?.value || '0', 10);
-      const users = parseInt(row.metricValues?.[1]?.value || '0', 10);
-
-      if (date) {
-        sessionsDaily.push({ date, value: sessions });
-        usersDaily.push({ date, value: users });
-        totalSessions += sessions;
-        totalUsers += users;
-      }
-    }
-
-    return {
-      sessions: {
-        total: totalSessions,
-        daily: sessionsDaily,
-      },
-      totalUsers: {
-        total: totalUsers,
-        daily: usersDaily,
-      },
-    };
+    return rows.map((row) => ({
+      date: formatDateToISO(row.dimensionValues?.[0]?.value || ''),
+      sessions: parseInt(row.metricValues?.[0]?.value || '0', 10),
+    }));
   } catch (error: unknown) {
-    console.error('[GA4] Fehler beim Abrufen der Daten:', error);
-    console.error('[GA4] Request Details:', { propertyId: formattedPropertyId, startDate, endDate });
-    const errorMessage = error instanceof Error ? error.message : 'Unbekannter API-Fehler';
-    throw new Error(`Fehler bei Google Analytics API: ${errorMessage}`);
+    console.error('[GA4] Fehler beim Abrufen des Traffic-Trends:', error);
+    return [];
   }
 }
 
@@ -371,52 +392,51 @@ export async function getAiTrafficData(
   const formattedPropertyId = propertyId.startsWith('properties/')
     ? propertyId
     : `properties/${propertyId}`;
-
   const auth = createAuth();
   const analytics = google.analyticsdata({ version: 'v1beta', auth });
 
   try {
-    console.log('[AI-Traffic] Starte Abruf für Property:', formattedPropertyId);
+    const [sourceResponse, trendResponse] = await Promise.all([
+      analytics.properties.runReport({
+        property: formattedPropertyId,
+        requestBody: {
+          dateRanges: [{ startDate, endDate }],
+          dimensions: [
+            { name: 'sessionSource' },
+            { name: 'sessionMedium' },
+          ],
+          metrics: [
+            { name: 'sessions' },
+            { name: 'totalUsers' },
+          ],
+          orderBys: [{ 
+            metric: { metricName: 'sessions' }, 
+            desc: true 
+          }],
+          limit: '1000',
+        },
+      }),
 
-    const sourceResponse = await analytics.properties.runReport({
-      property: formattedPropertyId,
-      requestBody: {
-        dateRanges: [{ startDate, endDate }],
-        dimensions: [
-          { name: 'sessionSource' },
-          { name: 'sessionMedium' },
-        ],
-        metrics: [
-          { name: 'sessions' },
-          { name: 'totalUsers' },
-        ],
-        orderBys: [{ 
-          metric: { metricName: 'sessions' }, 
-          desc: true 
-        }],
-        limit: '1000',
-      },
-    });
-
-    const trendResponse = await analytics.properties.runReport({
-      property: formattedPropertyId,
-      requestBody: {
-        dateRanges: [{ startDate, endDate }],
-        dimensions: [
-          { name: 'date' },
-          { name: 'sessionSource' },
-          { name: 'sessionMedium' },
-        ],
-        metrics: [
-          { name: 'sessions' },
-        ],
-        orderBys: [{ 
-          dimension: { dimensionName: 'date' }, 
-          desc: false 
-        }],
-        limit: '10000',
-      },
-    });
+      analytics.properties.runReport({
+        property: formattedPropertyId,
+        requestBody: {
+          dateRanges: [{ startDate, endDate }],
+          dimensions: [
+            { name: 'date' },
+            { name: 'sessionSource' },
+            { name: 'sessionMedium' },
+          ],
+          metrics: [
+            { name: 'sessions' },
+          ],
+          orderBys: [{ 
+            dimension: { dimensionName: 'date' }, 
+            desc: false 
+          }],
+          limit: '10000',
+        },
+      }),
+    ]);
 
     const sourceRows = sourceResponse.data.rows || [];
     const trendRows = trendResponse.data.rows || [];
