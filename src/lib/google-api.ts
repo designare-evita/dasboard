@@ -1,4 +1,4 @@
-// src/lib/google-api.ts (KORRIGIERT - trend verwendet 'sessions' statt 'value')
+// src/lib/google-api.ts
 
 import { google } from 'googleapis';
 import { JWT } from 'google-auth-library';
@@ -31,7 +31,7 @@ export interface AiTrafficData {
   totalUsersChange?: number;
   
   sessionsBySource: {
-    [source: string]: number;
+    : number;
   };
   topAiSources: Array<{
     source: string;
@@ -41,7 +41,7 @@ export interface AiTrafficData {
   }>;
   trend: Array<{
     date: string;
-    sessions: number; // ✅ KORRIGIERT: Muss 'sessions' heißen, nicht 'value'
+    sessions: number;
   }>;
 }
 
@@ -61,11 +61,11 @@ function createAuth(): JWT {
         scopes: [
           'https://www.googleapis.com/auth/webmasters.readonly',
           'https://www.googleapis.com/auth/analytics.readonly',
+          'https://www.googleapis.com/auth/spreadsheets.readonly', // <--- NEU: Zugriff auf Sheets
         ],
       });
     } catch (e) {
       console.error("Fehler beim Parsen von GOOGLE_CREDENTIALS:", e);
-      // Fallback zu Option 2
     }
   }
 
@@ -89,6 +89,7 @@ function createAuth(): JWT {
       scopes: [
         'https://www.googleapis.com/auth/webmasters.readonly',
         'https://www.googleapis.com/auth/analytics.readonly',
+        'https://www.googleapis.com/auth/spreadsheets.readonly', // <--- NEU: Zugriff auf Sheets
       ],
     });
   } catch (error) {
@@ -97,11 +98,53 @@ function createAuth(): JWT {
   }
 }
 
+// --- NEUE FUNKTION: Google Sheet Daten lesen ---
+
+export async function getGoogleSheetData(sheetId: string): Promise<any[]> {
+  const auth = createAuth();
+  const sheets = google.sheets({ version: 'v4', auth });
+
+  try {
+    // Wir holen daten vom ersten Tabellenblatt (Standard)
+    // Range A1:Z2000 deckt die meisten Redaktionspläne ab
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: sheetId,
+      range: 'A1:Z2000', 
+    });
+
+    const rows = response.data.values;
+
+    if (!rows || rows.length === 0) {
+      return [];
+    }
+
+    // Die erste Zeile sind die Header (Spaltennamen)
+    const headers = rows[0];
+    
+    // Wir mappen die restlichen Zeilen auf Objekte basierend auf den Headern
+    const data = rows.slice(1).map(row => {
+      const obj: Record<string, string> = {};
+      headers.forEach((header, index) => {
+        const key = header?.trim();
+        // Wenn die Zeile kürzer ist als die Header, ist der Wert undefined -> leerer String
+        const val = row[index] ? row[index].toString().trim() : '';
+        if (key) {
+          obj[key] = val;
+        }
+      });
+      return obj;
+    });
+
+    return data;
+
+  } catch (error: unknown) {
+    console.error('[Sheets API] Fehler:', error);
+    throw new Error('Konnte Google Sheet nicht lesen. Stellen Sie sicher, dass die Service-Account-Email Lesezugriff auf das Sheet hat.');
+  }
+}
+
 // --- Hilfsfunktionen ---
 
-/**
- * Formatiert GA4-Datum (YYYYMMDD) zu lesbarem Format (DD.MM)
- */
 function formatDateForChart(dateStr: string): string {
   if (!dateStr || dateStr.length !== 8) return dateStr;
   const day = dateStr.substring(6, 8);
@@ -109,9 +152,6 @@ function formatDateForChart(dateStr: string): string {
   return `${day}.${month}`;
 }
 
-/**
- * Formatiert GA4-Datum (YYYYMMDD) zu ISO-Format (YYYY-MM-DD)
- */
 function formatDateToISO(dateStr: string): string {
   if (!dateStr || dateStr.length !== 8) return dateStr;
   const year = dateStr.substring(0, 4);
@@ -120,31 +160,21 @@ function formatDateToISO(dateStr: string): string {
   return `${year}-${month}-${day}`;
 }
 
-/**
- * Prüft, ob eine Quelle ein bekannter KI-Bot ist
- */
 function isAiSource(source: string): boolean {
   if (!source) return false;
   
   const aiPatterns = [
-    // KI-Chatbots
     'chatgpt', 'gpt', 'openai',
     'claude', 'anthropic',
     'bard', 'gemini',
     'perplexity',
     'bing chat', 'copilot',
-    
-    // KI-Crawler
     'gptbot', 'claudebot',
-    'google-extended', // Google's AI Training Bot
+    'google-extended', 
     'cohere-ai',
     'ai2bot',
-    
-    // Suchmaschinen-KI
     'you.com', 'neeva',
     'phind', 'metaphor',
-    
-    // Zusätzliche KI-Dienste
     'notion ai', 'jasper',
     'copy.ai', 'writesonic',
   ];
@@ -153,15 +183,11 @@ function isAiSource(source: string): boolean {
   return aiPatterns.some(pattern => sourceLower.includes(pattern));
 }
 
-/**
- * Bereinigt und kategorisiert KI-Quellen
- */
 function cleanAiSourceName(source: string): string {
   if (!source) return 'Unbekannt';
   
   const sourceLower = source.toLowerCase();
   
-  // Gruppiere ähnliche Quellen
   if (sourceLower.includes('chatgpt') || sourceLower.includes('gptbot')) return 'ChatGPT';
   if (sourceLower.includes('claude')) return 'Claude AI';
   if (sourceLower.includes('bard') || sourceLower.includes('gemini')) return 'Google Gemini';
@@ -169,16 +195,12 @@ function cleanAiSourceName(source: string): string {
   if (sourceLower.includes('bing') || sourceLower.includes('copilot')) return 'Bing Copilot';
   if (sourceLower.includes('you.com')) return 'You.com';
   
-  // Fallback: Ersten Teil des Quellennamens verwenden
   const parts = source.split('/')[0].split('?')[0];
   return parts.length > 30 ? parts.substring(0, 27) + '...' : parts;
 }
 
 // --- API-Funktionen ---
 
-/**
- * Ruft aggregierte Klick- und Impressionsdaten von der Google Search Console ab
- */
 export async function getSearchConsoleData(
   siteUrl: string,
   startDate: string,
@@ -236,9 +258,6 @@ export async function getSearchConsoleData(
   }
 }
 
-/**
- * Ruft die Top 5 Suchanfragen von der Google Search Console ab
- */
 export async function getTopQueries(
   siteUrl: string,
   startDate: string,
@@ -280,9 +299,6 @@ export async function getTopQueries(
   }
 }
 
-/**
- * Ruft aggregierte Sitzungs- und Nutzerdaten von Google Analytics 4 ab
- */
 export async function getAnalyticsData(
   propertyId: string,
   startDate: string,
@@ -347,10 +363,6 @@ export async function getAnalyticsData(
   }
 }
 
-/**
- * Ruft KI-Traffic-Daten aus Google Analytics 4 ab
- * Identifiziert Traffic von bekannten KI-Bots und Crawlern
- */
 export async function getAiTrafficData(
   propertyId: string,
   startDate: string,
@@ -366,7 +378,6 @@ export async function getAiTrafficData(
   try {
     console.log('[AI-Traffic] Starte Abruf für Property:', formattedPropertyId);
 
-    // Query 1: Traffic nach Quelle/Medium gruppiert
     const sourceResponse = await analytics.properties.runReport({
       property: formattedPropertyId,
       requestBody: {
@@ -387,7 +398,6 @@ export async function getAiTrafficData(
       },
     });
 
-    // Query 2: Täglicher KI-Traffic-Trend
     const trendResponse = await analytics.properties.runReport({
       property: formattedPropertyId,
       requestBody: {
@@ -414,7 +424,6 @@ export async function getAiTrafficData(
     console.log('[AI-Traffic] Quellen-Zeilen:', sourceRows.length);
     console.log('[AI-Traffic] Trend-Zeilen:', trendRows.length);
 
-    // Verarbeite Quellen-Daten
     let totalSessions = 0;
     let totalUsers = 0;
     const sessionsBySource: { [key: string]: number } = {};
@@ -436,14 +445,9 @@ export async function getAiTrafficData(
         
         sessionsBySource[cleanName] = (sessionsBySource[cleanName] || 0) + sessions;
         usersBySource[cleanName] = (usersBySource[cleanName] || 0) + users;
-        
-        console.log('[AI-Traffic] KI-Quelle gefunden:', cleanName, '- Sitzungen:', sessions);
       }
     }
 
-    console.log('[AI-Traffic] Gesamt KI-Sitzungen:', totalSessions);
-
-    // Verarbeite Trend-Daten
     const trendMap: { [date: string]: number } = {};
 
     for (const row of trendRows) {
@@ -459,7 +463,6 @@ export async function getAiTrafficData(
       }
     }
 
-    // Top AI Sources erstellen
     const topAiSources = Object.entries(sessionsBySource)
       .map(([source, sessions]) => ({
         source,
@@ -470,17 +473,12 @@ export async function getAiTrafficData(
       .sort((a, b) => b.sessions - a.sessions)
       .slice(0, 5);
 
-    console.log('[AI-Traffic] Top AI Sources:', topAiSources);
-
-    // ✅ KORRIGIERT: Trend-Daten mit 'sessions' statt 'value'
     const trend = Object.entries(trendMap)
       .map(([date, sessions]) => ({
-        date: date, // YYYY-MM-DD Format für Recharts
-        sessions: sessions, // ✅ Muss 'sessions' heißen für dashboard-shared.ts
+        date: date,
+        sessions: sessions,
       }))
       .sort((a, b) => a.date.localeCompare(b.date));
-
-    console.log('[AI-Traffic] Trend-Datenpunkte:', trend.length);
 
     return {
       totalSessions,
@@ -492,12 +490,6 @@ export async function getAiTrafficData(
 
   } catch (error: unknown) {
     console.error('[AI-Traffic] Fehler beim Abrufen:', error);
-    console.error('[AI-Traffic] Request Details:', { 
-      propertyId: formattedPropertyId, 
-      startDate, 
-      endDate 
-    });
-
     return {
       totalSessions: 0,
       totalUsers: 0,
@@ -508,11 +500,6 @@ export async function getAiTrafficData(
   }
 }
 
-
-/**
- * Ruft einen GA4-Bericht für eine einzelne Dimension ab
- * (z.B. Land, Channel, Gerät)
- */
 export async function getGa4DimensionReport(
   propertyId: string,
   startDate: string,
@@ -569,11 +556,6 @@ export async function getGa4DimensionReport(
     return [];
   }
 }
-
-
-// ==================================================================
-// --- LANDINGPAGE-DATEN ---
-// ==================================================================
 
 export interface GscPageData {
   clicks: number;
