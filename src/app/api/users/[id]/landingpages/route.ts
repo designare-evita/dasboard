@@ -7,12 +7,21 @@ import { Landingpage } from '@/types';
 // Importe für Datei-Parsing
 import * as XLSX from '@e965/xlsx';
 import Papa from 'papaparse';
+// Import für Google Sheet
+import { getGoogleSheetData } from '@/lib/google-api';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
-// --- GET Handler (bleibt unverändert, aber hier zur Vollständigkeit) ---
+// Hilfsfunktion zur Extraktion der Sheet-ID
+function extractSheetId(url: string): string | null {
+  const regex = /\/d\/([a-zA-Z0-9-_]+)/;
+  const match = url.match(regex);
+  return match ? match[1] : null;
+}
+
+// --- GET Handler ---
 export async function GET(request: Request, { params }: RouteParams) {
   try {
     const { id: userId } = await params;
@@ -40,7 +49,7 @@ export async function GET(request: Request, { params }: RouteParams) {
   }
 }
 
-// --- POST Handler für Uploads (CSV & XLSX) ---
+// --- POST Handler für Uploads (Datei & Google Sheet) ---
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const { id: userId } = await params;
@@ -51,76 +60,104 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ message: 'Nicht autorisiert. Nur Admins dürfen Landingpages importieren.' }, { status: 403 });
     }
 
-    const formData = await request.formData();
-    const file = formData.get('file') as File;
-
-    if (!file) {
-      return NextResponse.json({ message: 'Keine Datei hochgeladen.' }, { status: 400 });
-    }
-
-    // Daten-Array initialisieren
     let rawData: any[] = [];
-    const fileName = file.name.toLowerCase();
+    const contentType = request.headers.get('content-type') || '';
 
-    // --- Fall A: CSV Verarbeitung ---
-    if (fileName.endsWith('.csv')) {
-      console.log('[Upload] Verarbeite CSV:', fileName);
-      const text = await file.text();
-      
-      const parseResult = Papa.parse(text, {
-        header: true,
-        skipEmptyLines: true,
-        dynamicTyping: true, // Konvertiert Zahlen automatisch
-      });
+    // --- FALL 1: Google Sheet Link (JSON) ---
+    if (contentType.includes('application/json')) {
+      const body = await request.json();
+      const { sheetUrl } = body;
 
-      if (parseResult.errors.length > 0) {
-        console.error('CSV Parsing Fehler:', parseResult.errors);
-        return NextResponse.json({ message: 'Fehler beim Lesen der CSV-Datei.' }, { status: 400 });
+      if (!sheetUrl) {
+        return NextResponse.json({ message: 'Keine Google Sheet URL angegeben.' }, { status: 400 });
       }
-      rawData = parseResult.data;
+
+      const sheetId = extractSheetId(sheetUrl);
+      if (!sheetId) {
+        return NextResponse.json({ message: 'Ungültige Google Sheet URL.' }, { status: 400 });
+      }
+
+      console.log('[Import] Starte Google Sheet Import für ID:', sheetId);
+      try {
+        rawData = await getGoogleSheetData(sheetId);
+      } catch (err) {
+        console.error('[Import] Fehler beim Sheet-Zugriff:', err);
+        return NextResponse.json({ 
+          message: 'Zugriff auf Google Sheet fehlgeschlagen. Wurde das Sheet mit der Service-E-Mail geteilt?',
+          error: err instanceof Error ? err.message : String(err)
+        }, { status: 403 });
+      }
+
     } 
-    // --- Fall B: Excel (XLSX) Verarbeitung ---
-    else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
-      console.log('[Upload] Verarbeite Excel:', fileName);
-      const arrayBuffer = await file.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-      
-      const workbook = XLSX.read(buffer, { type: 'buffer' });
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      
-      rawData = XLSX.utils.sheet_to_json(worksheet);
-    } 
+    // --- FALL 2: Datei Upload (FormData) ---
     else {
-      return NextResponse.json({ message: 'Ungültiges Dateiformat. Bitte .xlsx oder .csv verwenden.' }, { status: 400 });
+      const formData = await request.formData();
+      const file = formData.get('file') as File;
+
+      if (!file) {
+        return NextResponse.json({ message: 'Keine Datei hochgeladen.' }, { status: 400 });
+      }
+
+      const fileName = file.name.toLowerCase();
+
+      // A) CSV Verarbeitung
+      if (fileName.endsWith('.csv')) {
+        console.log('[Upload] Verarbeite CSV:', fileName);
+        const text = await file.text();
+        
+        const parseResult = Papa.parse(text, {
+          header: true,
+          skipEmptyLines: true,
+          dynamicTyping: true,
+        });
+
+        if (parseResult.errors.length > 0) {
+          console.error('CSV Parsing Fehler:', parseResult.errors);
+          return NextResponse.json({ message: 'Fehler beim Lesen der CSV-Datei.' }, { status: 400 });
+        }
+        rawData = parseResult.data;
+      } 
+      // B) Excel Verarbeitung
+      else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+        console.log('[Upload] Verarbeite Excel:', fileName);
+        const arrayBuffer = await file.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        
+        const workbook = XLSX.read(buffer, { type: 'buffer' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        
+        rawData = XLSX.utils.sheet_to_json(worksheet);
+      } 
+      else {
+        return NextResponse.json({ message: 'Ungültiges Dateiformat. Bitte .xlsx oder .csv verwenden.' }, { status: 400 });
+      }
     }
 
-    // --- Daten Validierung und Import ---
+    // --- GEMEINSAME DATENVERARBEITUNG ---
+
     if (!rawData || rawData.length === 0) {
-      return NextResponse.json({ message: 'Die Datei scheint leer zu sein.' }, { status: 400 });
+      return NextResponse.json({ message: 'Es wurden keine Daten gefunden (Datei/Sheet leer?).' }, { status: 400 });
     }
 
     let importedCount = 0;
-    let updateCount = 0;
 
-    // Durchlaufe alle Zeilen
     for (const row of rawData) {
-      // Spalten-Mapping basierend auf den Namen in der Vorlage
-      // Wir nutzen trim(), um Leerzeichen zu entfernen
-      const url = row['Landingpage-URL']?.toString().trim();
-      const hauptKeyword = row['Haupt-Keyword']?.toString().trim() || null;
-      const weitereKeywords = row['Weitere Keywords']?.toString().trim() || null;
+      // Flexibles Mapping für Spaltennamen (Case-Insensitive oder Variationen)
+      // Sheet/Excel Spalten: Landingpage-URL, Haupt-Keyword, Weitere Keywords, Suchvolumen, Aktuelle Pos.
       
-      // Zahlen parsen und säubern
-      let suchvolumen = parseInt(row['Suchvolumen'], 10);
+      const url = (row['Landingpage-URL'] || row['url'] || row['URL'])?.toString().trim();
+      const hauptKeyword = (row['Haupt-Keyword'] || row['Keyword'] || row['keyword'])?.toString().trim() || null;
+      const weitereKeywords = (row['Weitere Keywords'] || row['weitere keywords'])?.toString().trim() || null;
+      
+      let suchvolumen = parseInt(row['Suchvolumen'] || row['Volumen'], 10);
       if (isNaN(suchvolumen)) suchvolumen = 0;
 
-      let position = parseInt(row['Aktuelle Pos.'], 10);
+      let position = parseInt(row['Aktuelle Pos.'] || row['Position'], 10);
       if (isNaN(position)) position = 0;
 
       if (url) {
-        // Insert oder Update (Upsert) in die Datenbank
-        // Wir verwenden ON CONFLICT, um bestehende URLs für diesen User zu aktualisieren
+        // Insert oder Update (Upsert)
         await sql`
           INSERT INTO landingpages (
             user_id, 
@@ -138,7 +175,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             ${weitereKeywords}, 
             ${suchvolumen || null}, 
             ${position || null},
-            'Offen' -- Standardstatus bei Import
+            'Offen' -- Standardstatus bei neuem Import
           )
           ON CONFLICT (url, user_id) 
           DO UPDATE SET
@@ -146,22 +183,21 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             weitere_keywords = EXCLUDED.weitere_keywords,
             suchvolumen = EXCLUDED.suchvolumen,
             aktuelle_position = EXCLUDED.aktuelle_position
-            -- Status wird NICHT überschrieben, um bestehende Workflows nicht zu stören
+            -- Status wird NICHT überschrieben, um bestehenden Workflow nicht zu stören
         `;
         
-        // Wir zählen hier einfach alles als "importiert"
         importedCount++;
       }
     }
 
     return NextResponse.json({ 
-      message: `${importedCount} Landingpages erfolgreich importiert/aktualisiert.` 
+      message: `${importedCount} Landingpages erfolgreich synchronisiert/importiert.` 
     });
 
   } catch (error) {
     console.error('Fehler in /api/users/[id]/landingpages POST:', error);
     return NextResponse.json({ 
-      message: 'Fehler beim Verarbeiten der Datei.',
+      message: 'Fehler beim Importieren der Daten.',
       error: error instanceof Error ? error.message : String(error)
     }, { status: 500 });
   }
