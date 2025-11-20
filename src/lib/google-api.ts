@@ -384,6 +384,71 @@ export async function getGa4TrafficTrend(
   }
 }
 
+export async function getAnalyticsData(
+  propertyId: string,
+  startDate: string,
+  endDate: string
+): Promise<{
+  sessions: { total: number; daily: Array<{ date: string; value: number }> };
+  totalUsers: { total: number; daily: Array<{ date: string; value: number }> };
+}> {
+  const formattedPropertyId = propertyId.startsWith('properties/')
+    ? propertyId
+    : `properties/${propertyId}`;
+  const auth = createAuth();
+  const analytics = google.analyticsdata({ version: 'v1beta', auth });
+
+  try {
+    const response = await analytics.properties.runReport({
+      property: formattedPropertyId,
+      requestBody: {
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: 'date' }],
+        metrics: [
+          { name: 'sessions' },
+          { name: 'totalUsers' }
+        ],
+        orderBys: [{ dimension: { dimensionName: 'date' }, desc: false }],
+      },
+    });
+
+    const rows = response.data.rows || [];
+    const sessionsDaily: Array<{ date: string; value: number }> = [];
+    const usersDaily: Array<{ date: string; value: number }> = [];
+    let totalSessions = 0;
+    let totalUsers = 0;
+
+    for (const row of rows) {
+      const rawDate = row.dimensionValues?.[0]?.value || '';
+      const date = formatDateToISO(rawDate);
+      const sessions = parseInt(row.metricValues?.[0]?.value || '0', 10);
+      const users = parseInt(row.metricValues?.[1]?.value || '0', 10);
+
+      sessionsDaily.push({ date, value: sessions });
+      usersDaily.push({ date, value: users });
+      totalSessions += sessions;
+      totalUsers += users;
+    }
+
+    return {
+      sessions: {
+        total: totalSessions,
+        daily: sessionsDaily,
+      },
+      totalUsers: {
+        total: totalUsers,
+        daily: usersDaily,
+      },
+    };
+  } catch (error: unknown) {
+    console.error('[GA4] Fehler beim Abrufen der Analytics-Daten:', error);
+    return {
+      sessions: { total: 0, daily: [] },
+      totalUsers: { total: 0, daily: [] },
+    };
+  }
+}
+
 export async function getAiTrafficData(
   propertyId: string,
   startDate: string,
