@@ -15,7 +15,7 @@ interface DateRangeData {
   daily: DailyDataPoint[];
 }
 
-interface TopQueryData {
+export interface TopQueryData {
   query: string;
   clicks: number;
   impressions: number;
@@ -31,7 +31,7 @@ export interface AiTrafficData {
   totalUsersChange?: number;
   
   sessionsBySource: {
-    : number;
+    : number; // KORREKTUR: [key: string] hinzugefügt
   };
   topAiSources: Array<{
     source: string;
@@ -125,7 +125,7 @@ export async function getGoogleSheetData(sheetId: string): Promise<any[]> {
     const data = rows.slice(1).map(row => {
       const obj: Record<string, string> = {};
       headers.forEach((header, index) => {
-        const key = header?.trim();
+        const key = header?.toString().trim();
         // Wenn die Zeile kürzer ist als die Header, ist der Wert undefined -> leerer String
         const val = row[index] ? row[index].toString().trim() : '';
         if (key) {
