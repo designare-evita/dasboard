@@ -1,77 +1,139 @@
 // src/components/KpiCardsGrid.tsx
-import React from 'react';
-import KpiCard from './kpi-card';
-import { KpiData, ChartEntry } from '@/lib/dashboard-shared';
+'use client';
 
-interface KpiCardsGridProps {
-  kpis: KpiData;
-  isLoading: boolean;
-  allChartData?: Record<string, ChartEntry[]>; 
-  apiErrors?: Record<string, string>;
+import React, { useState } from 'react';
+import KpiCard from './kpi-card';
+import { 
+  KpiDatum, 
+  ProjectDashboardData, 
+  ApiErrorStatus,
+  KPI_TAB_META
+} from '@/lib/dashboard-shared';
+import { InfoCircle } from 'react-bootstrap-icons';
+
+/**
+ * InfoTooltip - Zeigt Details zu einer KPI an
+ */
+function InfoTooltip({ title, description }: { title: string; description: string }) {
+  const [isVisible, setIsVisible] = useState(false);
+
+  return (
+    <div className="absolute top-3 right-3 z-10 print:hidden">
+      <div
+        className="relative"
+        onMouseEnter={() => setIsVisible(true)}
+        onMouseLeave={() => setIsVisible(false)}
+      >
+        {/* Info-Icon */}
+        <button
+          type="button"
+          className="p-1 rounded-full hover:bg-gray-100/50 transition-colors cursor-help"
+          aria-label="Mehr Informationen"
+        >
+          <InfoCircle
+            size={16}
+            className="text-gray-400 hover:text-indigo-600 transition-colors"
+          />
+        </button>
+
+        {/* Tooltip */}
+        {isVisible && (
+          <div className="absolute right-0 top-8 w-64 bg-white rounded-lg shadow-xl border border-gray-200 p-4 z-20 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="absolute -top-2 right-3 w-4 h-4 bg-white border-l border-t border-gray-200 transform rotate-45"></div>
+            <h4 className="text-sm font-semibold text-gray-900 mb-2">{title}</h4>
+            <p className="text-xs text-gray-600 leading-relaxed">{description}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
-export default function KpiCardsGrid({ kpis, isLoading, allChartData, apiErrors }: KpiCardsGridProps) {
+// Wir definieren den Typ für die KPIs, wie er von normalizeFlatKpis zurückgegeben wird (alles Required)
+type NormalizedKpis = {
+  clicks: KpiDatum;
+  impressions: KpiDatum;
+  sessions: KpiDatum;
+  totalUsers: KpiDatum;
+};
+
+interface KpiCardsGridProps {
+  kpis: NormalizedKpis;
+  isLoading?: boolean;
+  allChartData?: ProjectDashboardData['charts'];
+  apiErrors?: ApiErrorStatus;
+}
+
+export default function KpiCardsGrid({
+  kpis,
+  isLoading = false,
+  allChartData,
+  apiErrors,
+}: KpiCardsGridProps) {
   
-  const renderCard = (
-    title: string,
-    kpiKey: keyof KpiData | string,
-    value: number | string,
-    change: number,
-    isPercentage: boolean = false,
-    description?: string,
-    inverseTrend: boolean = false
-  ) => {
-    // Mapping logic (gekürzt für Übersicht, Logik bleibt gleich wie vorher)
-    let chartData: ChartEntry[] = [];
-    let trendDirection: 'up' | 'down' | 'neutral' = 'neutral';
-
-    if (typeof kpiKey === 'string' && allChartData) {
-      if (kpiKey === 'bounceRate' && allChartData.engagementRate) {
-         chartData = allChartData.engagementRate.map(entry => ({
-            date: entry.date,
-            value: 100 - entry.value
-         }));
-      } else if (allChartData[kpiKey]) {
-         chartData = allChartData[kpiKey] || [];
-      }
-    }
-    
-    if (change > 0) trendDirection = 'up';
-    if (change < 0) trendDirection = 'down';
-
-    return (
-      // ÄNDERUNG: 'className' prop übergeben, um card-glass und hover-Effekt anzuwenden
-      <div className="card-glass card-glass-hover h-full">
-        <KpiCard
-          title={title}
-          value={value}
-          change={change}
-          trend={trendDirection}
-          data={chartData}
-          isLoading={isLoading}
-          isPercentage={isPercentage}
-          description={description}
-          inverseTrend={inverseTrend}
-          // WICHTIG: KpiCard sollte transparenten Hintergrund akzeptieren oder wir wrappen sie wie hier.
-          // Wenn KpiCard selbst Stile hat, müssen wir 'className' dort evtl. entfernen/anpassen.
-          // Da wir hier wrappen, gehen wir davon aus, dass KpiCard transparent oder weiß ist.
-          // Idealerweise sollte KpiCard "bg-transparent" sein, wenn wir hier "card-glass" nutzen.
-          className="bg-transparent shadow-none border-none" // Überschreibt Standard-Styles in KpiCard
-        />
-      </div>
-    );
+  if (!kpis) {
+    return null;
+  }
+  
+  const kpiInfo = {
+    clicks: {
+      title: 'Klicks (GSC)',
+      description: 'Anzahl der Klicks auf Ihre Website-Links in den Google-Suchergebnissen.',
+    },
+    impressions: {
+      title: 'Impressionen (GSC)',
+      description: 'Wie oft ein Link zu Ihrer Website in den Google-Suchergebnissen gesehen wurde.',
+    },
+    sessions: {
+      title: 'Sitzungen (GA4)',
+      description: 'Anzahl der Sitzungen mit Interaktionen auf Ihrer Website.',
+    },
+    totalUsers: {
+      title: 'Nutzer (GA4)',
+      description: 'Anzahl der eindeutigen Nutzer, die Ihre Website besucht haben.',
+    },
   };
 
-  // ... Rest der Render-Logik (Grid Layout) bleibt gleich ...
-  // Ich gebe hier nur das Beispiel für den Grid-Container zurück
-  
+  const gscError = apiErrors?.gsc;
+  const ga4Error = apiErrors?.ga4;
+
+  // Helper für das Rendern einer Karte
+  const renderCard = (
+    key: keyof NormalizedKpis, 
+    title: string, 
+    error: string | undefined,
+    info: { title: string, description: string }
+  ) => (
+    <div className="card-glass card-glass-hover h-full relative group">
+      <KpiCard
+        title={title}
+        isLoading={isLoading}
+        value={kpis[key].value}
+        change={kpis[key].change}
+        data={allChartData?.[key]}
+        color={KPI_TAB_META[key].color}
+        error={error || null}
+        // Da wir "card-glass" im Wrapper nutzen, setzen wir hier transparent
+        // (falls KpiCard selbst Styles hat, müssen diese ggf. angepasst werden, 
+        // aber bg-transparent/shadow-none überschreibt meistens Tailwind-Klassen)
+        // Hier übergeben wir keine className Prop an KpiCard, da wir den Wrapper stylen.
+      />
+      
+      {!isLoading && !error && (
+        <InfoTooltip
+          title={info.title}
+          description={info.description}
+        />
+      )}
+    </div>
+  );
+
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-       {/* Beispielaufruf - du nutzt hier deine bestehende Logik */}
-       {renderCard("Besucher (Sessions)", "sessions", kpis.sessions.value, kpis.sessions.change)}
-       {renderCard("Nutzer (Total)", "users", kpis.users.value, kpis.users.change)}
-       {renderCard("Absprungrate", "bounceRate", kpis.bounceRate.value, kpis.bounceRate.change, true, "Kehrwert der Engagement Rate", true)}
-       {renderCard("Durchschn. Engagement", "avgEngagementTime", kpis.avgEngagementTime.value, kpis.avgEngagementTime.change, false, "Sekunden")}
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {renderCard('clicks', 'Klicks', gscError, kpiInfo.clicks)}
+      {renderCard('impressions', 'Impressionen', gscError, kpiInfo.impressions)}
+      {renderCard('sessions', 'Sitzungen', ga4Error, kpiInfo.sessions)}
+      {renderCard('totalUsers', 'Nutzer', ga4Error, kpiInfo.totalUsers)}
     </div>
   );
 }
