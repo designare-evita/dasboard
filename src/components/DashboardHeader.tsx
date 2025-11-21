@@ -24,12 +24,12 @@ export default function DashboardHeader({
 }: DashboardHeaderProps) {
 
   return (
-    <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+    // ÄNDERUNG: 'card-glass' statt 'bg-white...'
+    <div className="card-glass p-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         
-        {/* Linke Seite: Favicon und Info-Text */}
+        {/* Linke Seite */}
         <div>
-          {/* Favicon (falls vorhanden) */}
           {faviconUrl && (
             <div className="mb-2">
               <Image
@@ -43,13 +43,12 @@ export default function DashboardHeader({
             </div>
           )}
           
-          {/* Info Text */}
           <span className="text-gray-500 text-sm hidden lg:block">
             💡 GOOGLE Datenaktualisierung alle 48 Stunden | SEMRUSH Datenaktualisierung alle 14 Tage.
           </span>
         </div>
         
-        {/* Rechte Seite: Nur noch DateRangeSelector */}
+        {/* Rechte Seite */}
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
           <DateRangeSelector
             value={dateRange}
