@@ -39,6 +39,8 @@ export interface Landingpage {
   gsc_position_change: number | string | null; 
   gsc_last_updated: string | null;
   gsc_last_range: string | null;
+  created_at: string; 
+  updated_at?: string; 
 }
 
 export type LandingpageStatus = Landingpage['status'];
