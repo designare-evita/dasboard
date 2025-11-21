@@ -7,7 +7,8 @@ const Footer = () => {
 
   return (
     <footer className="w-full bg-white shadow-inner mt-12 py-6">
-      <div className="max-w-7xl mx-auto px-4 text-center text-gray-500 text-xs space-y-2">
+      {/* ÄNDERUNG: 'max-w-7xl mx-auto' entfernt, 'w-full' hinzugefügt */}
+      <div className="w-full px-6 text-center text-gray-500 text-xs">
         <p>
           &copy; {currentYear}{' '}
           <a
@@ -20,25 +21,23 @@ const Footer = () => {
           </a>
           . Jede Codezeile von Hand gestreichelt. Also bitte nicht klauen. Alle
           Rechte vorbehalten.
-        </p>
-        
-        {/* HINZUGEFÜGTE LINKS */}
-        <div className="flex justify-center gap-x-4">
+          
+          {/* ÄNDERUNG: Links direkt hier eingefügt mit Trennzeichen */}
+          <span className="mx-2">|</span>
           <Link
             href="/impressum"
             className="hover:text-gray-700 hover:underline"
           >
             Impressum
           </Link>
+          <span className="mx-2">|</span>
           <Link
             href="/datenschutz"
             className="hover:text-gray-700 hover:underline"
           >
             Datenschutzerklärung
           </Link>
-        </div>
-        {/* ENDE HINZUGEFÜGTE LINKS */}
-
+        </p>
       </div>
     </footer>
   );
