@@ -60,6 +60,22 @@ const fetcher = (url: string) => fetch(url).then((res) => {
   return res.json();
 });
 
+// Tooltip Komponente
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    const dateLabel = new Date(label);
+    return (
+      <div className="bg-white p-2 shadow-md rounded border border-gray-200 text-xs">
+        <p className="font-bold text-gray-800 mb-1">{format(dateLabel, 'd. MMM yyyy', { locale: de })}</p>
+        <p className="text-indigo-600">
+          {new Intl.NumberFormat('de-DE').format(payload[0].value)} Impr.
+        </p>
+      </div>
+    );
+  }
+  return null;
+};
+
 interface ProjectTimelineWidgetProps {
   projectId?: string;
   domain?: string | null;
@@ -97,24 +113,22 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
   // Zeit-Fortschritt berechnen
   const totalProjectDays = differenceInCalendarDays(endDate, startDate) || 1; 
   const elapsedProjectDays = differenceInCalendarDays(today, startDate);
-  // Begrenzen auf 0-100%
+  
   let timeProgress = Math.round((elapsedProjectDays / totalProjectDays) * 100);
   if (timeProgress < 0) timeProgress = 0;
   if (timeProgress > 100) timeProgress = 100;
 
-  // "Sind wir im Plan?" Logik
-  // Wenn Zeit (z.B. 50%) > Arbeit (z.B. 20%) = Rückstand
+  // Status Logik
   const progressDelta = workProgress - timeProgress;
-  
   let statusColor = 'text-green-600';
   let statusBg = 'bg-green-50 border-green-200';
-  let statusText = 'Hervorragend im Plan';
+  let statusText = 'Im Plan';
   let StatusIcon = CheckCircleFill;
 
   if (progressDelta < -15) {
     statusColor = 'text-red-600';
     statusBg = 'bg-red-50 border-red-200';
-    statusText = 'Kritischer Rückstand';
+    statusText = 'Rückstand';
     StatusIcon = ExclamationTriangleFill;
   } else if (progressDelta < -5) {
     statusColor = 'text-orange-600';
@@ -123,165 +137,179 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
     StatusIcon = InfoCircle;
   }
 
+  // Chart Data Vorbereitung
   const chartData = (gscImpressionTrend || []).map(d => ({
     date: new Date(d.date).getTime(), 
     impressions: d.value,
   }));
 
-  const xTicks = [ startDate.getTime(), today.getTime(), endDate.getTime() ];
+  // WICHTIG: Die X-Achse Ticks exakt auf Start, Heute, Ende setzen
+  const xTicks = [startDate.getTime(), today.getTime(), endDate.getTime()];
+  const domainRange = [startDate.getTime(), endDate.getTime()];
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden print-timeline">
       
-      {/* --- HEADER & STATUS --- */}
-      <div className="p-6 border-b border-gray-100">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-              <FlagFill className="text-indigo-600" />
-              Projekt-Status
-              {domain && <span className="text-gray-400 font-normal ml-2 text-sm hidden sm:inline">| {domain}</span>}
-            </h2>
-            <p className="text-sm text-gray-500 mt-1">
-              Projektlaufzeit: {format(startDate, 'MM.yyyy')} - {format(endDate, 'MM.yyyy')} ({duration} Monate)
-            </p>
-          </div>
-
-          {/* Status Badge */}
-          <div className={cn("px-4 py-2 rounded-lg border flex items-center gap-2 shadow-sm", statusBg)}>
-            <StatusIcon className={statusColor} size={18} />
-            <div>
-              <p className={cn("text-xs font-bold uppercase tracking-wider", statusColor)}>{statusText}</p>
-              <p className="text-xs text-gray-600">
-                Fortschritt: <span className="font-semibold">{workProgress}%</span> vs. Zeit: <span className="font-semibold">{timeProgress}%</span>
-              </p>
-            </div>
-          </div>
+      {/* --- HEADER --- */}
+      <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-white">
+        <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+          <FlagFill className="text-indigo-600" />
+          Projekt-Status
+          {domain && <span className="text-gray-400 font-normal text-sm hidden sm:inline">| {domain}</span>}
+        </h2>
+        
+        <div className={cn("px-3 py-1 rounded-full border flex items-center gap-2 text-xs font-bold uppercase tracking-wide", statusBg, statusColor)}>
+          <StatusIcon size={14} />
+          {statusText}
         </div>
       </div>
 
-      {/* --- TIMELINE & PROGRESS SECTION --- */}
-      {/* KORREKTUR: Layout geändert von grid-cols-3 auf grid-cols-2 für 50/50 Aufteilung */}
-      <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-8 items-center bg-gray-50/50">
+      {/* --- CONTENT GRID (50% / 50%) --- */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-gray-100">
         
-        {/* Linke Spalte: Meilensteine / Zeitstrahl (50% Breite) */}
-        <div className="space-y-6">
+        {/* --- LINKE SPALTE: TIMELINE & FORTSCHRITT --- */}
+        <div className="p-6 bg-gray-50/30 flex flex-col justify-center">
           
-          {/* Visueller Zeitstrahl */}
-          <div className="relative pt-6 pb-2">
-            <div className="flex justify-between text-xs font-semibold text-gray-500 mb-2 px-1">
-              <span className="flex items-center gap-1"><CalendarCheck/> Start</span>
-              <span className="text-indigo-600 flex items-center gap-1"><ClockHistory/> Heute</span>
-              <span className="flex items-center gap-1">Ende <CalendarX/></span>
+          {/* Visueller Zeitstrahl (Links) */}
+          <div className="relative pt-8 pb-2 mb-6">
+            <div className="flex justify-between text-xs font-bold text-gray-500 mb-2 px-1 absolute w-full -top-1">
+              <span className="flex flex-col items-start">
+                <span className="flex items-center gap-1 text-indigo-900"><CalendarCheck/> Start</span>
+                <span className="font-normal opacity-70">{format(startDate, 'dd.MM.yy')}</span>
+              </span>
+              <span className="flex flex-col items-end">
+                <span className="flex items-center gap-1 text-indigo-900">Ende <CalendarX/></span>
+                <span className="font-normal opacity-70">{format(endDate, 'dd.MM.yy')}</span>
+              </span>
             </div>
             
-            {/* Timeline Track */}
-            <div className="h-3 w-full bg-gray-200 rounded-full relative overflow-visible">
-              {/* Füllung (Verstrichene Zeit) */}
+            <div className="h-4 w-full bg-gray-200 rounded-full relative overflow-visible mt-6 shadow-inner">
               <div 
-                className="absolute top-0 left-0 h-full bg-gradient-to-r from-indigo-300 to-indigo-500 rounded-full transition-all duration-1000"
+                className="absolute top-0 left-0 h-full bg-gradient-to-r from-indigo-400 to-indigo-600 rounded-full transition-all duration-1000"
                 style={{ width: `${timeProgress}%` }}
               />
-              
-              {/* Heute-Marker (Pin) */}
               <div 
-                className="absolute top-1/2 -translate-y-1/2 w-1 h-6 bg-indigo-600 z-10 shadow-sm transition-all duration-1000"
+                className="absolute top-1/2 -translate-y-1/2 w-0.5 h-8 bg-indigo-800 z-10 transition-all duration-1000"
                 style={{ left: `${timeProgress}%` }}
               >
-                <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-indigo-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
-                  HEUTE
+                <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-indigo-800 text-white text-[10px] font-bold px-2 py-1 rounded shadow-md whitespace-nowrap">
+                  HEUTE ({timeProgress}%)
                 </div>
+                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-indigo-800 rotate-45"></div>
               </div>
-            </div>
-            
-            <div className="flex justify-between text-xs text-gray-400 mt-2 font-mono">
-              <span>{format(startDate, 'dd.MM.yy')}</span>
-              <span>{format(endDate, 'dd.MM.yy')}</span>
             </div>
           </div>
 
-          {/* Detail-Fortschritt (Landingpages) */}
-          <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+          {/* Fortschrittsbalken Landingpages */}
+          <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm mt-2">
             <div className="flex justify-between items-end mb-2">
-              <span className="text-sm font-medium text-gray-700">
-                Inhaltliche Fertigstellung
-              </span>
-              <span className="text-2xl font-bold text-gray-900">
-                {counts.Freigegeben} <span className="text-sm text-gray-400 font-normal">/ {counts.Total} LPs</span>
-              </span>
+              <span className="text-sm font-semibold text-gray-700">Inhaltliche Fertigstellung</span>
+              <span className="text-xl font-bold text-gray-900">{counts.Freigegeben} <span className="text-xs text-gray-400 font-normal">/ {counts.Total} LPs</span></span>
             </div>
-            
-            {/* Multi-Color Progress Bar */}
             <div className="flex w-full h-3 bg-gray-100 rounded-full overflow-hidden">
-              {/* Freigegeben */}
-              <div 
-                className="bg-green-500 transition-all duration-700" 
-                style={{ width: `${(counts.Freigegeben / counts.Total) * 100}%` }} 
-                title="Freigegeben"
-              />
-              {/* In Prüfung */}
-              <div 
-                className="bg-yellow-400 transition-all duration-700" 
-                style={{ width: `${(counts['In Prüfung'] / counts.Total) * 100}%` }} 
-                title="In Prüfung"
-              />
-              {/* Gesperrt */}
-              <div 
-                className="bg-red-400 transition-all duration-700" 
-                style={{ width: `${(counts.Gesperrt / counts.Total) * 100}%` }} 
-                title="Gesperrt"
-              />
+              <div className="bg-green-500" style={{ width: `${(counts.Freigegeben / counts.Total) * 100}%` }} title="Freigegeben" />
+              <div className="bg-yellow-400" style={{ width: `${(counts['In Prüfung'] / counts.Total) * 100}%` }} title="In Prüfung" />
+              <div className="bg-red-400" style={{ width: `${(counts.Gesperrt / counts.Total) * 100}%` }} title="Gesperrt" />
             </div>
-            
-            <div className="flex gap-4 mt-2 justify-end text-xs text-gray-500">
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500"></span>Fertig</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-yellow-400"></span>Prüfung</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-200"></span>Offen</span>
+            <div className="flex justify-between mt-2 text-[10px] text-gray-500">
+              <div className="flex gap-3">
+                <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>Fertig</span>
+                <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-yellow-400"></span>Prüfung</span>
+              </div>
+              <span className="font-semibold text-indigo-600">{workProgress}% Gesamtfortschritt</span>
             </div>
           </div>
         </div>
 
-        {/* Rechte Spalte: GSC Mini-Chart (50% Breite) */}
-        <div className="h-full flex flex-col">
-          <div className="bg-indigo-50/50 p-4 rounded-lg border border-indigo-100 h-full">
-            {/* KORREKTUR: Titel angepasst */}
-            <h3 className="text-sm font-semibold text-indigo-900 mb-3 flex items-center gap-2">
-              <GraphUpArrow /> Reichweite (Trend) <span className="text-xs font-normal text-indigo-600 ml-1 opacity-80">Letzte 90 Tage</span>
+        {/* --- RECHTE SPALTE: CHART ALS TIMELINE --- */}
+        <div className="p-6 h-full flex flex-col bg-white">
+          
+          {/* Header passend zur Timeline links */}
+          <div className="flex justify-between items-end mb-4 border-b border-gray-50 pb-2">
+             <h3 className="text-sm font-bold text-indigo-900 flex items-center gap-2">
+              <GraphUpArrow /> Reichweite (Timeline)
             </h3>
-            
+             {/* Datums-Labels auch hier anzeigen für Klarheit */}
+             <div className="text-[10px] text-gray-400 font-mono">
+                {format(startDate, 'dd.MM.yy')} - {format(endDate, 'dd.MM.yy')}
+             </div>
+          </div>
+          
+          <div className="flex-grow min-h-[200px] w-full relative">
             {chartData.length > 0 ? (
-              <div className="h-32 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={chartData}>
-                    <defs>
-                      <linearGradient id="miniChartGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <Area 
-                      type="monotone" 
-                      dataKey="impressions" 
-                      stroke="#6366f1" 
-                      strokeWidth={2} 
-                      fill="url(#miniChartGradient)" 
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={chartData}>
+                  <defs>
+                    <linearGradient id="timelineGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+                  
+                  {/* X-Achse festgenagelt auf Projekt Start/Ende */}
+                  <XAxis
+                    dataKey="date"
+                    type="number"
+                    domain={domainRange} // Zwingt die Achse auf Start->Ende
+                    ticks={xTicks} // Zeigt explizit Start, Heute, Ende
+                    stroke="#9ca3af"
+                    fontSize={10}
+                    tickFormatter={(timestamp) => {
+                      // Einfache Formatierung für die 3 Ticks
+                      if (timestamp === today.getTime()) return 'HEUTE';
+                      return format(new Date(timestamp), 'dd.MM.yy', { locale: de });
+                    }}
+                    interval={0} // Erzwingt Anzeige aller Ticks
+                  />
+                  
+                  {/* Y-Achse versteckt oder minimal */}
+                  <YAxis 
+                    hide={true} 
+                    domain={['auto', 'auto']} 
+                  />
+                  
+                  <Tooltip content={<CustomTooltip />} />
+
+                  {/* Linie für HEUTE */}
+                  <ReferenceLine 
+                    x={today.getTime()} 
+                    stroke="#4f46e5" 
+                    strokeDasharray="3 3"
+                  >
+                    <Label 
+                      value="HEUTE" 
+                      position="insideTop" 
+                      fill="#4f46e5" 
+                      fontSize={10} 
+                      offset={10}
                     />
-                  </ComposedChart>
-                </ResponsiveContainer>
-                <div className="flex justify-between items-center mt-2 text-xs text-indigo-700/70">
-                  <span>Trendverlauf</span>
-                  <span className="font-bold">
-                    ~{chartData.reduce((acc, curr) => acc + curr.impressions, 0).toLocaleString()} Impr.
-                  </span>
-                </div>
-              </div>
+                  </ReferenceLine>
+
+                  {/* Trend-Area */}
+                  <Area 
+                    type="monotone" 
+                    dataKey="impressions" 
+                    stroke="#6366f1" 
+                    strokeWidth={2} 
+                    fill="url(#timelineGradient)" 
+                    baseLine={0}
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
             ) : (
-              <div className="h-32 flex items-center justify-center text-xs text-indigo-300 italic border border-dashed border-indigo-200 rounded">
-                Keine GSC Daten für die letzten 90 Tage
+              <div className="h-full flex flex-col items-center justify-center text-xs text-indigo-300 italic bg-indigo-50/30 rounded border border-dashed border-indigo-100">
+                <GraphUpArrow size={24} className="mb-2 opacity-50"/>
+                Keine Daten im Projektzeitraum
               </div>
             )}
           </div>
+
+          <div className="mt-2 text-center text-[10px] text-gray-400">
+            Zeigt Impressionen im Projektverlauf
+          </div>
         </div>
+
       </div>
     </div>
   );
