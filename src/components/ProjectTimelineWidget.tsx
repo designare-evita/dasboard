@@ -13,19 +13,15 @@ import {
   ReferenceLine,
 } from 'recharts';
 import { 
-  CalendarCheck, 
-  CalendarX, 
-  CheckCircle, 
+  CalendarWeek,
   ClockHistory, 
   GraphUpArrow, 
   HourglassSplit,
   ListCheck,
-  CalendarWeek,
-  BoxSeam // <--- HIER HINZUGEFÜGT
+  BoxSeam
 } from 'react-bootstrap-icons';
 import { addMonths, format, differenceInCalendarDays } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { cn } from '@/lib/utils';
 
 // --- Interfaces & Fetcher (unverändert) ---
 interface StatusCounts {
@@ -59,10 +55,6 @@ const fetcher = (url: string) => fetch(url).then((res) => {
   }
   return res.json();
 });
-
-const formatImpressions = (value: number) => {
-  return new Intl.NumberFormat('de-DE', { notation: 'compact', maximumFractionDigits: 1 }).format(value);
-};
 
 // --- Props ---
 interface ProjectTimelineWidgetProps {
@@ -265,14 +257,14 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
                 <GraphUpArrow className="text-blue-500" size={16} />
                 Reichweite
               </h3>
-              <span className="text-[10px] text-gray-400 bg-white px-2 py-0.5 rounded border border-gray-200">90 Tage</span>
+              {/* Entfernt: 90 Tage Badge */}
             </div>
 
             {/* Chart Container */}
-            <div className="flex-grow min-h-[180px] w-full relative">
+            <div className="flex-grow min-h-[200px] w-full relative">
               {chartData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData}>
+                  <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
                     <defs>
                       <linearGradient id="colorImpressions" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
@@ -280,12 +272,27 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                    
+                    {/* X-Achse: Datum */}
                     <XAxis
                       dataKey="date"
-                      hide={true} // Achse ausblenden für cleaneren Look im Widget
+                      tickFormatter={(timestamp) => format(new Date(timestamp), 'd.MM', { locale: de })}
                       domain={[startDate.getTime(), endDate.getTime()]}
                       type="number"
+                      tick={{ fontSize: 10, fill: '#6b7280' }}
+                      tickMargin={10}
+                      minTickGap={30}
                     />
+
+                    {/* Y-Achse: Impressionen */}
+                    <YAxis 
+                      tickFormatter={(value) => new Intl.NumberFormat('de-DE', { notation: 'compact' }).format(value)}
+                      tick={{ fontSize: 10, fill: '#6b7280' }}
+                      width={35}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+
                     <Tooltip 
                       contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: '12px' }}
                       labelFormatter={(v) => format(new Date(v), 'd. MMM', { locale: de })}
@@ -310,12 +317,7 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
               )}
             </div>
             
-            {/* Chart Footer Stats */}
-            <div className="mt-3 pt-3 border-t border-gray-200 flex justify-between items-center text-xs text-gray-500">
-               <span>Start: {format(startDate, 'MMM yy', { locale: de })}</span>
-               <span className="font-medium text-blue-600">Impressionen</span>
-               <span>Heute</span>
-            </div>
+            {/* Entfernt: Footer Stats (Start / Impressionen / Heute) */}
 
           </div>
         </div>
