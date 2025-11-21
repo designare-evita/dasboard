@@ -2,7 +2,7 @@
 'use client';
 
 import React from 'react';
-import { Download, Globe } from 'react-bootstrap-icons'; // Hash entfernt
+import { Download, Globe } from 'react-bootstrap-icons';
 import { Button } from "@/components/ui/button";
 
 interface GlobalHeaderProps {
@@ -18,27 +18,24 @@ export default function GlobalHeader({
 }: GlobalHeaderProps) {
 
   return (
-    <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6 mb-6 print:hidden">
+    // ÄNDERUNG: 'card-glass' statt 'bg-white shadow-md border...'
+    <div className="card-glass p-6 mb-6 print:hidden">
       <div className="flex items-center justify-between">
         
-        {/* LINKE SEITE: Identität */}
+        {/* LINKE SEITE */}
         <div className="flex items-center gap-5">
-          {/* Icon Container */}
-          <div className="flex items-center gap-2 text-indigo-600 bg-indigo-50 p-3 rounded-xl">
+          <div className="flex items-center gap-2 text-indigo-600 bg-indigo-50/80 p-3 rounded-xl backdrop-blur-sm">
              <Globe size={28} />
           </div>
           
-          {/* Trennlinie */}
-          <div className="h-12 w-px bg-gray-200 mx-1 hidden sm:block"></div>
+          <div className="h-12 w-px bg-gray-200/60 mx-1 hidden sm:block"></div>
 
           <div className="flex flex-col justify-center">
-             {/* Titel */}
              <h1 className="text-2xl font-bold text-gray-900 leading-none tracking-tight">
                {domain || 'Projekt Dashboard'}
              </h1>
              {projectId && (
                <div className="flex items-center gap-1.5 mt-1.5">
-                 {/* ÄNDERUNG: Hash Icon durch Text "ID:" ersetzt */}
                  <span className="text-xs font-bold text-gray-400">ID:</span>
                  <span className="text-xs font-mono text-gray-500 tracking-wide select-all">
                    {projectId}
@@ -48,7 +45,7 @@ export default function GlobalHeader({
           </div>
         </div>
 
-        {/* RECHTE SEITE: Aktionen */}
+        {/* RECHTE SEITE */}
         <div>
           <Button
             onClick={onPdfExport}
