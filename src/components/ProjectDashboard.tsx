@@ -16,6 +16,8 @@ import TopQueriesList from '@/components/TopQueriesList';
 import SemrushTopKeywords from '@/components/SemrushTopKeywords';
 import SemrushTopKeywords02 from '@/components/SemrushTopKeywords02';
 import DashboardHeader from '@/components/DashboardHeader';
+// NEU: Import des GlobalHeader
+import GlobalHeader from '@/components/GlobalHeader';
 import { useSession } from 'next-auth/react'; 
 
 import CountryChart from './CountryChart';
@@ -63,6 +65,14 @@ export default function ProjectDashboard({
 
   return (
     <>
+      {/* NEU: Globaler Header ganz oben */}
+      <GlobalHeader 
+        domain={domain}
+        projectId={projectId}
+        onPdfExport={onPdfExport || (() => console.warn('PDF Export not implemented'))}
+      />
+
+      {/* Bestehender Header (bleibt erhalten) */}
       <div className="print-header">
         <DashboardHeader 
           domain={domain}
