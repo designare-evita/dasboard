@@ -61,7 +61,7 @@ function createAuth(): JWT {
         scopes: [
           'https://www.googleapis.com/auth/webmasters.readonly',
           'https://www.googleapis.com/auth/analytics.readonly',
-          'https://www.googleapis.com/auth/spreadsheets.readonly', // <--- NEU: Zugriff auf Sheets
+          'https://www.googleapis.com/auth/spreadsheets.readonly', 
         ],
       });
     } catch (e) {
@@ -89,7 +89,7 @@ function createAuth(): JWT {
       scopes: [
         'https://www.googleapis.com/auth/webmasters.readonly',
         'https://www.googleapis.com/auth/analytics.readonly',
-        'https://www.googleapis.com/auth/spreadsheets.readonly', // <--- NEU: Zugriff auf Sheets
+        'https://www.googleapis.com/auth/spreadsheets.readonly', 
       ],
     });
   } catch (error) {
@@ -275,7 +275,7 @@ export async function getTopQueries(
         dimensions: ["query"],
         type: "web",
         aggregationType: "byProperty",
-        rowLimit: 10,
+        rowLimit: 100, // ✅ KORRIGIERT: Von 10 auf 100 erhöht
       },
     });
 
