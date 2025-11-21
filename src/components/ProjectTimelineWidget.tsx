@@ -8,7 +8,6 @@ import {
   XAxis,
   YAxis,
   Tooltip,
-  Legend,
   CartesianGrid,
   ReferenceLine,
   Label,
@@ -25,7 +24,7 @@ import {
 } from 'react-bootstrap-icons';
 import { addMonths, format, differenceInCalendarDays } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { cn } from '@/lib/utils'; // Sicherstellen, dass cn verfügbar ist
+import { cn } from '@/lib/utils';
 
 // Interfaces
 interface StatusCounts {
@@ -89,23 +88,20 @@ const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
   return null;
 };
 
-// Benutzerdefinierte Tick-Komponente für die X-Achse
-// Hebt Start, Ende und Heute hervor
+// Benutzerdefinierte X-Achsen-Beschriftung (Start, Heute, Ende hervorheben)
 const CustomXAxisTick = (props: any) => {
   const { x, y, payload, todayTime } = props;
   const dateValue = payload.value;
   
   let labelText = format(new Date(dateValue), 'dd.MM.yy');
   let fontWeight = 'normal';
-  let fill = '#6b7280';
-  let isToday = false;
+  let fill = '#6b7280'; // Grau
 
-  // Prüfen, ob es "Heute" ist (mit kleiner Toleranz für Uhrzeiten)
+  // Prüfen, ob es "Heute" ist (mit kleiner Toleranz)
   if (Math.abs(dateValue - todayTime) < 86400000) {
     labelText = 'HEUTE';
     fontWeight = 'bold';
     fill = '#ea580c'; // Orange für Heute
-    isToday = true;
   }
 
   return (
@@ -224,7 +220,7 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
         </div>
       </div>
 
-      {/* --- 2. KPI-Übersicht --- */}
+      {/* --- 2. KPI-Übersicht (Oben, volle Breite) --- */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8 text-center">
         <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 hover:border-green-200 transition-colors">
           <CheckCircle size={22} className="text-green-600 mx-auto mb-2" />
@@ -261,10 +257,10 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
             <GraphUpArrow className="text-indigo-600" /> 
-            Reichweiten-Entwicklung (Impressionen)
+            Reichweiten-Entwicklung (Timeline)
           </h3>
           <span className="text-xs font-medium bg-indigo-50 text-indigo-700 px-2 py-1 rounded border border-indigo-100">
-            Timeline & Trend
+            Projekt-Zeitraum
           </span>
         </div>
 
@@ -292,7 +288,7 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
                   domain={[startDate.getTime(), endDate.getTime()]}
                   ticks={xTicks}
                   stroke="#9ca3af"
-                  tick={<CustomXAxisTick todayTime={todayTime} />} // Hier nutzen wir die Custom Komponente
+                  tick={<CustomXAxisTick todayTime={todayTime} />} 
                   interval={0}
                   height={50}
                 />
@@ -309,7 +305,7 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
                 
                 <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#6366f1', strokeWidth: 1, strokeDasharray: '4 4' }} />
                 
-                {/* Der eigentliche Trend */}
+                {/* Der eigentliche Trend (Bereich) */}
                 <Area
                   type="monotone"
                   dataKey="impressions"
@@ -321,13 +317,12 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
                   activeDot={{ r: 6, strokeWidth: 0, fill: '#4f46e5' }}
                 />
                 
-                {/* Vertikale Linie für "Heute" */}
+                {/* Vertikale Linie für "Heute" (OHNE isFront) */}
                 <ReferenceLine 
                   x={todayTime} 
                   stroke="#ea580c" 
                   strokeDasharray="3 3" 
                   strokeWidth={2}
-                  isFront={true}
                 >
                   <Label 
                     value="IST-STAND" 
