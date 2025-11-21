@@ -2,7 +2,7 @@
 'use client';
 
 import React from 'react';
-import { Download, Hash, Globe } from 'react-bootstrap-icons';
+import { Download, Globe } from 'react-bootstrap-icons'; // Hash entfernt
 import { Button } from "@/components/ui/button";
 
 interface GlobalHeaderProps {
@@ -18,8 +18,6 @@ export default function GlobalHeader({
 }: GlobalHeaderProps) {
 
   return (
-    // ÄNDERUNG: Sticky/Full-Width Klassen entfernt. 
-    // Jetzt Standard-Karten-Design (wie KpiCard etc.)
     <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6 mb-6 print:hidden">
       <div className="flex items-center justify-between">
         
@@ -40,7 +38,8 @@ export default function GlobalHeader({
              </h1>
              {projectId && (
                <div className="flex items-center gap-1.5 mt-1.5">
-                 <Hash size={12} className="text-gray-400" />
+                 {/* ÄNDERUNG: Hash Icon durch Text "ID:" ersetzt */}
+                 <span className="text-xs font-bold text-gray-400">ID:</span>
                  <span className="text-xs font-mono text-gray-500 tracking-wide select-all">
                    {projectId}
                  </span>
