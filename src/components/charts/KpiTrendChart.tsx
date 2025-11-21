@@ -14,12 +14,12 @@ import {
 } from 'recharts';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { ChartEntry } from '@/lib/dashboard-shared';
+// FIX: Import ChartPoint (Zeitreihe) statt ChartEntry (Kuchendiagramm)
+import { ChartPoint } from '@/lib/dashboard-shared'; 
 import { XCircle, BarChartLine, ArrowLeftRight } from 'react-bootstrap-icons';
 import { cn } from '@/lib/utils';
 
 // --- KONFIGURATION ---
-// Hier definieren wir Labels und Farben für alle bekannten Metriken
 const KPI_CONFIG: Record<string, { label: string; color: string; gradientId: string }> = {
   clicks: { label: 'Klicks', color: '#4f46e5', gradientId: 'colorClicks' },       // Indigo
   impressions: { label: 'Impressionen', color: '#8b5cf6', gradientId: 'colorImpressions' }, // Violet
@@ -27,7 +27,7 @@ const KPI_CONFIG: Record<string, { label: string; color: string; gradientId: str
   totalUsers: { label: 'Nutzer', color: '#f59e0b', gradientId: 'colorUsers' },      // Amber
   bounceRate: { label: 'Absprungrate', color: '#ef4444', gradientId: 'colorBounce' },   // Red
   avgEngagementTime: { label: 'Engagement Zeit', color: '#06b6d4', gradientId: 'colorEngagement' }, // Cyan
-  // Fallbacks für mögliche andere Keys
+  // Fallbacks
   users: { label: 'Nutzer', color: '#f59e0b', gradientId: 'colorUsers' },
   engagementRate: { label: 'Engagement Rate', color: '#06b6d4', gradientId: 'colorEngagement' },
 };
@@ -37,7 +37,8 @@ const DEFAULT_CONFIG = { label: 'Wert', color: '#6b7280', gradientId: 'colorDefa
 interface KpiTrendChartProps {
   activeKpi: string;
   onKpiChange: (kpi: string) => void;
-  allChartData?: Record<string, ChartEntry[]>;
+  // FIX: Typ angepasst auf ChartPoint[] und optional (undefined)
+  allChartData?: Record<string, ChartPoint[] | undefined>;
   className?: string;
 }
 
@@ -48,15 +49,16 @@ export default function KpiTrendChart({
   className
 }: KpiTrendChartProps) {
   
-  // Lokaler State für die Vergleichs-Metrik
   const [compareKpi, setCompareKpi] = useState<string | null>(null);
 
-  // 1. Verfügbare KPIs ermitteln (nur die, die auch Daten haben)
+  // 1. Verfügbare KPIs ermitteln
   const availableKpis = useMemo(() => {
     if (!allChartData) return [];
-    return Object.keys(allChartData).filter(key => 
-      allChartData[key] && allChartData[key].length > 0
-    );
+    // Wir casten zu 'any', um sicher über die Keys zu iterieren, falls TypeScript streng ist
+    return Object.keys(allChartData).filter(key => {
+      const data = (allChartData as any)[key];
+      return data && Array.isArray(data) && data.length > 0;
+    });
   }, [allChartData]);
 
   // 2. Helper um Config abzurufen
@@ -66,14 +68,15 @@ export default function KpiTrendChart({
   const compareConfig = compareKpi ? getKpiConfig(compareKpi) : null;
 
   // 3. Daten zusammenführen (Merge)
-  // Wir mappen über das Array der aktiven KPI und suchen das passende Datum in der Vergleichs-KPI
   const chartData = useMemo(() => {
-    if (!allChartData || !allChartData[activeKpi]) return [];
+    // Zugriff per Index-Signatur simulieren
+    const dataRecord = allChartData as Record<string, ChartPoint[] | undefined> | undefined;
+    if (!dataRecord || !dataRecord[activeKpi]) return [];
 
-    const primaryData = allChartData[activeKpi];
+    const primaryData = dataRecord[activeKpi]!;
     
-    // Wenn kein Vergleich aktiv ist, einfach Daten durchreichen
-    if (!compareKpi || !allChartData[compareKpi]) {
+    // Wenn kein Vergleich aktiv ist
+    if (!compareKpi || !dataRecord[compareKpi]) {
       return primaryData.map(d => ({
         date: d.date,
         value: d.value,
@@ -81,21 +84,22 @@ export default function KpiTrendChart({
       }));
     }
 
-    const secondaryData = allChartData[compareKpi];
-    
-    // Map für schnellen Zugriff: "2023-01-01" -> Value
+    const secondaryData = dataRecord[compareKpi]!;
     const secondaryMap = new Map(secondaryData.map(d => [d.date, d.value]));
 
     return primaryData.map(d => ({
       date: d.date,
-      value: d.value, // Wert Active KPI
-      compareValue: secondaryMap.get(d.date) ?? null // Wert Compare KPI
+      value: d.value,
+      compareValue: secondaryMap.get(d.date) ?? null
     }));
   }, [allChartData, activeKpi, compareKpi]);
 
 
   // --- ERROR STATE ---
-  if (!allChartData || !allChartData[activeKpi]) {
+  // Prüfen, ob Daten für die aktive KPI existieren
+  const hasActiveData = allChartData && (allChartData as any)[activeKpi] && (allChartData as any)[activeKpi].length > 0;
+
+  if (!hasActiveData) {
     return (
       <div className={cn("card-glass p-6 min-h-[400px] flex items-center justify-center text-gray-400", className)}>
         <div className="text-center">
@@ -133,7 +137,6 @@ export default function KpiTrendChart({
                    </option>
                  ))}
                </select>
-               {/* Kleines Icon für Dropdown-Hinweis */}
                <div className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400 group-hover:text-indigo-600">
                  <ArrowLeftRight size={12} className="rotate-90" />
                </div>
@@ -174,13 +177,11 @@ export default function KpiTrendChart({
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
             <defs>
-              {/* Gradient für Active KPI */}
               <linearGradient id={activeConfig.gradientId} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor={activeConfig.color} stopOpacity={0.3}/>
                 <stop offset="95%" stopColor={activeConfig.color} stopOpacity={0}/>
               </linearGradient>
               
-              {/* Gradient für Compare KPI */}
               {compareConfig && (
                 <linearGradient id={compareConfig.gradientId} x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor={compareConfig.color} stopOpacity={0.3}/>
@@ -201,7 +202,6 @@ export default function KpiTrendChart({
               tickLine={false}
             />
             
-            {/* Linke Y-Achse (Active KPI) */}
             <YAxis
               yAxisId="left"
               tickFormatter={(val) => new Intl.NumberFormat('de-DE', { notation: 'compact' }).format(val)}
@@ -211,7 +211,6 @@ export default function KpiTrendChart({
               width={45}
             />
 
-            {/* Rechte Y-Achse (Compare KPI) */}
             {compareKpi && (
               <YAxis
                 yAxisId="right"
@@ -247,7 +246,6 @@ export default function KpiTrendChart({
               content={({ payload }) => (
                 <div className="flex justify-center gap-6 mb-2">
                   {payload?.map((entry, index) => {
-                     // Wir filtern die Legend Items manuell für bessere Kontrolle
                      const isPrimary = entry.value === 'value';
                      const conf = isPrimary ? activeConfig : compareConfig;
                      if (!conf) return null;
@@ -266,7 +264,6 @@ export default function KpiTrendChart({
               )}
             />
 
-            {/* Active KPI Area */}
             <Area
               yAxisId="left"
               type="monotone"
@@ -280,7 +277,6 @@ export default function KpiTrendChart({
               animationDuration={1000}
             />
 
-            {/* Compare KPI Area (Gestrichelt) */}
             {compareKpi && compareConfig && (
               <Area
                 yAxisId="right"
