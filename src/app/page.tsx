@@ -196,7 +196,7 @@ function AdminDashboard({ projects, isLoading }: { projects: User[], isLoading: 
   );
 }
 
-// CustomerDashboard-Komponente ohne ProjectTimelineWidget
+// CustomerDashboard-Komponente
 function CustomerDashboard({
   data,
   isLoading,
@@ -228,6 +228,8 @@ function CustomerDashboard({
           faviconUrl={user.favicon_url}
           semrushTrackingId={user.semrush_tracking_id}
           semrushTrackingId02={user.semrush_tracking_id_02}
+          // KORREKTUR: Timeline-Prop hinzugefügt
+          projectTimelineActive={user.project_timeline_active ?? undefined}
           countryData={data.countryData}
           channelData={data.channelData}
           deviceData={data.deviceData}
