@@ -26,6 +26,37 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* 1. Der Hintergrund: Ein sehr dezenter Mesh-Gradient, damit Glas sichtbar wird */
+.dashboard-gradient {
+  background-color: #f8fafc; /* Fallback: gray-50 */
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.03) 0px, transparent 50%), /* Indigo Hauch */
+    radial-gradient(at 100% 0%, rgba(236, 72, 153, 0.03) 0px, transparent 50%), /* Pink Hauch */
+    radial-gradient(at 100% 100%, rgba(59, 130, 246, 0.03) 0px, transparent 50%); /* Blau Hauch */
+  background-attachment: fixed; /* Bleibt beim Scrollen stehen */
+}
+
+/* 2. Das Glas-Panel: Ersetzt "bg-white" */
+.glass-panel {
+  @apply bg-white/80 backdrop-blur-md border border-white/60;
+}
+
+/* 3. Der Schatten: Weicher, mit einem minimalen Blauschimmer statt Schwarz */
+.soft-shadow {
+  box-shadow: 0 8px 30px -8px rgba(79, 70, 229, 0.06), 
+              0 2px 4px -1px rgba(0, 0, 0, 0.02);
+}
+
+/* Kombination für Karten (einfach in den Komponenten nutzbar) */
+.card-glass {
+  @apply glass-panel soft-shadow rounded-xl;
+}
+
+/* Hover-Effekt für interaktive Elemente (optional) */
+.card-glass-hover {
+  @apply transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_15px_35px_-5px_rgba(79,70,229,0.1)];
+}
+
 /* ============================================================
    PDF-EXPORT STYLES - OPTIMIERT
    ============================================================ */
