@@ -166,7 +166,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             weitere_keywords, 
             suchvolumen, 
             aktuelle_position,
-            status
+            status,
+            updated_at -- ✅ NEU: Initialwert setzen
           )
           VALUES (
             ${userId}::uuid, 
@@ -175,15 +176,17 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             ${weitereKeywords}, 
             ${suchvolumen || null}, 
             ${position || null},
-            'Offen' -- Standardstatus bei neuem Import
+            'Offen',
+            NOW() -- ✅ NEU
           )
           ON CONFLICT (url, user_id) 
           DO UPDATE SET
             haupt_keyword = EXCLUDED.haupt_keyword,
             weitere_keywords = EXCLUDED.weitere_keywords,
             suchvolumen = EXCLUDED.suchvolumen,
-            aktuelle_position = EXCLUDED.aktuelle_position
-            -- Status wird NICHT überschrieben, um bestehenden Workflow nicht zu stören
+            aktuelle_position = EXCLUDED.aktuelle_position,
+            updated_at = NOW() -- ✅ NEU: Aktualisiert Zeitstempel bei Re-Import
+            -- Status wird NICHT überschrieben
         `;
         
         importedCount++;
