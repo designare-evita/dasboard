@@ -66,7 +66,6 @@ export default function ProjectDashboard({
   const hasSemrushConfig = hasKampagne1Config || hasKampagne2Config;
 
   return (
-    // ÄNDERUNG: 'bg-gray-50' ersetzt durch 'dashboard-gradient'
     <div className="min-h-screen flex flex-col dashboard-gradient">
       
       <div className="flex-grow w-full px-4 sm:px-6 lg:px-8 py-6">
@@ -113,7 +112,8 @@ export default function ProjectDashboard({
         <div className="mt-6 print-trend-chart">
           <KpiTrendChart 
             activeKpi={activeKpi}
-            onKpiChange={setActiveKpi}
+            // FIX: Typ-Anpassung für den State-Setter
+            onKpiChange={(kpi) => setActiveKpi(kpi as ActiveKpi)}
             allChartData={data.charts}
           />
         </div>
@@ -121,8 +121,6 @@ export default function ProjectDashboard({
         {/* 6. AI TRAFFIC & TOP QUERIES */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mt-6 print-traffic-grid">
           <div className="xl:col-span-1 print-ai-card">
-            {/* Styling wird in der Komponente selbst angepasst, oder wir wrappen es hier. 
-                Besser: Die Komponente nutzt 'card-glass' intern (siehe unten). */}
             <AiTrafficCard 
               totalSessions={data.aiTraffic?.totalSessions ?? 0}
               totalUsers={data.aiTraffic?.totalUsers ?? 0}
@@ -175,13 +173,11 @@ export default function ProjectDashboard({
         {hasSemrushConfig && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6 print-semrush-grid">
             {hasKampagne1Config && (
-              // ÄNDERUNG: Lokale Klassen ersetzt durch 'card-glass'
               <div className="card-glass p-4 sm:p-6">
                 <SemrushTopKeywords projectId={projectId} />
               </div>
             )}
             {hasKampagne2Config && (
-              // ÄNDERUNG: Lokale Klassen ersetzt durch 'card-glass'
               <div className="card-glass p-4 sm:p-6">
                 <SemrushTopKeywords02 projectId={projectId} />
               </div>
