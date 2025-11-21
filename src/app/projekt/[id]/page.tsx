@@ -125,7 +125,7 @@ export default function ProjectPage() {
     );
   }
 
- // --- Erfolgreiches Rendering ---
+  // --- Erfolgreiches Rendering ---
   if (dashboardData && projectUser) {
     // WICHTIG: Wir rendern NUR ProjectDashboard. 
     // Keine Wrapper-Divs mit Padding oder Margin mehr hier!
@@ -142,8 +142,8 @@ export default function ProjectPage() {
         faviconUrl={projectUser.favicon_url}
         semrushTrackingId={projectUser.semrush_tracking_id}
         semrushTrackingId02={projectUser.semrush_tracking_id_02}
-        // NEU: Wir geben nur den Status weiter, das Widget rendert in ProjectDashboard
-        projectTimelineActive={projectUser.project_timeline_active}
+        // KORRIGIERT: Konvertiere null zu undefined für TypeScript-Kompatibilität
+        projectTimelineActive={projectUser.project_timeline_active ?? undefined}
         countryData={dashboardData.countryData}
         channelData={dashboardData.channelData}
         deviceData={dashboardData.deviceData}
