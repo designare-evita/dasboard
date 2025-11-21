@@ -13,6 +13,7 @@ import {
   ProjectDashboardData,
 } from '@/lib/dashboard-shared';
 import ProjectDashboard from '@/components/ProjectDashboard';
+import ProjectHeader from '@/components/ProjectHeader';
 import ProjectTimelineWidget from '@/components/ProjectTimelineWidget';
 import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector';
 
