@@ -20,7 +20,8 @@ import {
   GraphUpArrow, 
   HourglassSplit,
   ListCheck,
-  CalendarWeek
+  CalendarWeek,
+  BoxSeam // <--- HIER HINZUGEFÜGT
 } from 'react-bootstrap-icons';
 import { addMonths, format, differenceInCalendarDays } from 'date-fns';
 import { de } from 'date-fns/locale';
