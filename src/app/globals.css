@@ -26,36 +26,46 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* 1. Der Hintergrund: Ein sehr dezenter Mesh-Gradient, damit Glas sichtbar wird */
+/* --- Glassmorphism & Theme Utilities --- */
+
+/* 1. Der Hintergrund */
 .dashboard-gradient {
-  background-color: #f8fafc; /* Fallback: gray-50 */
+  background-color: #f8fafc;
   background-image: 
-    radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.03) 0px, transparent 50%), /* Indigo Hauch */
-    radial-gradient(at 100% 0%, rgba(236, 72, 153, 0.03) 0px, transparent 50%), /* Pink Hauch */
-    radial-gradient(at 100% 100%, rgba(59, 130, 246, 0.03) 0px, transparent 50%); /* Blau Hauch */
-  background-attachment: fixed; /* Bleibt beim Scrollen stehen */
+    radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.03) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(236, 72, 153, 0.03) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(59, 130, 246, 0.03) 0px, transparent 50%);
+  background-attachment: fixed;
 }
 
-/* 2. Das Glas-Panel: Ersetzt "bg-white" */
+/* 2. Hilfsklassen (ohne @apply-Verschachtelung, um Fehler zu vermeiden) */
+
+/* Basis Glas-Stil */
 .glass-panel {
   @apply bg-white/80 backdrop-blur-md border border-white/60;
 }
 
-/* 3. Der Schatten: Weicher, mit einem minimalen Blauschimmer statt Schwarz */
+/* Weicher Schatten (direkt als CSS, da custom) */
 .soft-shadow {
   box-shadow: 0 8px 30px -8px rgba(79, 70, 229, 0.06), 
               0 2px 4px -1px rgba(0, 0, 0, 0.02);
 }
 
-/* Kombination für Karten (einfach in den Komponenten nutzbar) */
+/* 3. Kombinierte Klasse für Karten (Hier werden die Styles direkt angewendet, statt @apply zu nutzen) */
 .card-glass {
-  @apply glass-panel soft-shadow rounded-xl;
+  @apply bg-white/80 backdrop-blur-md border border-white/60 rounded-xl;
+  box-shadow: 0 8px 30px -8px rgba(79, 70, 229, 0.06), 
+              0 2px 4px -1px rgba(0, 0, 0, 0.02);
 }
 
-/* Hover-Effekt für interaktive Elemente (optional) */
+/* Hover-Effekt */
 .card-glass-hover {
-  @apply transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_15px_35px_-5px_rgba(79,70,229,0.1)];
+  @apply transition-all duration-300 hover:-translate-y-1;
+  &:hover {
+    box-shadow: 0 15px 35px -5px rgba(79,70,229,0.1);
+  }
 }
+
 
 /* ============================================================
    PDF-EXPORT STYLES - OPTIMIERT
@@ -64,7 +74,7 @@ body {
   
   @page {
     size: A4 portrait;
-    margin: 8mm 8mm 10mm 8mm; /* Oben/Unten etwas mehr Platz */
+    margin: 8mm 8mm 10mm 8mm;
   }
 
   * {
@@ -94,12 +104,13 @@ body {
   }
 
   /* --- Basis-Karten-Styling im Druck --- */
-  .bg-white, .bg-gray-50 {
+  .bg-white, .bg-gray-50, .card-glass, .glass-panel {
     background-color: white !important;
     border: 1px solid #ddd !important;
     box-shadow: none !important;
     border-radius: 6px !important;
     margin-bottom: 10px !important;
+    backdrop-filter: none !important;
   }
 
   /* --- 1. TIMELINE WIDGET --- */
@@ -109,7 +120,6 @@ body {
     margin-bottom: 15px !important;
     padding: 10px !important;
   }
-  /* Grid innerhalb der Timeline auf eine Zeile zwingen */
   .print-timeline .grid {
     display: flex !important;
     justify-content: space-between;
@@ -127,31 +137,28 @@ body {
     margin-bottom: 10px;
     border-bottom: 2px solid #000;
   }
-  /* Datums-Selektor etc. im Header verstecken, nur Titel lassen */
   .print-header button, .print-header .inline-flex {
     display: none !important;
   }
 
-  /* --- 3. KPI CARDS (4 nebeneinander oder 2x2) --- */
+  /* --- 3. KPI CARDS --- */
   .print-kpi-grid .grid {
     display: grid !important;
-    /* Versuchen wir 4 nebeneinander für Platzersparnis, sonst 2x2 */
     grid-template-columns: repeat(4, 1fr) !important; 
     gap: 8px !important;
     margin-bottom: 0 !important;
   }
   .print-kpi-grid .grid > div {
     padding: 8px !important;
-    min-height: 0 !important; /* Höhe reduzieren */
+    min-height: 0 !important;
   }
-  /* Sparklines ausblenden um Platz zu sparen? Optional. Hier lassen wir sie. */
   
   /* --- 4. TREND CHART --- */
   .print-trend-chart {
     break-inside: avoid !important;
     page-break-inside: avoid !important;
     margin-top: 15px !important;
-    height: 280px !important; /* Feste Höhe für Chart */
+    height: 280px !important;
   }
   .print-trend-chart .recharts-responsive-container {
     height: 220px !important;
@@ -160,23 +167,22 @@ body {
   /* --- 5. AI TRAFFIC & TOP QUERIES --- */
   .print-traffic-grid {
     display: grid !important;
-    grid-template-columns: 1fr 1fr !important; /* Nebeneinander */
+    grid-template-columns: 1fr 1fr !important;
     gap: 10px !important;
     margin-top: 15px !important;
     break-inside: avoid !important;
   }
-  /* Wenn Queries zu lang sind, abschneiden */
   .print-queries-list table {
     font-size: 7pt !important;
   }
 
-  /* --- 6. PIE CHARTS (3 nebeneinander) --- */
+  /* --- 6. PIE CHARTS --- */
   .print-pie-grid {
     display: grid !important;
     grid-template-columns: 1fr 1fr 1fr !important;
     gap: 8px !important;
     break-inside: avoid !important;
-    page-break-before: auto; /* Erlaubt Umbruch davor wenn nötig */
+    page-break-before: auto;
     margin-top: 15px !important;
   }
   .print-pie-grid > div {
@@ -191,13 +197,12 @@ body {
   .print-semrush-grid {
     display: block !important;
     margin-top: 20px !important;
-    break-before: page; /* Semrush auf neue Seite, da meist lang */
+    break-before: page;
   }
   .print-semrush-grid > div {
     margin-bottom: 15px !important;
     break-inside: avoid;
   }
-  /* Tabelle verkleinern */
   .print-semrush-grid table {
     font-size: 7pt !important;
   }
@@ -210,12 +215,10 @@ body {
     width: 100% !important;
   }
   
-  /* Typografie */
   h1 { font-size: 16pt !important; color: #188BDB !important; }
   h2 { font-size: 12pt !important; font-weight: bold !important; margin-bottom: 5px !important; }
   h3 { font-size: 10pt !important; font-weight: bold !important; color: #333 !important; }
   
-  /* Scrollbars verstecken */
   .overflow-y-auto, .overflow-x-auto {
     overflow: visible !important;
     height: auto !important;
