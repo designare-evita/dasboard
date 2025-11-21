@@ -34,7 +34,8 @@ export default function Header() {
 
   return (
     <header className="bg-white shadow-md relative">
-      <nav className="container mx-auto px-6 py-3 flex justify-between items-center">
+      {/* ÄNDERUNG: 'container mx-auto' entfernt, 'w-full' hinzugefügt für volle Breite */}
+      <nav className="w-full px-6 py-3 flex justify-between items-center">
 
         {/* Linke Seite: Logo und Begrüßung */}
         <div className="flex items-center space-x-4">
