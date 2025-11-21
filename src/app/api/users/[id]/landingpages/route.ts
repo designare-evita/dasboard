@@ -21,6 +21,32 @@ function extractSheetId(url: string): string | null {
   return match ? match[1] : null;
 }
 
+// ✅ NEU: Robuste Hilfsfunktion zum Finden von Werten in einer Zeile
+// Ignoriert Groß/Kleinschreibung, BOM-Marker und Leerzeichen
+function getRowValue(row: any, possibleKeys: string[]): string | null {
+  if (!row || typeof row !== 'object') return null;
+  
+  const rowKeys = Object.keys(row);
+  
+  for (const targetKey of possibleKeys) {
+    // 1. Normalisierter Ziel-Schlüssel (klein, getrimmt)
+    const normalizedTarget = targetKey.toLowerCase().trim();
+
+    // Suche im Row-Objekt nach einem passenden Schlüssel
+    const foundKey = rowKeys.find(k => {
+      // Entferne BOM (\uFEFF), trimme und mache klein
+      const normalizedKey = k.replace(/^\uFEFF/, '').trim().toLowerCase();
+      return normalizedKey === normalizedTarget;
+    });
+
+    if (foundKey && row[foundKey] !== undefined && row[foundKey] !== null) {
+      const val = String(row[foundKey]).trim();
+      return val === '' ? null : val;
+    }
+  }
+  return null;
+}
+
 // --- GET Handler ---
 export async function GET(request: Request, { params }: RouteParams) {
   try {
@@ -109,11 +135,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           header: true,
           skipEmptyLines: true,
           dynamicTyping: true,
+          // Versucht, Trennzeichen (, oder ;) automatisch zu erkennen
         });
 
         if (parseResult.errors.length > 0) {
           console.error('CSV Parsing Fehler:', parseResult.errors);
-          return NextResponse.json({ message: 'Fehler beim Lesen der CSV-Datei.' }, { status: 400 });
+          // Wir machen weiter, falls Daten vorhanden sind, warnen aber im Log
         }
         rawData = parseResult.data;
       } 
@@ -143,19 +170,25 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     let importedCount = 0;
 
     for (const row of rawData) {
-      // Flexibles Mapping für Spaltennamen (Case-Insensitive oder Variationen)
-      // Sheet/Excel Spalten: Landingpage-URL, Haupt-Keyword, Weitere Keywords, Suchvolumen, Aktuelle Pos.
+      // ✅ NEU: Robuste Spalten-Erkennung
       
-      const url = (row['Landingpage-URL'] || row['url'] || row['URL'])?.toString().trim();
-      const hauptKeyword = (row['Haupt-Keyword'] || row['Keyword'] || row['keyword'])?.toString().trim() || null;
-      const weitereKeywords = (row['Weitere Keywords'] || row['weitere keywords'])?.toString().trim() || null;
+      // URL suchen
+      const url = getRowValue(row, ['Landingpage-URL', 'url', 'URL', 'Link']);
       
-      let suchvolumen = parseInt(row['Suchvolumen'] || row['Volumen'], 10);
+      // Keywords suchen
+      const hauptKeyword = getRowValue(row, ['Haupt-Keyword', 'Keyword', 'Main Keyword', 'Hauptkeyword']);
+      const weitereKeywords = getRowValue(row, ['Weitere Keywords', 'weitere keywords', 'Keywords']);
+      
+      // Zahlenwerte sicher parsen
+      const suchvolumenStr = getRowValue(row, ['Suchvolumen', 'Volumen', 'Volume', 'Search Volume']);
+      let suchvolumen = suchvolumenStr ? parseInt(suchvolumenStr, 10) : 0;
       if (isNaN(suchvolumen)) suchvolumen = 0;
 
-      let position = parseInt(row['Aktuelle Pos.'] || row['Position'], 10);
+      const positionStr = getRowValue(row, ['Aktuelle Pos.', 'Position', 'Rank', 'Pos']);
+      let position = positionStr ? parseInt(positionStr, 10) : 0;
       if (isNaN(position)) position = 0;
 
+      // Validierung: URL muss vorhanden sein
       if (url) {
         // Insert oder Update (Upsert)
         await sql`
@@ -167,7 +200,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             suchvolumen, 
             aktuelle_position,
             status,
-            updated_at -- ✅ NEU: Initialwert setzen
+            updated_at
           )
           VALUES (
             ${userId}::uuid, 
@@ -176,8 +209,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             ${weitereKeywords}, 
             ${suchvolumen || null}, 
             ${position || null},
-            'Offen',
-            NOW() -- ✅ NEU
+            'Offen', -- Standardstatus bei neuem Import
+            NOW()
           )
           ON CONFLICT (url, user_id) 
           DO UPDATE SET
@@ -185,12 +218,18 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             weitere_keywords = EXCLUDED.weitere_keywords,
             suchvolumen = EXCLUDED.suchvolumen,
             aktuelle_position = EXCLUDED.aktuelle_position,
-            updated_at = NOW() -- ✅ NEU: Aktualisiert Zeitstempel bei Re-Import
+            updated_at = NOW()
             -- Status wird NICHT überschrieben
         `;
         
         importedCount++;
       }
+    }
+
+    // Optional: Falls 0 importiert wurden, Log-Ausgabe der ersten Zeile zur Diagnose
+    if (importedCount === 0 && rawData.length > 0) {
+        console.warn('[Upload Debug] Erste Zeile der Rohdaten:', rawData[0]);
+        console.warn('[Upload Debug] Erkannte Keys:', Object.keys(rawData[0]));
     }
 
     return NextResponse.json({ 
