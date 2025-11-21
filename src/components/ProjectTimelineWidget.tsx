@@ -1,3 +1,4 @@
+// src/components/ProjectTimelineWidget.tsx
 'use client';
 
 import useSWR from 'swr';
@@ -8,6 +9,7 @@ import {
   XAxis,
   YAxis,
   Tooltip,
+  Legend,
   CartesianGrid,
   ReferenceLine,
   Label,
@@ -15,7 +17,7 @@ import {
 import { 
   BarChart, 
   CalendarCheck, 
-  CalendarX, 
+  CalendarX, // Icon für Enddatum
   CheckCircle, 
   ClockHistory, 
   GraphUpArrow, 
@@ -24,9 +26,8 @@ import {
 } from 'react-bootstrap-icons';
 import { addMonths, format, differenceInCalendarDays } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { cn } from '@/lib/utils';
 
-// Interfaces
+// ... (Interfaces und Fetcher bleiben unverändert)
 interface StatusCounts {
   'Offen': number;
   'In Prüfung': number;
@@ -71,55 +72,19 @@ const fetcher = (url: string) => fetch(url).then((res) => {
 const formatImpressions = (value: number) => {
   return new Intl.NumberFormat('de-DE').format(value);
 };
-
 const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
   if (active && payload && payload.length) {
     const dateLabel = typeof label === 'number' ? new Date(label) : (typeof label === 'string' ? new Date(label) : new Date());
-    
     return (
-      <div className="bg-white p-3 shadow-md rounded border border-gray-200 text-xs">
-        <p className="font-bold text-gray-800 mb-1">{format(dateLabel, 'd. MMMM yyyy', { locale: de })}</p>
+      <div className="bg-white p-3 shadow-md rounded border border-gray-200">
+        <p className="font-bold text-gray-800">{format(dateLabel, 'd. MMMM yyyy', { locale: de })}</p>
         <p className="text-sm text-indigo-600">
-          Reichweite: <span className="font-semibold">{formatImpressions(payload.find((p) => p.dataKey === 'impressions')?.value || 0)}</span>
+          Reichweite: {formatImpressions(payload.find((p) => p.dataKey === 'impressions')?.value || 0)}
         </p>
       </div>
     );
   }
   return null;
-};
-
-// Benutzerdefinierte X-Achsen-Beschriftung (Start, Heute, Ende hervorheben)
-const CustomXAxisTick = (props: any) => {
-  const { x, y, payload, todayTime } = props;
-  const dateValue = payload.value;
-  
-  let labelText = format(new Date(dateValue), 'dd.MM.yy');
-  let fontWeight = 'normal';
-  let fill = '#6b7280'; // Grau
-
-  // Prüfen, ob es "Heute" ist (mit kleiner Toleranz)
-  if (Math.abs(dateValue - todayTime) < 86400000) {
-    labelText = 'HEUTE';
-    fontWeight = 'bold';
-    fill = '#ea580c'; // Orange für Heute
-  }
-
-  return (
-    <g transform={`translate(${x},${y})`}>
-      <text 
-        x={0} 
-        y={0} 
-        dy={16} 
-        textAnchor="middle" 
-        fill={fill} 
-        fontSize={12} 
-        fontWeight={fontWeight}
-        style={{ fontFamily: 'var(--font-sans)' }}
-      >
-        {labelText}
-      </text>
-    </g>
-  );
 };
 
 interface ProjectTimelineWidgetProps {
@@ -136,7 +101,7 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
 
   if (isLoading) {
     return (
-      <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200 min-h-[300px] flex items-center justify-center">
+      <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200 min-h-[300px] flex items-center justify-center print-hidden">
         <HourglassSplit size={30} className="animate-spin text-indigo-500" />
         <p className="ml-3 text-gray-600">Lade Projekt-Timeline...</p>
       </div>
@@ -147,205 +112,113 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
 
   const { project, progress, gscImpressionTrend } = data;
   const { counts, percentage } = progress;
-  
-  // Datumsberechnungen
   const startDate = project?.startDate ? new Date(project.startDate) : new Date();
   const duration = project?.durationMonths || 6;
   const endDate = addMonths(startDate, duration);
   const today = new Date();
-  
-  // Fortschrittsberechnungen
   const totalProjectDays = differenceInCalendarDays(endDate, startDate) || 1; 
   const elapsedProjectDays = differenceInCalendarDays(today, startDate);
   const timeElapsedPercentage = Math.max(0, Math.min(100, (elapsedProjectDays / totalProjectDays) * 100));
   
-  // Chart Daten
   const chartData = (gscImpressionTrend || []).map(d => ({
     date: new Date(d.date).getTime(), 
     impressions: d.value,
   }));
-
-  // Ticks für die X-Achse: Start, Heute, Ende
   const xTicks = [ startDate.getTime(), today.getTime(), endDate.getTime() ];
-  const todayTime = today.getTime();
-
+  
   return (
+    // HIER: Klasse "print-timeline" hinzugefügt
     <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200 print-timeline">
       
-      <h2 className="text-xl font-bold mb-6 flex items-center gap-2 flex-wrap text-gray-900">
-        <BarChart size={20} className="text-indigo-600" />
+      <h2 className="text-xl font-bold mb-4 flex items-center gap-2 flex-wrap">
+        <BarChart size={20} />
         <span>Projekt-Fortschritt</span>
         {domain && (
           <span className="text-indigo-600 font-semibold">: {domain}</span>
         )}
       </h2>
 
-      {/* --- 1. Fortschritts-Balken (Landingpages) --- */}
-      <div className="mb-8">
-        <div className="flex justify-between items-end mb-2">
-          <span className="text-sm font-semibold text-gray-700">
-            Landingpage-Freigaben
-          </span>
-          <span className="text-lg font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
-            {counts.Freigegeben} <span className="text-sm font-normal text-gray-500">/ {counts.Total}</span>
-          </span>
+      {/* Fortschritts-Balken */}
+      <div className="mb-6">
+        <div className="flex justify-between items-center mb-1">
+          <span className="text-sm font-medium text-gray-700">Landingpage-Freigaben</span>
+          <span className="text-lg font-bold text-indigo-600">{counts.Freigegeben} / {counts.Total}</span>
         </div>
         {counts.Total > 0 ? (
-          <div className="flex w-full h-5 bg-gray-100 rounded-full overflow-hidden shadow-inner border border-gray-200">
-            <div
-              className="bg-green-500 transition-all duration-1000"
-              style={{ width: `${(counts.Freigegeben / counts.Total) * 100}%` }}
-              title={`Freigegeben: ${counts.Freigegeben}`}
-            ></div>
-            <div
-              className="bg-yellow-400 transition-all duration-1000"
-              style={{ width: `${(counts['In Prüfung'] / counts.Total) * 100}%` }}
-              title={`In Prüfung: ${counts['In Prüfung']}`}
-            ></div>
-            <div
-              className="bg-red-500 transition-all duration-1000"
-              style={{ width: `${(counts.Gesperrt / counts.Total) * 100}%` }}
-              title={`Gesperrt: ${counts.Gesperrt}`}
-            ></div>
+          <div className="flex w-full h-4 bg-gray-200 rounded-full overflow-hidden">
+            <div className="bg-green-500" style={{ width: `${(counts.Freigegeben / counts.Total) * 100}%` }} />
+            <div className="bg-yellow-500" style={{ width: `${(counts['In Prüfung'] / counts.Total) * 100}%` }} />
+            <div className="bg-red-500" style={{ width: `${(counts.Gesperrt / counts.Total) * 100}%` }} />
           </div>
         ) : (
-          <p className="text-sm text-gray-500 italic">Noch keine Landingpages angelegt.</p>
-        )}
-        
-        {/* Legende */}
-        <div className="flex justify-end space-x-4 mt-2 text-[11px] uppercase font-semibold tracking-wide text-gray-500">
-          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-green-500"></span> Freigegeben</span>
-          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-yellow-400"></span> In Prüfung</span>
-          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-gray-200 border border-gray-300"></span> Offen</span>
-        </div>
-      </div>
-
-      {/* --- 2. KPI-Übersicht (Oben, volle Breite) --- */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8 text-center">
-        <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 hover:border-green-200 transition-colors">
-          <CheckCircle size={22} className="text-green-600 mx-auto mb-2" />
-          <p className="text-2xl font-bold text-gray-900">{Math.round(percentage)}%</p>
-          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mt-1">Freigabe-Quote</p>
-        </div>
-        <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 hover:border-blue-200 transition-colors">
-          <ClockHistory size={22} className="text-blue-600 mx-auto mb-2" />
-          <p className="text-2xl font-bold text-gray-900">{Math.round(timeElapsedPercentage)}%</p>
-          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mt-1">Zeit Verbraucht</p>
-        </div>
-        
-        <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 hover:border-gray-300 transition-colors">
-          <CalendarCheck size={22} className="text-gray-700 mx-auto mb-2" />
-          <p className="text-lg font-bold text-gray-900">{format(startDate, 'dd.MM.yy')}</p>
-          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mt-1">Projekt-Start</p>
-        </div>
-
-        <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 hover:border-gray-300 transition-colors">
-          <CalendarX size={22} className="text-gray-700 mx-auto mb-2" />
-          <p className="text-lg font-bold text-gray-900">{format(endDate, 'dd.MM.yy')}</p>
-          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mt-1">Projekt-Ende</p>
-        </div>
-
-        <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 hover:border-gray-300 transition-colors">
-          <BoxSeam size={22} className="text-gray-700 mx-auto mb-2" />
-          <p className="text-2xl font-bold text-gray-900">{counts.Total}</p>
-          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mt-1">LPs Gesamt</p>
-        </div>
-      </div>
-
-      {/* --- 3. Graphen-Titel --- */}
-      <div className="border-t pt-6 mt-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-            <GraphUpArrow className="text-indigo-600" /> 
-            Reichweiten-Entwicklung (Timeline)
-          </h3>
-          <span className="text-xs font-medium bg-indigo-50 text-indigo-700 px-2 py-1 rounded border border-indigo-100">
-            Projekt-Zeitraum
-          </span>
-        </div>
-
-        {/* --- 4. Reichweiten-Chart (Volle Breite) --- */}
-        {chartData.length > 0 ? (
-          <div className="w-full h-[350px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart
-                data={chartData}
-                margin={{ top: 20, right: 30, left: 10, bottom: 10 }}
-              >
-                <defs>
-                  <linearGradient id="timelineGradientMain" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                
-                {/* X-Achse: Volle Projektlaufzeit mit hervorgehobenen Ticks */}
-                <XAxis
-                  dataKey="date"
-                  type="number"
-                  domain={[startDate.getTime(), endDate.getTime()]}
-                  ticks={xTicks}
-                  stroke="#9ca3af"
-                  tick={<CustomXAxisTick todayTime={todayTime} />} 
-                  interval={0}
-                  height={50}
-                />
-                
-                {/* Y-Achse */}
-                <YAxis
-                  yAxisId="left"
-                  stroke="#6b7280"
-                  fontSize={11}
-                  tickFormatter={(value) => new Intl.NumberFormat('de-DE', { notation: 'compact' }).format(value)}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                
-                <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#6366f1', strokeWidth: 1, strokeDasharray: '4 4' }} />
-                
-                {/* Der eigentliche Trend (Bereich) */}
-                <Area
-                  type="monotone"
-                  dataKey="impressions"
-                  yAxisId="left"
-                  stroke="#6366f1"
-                  strokeWidth={3}
-                  fill="url(#timelineGradientMain)"
-                  dot={false}
-                  activeDot={{ r: 6, strokeWidth: 0, fill: '#4f46e5' }}
-                />
-                
-                {/* Vertikale Linie für "Heute" (OHNE isFront) */}
-                <ReferenceLine 
-                  x={todayTime} 
-                  stroke="#ea580c" 
-                  strokeDasharray="3 3" 
-                  strokeWidth={2}
-                >
-                  <Label 
-                    value="IST-STAND" 
-                    position="top" 
-                    fill="#ea580c" 
-                    fontSize={10} 
-                    fontWeight="bold"
-                    offset={10}
-                    className="bg-white"
-                  />
-                </ReferenceLine>
-
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
-        ) : (
-          <div className="h-[300px] flex flex-col items-center justify-center text-gray-400 bg-gray-50 rounded-lg border border-dashed border-gray-200">
-            <GraphUpArrow size={32} className="mb-2 opacity-50" />
-            <p className="text-sm font-medium">Noch keine Reichweiten-Daten vorhanden.</p>
-            <p className="text-xs mt-1">Daten werden automatisch von Google geladen, sobald verfügbar.</p>
-          </div>
+          <p className="text-sm text-gray-500 italic">Noch keine Landingpages.</p>
         )}
       </div>
+
+      {/* KPI-Übersicht */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6 text-center">
+        <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+          <CheckCircle size={24} className="text-green-600 mx-auto mb-1" />
+          <p className="text-xl font-bold">{Math.round(percentage)}%</p>
+          <p className="text-xs text-gray-600">Freigabe-Quote</p>
+        </div>
+        <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+          <ClockHistory size={24} className="text-blue-600 mx-auto mb-1" />
+          <p className="text-xl font-bold">{Math.round(timeElapsedPercentage)}%</p>
+          <p className="text-xs text-gray-600">Zeit Verbraucht</p>
+        </div>
+        <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+          <CalendarCheck size={24} className="text-gray-700 mx-auto mb-1" />
+          <p className="text-xl font-bold">{format(startDate, 'dd.MM.yy')}</p>
+          <p className="text-xs text-gray-600">Start</p>
+        </div>
+        <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+          <CalendarX size={24} className="text-gray-700 mx-auto mb-1" />
+          <p className="text-xl font-bold">{format(endDate, 'dd.MM.yy')}</p>
+          <p className="text-xs text-gray-600">Ende</p>
+        </div>
+        <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+          <BoxSeam size={24} className="text-gray-700 mx-auto mb-1" />
+          <p className="text-xl font-bold">{counts.Total}</p>
+          <p className="text-xs text-gray-600">LPs Gesamt</p>
+        </div>
+      </div>
+
+      {/* Reichweiten-Chart */}
+      <h3 className="text-lg font-semibold mb-4 mt-8 pt-4 border-t flex items-center gap-2">
+        <GraphUpArrow size={18} /> Reichweite (Impressionen)
+      </h3>
+      {chartData.length > 0 ? (
+        <div className="w-full h-80 print-chart-container">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={chartData} margin={{ top: 5, right: 20, left: 10, bottom: 20 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+              <XAxis
+                dataKey="date"
+                stroke="#6b7280"
+                fontSize={11}
+                tickFormatter={(timestamp) => format(new Date(timestamp), 'd. MMM', { locale: de })}
+                domain={[startDate.getTime(), endDate.getTime()]}
+                type="number"
+                ticks={xTicks}
+              />
+              <YAxis
+                yAxisId="left"
+                stroke="#4f46e5"
+                fontSize={11}
+                tickFormatter={(value) => new Intl.NumberFormat('de-DE', { notation: 'compact' }).format(value)}
+              />
+              {/* Tooltip im Druck ausblenden, falls er stört, aber meist ok */}
+              <Area type="monotone" dataKey="impressions" stroke="#4f46e5" fill="#c7d2fe" strokeWidth={2} dot={false} yAxisId="left" />
+              <ReferenceLine x={today.getTime()} stroke="#fb923c" strokeDasharray="4 4" strokeWidth={2}>
+                <Label value="Heute" position="top" fill="#fb923c" fontSize={11} />
+              </ReferenceLine>
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      ) : (
+        <p className="text-sm text-gray-500 italic text-center py-8">Keine Daten.</p>
+      )}
     </div>
   );
 }
