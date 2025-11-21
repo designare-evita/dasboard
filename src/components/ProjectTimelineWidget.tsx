@@ -4,30 +4,29 @@
 import useSWR from 'swr';
 import {
   ResponsiveContainer,
-  ComposedChart,
+  AreaChart,
   Area,
   XAxis,
   YAxis,
   Tooltip,
-  Legend,
   CartesianGrid,
   ReferenceLine,
-  Label,
 } from 'recharts';
 import { 
-  BarChart, 
-  CalendarCheck,
-  CalendarX, // <--- NEU: Icon für das Enddatum
+  CalendarCheck, 
+  CalendarX, 
   CheckCircle, 
   ClockHistory, 
   GraphUpArrow, 
   HourglassSplit,
-  BoxSeam
+  ListCheck,
+  CalendarWeek
 } from 'react-bootstrap-icons';
 import { addMonths, format, differenceInCalendarDays } from 'date-fns';
 import { de } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 
-// (Typen bleiben gleich)
+// --- Interfaces & Fetcher (unverändert) ---
 interface StatusCounts {
   'Offen': number;
   'In Prüfung': number;
@@ -50,17 +49,7 @@ interface TimelineData {
   };
   gscImpressionTrend: GscDataPoint[];
 }
-interface TooltipPayload {
-  dataKey: string;
-  value: number;
-}
-interface CustomTooltipProps {
-  active?: boolean;
-  payload?: TooltipPayload[];
-  label?: string | number;
-}
 
-// (Fetcher bleibt gleich)
 const fetcher = (url: string) => fetch(url).then((res) => {
   if (!res.ok) {
     return res.json().then(errorData => {
@@ -70,220 +59,267 @@ const fetcher = (url: string) => fetch(url).then((res) => {
   return res.json();
 });
 
-// (CustomTooltip und formatImpressions bleiben gleich)
 const formatImpressions = (value: number) => {
-  return new Intl.NumberFormat('de-DE').format(value);
-};
-const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
-  if (active && payload && payload.length) {
-    const dateLabel = typeof label === 'number' ? new Date(label) : (typeof label === 'string' ? new Date(label) : new Date());
-    
-    return (
-      <div className="bg-white p-3 shadow-md rounded border border-gray-200">
-        <p className="font-bold text-gray-800">{format(dateLabel, 'd. MMMM yyyy', { locale: de })}</p>
-        <p className="text-sm text-indigo-600">
-          Reichweite: {formatImpressions(payload.find((p) => p.dataKey === 'impressions')?.value || 0)}
-        </p>
-      </div>
-    );
-  }
-  return null;
+  return new Intl.NumberFormat('de-DE', { notation: 'compact', maximumFractionDigits: 1 }).format(value);
 };
 
-
+// --- Props ---
 interface ProjectTimelineWidgetProps {
   projectId?: string;
   domain?: string | null;
 }
 
-// Die Hauptkomponente
 export default function ProjectTimelineWidget({ projectId, domain }: ProjectTimelineWidgetProps) {
-  
   const apiUrl = projectId 
     ? `/api/project-timeline?projectId=${projectId}` 
     : '/api/project-timeline';
   
-  const { data, error, isLoading } = useSWR<TimelineData>(
-    apiUrl,
-    fetcher
-  );
+  const { data, error, isLoading } = useSWR<TimelineData>(apiUrl, fetcher);
 
   if (isLoading) {
     return (
-      <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200 min-h-[300px] flex items-center justify-center">
-        <HourglassSplit size={30} className="animate-spin text-indigo-500" />
-        <p className="ml-3 text-gray-600">Lade Projekt-Timeline...</p>
+      <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100 min-h-[300px] flex flex-col items-center justify-center animate-pulse">
+        <HourglassSplit size={32} className="text-indigo-300 mb-3" />
+        <p className="text-gray-400 text-sm font-medium">Lade Projekt-Daten...</p>
       </div>
     );
   }
 
-  if (error || !data || !data.project) {
-    console.warn(`[ProjectTimelineWidget] Wird ausgeblendet. Grund: ${error?.message || 'Keine Daten.'}`);
-    return null;
-  }
+  if (error || !data || !data.project) return null;
 
   const { project, progress, gscImpressionTrend } = data;
   const { counts, percentage } = progress;
+  
+  // Datumsberechnungen
   const startDate = project?.startDate ? new Date(project.startDate) : new Date();
   const duration = project?.durationMonths || 6;
-  // Das Enddatum wird hier bereits berechnet, wir müssen es nur anzeigen
   const endDate = addMonths(startDate, duration);
   const today = new Date();
-  const totalProjectDays = differenceInCalendarDays(endDate, startDate) || 1; 
+  
+  // Zeit-Fortschritt in %
+  const totalProjectDays = Math.max(1, differenceInCalendarDays(endDate, startDate)); 
   const elapsedProjectDays = differenceInCalendarDays(today, startDate);
   const timeElapsedPercentage = Math.max(0, Math.min(100, (elapsedProjectDays / totalProjectDays) * 100));
+  
+  // Chart Daten aufbereiten
   const chartData = (gscImpressionTrend || []).map(d => ({
     date: new Date(d.date).getTime(), 
     impressions: d.value,
   }));
-  const xTicks = [ startDate.getTime(), today.getTime(), endDate.getTime() ];
-  
+
   return (
-    <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
+    <div className="bg-white p-6 lg:p-8 rounded-xl shadow-sm border border-gray-200 print-timeline">
       
-      <h2 className="text-xl font-bold mb-4 flex items-center gap-2 flex-wrap">
-        <BarChart size={20} />
-        <span>Projekt-Fortschritt</span>
-        {domain && (
-          <span className="text-indigo-600 font-semibold">: {domain}</span>
-        )}
-      </h2>
-
-      {/* --- 1. Fortschritts-Balken (Landingpages) --- */}
-      <div className="mb-6">
-        <div className="flex justify-between items-center mb-1">
-          <span className="text-sm font-medium text-gray-700">
-            Landingpage-Freigaben
-          </span>
-          <span className="text-lg font-bold text-indigo-600">
-            {counts.Freigegeben} / {counts.Total}
-          </span>
+      {/* Header Bereich */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 border-b border-gray-100 pb-4">
+        <div>
+          <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+            <ClockHistory className="text-indigo-600" size={22} />
+            Projekt-Status
+          </h2>
+          {domain && (
+            <p className="text-sm text-gray-500 mt-1 font-medium">{domain}</p>
+          )}
         </div>
-        {counts.Total > 0 ? (
-          <div className="flex w-full h-4 bg-gray-200 rounded-full overflow-hidden">
-            <div
-              className="bg-green-500 transition-all"
-              style={{ width: `${(counts.Freigegeben / counts.Total) * 100}%` }}
-              title={`Freigegeben: ${counts.Freigegeben}`}
-            ></div>
-            <div
-              className="bg-yellow-500 transition-all"
-              style={{ width: `${(counts['In Prüfung'] / counts.Total) * 100}%` }}
-              title={`In Prüfung: ${counts['In Prüfung']}`}
-            ></div>
-            <div
-              className="bg-red-500 transition-all"
-              style={{ width: `${(counts.Gesperrt / counts.Total) * 100}%` }}
-              title={`Gesperrt: ${counts.Gesperrt}`}
-            ></div>
-          </div>
-        ) : (
-          <p className="text-sm text-gray-500 italic">Noch keine Landingpages angelegt.</p>
-        )}
-        <div className="flex justify-end space-x-4 mt-2 text-xs">
-          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-green-500"></span> Freigegeben</span>
-          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-yellow-500"></span> In Prüfung</span>
-          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-gray-200"></span> Offen</span>
+        <div className="mt-2 sm:mt-0 flex gap-3">
+           <div className="px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full text-xs font-semibold border border-indigo-100">
+             Laufzeit: {duration} Monate
+           </div>
         </div>
       </div>
 
-      {/* --- 2. KPI-Übersicht (ANGEPASST) --- */}
-      {/* Grid erweitert auf md:grid-cols-5 für das 5. Element */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6 text-center">
-        <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-          <CheckCircle size={24} className="text-green-600 mx-auto mb-1" />
-          <p className="text-xl font-bold">{Math.round(percentage)}%</p>
-          <p className="text-xs text-gray-600">Freigabe-Quote</p>
-        </div>
-        <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-          <ClockHistory size={24} className="text-blue-600 mx-auto mb-1" />
-          <p className="text-xl font-bold">{Math.round(timeElapsedPercentage)}%</p>
-          <p className="text-xs text-gray-600">Zeit Verbraucht</p>
-        </div>
+      {/* Haupt-Grid: 65% Links (Timeline/Progress) | 35% Rechts (Chart) */}
+      <div className="flex flex-col lg:flex-row gap-8 h-full">
         
-        {/* Projekt Start */}
-        <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-          <CalendarCheck size={24} className="text-gray-700 mx-auto mb-1" />
-          <p className="text-xl font-bold">{format(startDate, 'dd.MM.yy')}</p>
-          <p className="text-xs text-gray-600">Projekt-Start</p>
+        {/* --- LINKE SPALTE (65%) --- */}
+        <div className="w-full lg:w-[65%] flex flex-col justify-center space-y-10">
+          
+          {/* 1. ZEITBALKEN: Timeline mit Zeitachse */}
+          <div className="space-y-3">
+            <div className="flex justify-between items-end mb-2">
+              <div className="flex items-center gap-2 text-gray-700 font-semibold">
+                <CalendarWeek className="text-indigo-500" size={18} />
+                <span>Zeitachse</span>
+              </div>
+              <span className="text-sm font-medium text-gray-500">
+                {Math.round(timeElapsedPercentage)}% vergangen
+              </span>
+            </div>
+
+            {/* Visual Timeline Bar */}
+            <div className="relative h-10 w-full bg-gray-100 rounded-lg border border-gray-200 overflow-hidden">
+              {/* Füllung "Vergangene Zeit" */}
+              <div 
+                className="absolute top-0 left-0 h-full bg-indigo-50/80 border-r-2 border-indigo-400 transition-all duration-1000"
+                style={{ width: `${timeElapsedPercentage}%` }}
+              />
+              
+              {/* Labels im Balken (Start/Ende) */}
+              <div className="absolute inset-0 flex justify-between items-center px-4 text-xs font-medium text-gray-500 pointer-events-none">
+                <div className="flex flex-col items-start">
+                  <span className="text-[10px] uppercase tracking-wider text-gray-400">Start</span>
+                  <span className="text-gray-700">{format(startDate, 'dd.MM.yyyy')}</span>
+                </div>
+                
+                {/* "Heute" Marker, wenn im Bereich */}
+                {timeElapsedPercentage > 5 && timeElapsedPercentage < 95 && (
+                   <div className="flex flex-col items-center" style={{ position: 'absolute', left: `${timeElapsedPercentage}%`, transform: 'translateX(-50%)' }}>
+                      <div className="bg-indigo-600 text-white text-[9px] px-1.5 py-0.5 rounded-full mb-0.5 shadow-sm">
+                        Heute
+                      </div>
+                   </div>
+                )}
+
+                <div className="flex flex-col items-end">
+                  <span className="text-[10px] uppercase tracking-wider text-gray-400">Ende</span>
+                  <span className="text-gray-700">{format(endDate, 'dd.MM.yyyy')}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 2. ZEITBALKEN: Projektfortschritt (Landingpages) */}
+          <div className="space-y-3">
+            <div className="flex justify-between items-end mb-2">
+              <div className="flex items-center gap-2 text-gray-700 font-semibold">
+                <ListCheck className="text-green-600" size={20} />
+                <span>Projektfortschritt (Landingpages)</span>
+              </div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-2xl font-bold text-gray-900">{Math.round(percentage)}%</span>
+                <span className="text-sm text-gray-500 font-medium">fertiggestellt</span>
+              </div>
+            </div>
+
+            {/* Progress Bar */}
+            <div className="h-6 w-full bg-gray-100 rounded-full overflow-hidden flex shadow-inner border border-gray-200">
+              {counts.Total > 0 ? (
+                <>
+                  {/* Freigegeben (Grün) */}
+                  <div 
+                    className="bg-green-500 h-full transition-all duration-700 hover:bg-green-600 relative group"
+                    style={{ width: `${(counts.Freigegeben / counts.Total) * 100}%` }}
+                  >
+                    <span className="opacity-0 group-hover:opacity-100 absolute top-0 left-1/2 -translate-x-1/2 text-[10px] text-white font-bold pt-1 transition-opacity">
+                      {counts.Freigegeben}
+                    </span>
+                  </div>
+                  
+                  {/* In Prüfung (Gelb) */}
+                  <div 
+                    className="bg-amber-400 h-full transition-all duration-700 hover:bg-amber-500 relative group"
+                    style={{ width: `${(counts['In Prüfung'] / counts.Total) * 100}%` }}
+                  >
+                     <span className="opacity-0 group-hover:opacity-100 absolute top-0 left-1/2 -translate-x-1/2 text-[10px] text-white font-bold pt-1 transition-opacity">
+                      {counts['In Prüfung']}
+                    </span>
+                  </div>
+                  
+                  {/* Gesperrt (Rot) */}
+                  <div 
+                    className="bg-red-400 h-full transition-all duration-700 hover:bg-red-500 relative group"
+                    style={{ width: `${(counts.Gesperrt / counts.Total) * 100}%` }}
+                  >
+                     <span className="opacity-0 group-hover:opacity-100 absolute top-0 left-1/2 -translate-x-1/2 text-[10px] text-white font-bold pt-1 transition-opacity">
+                      {counts.Gesperrt}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-xs text-gray-400 bg-gray-50">
+                  Keine Landingpages angelegt
+                </div>
+              )}
+            </div>
+
+            {/* Legende */}
+            <div className="flex flex-wrap gap-4 mt-2 text-xs text-gray-600">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-green-500"></span>
+                <span>Freigegeben ({counts.Freigegeben})</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+                <span>In Prüfung ({counts['In Prüfung']})</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-red-400"></span>
+                <span>Gesperrt ({counts.Gesperrt})</span>
+              </div>
+              <div className="flex items-center gap-1.5 ml-auto font-medium text-gray-800">
+                <BoxSeam size={12} />
+                <span>Gesamt: {counts.Total}</span>
+              </div>
+            </div>
+          </div>
+
         </div>
 
-        {/* NEU: Projekt Ende */}
-        <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-          <CalendarX size={24} className="text-gray-700 mx-auto mb-1" />
-          <p className="text-xl font-bold">{format(endDate, 'dd.MM.yy')}</p>
-          <p className="text-xs text-gray-600">Projekt-Ende</p>
+        {/* --- RECHTE SPALTE (35%) --- */}
+        <div className="w-full lg:w-[35%] flex flex-col">
+          <div className="bg-gray-50 rounded-xl border border-gray-200 p-5 h-full flex flex-col shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]">
+            
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="font-semibold text-gray-800 flex items-center gap-2 text-sm">
+                <GraphUpArrow className="text-blue-500" size={16} />
+                Reichweite
+              </h3>
+              <span className="text-[10px] text-gray-400 bg-white px-2 py-0.5 rounded border border-gray-200">90 Tage</span>
+            </div>
+
+            {/* Chart Container */}
+            <div className="flex-grow min-h-[180px] w-full relative">
+              {chartData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chartData}>
+                    <defs>
+                      <linearGradient id="colorImpressions" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                    <XAxis
+                      dataKey="date"
+                      hide={true} // Achse ausblenden für cleaneren Look im Widget
+                      domain={[startDate.getTime(), endDate.getTime()]}
+                      type="number"
+                    />
+                    <Tooltip 
+                      contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: '12px' }}
+                      labelFormatter={(v) => format(new Date(v), 'd. MMM', { locale: de })}
+                      formatter={(value: number) => [new Intl.NumberFormat('de-DE').format(value), 'Impressionen']}
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="impressions" 
+                      stroke="#3b82f6" 
+                      strokeWidth={2}
+                      fillOpacity={1} 
+                      fill="url(#colorImpressions)" 
+                    />
+                    <ReferenceLine x={today.getTime()} stroke="#f59e0b" strokeDasharray="3 3" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
+                  <GraphUpArrow size={24} className="mb-2 opacity-20" />
+                  <span className="text-xs">Keine Daten verfügbar</span>
+                </div>
+              )}
+            </div>
+            
+            {/* Chart Footer Stats */}
+            <div className="mt-3 pt-3 border-t border-gray-200 flex justify-between items-center text-xs text-gray-500">
+               <span>Start: {format(startDate, 'MMM yy', { locale: de })}</span>
+               <span className="font-medium text-blue-600">Impressionen</span>
+               <span>Heute</span>
+            </div>
+
+          </div>
         </div>
 
-        {/* Landingpages gesamt */}
-        <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-          <BoxSeam size={24} className="text-gray-700 mx-auto mb-1" />
-          <p className="text-xl font-bold">{counts.Total}</p>
-          <p className="text-xs text-gray-600">Landingpages gesamt</p>
-        </div>
       </div>
-
-      {/* --- 3. Graphen-Titel --- */}
-      <h3 className="text-lg font-semibold mb-4 mt-8 pt-4 border-t flex items-center gap-2">
-        <GraphUpArrow size={18} /> Reichweiten-Entwicklung (Impressionen)
-      </h3>
-
-      {/* --- 4. Reichweiten-Chart --- */}
-      {chartData.length > 0 ? (
-        <div className="w-full h-80">
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart
-              data={chartData}
-              margin={{ top: 5, right: 20, left: 10, bottom: 20 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-              <XAxis
-                dataKey="date"
-                stroke="#6b7280"
-                fontSize={11}
-                tickFormatter={(timestamp) => format(new Date(timestamp), 'd. MMM', { locale: de })}
-                domain={[startDate.getTime(), endDate.getTime()]}
-                type="number"
-                ticks={xTicks}
-              />
-              <YAxis
-                yAxisId="left"
-                stroke="#4f46e5"
-                fontSize={11}
-                tickFormatter={(value) => new Intl.NumberFormat('de-DE', { notation: 'compact' }).format(value)}
-              />
-              <Tooltip content={<CustomTooltip />} />
-              <Legend
-                verticalAlign="top"
-                height={36}
-                formatter={(value) => <span className="text-gray-700">{value}</span>}
-              />
-              <Area
-                type="monotone"
-                dataKey="impressions"
-                name="Reichweite (Impressionen)"
-                yAxisId="left"
-                stroke="#4f46e5"
-                fill="#c7d2fe"
-                strokeWidth={2}
-                dot={false}
-              />
-              <ReferenceLine 
-                x={today.getTime()} 
-                stroke="#fb923c" 
-                strokeDasharray="4 4" 
-                strokeWidth={2}
-              >
-                <Label value="Heute" position="top" fill="#fb923c" fontSize={11} />
-              </ReferenceLine>
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
-      ) : (
-        <p className="text-sm text-gray-500 italic text-center py-8">
-          Es werden noch keine Reichweiten-Daten von Google empfangen.
-        </p>
-      )}
     </div>
   );
 }
