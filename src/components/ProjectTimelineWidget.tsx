@@ -114,9 +114,7 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
             <ClockHistory className="text-indigo-600" size={22} />
             Projekt-Status
           </h2>
-          {domain && (
-            <p className="text-sm text-gray-500 mt-1 font-medium">{domain}</p>
-          )}
+          {/* ÄNDERUNG: Domain-Anzeige hier entfernt */}
         </div>
         <div className="mt-2 sm:mt-0 flex gap-3">
            <div className="px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full text-xs font-semibold border border-indigo-100">
@@ -125,7 +123,7 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
         </div>
       </div>
 
-      {/* Haupt-Grid: Jetzt 50% / 50% Aufteilung */}
+      {/* Haupt-Grid */}
       <div className="flex flex-col lg:flex-row gap-8 h-full">
         
         {/* --- LINKE SPALTE (50%) --- */}
@@ -145,31 +143,31 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
 
             {/* Visual Timeline Bar */}
             <div className="relative h-10 w-full bg-gray-100 rounded-lg border border-gray-200 overflow-hidden">
-              {/* Füllung "Vergangene Zeit" */}
+              {/* Füllung "Vergangene Zeit" - ÄNDERUNG: Farbe verstärkt (indigo-200) */}
               <div 
-                className="absolute top-0 left-0 h-full bg-indigo-50/80 border-r-2 border-indigo-400 transition-all duration-1000"
+                className="absolute top-0 left-0 h-full bg-indigo-200 border-r-2 border-indigo-500 transition-all duration-1000"
                 style={{ width: `${timeElapsedPercentage}%` }}
               />
               
               {/* Labels im Balken (Start/Ende) */}
               <div className="absolute inset-0 flex justify-between items-center px-4 text-xs font-medium text-gray-500 pointer-events-none">
-                <div className="flex flex-col items-start">
-                  <span className="text-[10px] uppercase tracking-wider text-gray-400">Start</span>
-                  <span className="text-gray-700">{format(startDate, 'dd.MM.yyyy')}</span>
+                <div className="flex flex-col items-start z-10">
+                  <span className="text-[10px] uppercase tracking-wider text-gray-500">Start</span>
+                  <span className="text-gray-800">{format(startDate, 'dd.MM.yyyy')}</span>
                 </div>
                 
-                {/* "Heute" Marker, wenn im Bereich */}
+                {/* "Heute" Marker */}
                 {timeElapsedPercentage > 5 && timeElapsedPercentage < 95 && (
-                   <div className="flex flex-col items-center" style={{ position: 'absolute', left: `${timeElapsedPercentage}%`, transform: 'translateX(-50%)' }}>
+                   <div className="flex flex-col items-center z-10" style={{ position: 'absolute', left: `${timeElapsedPercentage}%`, transform: 'translateX(-50%)' }}>
                       <div className="bg-indigo-600 text-white text-[9px] px-1.5 py-0.5 rounded-full mb-0.5 shadow-sm">
                         Heute
                       </div>
                    </div>
                 )}
 
-                <div className="flex flex-col items-end">
+                <div className="flex flex-col items-end z-10">
                   <span className="text-[10px] uppercase tracking-wider text-gray-400">Ende</span>
-                  <span className="text-gray-700">{format(endDate, 'dd.MM.yyyy')}</span>
+                  <span className="text-gray-500">{format(endDate, 'dd.MM.yyyy')}</span>
                 </div>
               </div>
             </div>
@@ -287,7 +285,7 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
                       minTickGap={30}
                     />
 
-                    {/* Y-Achse: Impressionen - MIT BREITEREM PLATZ */}
+                    {/* Y-Achse: Impressionen */}
                     <YAxis 
                       tickFormatter={(value) => new Intl.NumberFormat('de-DE', { notation: 'compact' }).format(value)}
                       tick={{ fontSize: 10, fill: '#6b7280' }}
