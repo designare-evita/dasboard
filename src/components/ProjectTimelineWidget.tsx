@@ -13,15 +13,19 @@ import {
   ReferenceLine,
 } from 'recharts';
 import { 
-  CalendarWeek,
+  CalendarCheck, 
+  CalendarX, 
+  CheckCircle, 
   ClockHistory, 
   GraphUpArrow, 
   HourglassSplit,
   ListCheck,
+  CalendarWeek,
   BoxSeam
 } from 'react-bootstrap-icons';
 import { addMonths, format, differenceInCalendarDays } from 'date-fns';
 import { de } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 
 // --- Interfaces & Fetcher (unverändert) ---
 interface StatusCounts {
@@ -121,11 +125,11 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
         </div>
       </div>
 
-      {/* Haupt-Grid: 65% Links (Timeline/Progress) | 35% Rechts (Chart) */}
+      {/* Haupt-Grid: Jetzt 50% / 50% Aufteilung */}
       <div className="flex flex-col lg:flex-row gap-8 h-full">
         
-        {/* --- LINKE SPALTE (65%) --- */}
-        <div className="w-full lg:w-[65%] flex flex-col justify-center space-y-10">
+        {/* --- LINKE SPALTE (50%) --- */}
+        <div className="w-full lg:w-[50%] flex flex-col justify-center space-y-10">
           
           {/* 1. ZEITBALKEN: Timeline mit Zeitachse */}
           <div className="space-y-3">
@@ -248,8 +252,8 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
 
         </div>
 
-        {/* --- RECHTE SPALTE (35%) --- */}
-        <div className="w-full lg:w-[35%] flex flex-col">
+        {/* --- RECHTE SPALTE (50%) --- */}
+        <div className="w-full lg:w-[50%] flex flex-col">
           <div className="bg-gray-50 rounded-xl border border-gray-200 p-5 h-full flex flex-col shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]">
             
             <div className="mb-4 flex items-center justify-between">
@@ -257,14 +261,13 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
                 <GraphUpArrow className="text-blue-500" size={16} />
                 Reichweite
               </h3>
-              {/* Entfernt: 90 Tage Badge */}
             </div>
 
             {/* Chart Container */}
-            <div className="flex-grow min-h-[200px] w-full relative">
+            <div className="flex-grow min-h-[180px] w-full relative">
               {chartData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
+                  <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -5, bottom: 0 }}>
                     <defs>
                       <linearGradient id="colorImpressions" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
@@ -284,11 +287,11 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
                       minTickGap={30}
                     />
 
-                    {/* Y-Achse: Impressionen */}
+                    {/* Y-Achse: Impressionen - MIT BREITEREM PLATZ */}
                     <YAxis 
                       tickFormatter={(value) => new Intl.NumberFormat('de-DE', { notation: 'compact' }).format(value)}
                       tick={{ fontSize: 10, fill: '#6b7280' }}
-                      width={35}
+                      width={45}
                       axisLine={false}
                       tickLine={false}
                     />
@@ -316,8 +319,6 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
                 </div>
               )}
             </div>
-            
-            {/* Entfernt: Footer Stats (Start / Impressionen / Heute) */}
 
           </div>
         </div>
