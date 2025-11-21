@@ -2,7 +2,6 @@
 'use client';
 
 import React, { useState } from 'react';
-// +++ KORREKTUR: ExclamationTriangleFill importiert +++
 import { ClockHistory, FunnelFill, ExclamationTriangleFill } from 'react-bootstrap-icons';
 import { cn } from '@/lib/utils';
 import { type DateRangeOption, getRangeLabel } from '@/components/DateRangeSelector';
@@ -15,13 +14,12 @@ type TopQueryData = {
   position: number;
 };
 
-// +++ KORREKTUR: error-Prop hinzugefügt +++
 interface TopQueriesListProps {
   queries: TopQueryData[];
   isLoading?: boolean;
   className?: string;
   dateRange?: DateRangeOption;
-  error?: string | null; // Prop für Fehlermeldungen
+  error?: string | null;
 }
 
 export default function TopQueriesList({
@@ -29,14 +27,13 @@ export default function TopQueriesList({
   isLoading = false,
   className,
   dateRange,
-  error = null // +++ KORREKTUR: Prop entgegennehmen +++
+  error = null
 }: TopQueriesListProps) {
   const [sortField, setSortField] = useState<keyof TopQueryData | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
   const rangeLabel = dateRange ? getRangeLabel(dateRange) : null;
 
-  // (Sortier-Handler bleibt unverändert)
   const handleSort = (field: keyof TopQueryData) => {
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
@@ -46,7 +43,6 @@ export default function TopQueriesList({
     }
   };
 
-  // (Sortierte Queries bleiben unverändert)
   const sortedQueries = React.useMemo(() => {
     if (!sortField) return queries;
     
@@ -68,18 +64,18 @@ export default function TopQueriesList({
     });
   }, [queries, sortField, sortDirection]);
 
-  // Ladezustand (bleibt unverändert)
+  // Ladezustand
   if (isLoading) {
     return (
       <div className={cn("bg-white rounded-lg shadow-md border border-gray-200", className)}>
-        <div className="p-4 bg-gradient-to-r from-indigo-600 to-indigo-500 rounded-t-lg">
+        <div className="p-4 bg-[#188BDB] rounded-t-lg">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <ClockHistory className="text-white" size={20} />
               <h3 className="text-lg font-semibold text-white">Top 100 Suchanfragen</h3>
             </div>
             {rangeLabel && (
-              <span className="text-xs text-indigo-100 bg-black/10 px-2 py-0.5 rounded-full">
+              <span className="text-xs text-white/90 bg-black/10 px-2 py-0.5 rounded-full">
                 {rangeLabel}
               </span>
             )}
@@ -94,25 +90,23 @@ export default function TopQueriesList({
     );
   }
 
-  // +++ KORREKTUR: Fehlerzustand hinzugefügt +++
+  // Fehlerzustand
   if (error) {
     return (
       <div className={cn("bg-white rounded-lg shadow-md border border-gray-200", className)}>
-        <div className="p-4 bg-gradient-to-r from-indigo-600 to-indigo-500 rounded-t-lg">
-          {/* Header */}
+        <div className="p-4 bg-[#188BDB] rounded-t-lg">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <ClockHistory className="text-white" size={20} />
               <h3 className="text-lg font-semibold text-white">Top 100 Suchanfragen</h3>
             </div>
             {rangeLabel && (
-              <span className="text-xs text-indigo-100 bg-black/10 px-2 py-0.5 rounded-full">
+              <span className="text-xs text-white/90 bg-black/10 px-2 py-0.5 rounded-full">
                 {rangeLabel}
               </span>
             )}
           </div>
         </div>
-        {/* Fehler-Body */}
         <div className="p-6 text-center text-sm text-red-700 flex flex-col items-center gap-2 min-h-[200px] justify-center">
           <ExclamationTriangleFill className="text-red-500 w-6 h-6" />
           <span className="font-semibold">Fehler bei GSC-Daten</span>
@@ -124,19 +118,18 @@ export default function TopQueriesList({
     );
   }
 
-
-  // Leer-Zustand (bleibt unverändert)
+  // Leer-Zustand
   if (!queries || queries.length === 0) {
     return (
       <div className={cn("bg-white rounded-lg shadow-md border border-gray-200", className)}>
-        <div className="p-4 bg-gradient-to-r from-indigo-600 to-indigo-500 rounded-t-lg">
+        <div className="p-4 bg-[#188BDB] rounded-t-lg">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <ClockHistory className="text-white" size={20} />
               <h3 className="text-lg font-semibold text-white">Top 100 Suchanfragen</h3>
             </div>
             {rangeLabel && (
-              <span className="text-xs text-indigo-100 bg-black/10 px-2 py-0.5 rounded-full">
+              <span className="text-xs text-white/90 bg-black/10 px-2 py-0.5 rounded-full">
                 {rangeLabel}
               </span>
             )}
@@ -149,11 +142,11 @@ export default function TopQueriesList({
     );
   }
 
-  // Haupt-Komponente mit Tabellendesign (bleibt unverändert)
+  // Haupt-Komponente
   return (
     <div className={cn("bg-white rounded-lg shadow-md border border-gray-200 flex flex-col", className)}>
-      {/* Header */}
-      <div className="p-4 bg-gradient-to-r from-indigo-600 to-indigo-500 rounded-t-lg">
+      {/* Header Card */}
+      <div className="p-4 bg-[#188BDB] rounded-t-lg">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <ClockHistory className="text-white" size={20} />
@@ -161,11 +154,11 @@ export default function TopQueriesList({
           </div>
           <div className="flex items-center gap-3">
             {rangeLabel && (
-              <span className="text-xs text-indigo-100 bg-black/10 px-2 py-0.5 rounded-full">
+              <span className="text-xs text-white/90 bg-black/10 px-2 py-0.5 rounded-full">
                 {rangeLabel}
               </span>
             )}
-            <div className="text-xs text-indigo-100">
+            <div className="text-xs text-white/80">
               {queries.length} {queries.length === 1 ? 'Eintrag' : 'Einträge'}
             </div>
           </div>
@@ -177,10 +170,10 @@ export default function TopQueriesList({
         <div className="max-h-[600px] overflow-y-auto">
           <table className="w-full border-collapse">
             <thead className="sticky top-0 z-10">
-              <tr className="bg-indigo-600 text-white">
+              <tr className="bg-[#188BDB] text-white">
                 <th 
                   onClick={() => handleSort('query')}
-                  className="px-4 py-3 text-left text-sm font-semibold border-r border-indigo-500 cursor-pointer hover:bg-indigo-700 transition-colors"
+                  className="px-4 py-3 text-left text-sm font-semibold border-r border-white/20 cursor-pointer hover:bg-[#1479BF] transition-colors"
                 >
                   <div className="flex items-center gap-2">
                     Suchanfrage
@@ -189,7 +182,7 @@ export default function TopQueriesList({
                 </th>
                 <th 
                   onClick={() => handleSort('clicks')}
-                  className="px-4 py-3 text-right text-sm font-semibold border-r border-indigo-500 cursor-pointer hover:bg-indigo-700 transition-colors whitespace-nowrap"
+                  className="px-4 py-3 text-right text-sm font-semibold border-r border-white/20 cursor-pointer hover:bg-[#1479BF] transition-colors whitespace-nowrap"
                 >
                   <div className="flex items-center justify-end gap-2">
                     Klicks
@@ -198,7 +191,7 @@ export default function TopQueriesList({
                 </th>
                 <th 
                   onClick={() => handleSort('impressions')}
-                  className="px-4 py-3 text-right text-sm font-semibold border-r border-indigo-500 cursor-pointer hover:bg-indigo-700 transition-colors whitespace-nowrap"
+                  className="px-4 py-3 text-right text-sm font-semibold border-r border-white/20 cursor-pointer hover:bg-[#1479BF] transition-colors whitespace-nowrap"
                 >
                   <div className="flex items-center justify-end gap-2">
                     Impressionen
@@ -207,7 +200,7 @@ export default function TopQueriesList({
                 </th>
                 <th 
                   onClick={() => handleSort('ctr')}
-                  className="px-4 py-3 text-right text-sm font-semibold border-r border-indigo-500 cursor-pointer hover:bg-indigo-700 transition-colors whitespace-nowrap"
+                  className="px-4 py-3 text-right text-sm font-semibold border-r border-white/20 cursor-pointer hover:bg-[#1479BF] transition-colors whitespace-nowrap"
                 >
                   <div className="flex items-center justify-end gap-2">
                     CTR
@@ -216,7 +209,7 @@ export default function TopQueriesList({
                 </th>
                 <th 
                   onClick={() => handleSort('position')}
-                  className="px-4 py-3 text-right text-sm font-semibold cursor-pointer hover:bg-indigo-700 transition-colors whitespace-nowrap"
+                  className="px-4 py-3 text-right text-sm font-semibold cursor-pointer hover:bg-[#1479BF] transition-colors whitespace-nowrap"
                 >
                   <div className="flex items-center justify-end gap-2">
                     Position
@@ -230,7 +223,7 @@ export default function TopQueriesList({
                 <tr 
                   key={`${query.query}-${index}`}
                   className={cn(
-                    "border-b border-gray-200 hover:bg-indigo-50 transition-colors",
+                    "border-b border-gray-200 hover:bg-blue-50 transition-colors",
                     index % 2 === 0 ? "bg-white" : "bg-gray-50"
                   )}
                 >
@@ -275,7 +268,7 @@ export default function TopQueriesList({
         </div>
       </div>
 
-      {/* Footer mit Statistik (bleibt unverändert) */}
+      {/* Footer */}
       <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 rounded-b-lg">
         <div className="flex flex-wrap items-center justify-between gap-4 text-xs text-gray-600">
           <div className="flex items-center gap-4">
