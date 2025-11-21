@@ -8,24 +8,24 @@ import {
   XAxis,
   YAxis,
   Tooltip,
+  Legend,
   CartesianGrid,
   ReferenceLine,
   Label,
 } from 'recharts';
 import { 
+  BarChart, 
   CalendarCheck, 
-  CalendarX,
-  CheckCircleFill, 
+  CalendarX, 
+  CheckCircle, 
   ClockHistory, 
   GraphUpArrow, 
   HourglassSplit,
-  ExclamationTriangleFill,
-  InfoCircle,
-  FlagFill
+  BoxSeam
 } from 'react-bootstrap-icons';
 import { addMonths, format, differenceInCalendarDays } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils'; // Sicherstellen, dass cn verfügbar ist
 
 // Interfaces
 interface StatusCounts {
@@ -50,6 +50,15 @@ interface TimelineData {
   };
   gscImpressionTrend: GscDataPoint[];
 }
+interface TooltipPayload {
+  dataKey: string;
+  value: number;
+}
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: TooltipPayload[];
+  label?: string | number;
+}
 
 const fetcher = (url: string) => fetch(url).then((res) => {
   if (!res.ok) {
@@ -60,20 +69,61 @@ const fetcher = (url: string) => fetch(url).then((res) => {
   return res.json();
 });
 
-// Tooltip Komponente
-const CustomTooltip = ({ active, payload, label }: any) => {
+const formatImpressions = (value: number) => {
+  return new Intl.NumberFormat('de-DE').format(value);
+};
+
+const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
   if (active && payload && payload.length) {
-    const dateLabel = new Date(label);
+    const dateLabel = typeof label === 'number' ? new Date(label) : (typeof label === 'string' ? new Date(label) : new Date());
+    
     return (
-      <div className="bg-white p-2 shadow-md rounded border border-gray-200 text-xs">
-        <p className="font-bold text-gray-800 mb-1">{format(dateLabel, 'd. MMM yyyy', { locale: de })}</p>
-        <p className="text-indigo-600">
-          {new Intl.NumberFormat('de-DE').format(payload[0].value)} Impr.
+      <div className="bg-white p-3 shadow-md rounded border border-gray-200 text-xs">
+        <p className="font-bold text-gray-800 mb-1">{format(dateLabel, 'd. MMMM yyyy', { locale: de })}</p>
+        <p className="text-sm text-indigo-600">
+          Reichweite: <span className="font-semibold">{formatImpressions(payload.find((p) => p.dataKey === 'impressions')?.value || 0)}</span>
         </p>
       </div>
     );
   }
   return null;
+};
+
+// Benutzerdefinierte Tick-Komponente für die X-Achse
+// Hebt Start, Ende und Heute hervor
+const CustomXAxisTick = (props: any) => {
+  const { x, y, payload, todayTime } = props;
+  const dateValue = payload.value;
+  
+  let labelText = format(new Date(dateValue), 'dd.MM.yy');
+  let fontWeight = 'normal';
+  let fill = '#6b7280';
+  let isToday = false;
+
+  // Prüfen, ob es "Heute" ist (mit kleiner Toleranz für Uhrzeiten)
+  if (Math.abs(dateValue - todayTime) < 86400000) {
+    labelText = 'HEUTE';
+    fontWeight = 'bold';
+    fill = '#ea580c'; // Orange für Heute
+    isToday = true;
+  }
+
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <text 
+        x={0} 
+        y={0} 
+        dy={16} 
+        textAnchor="middle" 
+        fill={fill} 
+        fontSize={12} 
+        fontWeight={fontWeight}
+        style={{ fontFamily: 'var(--font-sans)' }}
+      >
+        {labelText}
+      </text>
+    </g>
+  );
 };
 
 interface ProjectTimelineWidgetProps {
@@ -90,11 +140,9 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
 
   if (isLoading) {
     return (
-      <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100 min-h-[300px] flex flex-col items-center justify-center animate-pulse">
-        <div className="h-12 w-12 bg-indigo-50 rounded-full flex items-center justify-center mb-4">
-           <HourglassSplit size={24} className="text-indigo-400 animate-spin" />
-        </div>
-        <p className="text-gray-400 font-medium">Analysiere Projekt-Daten...</p>
+      <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200 min-h-[300px] flex items-center justify-center">
+        <HourglassSplit size={30} className="animate-spin text-indigo-500" />
+        <p className="ml-3 text-gray-600">Lade Projekt-Timeline...</p>
       </div>
     );
   }
@@ -102,7 +150,7 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
   if (error || !data || !data.project) return null;
 
   const { project, progress, gscImpressionTrend } = data;
-  const { counts, percentage: workProgress } = progress;
+  const { counts, percentage } = progress;
   
   // Datumsberechnungen
   const startDate = project?.startDate ? new Date(project.startDate) : new Date();
@@ -110,206 +158,198 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
   const endDate = addMonths(startDate, duration);
   const today = new Date();
   
-  // Zeit-Fortschritt berechnen
+  // Fortschrittsberechnungen
   const totalProjectDays = differenceInCalendarDays(endDate, startDate) || 1; 
   const elapsedProjectDays = differenceInCalendarDays(today, startDate);
+  const timeElapsedPercentage = Math.max(0, Math.min(100, (elapsedProjectDays / totalProjectDays) * 100));
   
-  let timeProgress = Math.round((elapsedProjectDays / totalProjectDays) * 100);
-  if (timeProgress < 0) timeProgress = 0;
-  if (timeProgress > 100) timeProgress = 100;
-
-  // Status Logik
-  const progressDelta = workProgress - timeProgress;
-  let statusColor = 'text-green-600';
-  let statusBg = 'bg-green-50 border-green-200';
-  let statusText = 'Im Plan';
-  let StatusIcon = CheckCircleFill;
-
-  if (progressDelta < -15) {
-    statusColor = 'text-red-600';
-    statusBg = 'bg-red-50 border-red-200';
-    statusText = 'Rückstand';
-    StatusIcon = ExclamationTriangleFill;
-  } else if (progressDelta < -5) {
-    statusColor = 'text-orange-600';
-    statusBg = 'bg-orange-50 border-orange-200';
-    statusText = 'Leichter Verzug';
-    StatusIcon = InfoCircle;
-  }
-
-  // Chart Data Vorbereitung
+  // Chart Daten
   const chartData = (gscImpressionTrend || []).map(d => ({
     date: new Date(d.date).getTime(), 
     impressions: d.value,
   }));
 
-  // WICHTIG: Die X-Achse Ticks exakt auf Start, Heute, Ende setzen
-  const xTicks = [startDate.getTime(), today.getTime(), endDate.getTime()];
-  const domainRange = [startDate.getTime(), endDate.getTime()];
+  // Ticks für die X-Achse: Start, Heute, Ende
+  const xTicks = [ startDate.getTime(), today.getTime(), endDate.getTime() ];
+  const todayTime = today.getTime();
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden print-timeline">
+    <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200 print-timeline">
       
-      {/* --- HEADER --- */}
-      <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-white">
-        <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-          <FlagFill className="text-indigo-600" />
-          Projekt-Status
-          {domain && <span className="text-gray-400 font-normal text-sm hidden sm:inline">| {domain}</span>}
-        </h2>
+      <h2 className="text-xl font-bold mb-6 flex items-center gap-2 flex-wrap text-gray-900">
+        <BarChart size={20} className="text-indigo-600" />
+        <span>Projekt-Fortschritt</span>
+        {domain && (
+          <span className="text-indigo-600 font-semibold">: {domain}</span>
+        )}
+      </h2>
+
+      {/* --- 1. Fortschritts-Balken (Landingpages) --- */}
+      <div className="mb-8">
+        <div className="flex justify-between items-end mb-2">
+          <span className="text-sm font-semibold text-gray-700">
+            Landingpage-Freigaben
+          </span>
+          <span className="text-lg font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
+            {counts.Freigegeben} <span className="text-sm font-normal text-gray-500">/ {counts.Total}</span>
+          </span>
+        </div>
+        {counts.Total > 0 ? (
+          <div className="flex w-full h-5 bg-gray-100 rounded-full overflow-hidden shadow-inner border border-gray-200">
+            <div
+              className="bg-green-500 transition-all duration-1000"
+              style={{ width: `${(counts.Freigegeben / counts.Total) * 100}%` }}
+              title={`Freigegeben: ${counts.Freigegeben}`}
+            ></div>
+            <div
+              className="bg-yellow-400 transition-all duration-1000"
+              style={{ width: `${(counts['In Prüfung'] / counts.Total) * 100}%` }}
+              title={`In Prüfung: ${counts['In Prüfung']}`}
+            ></div>
+            <div
+              className="bg-red-500 transition-all duration-1000"
+              style={{ width: `${(counts.Gesperrt / counts.Total) * 100}%` }}
+              title={`Gesperrt: ${counts.Gesperrt}`}
+            ></div>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-500 italic">Noch keine Landingpages angelegt.</p>
+        )}
         
-        <div className={cn("px-3 py-1 rounded-full border flex items-center gap-2 text-xs font-bold uppercase tracking-wide", statusBg, statusColor)}>
-          <StatusIcon size={14} />
-          {statusText}
+        {/* Legende */}
+        <div className="flex justify-end space-x-4 mt-2 text-[11px] uppercase font-semibold tracking-wide text-gray-500">
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-green-500"></span> Freigegeben</span>
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-yellow-400"></span> In Prüfung</span>
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-gray-200 border border-gray-300"></span> Offen</span>
         </div>
       </div>
 
-      {/* --- CONTENT GRID (50% / 50%) --- */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-gray-100">
+      {/* --- 2. KPI-Übersicht --- */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8 text-center">
+        <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 hover:border-green-200 transition-colors">
+          <CheckCircle size={22} className="text-green-600 mx-auto mb-2" />
+          <p className="text-2xl font-bold text-gray-900">{Math.round(percentage)}%</p>
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mt-1">Freigabe-Quote</p>
+        </div>
+        <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 hover:border-blue-200 transition-colors">
+          <ClockHistory size={22} className="text-blue-600 mx-auto mb-2" />
+          <p className="text-2xl font-bold text-gray-900">{Math.round(timeElapsedPercentage)}%</p>
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mt-1">Zeit Verbraucht</p>
+        </div>
         
-        {/* --- LINKE SPALTE: TIMELINE & FORTSCHRITT --- */}
-        <div className="p-6 bg-gray-50/30 flex flex-col justify-center">
-          
-          {/* Visueller Zeitstrahl (Links) */}
-          <div className="relative pt-8 pb-2 mb-6">
-            <div className="flex justify-between text-xs font-bold text-gray-500 mb-2 px-1 absolute w-full -top-1">
-              <span className="flex flex-col items-start">
-                <span className="flex items-center gap-1 text-indigo-900"><CalendarCheck/> Start</span>
-                <span className="font-normal opacity-70">{format(startDate, 'dd.MM.yy')}</span>
-              </span>
-              <span className="flex flex-col items-end">
-                <span className="flex items-center gap-1 text-indigo-900">Ende <CalendarX/></span>
-                <span className="font-normal opacity-70">{format(endDate, 'dd.MM.yy')}</span>
-              </span>
-            </div>
-            
-            <div className="h-4 w-full bg-gray-200 rounded-full relative overflow-visible mt-6 shadow-inner">
-              <div 
-                className="absolute top-0 left-0 h-full bg-gradient-to-r from-indigo-400 to-indigo-600 rounded-full transition-all duration-1000"
-                style={{ width: `${timeProgress}%` }}
-              />
-              <div 
-                className="absolute top-1/2 -translate-y-1/2 w-0.5 h-8 bg-indigo-800 z-10 transition-all duration-1000"
-                style={{ left: `${timeProgress}%` }}
+        <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 hover:border-gray-300 transition-colors">
+          <CalendarCheck size={22} className="text-gray-700 mx-auto mb-2" />
+          <p className="text-lg font-bold text-gray-900">{format(startDate, 'dd.MM.yy')}</p>
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mt-1">Projekt-Start</p>
+        </div>
+
+        <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 hover:border-gray-300 transition-colors">
+          <CalendarX size={22} className="text-gray-700 mx-auto mb-2" />
+          <p className="text-lg font-bold text-gray-900">{format(endDate, 'dd.MM.yy')}</p>
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mt-1">Projekt-Ende</p>
+        </div>
+
+        <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 hover:border-gray-300 transition-colors">
+          <BoxSeam size={22} className="text-gray-700 mx-auto mb-2" />
+          <p className="text-2xl font-bold text-gray-900">{counts.Total}</p>
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mt-1">LPs Gesamt</p>
+        </div>
+      </div>
+
+      {/* --- 3. Graphen-Titel --- */}
+      <div className="border-t pt-6 mt-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+            <GraphUpArrow className="text-indigo-600" /> 
+            Reichweiten-Entwicklung (Impressionen)
+          </h3>
+          <span className="text-xs font-medium bg-indigo-50 text-indigo-700 px-2 py-1 rounded border border-indigo-100">
+            Timeline & Trend
+          </span>
+        </div>
+
+        {/* --- 4. Reichweiten-Chart (Volle Breite) --- */}
+        {chartData.length > 0 ? (
+          <div className="w-full h-[350px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart
+                data={chartData}
+                margin={{ top: 20, right: 30, left: 10, bottom: 10 }}
               >
-                <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-indigo-800 text-white text-[10px] font-bold px-2 py-1 rounded shadow-md whitespace-nowrap">
-                  HEUTE ({timeProgress}%)
-                </div>
-                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-indigo-800 rotate-45"></div>
-              </div>
-            </div>
-          </div>
-
-          {/* Fortschrittsbalken Landingpages */}
-          <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm mt-2">
-            <div className="flex justify-between items-end mb-2">
-              <span className="text-sm font-semibold text-gray-700">Inhaltliche Fertigstellung</span>
-              <span className="text-xl font-bold text-gray-900">{counts.Freigegeben} <span className="text-xs text-gray-400 font-normal">/ {counts.Total} LPs</span></span>
-            </div>
-            <div className="flex w-full h-3 bg-gray-100 rounded-full overflow-hidden">
-              <div className="bg-green-500" style={{ width: `${(counts.Freigegeben / counts.Total) * 100}%` }} title="Freigegeben" />
-              <div className="bg-yellow-400" style={{ width: `${(counts['In Prüfung'] / counts.Total) * 100}%` }} title="In Prüfung" />
-              <div className="bg-red-400" style={{ width: `${(counts.Gesperrt / counts.Total) * 100}%` }} title="Gesperrt" />
-            </div>
-            <div className="flex justify-between mt-2 text-[10px] text-gray-500">
-              <div className="flex gap-3">
-                <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>Fertig</span>
-                <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-yellow-400"></span>Prüfung</span>
-              </div>
-              <span className="font-semibold text-indigo-600">{workProgress}% Gesamtfortschritt</span>
-            </div>
-          </div>
-        </div>
-
-        {/* --- RECHTE SPALTE: CHART ALS TIMELINE --- */}
-        <div className="p-6 h-full flex flex-col bg-white">
-          
-          {/* Header passend zur Timeline links */}
-          <div className="flex justify-between items-end mb-4 border-b border-gray-50 pb-2">
-             <h3 className="text-sm font-bold text-indigo-900 flex items-center gap-2">
-              <GraphUpArrow /> Reichweite (Timeline)
-            </h3>
-             {/* Datums-Labels auch hier anzeigen für Klarheit */}
-             <div className="text-[10px] text-gray-400 font-mono">
-                {format(startDate, 'dd.MM.yy')} - {format(endDate, 'dd.MM.yy')}
-             </div>
-          </div>
-          
-          <div className="flex-grow min-h-[200px] w-full relative">
-            {chartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={chartData}>
-                  <defs>
-                    <linearGradient id="timelineGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
-                  
-                  {/* X-Achse festgenagelt auf Projekt Start/Ende */}
-                  <XAxis
-                    dataKey="date"
-                    type="number"
-                    domain={domainRange} // Zwingt die Achse auf Start->Ende
-                    ticks={xTicks} // Zeigt explizit Start, Heute, Ende
-                    stroke="#9ca3af"
-                    fontSize={10}
-                    tickFormatter={(timestamp) => {
-                      // Einfache Formatierung für die 3 Ticks
-                      if (timestamp === today.getTime()) return 'HEUTE';
-                      return format(new Date(timestamp), 'dd.MM.yy', { locale: de });
-                    }}
-                    interval={0} // Erzwingt Anzeige aller Ticks
+                <defs>
+                  <linearGradient id="timelineGradientMain" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                
+                {/* X-Achse: Volle Projektlaufzeit mit hervorgehobenen Ticks */}
+                <XAxis
+                  dataKey="date"
+                  type="number"
+                  domain={[startDate.getTime(), endDate.getTime()]}
+                  ticks={xTicks}
+                  stroke="#9ca3af"
+                  tick={<CustomXAxisTick todayTime={todayTime} />} // Hier nutzen wir die Custom Komponente
+                  interval={0}
+                  height={50}
+                />
+                
+                {/* Y-Achse */}
+                <YAxis
+                  yAxisId="left"
+                  stroke="#6b7280"
+                  fontSize={11}
+                  tickFormatter={(value) => new Intl.NumberFormat('de-DE', { notation: 'compact' }).format(value)}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                
+                <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#6366f1', strokeWidth: 1, strokeDasharray: '4 4' }} />
+                
+                {/* Der eigentliche Trend */}
+                <Area
+                  type="monotone"
+                  dataKey="impressions"
+                  yAxisId="left"
+                  stroke="#6366f1"
+                  strokeWidth={3}
+                  fill="url(#timelineGradientMain)"
+                  dot={false}
+                  activeDot={{ r: 6, strokeWidth: 0, fill: '#4f46e5' }}
+                />
+                
+                {/* Vertikale Linie für "Heute" */}
+                <ReferenceLine 
+                  x={todayTime} 
+                  stroke="#ea580c" 
+                  strokeDasharray="3 3" 
+                  strokeWidth={2}
+                  isFront={true}
+                >
+                  <Label 
+                    value="IST-STAND" 
+                    position="top" 
+                    fill="#ea580c" 
+                    fontSize={10} 
+                    fontWeight="bold"
+                    offset={10}
+                    className="bg-white"
                   />
-                  
-                  {/* Y-Achse versteckt oder minimal */}
-                  <YAxis 
-                    hide={true} 
-                    domain={['auto', 'auto']} 
-                  />
-                  
-                  <Tooltip content={<CustomTooltip />} />
+                </ReferenceLine>
 
-                  {/* Linie für HEUTE */}
-                  <ReferenceLine 
-                    x={today.getTime()} 
-                    stroke="#4f46e5" 
-                    strokeDasharray="3 3"
-                  >
-                    <Label 
-                      value="HEUTE" 
-                      position="insideTop" 
-                      fill="#4f46e5" 
-                      fontSize={10} 
-                      offset={10}
-                    />
-                  </ReferenceLine>
-
-                  {/* Trend-Area */}
-                  <Area 
-                    type="monotone" 
-                    dataKey="impressions" 
-                    stroke="#6366f1" 
-                    strokeWidth={2} 
-                    fill="url(#timelineGradient)" 
-                    baseLine={0}
-                  />
-                </ComposedChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex flex-col items-center justify-center text-xs text-indigo-300 italic bg-indigo-50/30 rounded border border-dashed border-indigo-100">
-                <GraphUpArrow size={24} className="mb-2 opacity-50"/>
-                Keine Daten im Projektzeitraum
-              </div>
-            )}
+              </ComposedChart>
+            </ResponsiveContainer>
           </div>
-
-          <div className="mt-2 text-center text-[10px] text-gray-400">
-            Zeigt Impressionen im Projektverlauf
+        ) : (
+          <div className="h-[300px] flex flex-col items-center justify-center text-gray-400 bg-gray-50 rounded-lg border border-dashed border-gray-200">
+            <GraphUpArrow size={32} className="mb-2 opacity-50" />
+            <p className="text-sm font-medium">Noch keine Reichweiten-Daten vorhanden.</p>
+            <p className="text-xs mt-1">Daten werden automatisch von Google geladen, sobald verfügbar.</p>
           </div>
-        </div>
-
+        )}
       </div>
     </div>
   );
