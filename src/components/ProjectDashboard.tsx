@@ -66,21 +66,11 @@ export default function ProjectDashboard({
   const hasSemrushConfig = hasKampagne1Config || hasKampagne2Config;
 
   return (
-    <div className="bg-gray-50 min-h-screen flex flex-col">
+    // ÄNDERUNG: 'bg-gray-50' ersetzt durch 'dashboard-gradient'
+    <div className="min-h-screen flex flex-col dashboard-gradient">
       
-      {/* ÄNDERUNG 1: GlobalHeader hier entfernt. Er wird jetzt im Container gerendert.
-      */}
-
-      {/* ÄNDERUNG 2: Volle Breite für den Container 
-          - 'max-w-7xl' und 'mx-auto' wurden ENTFERNT.
-          - 'w-full' sorgt für volle Breite.
-          - Padding (px-4 sm:px-6...) sorgt für Abstand zum Bildschirmrand.
-      */}
       <div className="flex-grow w-full px-4 sm:px-6 lg:px-8 py-6">
         
-        {/* ÄNDERUNG 3: GlobalHeader hier eingefügt.
-            Er verhält sich jetzt wie ein normales Widget innerhalb des Paddings.
-        */}
         <GlobalHeader 
           domain={domain}
           projectId={projectId}
@@ -97,7 +87,7 @@ export default function ProjectDashboard({
           </div>
         )}
 
-        {/* 3. DASHBOARD HEADER (Filter & Co.) */}
+        {/* 3. DASHBOARD HEADER */}
         <div className="print-header">
           <DashboardHeader 
             domain={domain}
@@ -131,6 +121,8 @@ export default function ProjectDashboard({
         {/* 6. AI TRAFFIC & TOP QUERIES */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mt-6 print-traffic-grid">
           <div className="xl:col-span-1 print-ai-card">
+            {/* Styling wird in der Komponente selbst angepasst, oder wir wrappen es hier. 
+                Besser: Die Komponente nutzt 'card-glass' intern (siehe unten). */}
             <AiTrafficCard 
               totalSessions={data.aiTraffic?.totalSessions ?? 0}
               totalUsers={data.aiTraffic?.totalUsers ?? 0}
@@ -183,12 +175,14 @@ export default function ProjectDashboard({
         {hasSemrushConfig && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6 print-semrush-grid">
             {hasKampagne1Config && (
-              <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-gray-200">
+              // ÄNDERUNG: Lokale Klassen ersetzt durch 'card-glass'
+              <div className="card-glass p-4 sm:p-6">
                 <SemrushTopKeywords projectId={projectId} />
               </div>
             )}
             {hasKampagne2Config && (
-              <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-gray-200">
+              // ÄNDERUNG: Lokale Klassen ersetzt durch 'card-glass'
+              <div className="card-glass p-4 sm:p-6">
                 <SemrushTopKeywords02 projectId={projectId} />
               </div>
             )}
