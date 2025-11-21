@@ -34,7 +34,7 @@ interface ProjectDashboardProps {
   faviconUrl?: string | null;
   semrushTrackingId?: string | null;
   semrushTrackingId02?: string | null;
-  projectTimelineActive?: boolean; // NEU: Steuerung für Timeline
+  projectTimelineActive?: boolean;
   onPdfExport?: () => void;
   countryData?: ChartEntry[];
   channelData?: ChartEntry[];
@@ -68,19 +68,28 @@ export default function ProjectDashboard({
   return (
     <div className="bg-gray-50 min-h-screen flex flex-col">
       
-      {/* 1. GLOBAL HEADER: Volle Breite, Sticky */}
-      <GlobalHeader 
-        domain={domain}
-        projectId={projectId}
-        onPdfExport={onPdfExport || (() => console.warn('PDF Export not implemented'))}
-      />
+      {/* ÄNDERUNG 1: GlobalHeader hier entfernt. Er wird jetzt im Container gerendert.
+      */}
 
-      {/* CONTAINER FÜR DEN INHALT: Zentriert und gepolstert */}
-      <div className="flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* ÄNDERUNG 2: Volle Breite für den Container 
+          - 'max-w-7xl' und 'mx-auto' wurden ENTFERNT.
+          - 'w-full' sorgt für volle Breite.
+          - Padding (px-4 sm:px-6...) sorgt für Abstand zum Bildschirmrand.
+      */}
+      <div className="flex-grow w-full px-4 sm:px-6 lg:px-8 py-6">
         
-        {/* 2. TIMELINE WIDGET: Direkt unter dem Header */}
+        {/* ÄNDERUNG 3: GlobalHeader hier eingefügt.
+            Er verhält sich jetzt wie ein normales Widget innerhalb des Paddings.
+        */}
+        <GlobalHeader 
+          domain={domain}
+          projectId={projectId}
+          onPdfExport={onPdfExport || (() => console.warn('PDF Export not implemented'))}
+        />
+        
+        {/* 2. TIMELINE WIDGET */}
         {projectId && projectTimelineActive && (
-          <div className="mb-8 print-timeline">
+          <div className="mb-6 print-timeline">
             <ProjectTimelineWidget 
               projectId={projectId} 
               domain={domain} 
