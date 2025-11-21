@@ -161,10 +161,11 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
       </div>
 
       {/* --- TIMELINE & PROGRESS SECTION --- */}
-      <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-8 items-center bg-gray-50/50">
+      {/* KORREKTUR: Layout geändert von grid-cols-3 auf grid-cols-2 für 50/50 Aufteilung */}
+      <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-8 items-center bg-gray-50/50">
         
-        {/* Linke Spalte: Meilensteine / Zeitstrahl */}
-        <div className="lg:col-span-2 space-y-6">
+        {/* Linke Spalte: Meilensteine / Zeitstrahl (50% Breite) */}
+        <div className="space-y-6">
           
           {/* Visueller Zeitstrahl */}
           <div className="relative pt-6 pb-2">
@@ -240,11 +241,12 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
           </div>
         </div>
 
-        {/* Rechte Spalte: GSC Mini-Chart */}
-        <div className="lg:col-span-1 h-full flex flex-col">
+        {/* Rechte Spalte: GSC Mini-Chart (50% Breite) */}
+        <div className="h-full flex flex-col">
           <div className="bg-indigo-50/50 p-4 rounded-lg border border-indigo-100 h-full">
+            {/* KORREKTUR: Titel angepasst */}
             <h3 className="text-sm font-semibold text-indigo-900 mb-3 flex items-center gap-2">
-              <GraphUpArrow /> Reichweite (Trend)
+              <GraphUpArrow /> Reichweite (Trend) <span className="text-xs font-normal text-indigo-600 ml-1 opacity-80">Letzte 90 Tage</span>
             </h3>
             
             {chartData.length > 0 ? (
@@ -267,7 +269,7 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
                   </ComposedChart>
                 </ResponsiveContainer>
                 <div className="flex justify-between items-center mt-2 text-xs text-indigo-700/70">
-                  <span>Letzte 90 Tage</span>
+                  <span>Trendverlauf</span>
                   <span className="font-bold">
                     ~{chartData.reduce((acc, curr) => acc + curr.impressions, 0).toLocaleString()} Impr.
                   </span>
@@ -275,7 +277,7 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
               </div>
             ) : (
               <div className="h-32 flex items-center justify-center text-xs text-indigo-300 italic border border-dashed border-indigo-200 rounded">
-                Keine GSC Daten
+                Keine GSC Daten für die letzten 90 Tage
               </div>
             )}
           </div>
