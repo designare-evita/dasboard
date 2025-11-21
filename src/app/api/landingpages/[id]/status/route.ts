@@ -118,7 +118,9 @@ export async function PUT(
     // Status-Update durchführen
     await sql`
       UPDATE landingpages
-      SET status = ${newStatus}
+      SET 
+        status = ${newStatus},
+        updated_at = NOW() -- ✅ NEU
       WHERE id = ${landingpageId};
     `;
     console.log('✅ Status erfolgreich aktualisiert');
