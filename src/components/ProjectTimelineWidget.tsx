@@ -16,7 +16,8 @@ import {
 } from 'recharts';
 import { 
   BarChart, 
-  CalendarCheck, 
+  CalendarCheck,
+  CalendarX, // <--- NEU: Icon für das Enddatum
   CheckCircle, 
   ClockHistory, 
   GraphUpArrow, 
@@ -90,10 +91,9 @@ const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
 };
 
 
-// +++ KORREKTUR: Props erweitert +++
 interface ProjectTimelineWidgetProps {
   projectId?: string;
-  domain?: string | null; // Domain hinzugefügt
+  domain?: string | null;
 }
 
 // Die Hauptkomponente
@@ -122,11 +122,11 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
     return null;
   }
 
-  // (Datenextraktion bleibt gleich)
   const { project, progress, gscImpressionTrend } = data;
   const { counts, percentage } = progress;
   const startDate = project?.startDate ? new Date(project.startDate) : new Date();
   const duration = project?.durationMonths || 6;
+  // Das Enddatum wird hier bereits berechnet, wir müssen es nur anzeigen
   const endDate = addMonths(startDate, duration);
   const today = new Date();
   const totalProjectDays = differenceInCalendarDays(endDate, startDate) || 1; 
@@ -141,7 +141,6 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
   return (
     <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
       
-      {/* +++ KORREKTUR: Titel angepasst +++ */}
       <h2 className="text-xl font-bold mb-4 flex items-center gap-2 flex-wrap">
         <BarChart size={20} />
         <span>Projekt-Fortschritt</span>
@@ -150,7 +149,7 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
         )}
       </h2>
 
-      {/* --- 1. Fortschritts-Balken (Landingpages) --- (Unverändert) */}
+      {/* --- 1. Fortschritts-Balken (Landingpages) --- */}
       <div className="mb-6">
         <div className="flex justify-between items-center mb-1">
           <span className="text-sm font-medium text-gray-700">
@@ -188,8 +187,9 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
         </div>
       </div>
 
-      {/* --- 2. KPI-Übersicht --- (Unverändert) */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 text-center">
+      {/* --- 2. KPI-Übersicht (ANGEPASST) --- */}
+      {/* Grid erweitert auf md:grid-cols-5 für das 5. Element */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6 text-center">
         <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
           <CheckCircle size={24} className="text-green-600 mx-auto mb-1" />
           <p className="text-xl font-bold">{Math.round(percentage)}%</p>
@@ -200,11 +200,22 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
           <p className="text-xl font-bold">{Math.round(timeElapsedPercentage)}%</p>
           <p className="text-xs text-gray-600">Zeit Verbraucht</p>
         </div>
+        
+        {/* Projekt Start */}
         <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
           <CalendarCheck size={24} className="text-gray-700 mx-auto mb-1" />
           <p className="text-xl font-bold">{format(startDate, 'dd.MM.yy')}</p>
           <p className="text-xs text-gray-600">Projekt-Start</p>
         </div>
+
+        {/* NEU: Projekt Ende */}
+        <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+          <CalendarX size={24} className="text-gray-700 mx-auto mb-1" />
+          <p className="text-xl font-bold">{format(endDate, 'dd.MM.yy')}</p>
+          <p className="text-xs text-gray-600">Projekt-Ende</p>
+        </div>
+
+        {/* Landingpages gesamt */}
         <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
           <BoxSeam size={24} className="text-gray-700 mx-auto mb-1" />
           <p className="text-xl font-bold">{counts.Total}</p>
@@ -212,12 +223,12 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
         </div>
       </div>
 
-      {/* --- 3. Graphen-Titel --- (Unverändert) */}
+      {/* --- 3. Graphen-Titel --- */}
       <h3 className="text-lg font-semibold mb-4 mt-8 pt-4 border-t flex items-center gap-2">
         <GraphUpArrow size={18} /> Reichweiten-Entwicklung (Impressionen)
       </h3>
 
-      {/* --- 4. Reichweiten-Chart --- (Unverändert) */}
+      {/* --- 4. Reichweiten-Chart --- */}
       {chartData.length > 0 ? (
         <div className="w-full h-80">
           <ResponsiveContainer width="100%" height="100%">
