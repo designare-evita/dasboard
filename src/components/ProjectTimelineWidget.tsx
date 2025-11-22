@@ -137,7 +137,6 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
   const timeElapsedPercentage = Math.max(0, Math.min(100, (elapsedProjectDays / totalProjectDays) * 100));
   
   // Daten zusammenführen
-  // KORREKTUR: Typ angepasst, impressions kann null sein
   const chartDataMap = new Map<string, { date: number; impressions: number | null; aiTraffic: number }>();
   
   gscImpressionTrend.forEach(d => {
@@ -151,7 +150,7 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
       if (entry) {
         entry.aiTraffic = d.value;
       } else {
-        // KORREKTUR: Wenn keine GSC Daten da sind (Verzögerung), setze impressions auf null statt 0
+        // Wenn keine GSC Daten da sind (Verzögerung), setze impressions auf null statt 0
         chartDataMap.set(d.date, { 
           date: new Date(d.date).getTime(), 
           impressions: null, 
@@ -342,16 +341,15 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
                     <Tooltip 
                       contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: '12px', backgroundColor: 'rgba(255,255,255,0.95)' }}
                       labelFormatter={(v) => format(new Date(v), 'd. MMM yyyy', { locale: de })}
-                      formatter={(value: number | null, name: string) => {
-                        // KORREKTUR: Umgang mit null für verzögerte Daten
-                        if (value === null) return ['Keine Daten (verzögert)', name === 'impressions' ? 'GSC Impressionen' : 'KI Sitzungen'];
+                      // FIX: value als 'any' typisieren, um den Fehler mit number | null zu umgehen
+                      formatter={(value: any, name: string) => {
+                        if (value === null || value === undefined) return ['Keine Daten (verzögert)', name === 'impressions' ? 'GSC Impressionen' : 'KI Sitzungen'];
                         return [
                           new Intl.NumberFormat('de-DE').format(value), 
                           name === 'impressions' ? 'GSC Impressionen' : 'KI Sitzungen'
                         ];
                       }}
                     />
-                    {/* KORREKTUR: connectNulls hinzugefügt, damit die Linie nicht auf 0 fällt */}
                     <Area 
                       type="monotone" 
                       dataKey="impressions" 
