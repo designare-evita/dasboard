@@ -18,7 +18,9 @@ import {
   GraphUpArrow, 
   HourglassSplit,
   ListCheck,
-  BoxSeam
+  BoxSeam,
+  Trophy,
+  ArrowUp
 } from 'react-bootstrap-icons';
 import { addMonths, format, differenceInCalendarDays } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -34,6 +36,12 @@ interface GscDataPoint {
   date: string;
   value: number;
 }
+interface TopMover {
+  url: string;
+  haupt_keyword: string | null;
+  gsc_impressionen: number;
+  gsc_impressionen_change: number;
+}
 interface TimelineData {
   project: {
     startDate: string;
@@ -44,6 +52,7 @@ interface TimelineData {
     percentage: number;
   };
   gscImpressionTrend: GscDataPoint[];
+  topMovers?: TopMover[]; // Neue Eigenschaft
 }
 
 const fetcher = (url: string) => fetch(url).then((res) => {
@@ -69,7 +78,6 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
 
   if (isLoading) {
     return (
-      // ÄNDERUNG: card-glass
       <div className="card-glass p-8 min-h-[300px] flex flex-col items-center justify-center animate-pulse">
         <HourglassSplit size={32} className="text-indigo-300 mb-3" />
         <p className="text-gray-400 text-sm font-medium">Lade Projekt-Daten...</p>
@@ -79,7 +87,7 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
 
   if (error || !data || !data.project) return null;
 
-  const { project, progress, gscImpressionTrend } = data;
+  const { project, progress, gscImpressionTrend, topMovers } = data;
   const { counts, percentage } = progress;
   
   const startDate = project?.startDate ? new Date(project.startDate) : new Date();
@@ -97,7 +105,6 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
   }));
 
   return (
-    // ÄNDERUNG: card-glass
     <div className="card-glass p-6 lg:p-8 print-timeline">
       
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 border-b border-gray-200/50 pb-4">
@@ -116,10 +123,10 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
 
       <div className="flex flex-col lg:flex-row gap-8 h-full">
         
-        {/* LINKE SPALTE */}
-        <div className="w-full lg:w-[50%] flex flex-col justify-center space-y-10">
+        {/* LINKE SPALTE: Fortschritt & Top Movers */}
+        <div className="w-full lg:w-[50%] flex flex-col gap-8">
           
-          {/* Zeitachse */}
+          {/* 1. Zeitachse */}
           <div className="space-y-3">
             <div className="flex justify-between items-end mb-2">
               <div className="flex items-center gap-2 text-gray-700 font-semibold">
@@ -158,7 +165,7 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
             </div>
           </div>
 
-          {/* Projektfortschritt */}
+          {/* 2. Projektfortschritt */}
           <div className="space-y-3">
             <div className="flex justify-between items-end mb-2">
               <div className="flex items-center gap-2 text-gray-700 font-semibold">
@@ -197,11 +204,44 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
             </div>
           </div>
 
+          {/* 3. Top 5 Landingpages (GSC) - NEU */}
+          {topMovers && topMovers.length > 0 && (
+            <div className="mt-4">
+              <div className="flex items-center gap-2 text-gray-700 font-semibold mb-3">
+                <Trophy className="text-amber-500" size={18} />
+                <span>Top-Performer (GSC-Zuwachs)</span>
+              </div>
+              
+              <div className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
+                <table className="w-full text-sm">
+                  <tbody className="divide-y divide-gray-100">
+                    {topMovers.map((page, index) => (
+                      <tr key={index} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-3 py-2.5">
+                          <div className="font-medium text-gray-900 truncate max-w-[200px]" title={page.haupt_keyword || page.url}>
+                            {page.haupt_keyword || <span className="text-gray-400 italic">Kein Keyword</span>}
+                          </div>
+                          <div className="text-xs text-gray-500 truncate max-w-[200px]">{new URL(page.url).pathname}</div>
+                        </td>
+                        <td className="px-3 py-2.5 text-right">
+                          <div className="flex items-center justify-end gap-1 text-green-600 font-bold text-xs bg-green-50 px-2 py-1 rounded-full border border-green-100 w-fit ml-auto">
+                            <ArrowUp size={10} />
+                            +{page.gsc_impressionen_change.toLocaleString('de-DE')}
+                          </div>
+                          <div className="text-[10px] text-gray-400 mt-1">Impressionen</div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
         </div>
 
         {/* RECHTE SPALTE: Chart */}
         <div className="w-full lg:w-[50%] flex flex-col">
-          {/* ÄNDERUNG: Inneres Panel auch angepasst auf bg-gray-50/50 für subtilen Kontrast im Glas */}
           <div className="bg-gray-50/50 rounded-xl border border-gray-200/60 p-5 h-full flex flex-col shadow-inner backdrop-blur-sm">
             
             <div className="mb-4 flex items-center justify-between">
@@ -211,7 +251,7 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
               </h3>
             </div>
 
-            <div className="flex-grow min-h-[180px] w-full relative">
+            <div className="flex-grow min-h-[250px] w-full relative">
               {chartData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -5, bottom: 0 }}>
