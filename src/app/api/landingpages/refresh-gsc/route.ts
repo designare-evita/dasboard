@@ -1,48 +1,52 @@
 // src/app/api/landingpages/refresh-gsc/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth'; // KORRIGIERT: Import von auth
-import { sql, type QueryResult } from '@vercel/postgres'; // SQL-Client
-import { getGscDataForPagesWithComparison } from '@/lib/google-api'; // Unsere GSC-Funktion
+import { auth } from '@/lib/auth';
+import { sql, type QueryResult } from '@vercel/postgres';
+import { getGscDataForPagesWithComparison } from '@/lib/google-api';
 import type { User } from '@/types';
 
 // === Hilfsfunktionen zur Datumsberechnung ===
 
-/**
- * Formatiert ein Date-Objekt zu 'YYYY-MM-DD'
- */
 function formatDate(date: Date): string {
   return date.toISOString().split('T')[0];
 }
 
 /**
- * Berechnet Start- und Enddatum für den aktuellen und vorherigen Zeitraum.
+ * Berechnet Start- und Enddatum basierend auf der Auswahl im Date Picker.
+ * Berücksichtigt den 2-Tage-Versatz der GSC-Daten.
  */
 function calculateDateRanges(dateRange: string): {
   currentRange: { startDate: string, endDate: string },
   previousRange: { startDate: string, endDate: string }
 } {
   const today = new Date();
-  // GSC-Daten sind oft 2-3 Tage verzögert. Wir nehmen 2 Tage als Standard.
+  // GSC-Daten sind oft 2 Tage verzögert verfügbar.
   const endDateCurrent = new Date(today);
   endDateCurrent.setDate(endDateCurrent.getDate() - 2); 
   
   const startDateCurrent = new Date(endDateCurrent);
   let daysBack: number;
   
+  // Berechnung der Tage basierend auf der Auswahl
   switch (dateRange) {
-    case '3m': daysBack = 89; break; // 90 Tage total
-    case '6m': daysBack = 179; break; // 180 Tage total
-    case '12m': daysBack = 364; break; // 365 Tage total
-    case '30d': default: daysBack = 29; break; // 30 Tage total
+    case '3m': daysBack = 90; break;  // ca. 3 Monate
+    case '6m': daysBack = 180; break; // ca. 6 Monate
+    case '12m': daysBack = 365; break; // ca. 1 Jahr
+    case '30d': default: daysBack = 29; break; // 30 Tage
   }
   
+  // Startdatum setzen
   startDateCurrent.setDate(startDateCurrent.getDate() - daysBack);
   
+  // Vergleichszeitraum (Previous Period) berechnen
+  // Endet 1 Tag vor dem aktuellen Zeitraum
   const endDatePrevious = new Date(startDateCurrent);
-  endDatePrevious.setDate(endDatePrevious.getDate() - 1); // 1 Tag davor
+  endDatePrevious.setDate(endDatePrevious.getDate() - 1); 
+  
+  // Startet 'daysBack' vor dem Ende des Vergleichszeitraums
   const startDatePrevious = new Date(endDatePrevious);
-  startDatePrevious.setDate(startDatePrevious.getDate() - daysBack); // Gleiche Dauer
+  startDatePrevious.setDate(startDatePrevious.getDate() - daysBack);
   
   return {
     currentRange: {
@@ -56,23 +60,21 @@ function calculateDateRanges(dateRange: string): {
   };
 }
 
-
 // === API POST Handler ===
 
 export async function POST(request: NextRequest) {
-  // Wir holen uns einen Client aus dem Pool für die Transaktion
   const client = await sql.connect();
   
   try {
-    // 1. Authentifizierung und Autorisierung
-    const session = await auth(); // KORRIGIERT: auth() aufgerufen
+    // 1. Authentifizierung
+    const session = await auth();
     const user = session?.user;
 
     if (!user) {
       return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
     }
 
-    // 2. Request Body validieren
+    // 2. Daten aus dem Frontend (Date Picker & Project ID)
     const body = await request.json();
     const { projectId, dateRange } = body as { projectId: string, dateRange: string };
 
@@ -80,45 +82,46 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: 'projectId und dateRange sind erforderlich' }, { status: 400 });
     }
 
-    // 3. Berechtigungsprüfung (Admin muss Zugriff auf Projekt haben)
+    console.log(`[GSC Refresh] Starte Abgleich für Projekt ${projectId} über Zeitraum: ${dateRange}`);
+
+    // 3. Berechtigungsprüfung
     if (user.role === 'ADMIN') {
       const { rows: accessCheck } = await sql`
-        SELECT 1 
-        FROM project_assignments 
-        WHERE user_id::text = ${user.id} 
-        AND project_id::text = ${projectId};
+        SELECT 1 FROM project_assignments 
+        WHERE user_id::text = ${user.id} AND project_id::text = ${projectId};
       `;
       if (accessCheck.length === 0) {
-        return NextResponse.json({ message: 'Zugriff auf dieses Projekt verweigert' }, { status: 403 });
+        return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
       }
     }
-    // SUPERADMIN hat immer Zugriff (wird durch user-Check oben abgedeckt)
 
-    // 4. Benötigte Daten laden (GSC Site URL und Landingpage-URLs)
+    // 4. Projektdaten laden (GSC URL)
     const { rows: projectRows } = await sql<Pick<User, 'gsc_site_url'>>`
       SELECT gsc_site_url FROM users WHERE id::text = ${projectId};
     `;
 
     if (projectRows.length === 0 || !projectRows[0].gsc_site_url) {
-      return NextResponse.json({ message: 'Keine GSC Site URL für dieses Projekt konfiguriert.' }, { status: 400 });
+      return NextResponse.json({ message: 'Keine GSC Site URL konfiguriert.' }, { status: 400 });
     }
     const siteUrl = projectRows[0].gsc_site_url;
 
+    // 5. Landingpages laden
     const { rows: landingpageRows } = await sql<{ id: number; url: string }>`
       SELECT id, url FROM landingpages WHERE user_id::text = ${projectId};
     `;
 
     if (landingpageRows.length === 0) {
-      return NextResponse.json({ message: 'Für dieses Projekt wurden keine Landingpages gefunden.' });
+      return NextResponse.json({ message: 'Keine Landingpages gefunden.' });
     }
 
     const pageUrls = landingpageRows.map(lp => lp.url);
     const pageIdMap = new Map<string, number>(landingpageRows.map(lp => [lp.url, lp.id]));
 
-    // 5. Zeiträume berechnen
+    // 6. Zeiträume berechnen
     const { currentRange, previousRange } = calculateDateRanges(dateRange);
+    console.log(`[GSC Refresh] Zeiträume: Aktuell(${currentRange.startDate} bis ${currentRange.endDate})`);
 
-    // 6. GSC-Daten abrufen
+    // 7. GSC-Daten abrufen (Nutzt die reparierte Funktion aus google-api.ts!)
     const gscDataMap = await getGscDataForPagesWithComparison(
       siteUrl,
       pageUrls,
@@ -126,13 +129,12 @@ export async function POST(request: NextRequest) {
       previousRange
     );
 
-    // 7. Datenbank-Transaktion starten
+    // 8. Datenbank Update (Transaktion)
     await client.query('BEGIN');
     
     let updatedCount = 0;
     const updatePromises: Promise<QueryResult>[] = [];
 
-    // 8. Daten in die Datenbank schreiben
     for (const [url, data] of gscDataMap.entries()) {
       const landingpageId = pageIdMap.get(url);
       
@@ -148,7 +150,7 @@ export async function POST(request: NextRequest) {
                gsc_position = $5,
                gsc_position_change = $6,
                gsc_last_updated = NOW(),
-               gsc_last_range = $7
+               gsc_last_range = $7  -- Speichert den gewählten Zeitraum (z.B. '12m')
              WHERE id = $8;`,
             [
               data.clicks,
@@ -157,7 +159,7 @@ export async function POST(request: NextRequest) {
               data.impressions_change,
               data.position,
               data.position_change,
-              dateRange,
+              dateRange, // Hier wird '30d', '3m', etc. gespeichert
               landingpageId
             ]
           )
@@ -166,37 +168,24 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Alle Updates parallel ausführen
     await Promise.all(updatePromises);
-
-    // 9. Transaktion abschließen
     await client.query('COMMIT');
 
-    console.log(`[GSC Refresh] Erfolgreich ${updatedCount} von ${pageUrls.length} Landingpages aktualisiert.`);
+    console.log(`[GSC Refresh] ✅ ${updatedCount} Seiten aktualisiert.`);
 
     return NextResponse.json({
-      message: `✅ ${updatedCount} von ${pageUrls.length} Landingpages erfolgreich mit GSC-Daten synchronisiert.`,
-      dateRange: dateRange,
-      currentPeriod: currentRange,
-      previousPeriod: previousRange,
-      updatedPages: updatedCount,
-      totalPages: pageUrls.length
+      message: `✅ ${updatedCount} Landingpages erfolgreich aktualisiert (${dateRange}).`,
+      updatedCount
     });
 
   } catch (error) {
-    // 10. Fehlerbehandlung (Rollback)
     await client.query('ROLLBACK');
-    console.error('[API /refresh-gsc] Fehler:', error);
-    
+    console.error('[GSC Refresh] Fehler:', error);
     return NextResponse.json(
-      { 
-        message: 'Fehler beim Synchronisieren der GSC-Daten.',
-        error: error instanceof Error ? error.message : 'Unbekannter Fehler'
-      },
+      { message: 'Fehler beim Synchronisieren', error: error instanceof Error ? error.message : 'Unbekannt' },
       { status: 500 }
     );
   } finally {
-    // 11. Client-Verbindung freigeben
     client.release();
   }
 }
