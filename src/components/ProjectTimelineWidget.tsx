@@ -16,11 +16,14 @@ import {
   CalendarWeek, 
   ClockHistory, 
   GraphUpArrow, 
+  GraphDownArrow, // Neu importiert
   HourglassSplit,
   ListCheck,
   BoxSeam,
   Trophy,
-  ArrowUp
+  ArrowUp,
+  ArrowDown, // Neu importiert
+  Dash // Für neutralen Trend
 } from 'react-bootstrap-icons';
 import { addMonths, format, differenceInCalendarDays } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -65,6 +68,21 @@ const fetcher = (url: string) => fetch(url).then((res) => {
   return res.json();
 });
 
+// Hilfsfunktion zur Trendberechnung (Vergleich der letzten 7 Tage mit den 7 Tagen davor)
+function calculateTrendDirection(data: TrendPoint[]): 'up' | 'down' | 'neutral' {
+  if (!data || data.length < 14) return 'neutral'; // Nicht genug Daten für einen validen Trend
+
+  const last7Days = data.slice(-7);
+  const prev7Days = data.slice(-14, -7);
+
+  const sumLast = last7Days.reduce((acc, cur) => acc + cur.value, 0);
+  const sumPrev = prev7Days.reduce((acc, cur) => acc + cur.value, 0);
+
+  if (sumLast > sumPrev) return 'up';
+  if (sumLast < sumPrev) return 'down';
+  return 'neutral';
+}
+
 interface ProjectTimelineWidgetProps {
   projectId?: string;
   domain?: string | null;
@@ -90,13 +108,11 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
   const { project, progress, gscImpressionTrend, aiTrafficTrend, topMovers } = data;
   const { counts, percentage } = progress;
   
-  // Projekt-Zeitraum berechnen
   const startDate = project?.startDate ? new Date(project.startDate) : new Date();
   const duration = project?.durationMonths || 6;
   const endDate = addMonths(startDate, duration);
-  
-  // Fortschrittsberechnung
   const today = new Date();
+  
   const totalProjectDays = Math.max(1, differenceInCalendarDays(endDate, startDate)); 
   const elapsedProjectDays = differenceInCalendarDays(today, startDate);
   const timeElapsedPercentage = Math.max(0, Math.min(100, (elapsedProjectDays / totalProjectDays) * 100));
@@ -121,6 +137,17 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
   }
 
   const chartData = Array.from(chartDataMap.values()).sort((a, b) => a.date - b.date);
+
+  // Trends berechnen
+  const gscTrend = calculateTrendDirection(gscImpressionTrend);
+  const aiTrend = calculateTrendDirection(aiTrafficTrend || []);
+
+  // Helper für Trend-Icons
+  const TrendIcon = ({ direction, colorClass }: { direction: 'up' | 'down' | 'neutral', colorClass: string }) => {
+    if (direction === 'up') return <GraphUpArrow className={colorClass} size={16} />;
+    if (direction === 'down') return <GraphDownArrow className={colorClass} size={16} />;
+    return <Dash className="text-gray-400" size={16} />;
+  };
 
   return (
     <div className="card-glass p-6 lg:p-8 print-timeline">
@@ -196,7 +223,7 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
               <Trophy className="text-amber-500" size={20} />
               <h3>Top-Performer (GSC)</h3>
             </div>
-            <span className="text-[10px] px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full">90 Tage</span>
+            <span className="text-[10px] px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full">Trend (90T)</span>
           </div>
           {topMovers && topMovers.length > 0 ? (
             <div className="flex-grow overflow-hidden space-y-2">
@@ -220,14 +247,27 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
           )}
         </div>
 
-        {/* SPALTE 3: Chart (GSC + AI) */}
+        {/* SPALTE 3: Reichweite Chart MIT TRENDPFEILEN */}
         <div className="flex flex-col h-full">
           <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-              <GraphUpArrow className="text-blue-500" size={18} />
-              Reichweite
-            </h3>
-            {/* Kleine Legende */}
+            <div className="flex items-center gap-2">
+               {/* Titel */}
+               <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  Reichweite
+               </h3>
+               {/* Trend Pfeile */}
+               <div className="flex items-center gap-1 ml-2 bg-gray-100 rounded-md px-1.5 py-0.5 border border-gray-200" title="Trend letzte 7 Tage">
+                  <div className="flex items-center" title="GSC Trend">
+                    <TrendIcon direction={gscTrend} colorClass="text-blue-600" />
+                  </div>
+                  <span className="text-gray-300 text-xs">|</span>
+                  <div className="flex items-center" title="KI Trend">
+                    <TrendIcon direction={aiTrend} colorClass="text-purple-600" />
+                  </div>
+               </div>
+            </div>
+            
+            {/* Legende */}
             <div className="flex gap-3 text-[10px]">
                <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500"></span> GSC</div>
                <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-purple-500"></span> KI</div>
@@ -254,7 +294,6 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
                       dataKey="date"
                       tickFormatter={(t) => format(new Date(t), 'd.MM', { locale: de })}
                       type="number"
-                      // ✅ KORREKTUR: Domain fix auf Start- und Enddatum des Projekts gesetzt
                       domain={[startDate.getTime(), endDate.getTime()]}
                       tick={{ fontSize: 9, fill: '#6b7280' }}
                       tickMargin={5}
