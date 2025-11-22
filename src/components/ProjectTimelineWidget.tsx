@@ -10,20 +10,20 @@ import {
   YAxis,
   Tooltip,
   CartesianGrid,
-  Legend,
+  ReferenceLine, // Wieder eingefügt
 } from 'recharts';
 import { 
   CalendarWeek, 
   ClockHistory, 
   GraphUpArrow, 
-  GraphDownArrow,
+  GraphDownArrow, // Neu
   HourglassSplit,
   ListCheck,
   BoxSeam,
   Trophy,
   ArrowUp,
-  ArrowDown,
-  Dash
+  ArrowDown, // Neu
+  Dash // Neu
 } from 'react-bootstrap-icons';
 import { addMonths, format, differenceInCalendarDays } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -68,13 +68,10 @@ const fetcher = (url: string) => fetch(url).then((res) => {
   return res.json();
 });
 
-// Hilfsfunktion zur Trendberechnung über den GESAMTEN Zeitraum (Lineare Regression)
+// Berechnet den Trend über den GESAMTEN Zeitraum mittels linearer Regression
 function calculateTrendDirection(data: TrendPoint[]): 'up' | 'down' | 'neutral' {
-  // Wir brauchen mindestens 2 Punkte für einen Trend
   if (!data || data.length < 2) return 'neutral';
 
-  // Berechnung der Steigung (Slope) mittels linearer Regression (Least Squares)
-  // x = Zeitindex (0, 1, 2...), y = Wert
   let sumX = 0;
   let sumY = 0;
   let sumXY = 0;
@@ -92,13 +89,11 @@ function calculateTrendDirection(data: TrendPoint[]): 'up' | 'down' | 'neutral' 
   }
 
   const denominator = (n * sumXX - sumX * sumX);
-  if (denominator === 0) return 'neutral'; // Sollte theoretisch nicht passieren bei n >= 2 und unterschiedlichen x
+  if (denominator === 0) return 'neutral';
 
   const slope = (n * sumXY - sumX * sumY) / denominator;
 
-  // Interpretation der Steigung
-  // Wir können hier einen kleinen Schwellenwert nutzen, um "flache" Trends als neutral zu werten, 
-  // aber > 0 ist mathematisch korrekt für "aufwärts".
+  // Empfindlichkeitsschwelle für "neutral"
   if (slope > 0.01) return 'up';
   if (slope < -0.01) return 'down';
   
@@ -130,11 +125,13 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
   const { project, progress, gscImpressionTrend, aiTrafficTrend, topMovers } = data;
   const { counts, percentage } = progress;
   
+  // Projekt-Zeitraum
   const startDate = project?.startDate ? new Date(project.startDate) : new Date();
   const duration = project?.durationMonths || 6;
   const endDate = addMonths(startDate, duration);
   const today = new Date();
   
+  // Fortschritt
   const totalProjectDays = Math.max(1, differenceInCalendarDays(endDate, startDate)); 
   const elapsedProjectDays = differenceInCalendarDays(today, startDate);
   const timeElapsedPercentage = Math.max(0, Math.min(100, (elapsedProjectDays / totalProjectDays) * 100));
@@ -160,11 +157,11 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
 
   const chartData = Array.from(chartDataMap.values()).sort((a, b) => a.date - b.date);
 
-  // Trends berechnen (über den gesamten Zeitraum)
+  // Trends berechnen
   const gscTrend = calculateTrendDirection(gscImpressionTrend);
   const aiTrend = calculateTrendDirection(aiTrafficTrend || []);
 
-  // Helper für Trend-Icons
+  // Kleines Helper-Icon für die Trend-Anzeige
   const TrendIcon = ({ direction, colorClass }: { direction: 'up' | 'down' | 'neutral', colorClass: string }) => {
     if (direction === 'up') return <GraphUpArrow className={colorClass} size={14} />;
     if (direction === 'down') return <GraphDownArrow className={colorClass} size={14} />;
@@ -269,20 +266,21 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
           )}
         </div>
 
-        {/* SPALTE 3: Reichweite Chart MIT TRENDPFEILEN UND TEXT */}
+        {/* SPALTE 3: Reichweite Chart */}
         <div className="flex flex-col h-full">
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-2">
                {/* Titel */}
                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  <GraphUpArrow className="text-blue-500" size={18} />
                   Reichweite
                </h3>
                
-               {/* Trend-Anzeige mit Text */}
+               {/* Trend-Anzeige */}
                <div className="flex items-center gap-3 ml-3 bg-gray-50/80 rounded-lg px-2.5 py-1 border border-gray-200/80 shadow-sm" title="Trend seit Projektstart">
                   {/* GSC */}
                   <div className="flex items-center gap-1.5" title="GSC Trend (Impressionen)">
-                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">GSC-Trend</span>
+                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">GSC</span>
                     <TrendIcon direction={gscTrend} colorClass="text-blue-600" />
                   </div>
                   
@@ -290,7 +288,7 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
                   
                   {/* KI */}
                   <div className="flex items-center gap-1.5" title="KI Trend (Sitzungen)">
-                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">KI-Trend</span>
+                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">KI</span>
                     <TrendIcon direction={aiTrend} colorClass="text-purple-600" />
                   </div>
                </div>
@@ -345,6 +343,18 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
                     />
                     <Area type="monotone" dataKey="impressions" name="impressions" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorImpressions)" />
                     <Area type="monotone" dataKey="aiTraffic" name="aiTraffic" stroke="#8b5cf6" strokeWidth={2} fillOpacity={1} fill="url(#colorAi)" />
+                    {/* Reference Line für HEUTE */}
+                    <ReferenceLine 
+                      x={today.getTime()} 
+                      stroke="#f59e0b" 
+                      strokeDasharray="3 3" 
+                      label={{ 
+                        value: 'Heute', 
+                        position: 'top', 
+                        fill: '#f59e0b', 
+                        fontSize: 10 
+                      }} 
+                    />
                   </AreaChart>
                 </ResponsiveContainer>
               ) : (
