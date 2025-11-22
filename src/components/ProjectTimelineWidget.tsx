@@ -11,6 +11,7 @@ import {
   Tooltip,
   CartesianGrid,
   ReferenceLine,
+  Legend,
 } from 'recharts';
 import { 
   CalendarWeek, 
@@ -25,51 +26,31 @@ import {
 import { addMonths, format, differenceInCalendarDays } from 'date-fns';
 import { de } from 'date-fns/locale';
 
+// ... Typen ...
 interface StatusCounts {
-  'Offen': number;
-  'In Prüfung': number;
-  'Gesperrt': number;
-  'Freigegeben': number;
-  'Total': number;
+  'Offen': number; 'In Prüfung': number; 'Gesperrt': number; 'Freigegeben': number; 'Total': number;
 }
-interface GscDataPoint {
-  date: string;
-  value: number;
-}
+interface TrendPoint { date: string; value: number; }
 interface TopMover {
-  url: string;
-  haupt_keyword: string | null;
-  gsc_impressionen: number;
-  gsc_impressionen_change: number;
+  url: string; haupt_keyword: string | null;
+  gsc_impressionen: number; gsc_impressionen_change: number;
 }
 interface TimelineData {
-  project: {
-    startDate: string;
-    durationMonths: number;
-  };
-  progress: {
-    counts: StatusCounts;
-    percentage: number;
-  };
-  gscImpressionTrend: GscDataPoint[];
+  project: { startDate: string; durationMonths: number; };
+  progress: { counts: StatusCounts; percentage: number; };
+  gscImpressionTrend: TrendPoint[];
+  aiTrafficTrend?: TrendPoint[]; // Neu
   topMovers?: TopMover[];
 }
 
-const fetcher = (url: string) => fetch(url).then((res) => {
-  if (!res.ok) {
-    return res.json().then(errorData => {
-      throw new Error(errorData.message || 'Fehler beim Laden der Timeline-Daten.');
-    });
-  }
-  return res.json();
-});
+const fetcher = (url: string) => fetch(url).then(res => res.json());
 
 interface ProjectTimelineWidgetProps {
   projectId?: string;
   domain?: string | null;
 }
 
-export default function ProjectTimelineWidget({ projectId, domain }: ProjectTimelineWidgetProps) {
+export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidgetProps) {
   const apiUrl = projectId 
     ? `/api/project-timeline?projectId=${projectId}` 
     : '/api/project-timeline';
@@ -78,16 +59,15 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
 
   if (isLoading) {
     return (
-      <div className="card-glass p-8 min-h-[300px] flex flex-col items-center justify-center animate-pulse">
+      <div className="card-glass p-8 min-h-[300px] flex items-center justify-center animate-pulse">
         <HourglassSplit size={32} className="text-indigo-300 mb-3" />
-        <p className="text-gray-400 text-sm font-medium">Lade Projekt-Daten...</p>
       </div>
     );
   }
 
   if (error || !data || !data.project) return null;
 
-  const { project, progress, gscImpressionTrend, topMovers } = data;
+  const { project, progress, gscImpressionTrend, aiTrafficTrend, topMovers } = data;
   const { counts, percentage } = progress;
   
   const startDate = project?.startDate ? new Date(project.startDate) : new Date();
@@ -99,10 +79,30 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
   const elapsedProjectDays = differenceInCalendarDays(today, startDate);
   const timeElapsedPercentage = Math.max(0, Math.min(100, (elapsedProjectDays / totalProjectDays) * 100));
   
-  const chartData = (gscImpressionTrend || []).map(d => ({
-    date: new Date(d.date).getTime(), 
-    impressions: d.value,
-  }));
+  // Daten zusammenführen für das Chart
+  // Wir nehmen GSC als Basis und "matchen" die KI-Daten dazu
+  const chartDataMap = new Map<string, { date: number; impressions: number; aiTraffic: number }>();
+  
+  // GSC füllen
+  gscImpressionTrend.forEach(d => {
+    const timestamp = new Date(d.date).getTime();
+    chartDataMap.set(d.date, { date: timestamp, impressions: d.value, aiTraffic: 0 });
+  });
+
+  // KI Daten dazumischen
+  if (aiTrafficTrend) {
+    aiTrafficTrend.forEach(d => {
+      const entry = chartDataMap.get(d.date);
+      if (entry) {
+        entry.aiTraffic = d.value;
+      } else {
+        // Falls es für diesen Tag keine GSC Daten gibt, fügen wir den Tag neu hinzu
+        chartDataMap.set(d.date, { date: new Date(d.date).getTime(), impressions: 0, aiTraffic: d.value });
+      }
+    });
+  }
+
+  const chartData = Array.from(chartDataMap.values()).sort((a, b) => a.date - b.date);
 
   return (
     <div className="card-glass p-6 lg:p-8 print-timeline">
@@ -115,89 +115,53 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
             Projekt-Status
           </h2>
         </div>
-        <div className="mt-2 sm:mt-0 flex gap-3">
+        <div className="mt-2 sm:mt-0">
            <div className="px-3 py-1 bg-indigo-50/80 text-indigo-700 rounded-full text-xs font-semibold border border-indigo-100/50 backdrop-blur-sm">
              Laufzeit: {duration} Monate
            </div>
         </div>
       </div>
 
-      {/* === GRID LAYOUT: 3 SPALTEN === */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-full">
         
-        {/* SPALTE 1: Zeitachse & Fortschritt */}
+        {/* SPALTE 1: Zeit & Status */}
         <div className="flex flex-col gap-8 border-b lg:border-b-0 lg:border-r border-gray-100 pb-6 lg:pb-0 lg:pr-6">
-          
-          {/* 1. Zeitachse */}
+          {/* Zeitachse */}
           <div className="space-y-3">
             <div className="flex justify-between items-end mb-2">
-              <div className="flex items-center gap-2 text-lg font-semibold text-gray-900"> {/* KORREKTUR: text-lg */}
-                <CalendarWeek className="text-indigo-500" size={20} /> {/* Icon leicht vergrößert auf 20 */}
+              <div className="flex items-center gap-2 text-lg font-semibold text-gray-900">
+                <CalendarWeek className="text-indigo-500" size={20} />
                 <h3>Zeitachse</h3>
               </div>
-              <span className="text-sm font-medium text-gray-500">
-                {Math.round(timeElapsedPercentage)}% vergangen
-              </span>
+              <span className="text-sm font-medium text-gray-500">{Math.round(timeElapsedPercentage)}% vergangen</span>
             </div>
-
             <div className="relative h-10 w-full bg-gray-100/80 rounded-lg border border-gray-200/60 overflow-hidden">
-              <div 
-                className="absolute top-0 left-0 h-full bg-indigo-200 border-r-2 border-indigo-500 transition-all duration-1000"
-                style={{ width: `${timeElapsedPercentage}%` }}
-              />
+              <div className="absolute top-0 left-0 h-full bg-indigo-200 border-r-2 border-indigo-500 transition-all duration-1000" style={{ width: `${timeElapsedPercentage}%` }} />
               <div className="absolute inset-0 flex justify-between items-center px-4 text-xs font-medium text-gray-500 pointer-events-none">
-                <div className="flex flex-col items-start z-10">
-                  <span className="text-[10px] uppercase tracking-wider text-gray-500">Start</span>
-                  <span className="text-gray-800">{format(startDate, 'dd.MM.yyyy')}</span>
-                </div>
-                
-                {timeElapsedPercentage > 5 && timeElapsedPercentage < 95 && (
-                   <div className="flex flex-col items-center z-10" style={{ position: 'absolute', left: `${timeElapsedPercentage}%`, transform: 'translateX(-50%)' }}>
-                      <div className="bg-indigo-600 text-white text-[9px] px-1.5 py-0.5 rounded-full mb-0.5 shadow-sm">
-                        Heute
-                      </div>
-                   </div>
-                )}
-
-                <div className="flex flex-col items-end z-10">
-                  <span className="text-[10px] uppercase tracking-wider text-gray-400">Ende</span>
-                  <span className="text-gray-500">{format(endDate, 'dd.MM.yyyy')}</span>
-                </div>
+                <div className="flex flex-col items-start z-10"><span className="text-[10px] uppercase tracking-wider text-gray-500">Start</span><span className="text-gray-800">{format(startDate, 'dd.MM.yyyy')}</span></div>
+                <div className="flex flex-col items-end z-10"><span className="text-[10px] uppercase tracking-wider text-gray-400">Ende</span><span className="text-gray-500">{format(endDate, 'dd.MM.yyyy')}</span></div>
               </div>
             </div>
           </div>
 
-          {/* 2. Projektfortschritt */}
+          {/* Status */}
           <div className="space-y-3">
             <div className="flex justify-between items-end mb-2">
-              <div className="flex items-center gap-2 text-lg font-semibold text-gray-900"> {/* KORREKTUR: text-lg */}
-                <ListCheck className="text-green-600" size={22} /> {/* Icon leicht vergrößert auf 22 */}
+              <div className="flex items-center gap-2 text-lg font-semibold text-gray-900">
+                <ListCheck className="text-green-600" size={22} />
                 <h3>Landingpages Status</h3>
               </div>
-              <div className="flex items-baseline gap-1">
-                <span className="text-2xl font-bold text-gray-900">{Math.round(percentage)}%</span>
-                <span className="text-sm text-gray-500 font-medium">fertig</span>
-              </div>
+              <div className="flex items-baseline gap-1"><span className="text-2xl font-bold text-gray-900">{Math.round(percentage)}%</span><span className="text-sm text-gray-500 font-medium">fertig</span></div>
             </div>
-
             <div className="h-6 w-full bg-gray-100/80 rounded-full overflow-hidden flex shadow-inner border border-gray-200/60">
               {counts.Total > 0 ? (
                 <>
-                  <div className="bg-green-500 h-full hover:bg-green-600 relative group" style={{ width: `${(counts.Freigegeben / counts.Total) * 100}%` }}>
-                    <span className="opacity-0 group-hover:opacity-100 absolute top-0 left-1/2 -translate-x-1/2 text-[10px] text-white font-bold pt-1 transition-opacity">{counts.Freigegeben}</span>
-                  </div>
-                  <div className="bg-amber-400 h-full hover:bg-amber-500 relative group" style={{ width: `${(counts['In Prüfung'] / counts.Total) * 100}%` }}>
-                     <span className="opacity-0 group-hover:opacity-100 absolute top-0 left-1/2 -translate-x-1/2 text-[10px] text-white font-bold pt-1 transition-opacity">{counts['In Prüfung']}</span>
-                  </div>
-                  <div className="bg-red-400 h-full hover:bg-red-500 relative group" style={{ width: `${(counts.Gesperrt / counts.Total) * 100}%` }}>
-                     <span className="opacity-0 group-hover:opacity-100 absolute top-0 left-1/2 -translate-x-1/2 text-[10px] text-white font-bold pt-1 transition-opacity">{counts.Gesperrt}</span>
-                  </div>
+                  <div className="bg-green-500 h-full" style={{ width: `${(counts.Freigegeben / counts.Total) * 100}%` }} />
+                  <div className="bg-amber-400 h-full" style={{ width: `${(counts['In Prüfung'] / counts.Total) * 100}%` }} />
+                  <div className="bg-red-400 h-full" style={{ width: `${(counts.Gesperrt / counts.Total) * 100}%` }} />
                 </>
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-xs text-gray-400 bg-gray-50">Keine Daten</div>
-              )}
+              ) : (<div className="w-full h-full flex items-center justify-center text-xs text-gray-400">Keine Daten</div>)}
             </div>
-
             <div className="flex flex-wrap gap-3 mt-2 text-[11px] text-gray-500 justify-between">
               <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500"></span>Freig.: {counts.Freigegeben}</div>
               <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400"></span>Prüf.: {counts['In Prüfung']}</div>
@@ -205,58 +169,51 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
               <div className="flex items-center gap-1 font-medium text-gray-700"><BoxSeam size={10} />Ges: {counts.Total}</div>
             </div>
           </div>
-
         </div>
 
-        {/* SPALTE 2: Top Movers (GSC) */}
+        {/* SPALTE 2: Top Movers */}
         <div className="flex flex-col h-full border-b lg:border-b-0 lg:border-r border-gray-100 pb-6 lg:pb-0 lg:px-6">
           <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2 text-lg font-semibold text-gray-900"> {/* KORREKTUR: text-lg */}
+            <div className="flex items-center gap-2 text-lg font-semibold text-gray-900">
               <Trophy className="text-amber-500" size={20} />
               <h3>Top-Performer (GSC)</h3>
             </div>
-            <span className="text-[10px] px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full">
-              Trend (90T)
-            </span>
+            <span className="text-[10px] px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full">90 Tage</span>
           </div>
-
           {topMovers && topMovers.length > 0 ? (
-            <div className="flex-grow overflow-hidden">
-              <div className="space-y-2">
-                {topMovers.map((page, index) => (
-                  <div key={index} className="bg-gray-50/50 rounded-lg border border-gray-100 p-3 hover:shadow-sm transition-all flex items-center justify-between group">
-                    <div className="min-w-0 flex-1 pr-3">
-                      <div className="font-medium text-sm text-gray-900 truncate" title={page.haupt_keyword || page.url}>
-                        {page.haupt_keyword || <span className="text-gray-400 italic">Kein Keyword</span>}
-                      </div>
-                      <div className="text-[10px] text-gray-400 truncate mt-0.5">{new URL(page.url).pathname}</div>
+            <div className="flex-grow overflow-hidden space-y-2">
+              {topMovers.map((page, index) => (
+                <div key={index} className="bg-gray-50/50 rounded-lg border border-gray-100 p-3 hover:shadow-sm transition-all flex items-center justify-between">
+                  <div className="min-w-0 flex-1 pr-3">
+                    <div className="font-medium text-sm text-gray-900 truncate" title={page.haupt_keyword || page.url}>
+                      {page.haupt_keyword || <span className="text-gray-400 italic">Kein Keyword</span>}
                     </div>
-                    <div className="flex flex-col items-end flex-shrink-0">
-                      <div className="flex items-center gap-1 text-green-600 font-bold text-xs bg-white px-1.5 py-0.5 rounded border border-green-100 shadow-sm">
-                        <ArrowUp size={10} />
-                        {page.gsc_impressionen_change > 1000 
-                          ? (page.gsc_impressionen_change / 1000).toFixed(1) + 'k' 
-                          : page.gsc_impressionen_change}
-                      </div>
-                    </div>
+                    <div className="text-[10px] text-gray-400 truncate mt-0.5">{new URL(page.url).pathname}</div>
                   </div>
-                ))}
-              </div>
+                  <div className="flex items-center gap-1 text-green-600 font-bold text-xs bg-white px-1.5 py-0.5 rounded border border-green-100 shadow-sm">
+                    <ArrowUp size={10} />
+                    {page.gsc_impressionen_change > 1000 ? (page.gsc_impressionen_change / 1000).toFixed(1) + 'k' : page.gsc_impressionen_change}
+                  </div>
+                </div>
+              ))}
             </div>
           ) : (
-            <div className="flex-grow flex items-center justify-center text-gray-400 text-xs italic border border-dashed border-gray-200 rounded-lg bg-gray-50">
-              Keine Trend-Daten verfügbar
-            </div>
+            <div className="flex-grow flex items-center justify-center text-gray-400 text-xs italic border border-dashed border-gray-200 rounded-lg bg-gray-50">Keine Daten</div>
           )}
         </div>
 
-        {/* SPALTE 3: Reichweite Chart */}
+        {/* SPALTE 3: Chart (GSC + AI) */}
         <div className="flex flex-col h-full">
           <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2"> {/* KORREKTUR: text-lg und text-gray-900 */}
+            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
               <GraphUpArrow className="text-blue-500" size={18} />
-              Reichweitenentwicklung seit Projektstart
+              Reichweite
             </h3>
+            {/* Kleine Legende */}
+            <div className="flex gap-3 text-[10px]">
+               <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500"></span> GSC</div>
+               <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-purple-500"></span> KI</div>
+            </div>
           </div>
 
           <div className="bg-gray-50/50 rounded-xl border border-gray-200/60 p-4 h-full min-h-[200px] flex flex-col shadow-inner backdrop-blur-sm">
@@ -269,19 +226,23 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
                         <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
                         <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
                       </linearGradient>
+                      <linearGradient id="colorAi" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
+                      </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
                     <XAxis
                       dataKey="date"
-                      tickFormatter={(timestamp) => format(new Date(timestamp), 'd.MM', { locale: de })}
-                      domain={[startDate.getTime(), endDate.getTime()]}
+                      tickFormatter={(t) => format(new Date(t), 'd.MM', { locale: de })}
                       type="number"
+                      domain={['auto', 'auto']}
                       tick={{ fontSize: 9, fill: '#6b7280' }}
                       tickMargin={5}
                       minTickGap={30}
                     />
                     <YAxis 
-                      tickFormatter={(value) => new Intl.NumberFormat('de-DE', { notation: 'compact' }).format(value)}
+                      tickFormatter={(v) => new Intl.NumberFormat('de-DE', { notation: 'compact' }).format(v)}
                       tick={{ fontSize: 9, fill: '#6b7280' }}
                       width={35}
                       axisLine={false}
@@ -289,10 +250,14 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
                     />
                     <Tooltip 
                       contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: '12px', backgroundColor: 'rgba(255,255,255,0.95)' }}
-                      labelFormatter={(v) => format(new Date(v), 'd. MMM', { locale: de })}
-                      formatter={(value: number) => [new Intl.NumberFormat('de-DE').format(value), 'Impressionen']}
+                      labelFormatter={(v) => format(new Date(v), 'd. MMM yyyy', { locale: de })}
+                      formatter={(value: number, name: string) => [
+                        new Intl.NumberFormat('de-DE').format(value), 
+                        name === 'impressions' ? 'GSC Impressionen' : 'KI Sitzungen'
+                      ]}
                     />
-                    <Area type="monotone" dataKey="impressions" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorImpressions)" />
+                    <Area type="monotone" dataKey="impressions" name="impressions" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorImpressions)" />
+                    <Area type="monotone" dataKey="aiTraffic" name="aiTraffic" stroke="#8b5cf6" strokeWidth={2} fillOpacity={1} fill="url(#colorAi)" />
                     <ReferenceLine x={today.getTime()} stroke="#f59e0b" strokeDasharray="3 3" />
                   </AreaChart>
                 </ResponsiveContainer>
