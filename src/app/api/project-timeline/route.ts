@@ -173,7 +173,23 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 6. Erfolgreiche Antwort
+    // 6. Top 5 Landingpages (GSC Gewinner) laden
+    // Wir sortieren nach dem absoluten Zuwachs an Impressionen (gsc_impressionen_change)
+    const { rows: topMoversRows } = await sql`
+      SELECT 
+        url,
+        haupt_keyword,
+        gsc_impressionen,
+        gsc_impressionen_change
+      FROM landingpages
+      WHERE user_id::text = ${userId}
+        AND gsc_impressionen_change IS NOT NULL
+        AND gsc_impressionen_change > 0
+      ORDER BY gsc_impressionen_change DESC
+      LIMIT 5
+    `;
+
+    // 7. Erfolgreiche Antwort
     const response = {
       project: {
         startDate: user.project_start_date,
@@ -183,7 +199,8 @@ export async function GET(request: NextRequest) {
         counts,
         percentage
       },
-      gscImpressionTrend
+      gscImpressionTrend,
+      topMovers: topMoversRows // Neue Daten
     };
 
     console.log('[project-timeline] ✅ Timeline-Daten erfolgreich geladen');
