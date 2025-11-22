@@ -10,7 +10,6 @@ import {
   YAxis,
   Tooltip,
   CartesianGrid,
-  ReferenceLine,
   Legend,
 } from 'recharts';
 import { 
@@ -26,24 +25,45 @@ import {
 import { addMonths, format, differenceInCalendarDays } from 'date-fns';
 import { de } from 'date-fns/locale';
 
-// ... Typen ...
 interface StatusCounts {
-  'Offen': number; 'In Prüfung': number; 'Gesperrt': number; 'Freigegeben': number; 'Total': number;
+  'Offen': number;
+  'In Prüfung': number;
+  'Gesperrt': number;
+  'Freigegeben': number;
+  'Total': number;
 }
-interface TrendPoint { date: string; value: number; }
+interface TrendPoint {
+  date: string;
+  value: number;
+}
 interface TopMover {
-  url: string; haupt_keyword: string | null;
-  gsc_impressionen: number; gsc_impressionen_change: number;
+  url: string;
+  haupt_keyword: string | null;
+  gsc_impressionen: number;
+  gsc_impressionen_change: number;
 }
 interface TimelineData {
-  project: { startDate: string; durationMonths: number; };
-  progress: { counts: StatusCounts; percentage: number; };
+  project: {
+    startDate: string;
+    durationMonths: number;
+  };
+  progress: {
+    counts: StatusCounts;
+    percentage: number;
+  };
   gscImpressionTrend: TrendPoint[];
-  aiTrafficTrend?: TrendPoint[]; // Neu
+  aiTrafficTrend?: TrendPoint[];
   topMovers?: TopMover[];
 }
 
-const fetcher = (url: string) => fetch(url).then(res => res.json());
+const fetcher = (url: string) => fetch(url).then((res) => {
+  if (!res.ok) {
+    return res.json().then(errorData => {
+      throw new Error(errorData.message || 'Fehler beim Laden der Timeline-Daten.');
+    });
+  }
+  return res.json();
+});
 
 interface ProjectTimelineWidgetProps {
   projectId?: string;
@@ -79,24 +99,20 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
   const elapsedProjectDays = differenceInCalendarDays(today, startDate);
   const timeElapsedPercentage = Math.max(0, Math.min(100, (elapsedProjectDays / totalProjectDays) * 100));
   
-  // Daten zusammenführen für das Chart
-  // Wir nehmen GSC als Basis und "matchen" die KI-Daten dazu
+  // Daten zusammenführen
   const chartDataMap = new Map<string, { date: number; impressions: number; aiTraffic: number }>();
   
-  // GSC füllen
   gscImpressionTrend.forEach(d => {
     const timestamp = new Date(d.date).getTime();
     chartDataMap.set(d.date, { date: timestamp, impressions: d.value, aiTraffic: 0 });
   });
 
-  // KI Daten dazumischen
   if (aiTrafficTrend) {
     aiTrafficTrend.forEach(d => {
       const entry = chartDataMap.get(d.date);
       if (entry) {
         entry.aiTraffic = d.value;
       } else {
-        // Falls es für diesen Tag keine GSC Daten gibt, fügen wir den Tag neu hinzu
         chartDataMap.set(d.date, { date: new Date(d.date).getTime(), impressions: 0, aiTraffic: d.value });
       }
     });
@@ -236,7 +252,8 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
                       dataKey="date"
                       tickFormatter={(t) => format(new Date(t), 'd.MM', { locale: de })}
                       type="number"
-                      domain={['auto', 'auto']}
+                      // FIX: Achse startet am Projektstart und endet automatisch beim letzten Datenpunkt
+                      domain={[startDate.getTime(), 'auto']}
                       tick={{ fontSize: 9, fill: '#6b7280' }}
                       tickMargin={5}
                       minTickGap={30}
@@ -258,7 +275,6 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
                     />
                     <Area type="monotone" dataKey="impressions" name="impressions" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorImpressions)" />
                     <Area type="monotone" dataKey="aiTraffic" name="aiTraffic" stroke="#8b5cf6" strokeWidth={2} fillOpacity={1} fill="url(#colorAi)" />
-                    <ReferenceLine x={today.getTime()} stroke="#f59e0b" strokeDasharray="3 3" />
                   </AreaChart>
                 </ResponsiveContainer>
               ) : (
