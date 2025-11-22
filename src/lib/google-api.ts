@@ -47,11 +47,7 @@ export interface AiTrafficData {
 
 // --- Authentifizierung ---
 
-/**
- * Erstellt den Authentifizierungs-Client für die Google APIs
- */
 function createAuth(): JWT {
-  // Option 1: Komplettes JSON in GOOGLE_CREDENTIALS
   if (process.env.GOOGLE_CREDENTIALS) {
     try {
       const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
@@ -69,7 +65,6 @@ function createAuth(): JWT {
     }
   }
 
-  // Option 2: Separate Environment Variables
   const privateKeyBase64 = process.env.GOOGLE_PRIVATE_KEY_BASE64;
   const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
 
@@ -80,7 +75,6 @@ function createAuth(): JWT {
   }
 
   try {
-    // Base64 zu normalem String dekodieren
     const privateKey = Buffer.from(privateKeyBase64, 'base64').toString('utf-8');
 
     return new JWT({
@@ -98,35 +92,25 @@ function createAuth(): JWT {
   }
 }
 
-// --- NEUE FUNKTION: Google Sheet Daten lesen ---
-
+// --- Sheet API ---
 export async function getGoogleSheetData(sheetId: string): Promise<any[]> {
   const auth = createAuth();
   const sheets = google.sheets({ version: 'v4', auth });
 
   try {
-    // Wir holen daten vom ersten Tabellenblatt (Standard)
-    // Range A1:Z2000 deckt die meisten Redaktionspläne ab
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: sheetId,
       range: 'A1:Z2000', 
     });
 
     const rows = response.data.values;
+    if (!rows || rows.length === 0) return [];
 
-    if (!rows || rows.length === 0) {
-      return [];
-    }
-
-    // Die erste Zeile sind die Header (Spaltennamen)
     const headers = rows[0];
-    
-    // Wir mappen die restlichen Zeilen auf Objekte basierend auf den Headern
     const data = rows.slice(1).map(row => {
       const obj: Record<string, string> = {};
       headers.forEach((header, index) => {
         const key = header?.trim();
-        // Wenn die Zeile kürzer ist als die Header, ist der Wert undefined -> leerer String
         const val = row[index] ? row[index].toString().trim() : '';
         if (key) {
           obj[key] = val;
@@ -136,21 +120,13 @@ export async function getGoogleSheetData(sheetId: string): Promise<any[]> {
     });
 
     return data;
-
   } catch (error: unknown) {
     console.error('[Sheets API] Fehler:', error);
-    throw new Error('Konnte Google Sheet nicht lesen. Stellen Sie sicher, dass die Service-Account-Email Lesezugriff auf das Sheet hat.');
+    throw new Error('Konnte Google Sheet nicht lesen.');
   }
 }
 
 // --- Hilfsfunktionen ---
-
-function formatDateForChart(dateStr: string): string {
-  if (!dateStr || dateStr.length !== 8) return dateStr;
-  const day = dateStr.substring(6, 8);
-  const month = dateStr.substring(4, 6);
-  return `${day}.${month}`;
-}
 
 function formatDateToISO(dateStr: string): string {
   if (!dateStr || dateStr.length !== 8) return dateStr;
@@ -162,32 +138,19 @@ function formatDateToISO(dateStr: string): string {
 
 function isAiSource(source: string): boolean {
   if (!source) return false;
-  
   const aiPatterns = [
-    'chatgpt', 'gpt', 'openai',
-    'claude', 'anthropic',
-    'bard', 'gemini',
-    'perplexity',
-    'bing chat', 'copilot',
-    'gptbot', 'claudebot',
-    'google-extended', 
-    'cohere-ai',
-    'ai2bot',
-    'you.com', 'neeva',
-    'phind', 'metaphor',
-    'notion ai', 'jasper',
-    'copy.ai', 'writesonic',
+    'chatgpt', 'gpt', 'openai', 'claude', 'anthropic', 'bard', 'gemini',
+    'perplexity', 'bing chat', 'copilot', 'gptbot', 'claudebot', 'google-extended', 
+    'cohere-ai', 'ai2bot', 'you.com', 'neeva', 'phind', 'metaphor',
+    'notion ai', 'jasper', 'copy.ai', 'writesonic',
   ];
-
   const sourceLower = source.toLowerCase();
   return aiPatterns.some(pattern => sourceLower.includes(pattern));
 }
 
 function cleanAiSourceName(source: string): string {
   if (!source) return 'Unbekannt';
-  
   const sourceLower = source.toLowerCase();
-  
   if (sourceLower.includes('chatgpt') || sourceLower.includes('gptbot')) return 'ChatGPT';
   if (sourceLower.includes('claude')) return 'Claude AI';
   if (sourceLower.includes('bard') || sourceLower.includes('gemini')) return 'Google Gemini';
@@ -197,6 +160,11 @@ function cleanAiSourceName(source: string): string {
   
   const parts = source.split('/')[0].split('?')[0];
   return parts.length > 30 ? parts.substring(0, 27) + '...' : parts;
+}
+
+// ✅ WICHTIG: Hilfsfunktion für Regex-Escaping (damit URLs im Regex funktionieren)
+function escapeRegExp(string: string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 // --- API-Funktionen ---
@@ -252,9 +220,7 @@ export async function getSearchConsoleData(
     };
   } catch (error: unknown) {
     console.error('[GSC] Fehler beim Abrufen der Daten:', error);
-    console.error('[GSC] Request Details:', { siteUrl, startDate, endDate });
-    const errorMessage = error instanceof Error ? error.message : 'Unbekannter API-Fehler';
-    throw new Error(`Fehler bei Google Search Console API: ${errorMessage}`);
+    throw new Error(`Fehler bei Google Search Console API`);
   }
 }
 
@@ -275,7 +241,7 @@ export async function getTopQueries(
         dimensions: ["query"],
         type: "web",
         aggregationType: "byProperty",
-        rowLimit: 100, // ✅ KORRIGIERT: Von 10 auf 100 erhöht
+        rowLimit: 100,
       },
     });
 
@@ -293,97 +259,6 @@ export async function getTopQueries(
   }
 }
 
-export async function getGa4OverviewData(
-  propertyId: string,
-  startDate: string,
-  endDate: string
-): Promise<{
-  totalSessions: number;
-  totalUsers: number;
-  avgSessionDuration: number;
-  bounceRate: number;
-}> {
-  const formattedPropertyId = propertyId.startsWith('properties/')
-    ? propertyId
-    : `properties/${propertyId}`;
-
-  const auth = createAuth();
-  const analytics = google.analyticsdata({ version: 'v1beta', auth });
-
-  try {
-    const response = await analytics.properties.runReport({
-      property: formattedPropertyId,
-      requestBody: {
-        dateRanges: [{ startDate, endDate }],
-        metrics: [
-          { name: 'sessions' },
-          { name: 'totalUsers' },
-          { name: 'averageSessionDuration' },
-          { name: 'bounceRate' },
-        ],
-      },
-    });
-
-    const row = response.data.rows?.[0];
-    if (!row) {
-      return {
-        totalSessions: 0,
-        totalUsers: 0,
-        avgSessionDuration: 0,
-        bounceRate: 0,
-      };
-    }
-
-    return {
-      totalSessions: parseInt(row.metricValues?.[0]?.value || '0', 10),
-      totalUsers: parseInt(row.metricValues?.[1]?.value || '0', 10),
-      avgSessionDuration: parseFloat(row.metricValues?.[2]?.value || '0'),
-      bounceRate: parseFloat(row.metricValues?.[3]?.value || '0') * 100,
-    };
-  } catch (error: unknown) {
-    console.error('[GA4] Fehler beim Abrufen der Übersichtsdaten:', error);
-    return {
-      totalSessions: 0,
-      totalUsers: 0,
-      avgSessionDuration: 0,
-      bounceRate: 0,
-    };
-  }
-}
-
-export async function getGa4TrafficTrend(
-  propertyId: string,
-  startDate: string,
-  endDate: string
-): Promise<Array<{ date: string; sessions: number }>> {
-  const formattedPropertyId = propertyId.startsWith('properties/')
-    ? propertyId
-    : `properties/${propertyId}`;
-  const auth = createAuth();
-  const analytics = google.analyticsdata({ version: 'v1beta', auth });
-
-  try {
-    const response = await analytics.properties.runReport({
-      property: formattedPropertyId,
-      requestBody: {
-        dateRanges: [{ startDate, endDate }],
-        dimensions: [{ name: 'date' }],
-        metrics: [{ name: 'sessions' }],
-        orderBys: [{ dimension: { dimensionName: 'date' }, desc: false }],
-      },
-    });
-
-    const rows = response.data.rows || [];
-    return rows.map((row) => ({
-      date: formatDateToISO(row.dimensionValues?.[0]?.value || ''),
-      sessions: parseInt(row.metricValues?.[0]?.value || '0', 10),
-    }));
-  } catch (error: unknown) {
-    console.error('[GA4] Fehler beim Abrufen des Traffic-Trends:', error);
-    return [];
-  }
-}
-
 export async function getAnalyticsData(
   propertyId: string,
   startDate: string,
@@ -392,9 +267,7 @@ export async function getAnalyticsData(
   sessions: { total: number; daily: Array<{ date: string; value: number }> };
   totalUsers: { total: number; daily: Array<{ date: string; value: number }> };
 }> {
-  const formattedPropertyId = propertyId.startsWith('properties/')
-    ? propertyId
-    : `properties/${propertyId}`;
+  const formattedPropertyId = propertyId.startsWith('properties/') ? propertyId : `properties/${propertyId}`;
   const auth = createAuth();
   const analytics = google.analyticsdata({ version: 'v1beta', auth });
 
@@ -404,10 +277,7 @@ export async function getAnalyticsData(
       requestBody: {
         dateRanges: [{ startDate, endDate }],
         dimensions: [{ name: 'date' }],
-        metrics: [
-          { name: 'sessions' },
-          { name: 'totalUsers' }
-        ],
+        metrics: [{ name: 'sessions' }, { name: 'totalUsers' }],
         orderBys: [{ dimension: { dimensionName: 'date' }, desc: false }],
       },
     });
@@ -431,21 +301,12 @@ export async function getAnalyticsData(
     }
 
     return {
-      sessions: {
-        total: totalSessions,
-        daily: sessionsDaily,
-      },
-      totalUsers: {
-        total: totalUsers,
-        daily: usersDaily,
-      },
+      sessions: { total: totalSessions, daily: sessionsDaily },
+      totalUsers: { total: totalUsers, daily: usersDaily },
     };
   } catch (error: unknown) {
-    console.error('[GA4] Fehler beim Abrufen der Analytics-Daten:', error);
-    return {
-      sessions: { total: 0, daily: [] },
-      totalUsers: { total: 0, daily: [] },
-    };
+    console.error('[GA4] Fehler:', error);
+    return { sessions: { total: 0, daily: [] }, totalUsers: { total: 0, daily: [] } };
   }
 }
 
@@ -454,9 +315,7 @@ export async function getAiTrafficData(
   startDate: string,
   endDate: string
 ): Promise<AiTrafficData> {
-  const formattedPropertyId = propertyId.startsWith('properties/')
-    ? propertyId
-    : `properties/${propertyId}`;
+  const formattedPropertyId = propertyId.startsWith('properties/') ? propertyId : `properties/${propertyId}`;
   const auth = createAuth();
   const analytics = google.analyticsdata({ version: 'v1beta', auth });
 
@@ -466,38 +325,19 @@ export async function getAiTrafficData(
         property: formattedPropertyId,
         requestBody: {
           dateRanges: [{ startDate, endDate }],
-          dimensions: [
-            { name: 'sessionSource' },
-            { name: 'sessionMedium' },
-          ],
-          metrics: [
-            { name: 'sessions' },
-            { name: 'totalUsers' },
-          ],
-          orderBys: [{ 
-            metric: { metricName: 'sessions' }, 
-            desc: true 
-          }],
+          dimensions: [{ name: 'sessionSource' }, { name: 'sessionMedium' }],
+          metrics: [{ name: 'sessions' }, { name: 'totalUsers' }],
+          orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
           limit: '1000',
         },
       }),
-
       analytics.properties.runReport({
         property: formattedPropertyId,
         requestBody: {
           dateRanges: [{ startDate, endDate }],
-          dimensions: [
-            { name: 'date' },
-            { name: 'sessionSource' },
-            { name: 'sessionMedium' },
-          ],
-          metrics: [
-            { name: 'sessions' },
-          ],
-          orderBys: [{ 
-            dimension: { dimensionName: 'date' }, 
-            desc: false 
-          }],
+          dimensions: [{ name: 'date' }, { name: 'sessionSource' }, { name: 'sessionMedium' }],
+          metrics: [{ name: 'sessions' }],
+          orderBys: [{ dimension: { dimensionName: 'date' }, desc: false }],
           limit: '10000',
         },
       }),
@@ -505,9 +345,6 @@ export async function getAiTrafficData(
 
     const sourceRows = sourceResponse.data.rows || [];
     const trendRows = trendResponse.data.rows || [];
-
-    console.log('[AI-Traffic] Quellen-Zeilen:', sourceRows.length);
-    console.log('[AI-Traffic] Trend-Zeilen:', trendRows.length);
 
     let totalSessions = 0;
     let totalUsers = 0;
@@ -519,22 +356,18 @@ export async function getAiTrafficData(
       const medium = row.dimensionValues?.[1]?.value || '';
       const sessions = parseInt(row.metricValues?.[0]?.value || '0', 10);
       const users = parseInt(row.metricValues?.[1]?.value || '0', 10);
-
       const fullSource = `${source}${medium ? `/${medium}` : ''}`;
       
       if (isAiSource(fullSource) || isAiSource(source)) {
         const cleanName = cleanAiSourceName(source);
-        
         totalSessions += sessions;
         totalUsers += users;
-        
         sessionsBySource[cleanName] = (sessionsBySource[cleanName] || 0) + sessions;
         usersBySource[cleanName] = (usersBySource[cleanName] || 0) + users;
       }
     }
 
     const trendMap: { [date: string]: number } = {};
-
     for (const row of trendRows) {
       const rawDate = row.dimensionValues?.[0]?.value || '';
       const source = row.dimensionValues?.[1]?.value || '';
@@ -559,29 +392,13 @@ export async function getAiTrafficData(
       .slice(0, 5);
 
     const trend = Object.entries(trendMap)
-      .map(([date, sessions]) => ({
-        date: date,
-        sessions: sessions,
-      }))
+      .map(([date, sessions]) => ({ date, sessions }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
-    return {
-      totalSessions,
-      totalUsers,
-      sessionsBySource,
-      topAiSources,
-      trend,
-    };
+    return { totalSessions, totalUsers, sessionsBySource, topAiSources, trend };
 
-  } catch (error: unknown) {
-    console.error('[AI-Traffic] Fehler beim Abrufen:', error);
-    return {
-      totalSessions: 0,
-      totalUsers: 0,
-      sessionsBySource: {},
-      topAiSources: [],
-      trend: [],
-    };
+  } catch (error) {
+    return { totalSessions: 0, totalUsers: 0, sessionsBySource: {}, topAiSources: [], trend: [] };
   }
 }
 
@@ -591,10 +408,7 @@ export async function getGa4DimensionReport(
   endDate: string,
   dimensionName: 'country' | 'sessionDefaultChannelGroup' | 'deviceCategory'
 ): Promise<Array<{ name: string; value: number }>> {
-  
-  const formattedPropertyId = propertyId.startsWith('properties/')
-    ? propertyId
-    : `properties/${propertyId}`;
+  const formattedPropertyId = propertyId.startsWith('properties/') ? propertyId : `properties/${propertyId}`;
   const auth = createAuth();
   const analytics = google.analyticsdata({ version: 'v1beta', auth });
   
@@ -605,10 +419,7 @@ export async function getGa4DimensionReport(
         dateRanges: [{ startDate, endDate }],
         dimensions: [{ name: dimensionName }],
         metrics: [{ name: 'sessions' }],
-        orderBys: [{
-          metric: { metricName: 'sessions' },
-          desc: true,
-        }],
+        orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
         limit: '10',
       },
     });
@@ -625,22 +436,18 @@ export async function getGa4DimensionReport(
     if (results.length > 6) {
       const top5 = results.slice(0, 5);
       const otherValue = results.slice(5).reduce((acc, curr) => acc + curr.value, 0);
-      
       if (otherValue > 0) {
-        return [
-          ...top5,
-          { name: 'Sonstige', value: otherValue }
-        ];
+        return [...top5, { name: 'Sonstige', value: otherValue }];
       }
       return top5;
     }
-    
     return results;
-  } catch (error: unknown) {
-    console.error(`[GA4] Fehler beim Abrufen des ${dimensionName}-Reports:`, error);
+  } catch (error) {
     return [];
   }
 }
+
+// --- GSC Page Data ---
 
 export interface GscPageData {
   clicks: number;
@@ -654,6 +461,7 @@ export interface GscPageData {
   position_change: number;
 }
 
+// ✅ KORRIGIERTE FUNKTION: Nutzt Batching und Regex für korrekte "ODER"-Abfragen
 async function queryGscDataForPages(
   siteUrl: string,
   startDate: string,
@@ -667,47 +475,62 @@ async function queryGscDataForPages(
 
   const auth = createAuth();
   const searchconsole = google.searchconsole({ version: 'v1', auth });
+  const resultMap = new Map<string, { clicks: number; impressions: number; position: number }>();
 
-  try {
-    const response = await searchconsole.searchanalytics.query({
-      siteUrl,
-      requestBody: {
-        startDate,
-        endDate,
-        dimensions: ['page'],
-        type: 'web',
-        aggregationType: 'byPage',
-        dimensionFilterGroups: [
-          {
-            filters: pageUrls.map(pageUrl => ({
-              dimension: 'page',
-              operator: 'equals',
-              expression: pageUrl
-            }))
-          }
-        ],
-        rowLimit: Math.min(pageUrls.length, 5000)
-      },
-    });
-
-    const rows = response.data.rows || [];
-    const resultMap = new Map<string, { clicks: number; impressions: number; position: number }>();
-
-    for (const row of rows) {
-      const page = row.keys?.[0];
-      if (page) {
-        resultMap.set(page, {
-          clicks: row.clicks || 0,
-          impressions: row.impressions || 0,
-          position: row.position || 0 
-        });
-      }
-    }
-    return resultMap;
-  } catch (error: unknown) {
-    console.error(`[GSC] Fehler beim Abrufen der Page-Daten (${startDate} - ${endDate}):`, error);
-    return new Map();
+  // Wir teilen die URLs in Batches auf, um Regex-Längenlimits zu vermeiden
+  // ca. 25 URLs pro Request ist ein sicherer Wert
+  const batchSize = 25;
+  const chunks = [];
+  for (let i = 0; i < pageUrls.length; i += batchSize) {
+    chunks.push(pageUrls.slice(i, i + batchSize));
   }
+
+  for (const chunk of chunks) {
+    // Regex bauen: ^(url1|url2|...)$ für exakte Übereinstimmung einer der URLs
+    const regexPattern = chunk.map(url => `^${escapeRegExp(url)}$`).join('|');
+
+    try {
+      const response = await searchconsole.searchanalytics.query({
+        siteUrl,
+        requestBody: {
+          startDate,
+          endDate,
+          dimensions: ['page'],
+          type: 'web',
+          aggregationType: 'byPage',
+          dimensionFilterGroups: [
+            {
+              filters: [
+                {
+                  dimension: 'page',
+                  operator: 'includingRegex', // WICHTIG: Regex statt 'equals'
+                  expression: regexPattern
+                }
+              ]
+            }
+          ],
+          rowLimit: 25000
+        },
+      });
+
+      const rows = response.data.rows || [];
+      for (const row of rows) {
+        const page = row.keys?.[0];
+        if (page) {
+          resultMap.set(page, {
+            clicks: row.clicks || 0,
+            impressions: row.impressions || 0,
+            position: row.position || 0 
+          });
+        }
+      }
+    } catch (error: unknown) {
+      console.error(`[GSC] Fehler beim Abrufen eines Batches (${startDate} - ${endDate}):`, error);
+      // Wir fahren mit dem nächsten Batch fort, anstatt alles abzubrechen
+    }
+  }
+
+  return resultMap;
 }
 
 export async function getGscDataForPagesWithComparison(
@@ -717,6 +540,7 @@ export async function getGscDataForPagesWithComparison(
   previousRange: { startDate: string, endDate: string }
 ): Promise<Map<string, GscPageData>> {
   
+  // Parallele Abfrage für aktuellen und vorherigen Zeitraum
   const [currentDataMap, previousDataMap] = await Promise.all([
     queryGscDataForPages(siteUrl, currentRange.startDate, currentRange.endDate, pageUrls),
     queryGscDataForPages(siteUrl, previousRange.startDate, previousRange.endDate, pageUrls)
