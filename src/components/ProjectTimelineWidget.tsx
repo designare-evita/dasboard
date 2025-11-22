@@ -16,14 +16,14 @@ import {
   CalendarWeek, 
   ClockHistory, 
   GraphUpArrow, 
-  GraphDownArrow, // Neu importiert
+  GraphDownArrow,
   HourglassSplit,
   ListCheck,
   BoxSeam,
   Trophy,
   ArrowUp,
-  ArrowDown, // Neu importiert
-  Dash // Für neutralen Trend
+  ArrowDown,
+  Dash
 } from 'react-bootstrap-icons';
 import { addMonths, format, differenceInCalendarDays } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -68,18 +68,40 @@ const fetcher = (url: string) => fetch(url).then((res) => {
   return res.json();
 });
 
-// Hilfsfunktion zur Trendberechnung (Vergleich der letzten 7 Tage mit den 7 Tagen davor)
+// Hilfsfunktion zur Trendberechnung über den GESAMTEN Zeitraum (Lineare Regression)
 function calculateTrendDirection(data: TrendPoint[]): 'up' | 'down' | 'neutral' {
-  if (!data || data.length < 14) return 'neutral'; // Nicht genug Daten für einen validen Trend
+  // Wir brauchen mindestens 2 Punkte für einen Trend
+  if (!data || data.length < 2) return 'neutral';
 
-  const last7Days = data.slice(-7);
-  const prev7Days = data.slice(-14, -7);
+  // Berechnung der Steigung (Slope) mittels linearer Regression (Least Squares)
+  // x = Zeitindex (0, 1, 2...), y = Wert
+  let sumX = 0;
+  let sumY = 0;
+  let sumXY = 0;
+  let sumXX = 0;
+  const n = data.length;
 
-  const sumLast = last7Days.reduce((acc, cur) => acc + cur.value, 0);
-  const sumPrev = prev7Days.reduce((acc, cur) => acc + cur.value, 0);
+  for (let i = 0; i < n; i++) {
+    const x = i;
+    const y = data[i].value;
+    
+    sumX += x;
+    sumY += y;
+    sumXY += x * y;
+    sumXX += x * x;
+  }
 
-  if (sumLast > sumPrev) return 'up';
-  if (sumLast < sumPrev) return 'down';
+  const denominator = (n * sumXX - sumX * sumX);
+  if (denominator === 0) return 'neutral'; // Sollte theoretisch nicht passieren bei n >= 2 und unterschiedlichen x
+
+  const slope = (n * sumXY - sumX * sumY) / denominator;
+
+  // Interpretation der Steigung
+  // Wir können hier einen kleinen Schwellenwert nutzen, um "flache" Trends als neutral zu werten, 
+  // aber > 0 ist mathematisch korrekt für "aufwärts".
+  if (slope > 0.01) return 'up';
+  if (slope < -0.01) return 'down';
+  
   return 'neutral';
 }
 
@@ -138,15 +160,15 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
 
   const chartData = Array.from(chartDataMap.values()).sort((a, b) => a.date - b.date);
 
-  // Trends berechnen
+  // Trends berechnen (über den gesamten Zeitraum)
   const gscTrend = calculateTrendDirection(gscImpressionTrend);
   const aiTrend = calculateTrendDirection(aiTrafficTrend || []);
 
   // Helper für Trend-Icons
   const TrendIcon = ({ direction, colorClass }: { direction: 'up' | 'down' | 'neutral', colorClass: string }) => {
-    if (direction === 'up') return <GraphUpArrow className={colorClass} size={16} />;
-    if (direction === 'down') return <GraphDownArrow className={colorClass} size={16} />;
-    return <Dash className="text-gray-400" size={16} />;
+    if (direction === 'up') return <GraphUpArrow className={colorClass} size={14} />;
+    if (direction === 'down') return <GraphDownArrow className={colorClass} size={14} />;
+    return <Dash className="text-gray-400" size={14} />;
   };
 
   return (
@@ -247,7 +269,7 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
           )}
         </div>
 
-        {/* SPALTE 3: Reichweite Chart MIT TRENDPFEILEN */}
+        {/* SPALTE 3: Reichweite Chart MIT TRENDPFEILEN UND TEXT */}
         <div className="flex flex-col h-full">
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -255,13 +277,20 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                   Reichweite
                </h3>
-               {/* Trend Pfeile */}
-               <div className="flex items-center gap-1 ml-2 bg-gray-100 rounded-md px-1.5 py-0.5 border border-gray-200" title="Trend letzte 7 Tage">
-                  <div className="flex items-center" title="GSC Trend">
+               
+               {/* Trend-Anzeige mit Text */}
+               <div className="flex items-center gap-3 ml-3 bg-gray-50/80 rounded-lg px-2.5 py-1 border border-gray-200/80 shadow-sm" title="Trend seit Projektstart">
+                  {/* GSC */}
+                  <div className="flex items-center gap-1.5" title="GSC Trend (Impressionen)">
+                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">GSC-Trend</span>
                     <TrendIcon direction={gscTrend} colorClass="text-blue-600" />
                   </div>
-                  <span className="text-gray-300 text-xs">|</span>
-                  <div className="flex items-center" title="KI Trend">
+                  
+                  <div className="h-3 w-px bg-gray-300"></div>
+                  
+                  {/* KI */}
+                  <div className="flex items-center gap-1.5" title="KI Trend (Sitzungen)">
+                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">KI-Trend</span>
                     <TrendIcon direction={aiTrend} colorClass="text-purple-600" />
                   </div>
                </div>
