@@ -131,9 +131,9 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
           {/* 1. Zeitachse */}
           <div className="space-y-3">
             <div className="flex justify-between items-end mb-2">
-              <div className="flex items-center gap-2 text-gray-700 font-semibold">
-                <CalendarWeek className="text-indigo-500" size={18} />
-                <span>Zeitachse</span>
+              <div className="flex items-center gap-2 text-lg font-semibold text-gray-900"> {/* KORREKTUR: text-lg */}
+                <CalendarWeek className="text-indigo-500" size={20} /> {/* Icon leicht vergrößert auf 20 */}
+                <h3>Zeitachse</h3>
               </div>
               <span className="text-sm font-medium text-gray-500">
                 {Math.round(timeElapsedPercentage)}% vergangen
@@ -170,9 +170,9 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
           {/* 2. Projektfortschritt */}
           <div className="space-y-3">
             <div className="flex justify-between items-end mb-2">
-              <div className="flex items-center gap-2 text-gray-700 font-semibold">
-                <ListCheck className="text-green-600" size={20} />
-                <span>Landingpages Status</span>
+              <div className="flex items-center gap-2 text-lg font-semibold text-gray-900"> {/* KORREKTUR: text-lg */}
+                <ListCheck className="text-green-600" size={22} /> {/* Icon leicht vergrößert auf 22 */}
+                <h3>Landingpages Status</h3>
               </div>
               <div className="flex items-baseline gap-1">
                 <span className="text-2xl font-bold text-gray-900">{Math.round(percentage)}%</span>
@@ -211,9 +211,9 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
         {/* SPALTE 2: Top Movers (GSC) */}
         <div className="flex flex-col h-full border-b lg:border-b-0 lg:border-r border-gray-100 pb-6 lg:pb-0 lg:px-6">
           <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2 text-gray-700 font-semibold">
-              <Trophy className="text-amber-500" size={18} />
-              <span>Top-Performer (GSC)</span>
+            <div className="flex items-center gap-2 text-lg font-semibold text-gray-900"> {/* KORREKTUR: text-lg */}
+              <Trophy className="text-amber-500" size={20} />
+              <h3>Top-Performer (GSC)</h3>
             </div>
             <span className="text-[10px] px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full">
               Trend (90T)
@@ -253,9 +253,9 @@ export default function ProjectTimelineWidget({ projectId, domain }: ProjectTime
         {/* SPALTE 3: Reichweite Chart */}
         <div className="flex flex-col h-full">
           <div className="mb-4 flex items-center justify-between">
-            <h3 className="font-semibold text-gray-800 flex items-center gap-2">
-              <GraphUpArrow className="text-blue-500" size={16} />
-              Reichweite
+            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2"> {/* KORREKTUR: text-lg und text-gray-900 */}
+              <GraphUpArrow className="text-blue-500" size={18} />
+              Reichweitenentwicklung seit Projektstart
             </h3>
           </div>
 
