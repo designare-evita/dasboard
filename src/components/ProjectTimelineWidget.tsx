@@ -90,11 +90,13 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
   const { project, progress, gscImpressionTrend, aiTrafficTrend, topMovers } = data;
   const { counts, percentage } = progress;
   
+  // Projekt-Zeitraum berechnen
   const startDate = project?.startDate ? new Date(project.startDate) : new Date();
   const duration = project?.durationMonths || 6;
   const endDate = addMonths(startDate, duration);
-  const today = new Date();
   
+  // Fortschrittsberechnung
+  const today = new Date();
   const totalProjectDays = Math.max(1, differenceInCalendarDays(endDate, startDate)); 
   const elapsedProjectDays = differenceInCalendarDays(today, startDate);
   const timeElapsedPercentage = Math.max(0, Math.min(100, (elapsedProjectDays / totalProjectDays) * 100));
@@ -252,8 +254,8 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
                       dataKey="date"
                       tickFormatter={(t) => format(new Date(t), 'd.MM', { locale: de })}
                       type="number"
-                      // FIX: Achse startet am Projektstart und endet automatisch beim letzten Datenpunkt
-                      domain={[startDate.getTime(), 'auto']}
+                      // ✅ KORREKTUR: Domain fix auf Start- und Enddatum des Projekts gesetzt
+                      domain={[startDate.getTime(), endDate.getTime()]}
                       tick={{ fontSize: 9, fill: '#6b7280' }}
                       tickMargin={5}
                       minTickGap={30}
