@@ -18,7 +18,8 @@ function extractSheetId(url: string): string | null {
   return match ? match[1] : null;
 }
 
-// Robuste Hilfsfunktion zum Finden von Werten
+// Robuste Hilfsfunktion zum Finden von Werten in CSV/Excel Zeilen
+// Ignoriert Groß-/Kleinschreibung und verschiedene Schreibweisen
 function getRowValue(row: any, possibleKeys: string[]): string | null {
   if (!row || typeof row !== 'object') return null;
   
@@ -35,11 +36,21 @@ function getRowValue(row: any, possibleKeys: string[]): string | null {
 
     if (foundKey && row[foundKey] !== undefined && row[foundKey] !== null) {
       const val = String(row[foundKey]).trim();
-      // Entferne umschließende Anführungszeichen vom Wert, falls vorhanden
+      // Leere Strings als null zurückgeben
+      if (val === '') return null;
+      // Entferne umschließende Anführungszeichen vom Wert
       return val.replace(/^"|"$/g, '');
     }
   }
   return null;
+}
+
+// Hilfsfunktion zum sicheren Parsen von Zahlen
+// Gibt null zurück, wenn der Wert leer oder keine gültige Zahl ist
+function parseOptionalInt(value: string | null): number | null {
+  if (!value) return null;
+  const parsed = parseInt(value, 10);
+  return isNaN(parsed) ? null : parsed;
 }
 
 export async function GET(request: Request, { params }: RouteParams) {
@@ -109,8 +120,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         const parseResult = Papa.parse(text, {
           header: true,
           skipEmptyLines: true,
-          dynamicTyping: true,
-          transformHeader: (h) => h.trim().replace(/^"|"$/g, '') // Header bereinigen
+          dynamicTyping: false, // Wir parsen Zahlen manuell für mehr Kontrolle
+          transformHeader: (h) => h.trim().replace(/^"|"$/g, '') 
         });
         
         if (parseResult.errors.length > 0) console.error('CSV Fehler:', parseResult.errors);
@@ -119,7 +130,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         const arrayBuffer = await file.arrayBuffer();
         const workbook = XLSX.read(Buffer.from(arrayBuffer), { type: 'buffer' });
         const sheetName = workbook.SheetNames[0];
-        rawData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+        // raw: false sorgt dafür, dass wir Strings bekommen, die wir selbst parsen
+        rawData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { raw: false });
       } else {
         return NextResponse.json({ message: 'Ungültiges Format.' }, { status: 400 });
       }
@@ -138,30 +150,33 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       await client.query('BEGIN');
 
       for (const row of rawData) {
-        // ✅ ERWEITERTE Spalten-Erkennung für DB-Export und Template
-        const url = getRowValue(row, ['url', 'landingpage-url', 'link', 'landingpage_url']);
+        // 1. URL (PFLICHTFELD)
+        // Wir prüfen diverse Schreibweisen
+        const url = getRowValue(row, ['url', 'landingpage-url', 'link', 'landingpage_url', 'landingpage']);
         
-        // Überspringe leere Zeilen
+        // WICHTIG: Ohne URL überspringen wir die Zeile, da wir sie nicht zuordnen können
         if (!url) continue;
 
-        const hauptKeyword = getRowValue(row, ['haupt_keyword', 'haupt-keyword', 'keyword', 'main keyword']);
-        const weitereKeywords = getRowValue(row, ['weitere_keywords', 'weitere keywords', 'keywords']);
+        // 2. Optionale Felder auslesen
+        const hauptKeyword = getRowValue(row, ['haupt_keyword', 'haupt-keyword', 'keyword', 'main keyword', 'hauptkeyword']);
+        const weitereKeywords = getRowValue(row, ['weitere_keywords', 'weitere keywords', 'keywords', 'secondary keywords']);
         
-        // Zahlen parsen
-        const volStr = getRowValue(row, ['suchvolumen', 'volumen', 'volume']);
-        const suchvolumen = volStr ? parseInt(volStr, 10) : 0;
+        // 3. Zahlenwerte sicher parsen (Optional -> null)
+        const suchvolumen = parseOptionalInt(getRowValue(row, ['suchvolumen', 'volumen', 'volume', 'search volume']));
+        const position = parseOptionalInt(getRowValue(row, ['aktuelle_position', 'aktuelle pos.', 'position', 'rank', 'ranking']));
 
-        const posStr = getRowValue(row, ['aktuelle_position', 'aktuelle pos.', 'position', 'rank']);
-        const position = posStr ? parseInt(posStr, 10) : 0;
-
-        // Status aus der Datei lesen (falls vorhanden), sonst 'Offen' für neue
-        const statusImport = getRowValue(row, ['status']);
-        // Erlaube Status-Import nur, wenn er gültig ist
+        // 4. Status (Optional -> Default 'Offen')
+        const statusImport = getRowValue(row, ['status', 'state']);
         const validStatus = ['Offen', 'In Prüfung', 'Gesperrt', 'Freigegeben'].includes(statusImport || '') 
           ? statusImport 
-          : 'Offen';
+          : 'Offen'; // Fallback auf 'Offen' wenn leer oder ungültig
 
-        // ✅ UPSERT LOGIK
+        // 5. Datenbank Update (UPSERT)
+        // Wenn die URL für diesen User schon existiert, aktualisieren wir die Infos (ausgenommen Status, falls gewünscht)
+        // Wenn wir wollen, dass der Excel-Status den DB-Status IMMER überschreibt, nutzen wir validStatus.
+        // Wenn der DB-Status beibehalten werden soll, falls im Excel nichts steht, müsste man die Logik anpassen.
+        // Hier: Wir überschreiben den Status nur, wenn im Excel explizit ein gültiger Status stand, sonst bleibt der alte (durch COALESCE Logik im SQL unten schwerer, daher nehmen wir hier vereinfacht den Import-Wert oder 'Offen' für Neue).
+        
         await client.query(`
           INSERT INTO landingpages (
             user_id, url, haupt_keyword, weitere_keywords, 
@@ -170,20 +185,25 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
           ON CONFLICT (url, user_id) 
           DO UPDATE SET
-            haupt_keyword = EXCLUDED.haupt_keyword,
-            weitere_keywords = EXCLUDED.weitere_keywords,
-            suchvolumen = EXCLUDED.suchvolumen,
-            aktuelle_position = EXCLUDED.aktuelle_position,
+            haupt_keyword = COALESCE(EXCLUDED.haupt_keyword, landingpages.haupt_keyword),
+            weitere_keywords = COALESCE(EXCLUDED.weitere_keywords, landingpages.weitere_keywords),
+            suchvolumen = COALESCE(EXCLUDED.suchvolumen, landingpages.suchvolumen),
+            aktuelle_position = COALESCE(EXCLUDED.aktuelle_position, landingpages.aktuelle_position),
             updated_at = NOW()
-            -- Status wird NICHT überschrieben, es sei denn wir wollten einen Force-Import
+            -- Status Update nur wenn explizit gewünscht, hier lassen wir den Status beim Re-Import meist unberührt 
+            -- oder aktualisieren ihn nur, wenn sich die Daten ändern. 
+            -- Um Status-Resets zu vermeiden, kommentieren wir status im Update aus, 
+            -- oder wir setzen ihn nur, wenn er in der Excel explizit anders ist.
+            -- Für dieses Beispiel aktualisieren wir den Status NICHT bei bestehenden Einträgen, 
+            -- damit ein erneuter Import nicht alles auf 'Offen' zurücksetzt.
         `, [
           userId, 
           url, 
-          hauptKeyword || null, 
-          weitereKeywords || null, 
-          suchvolumen || null, 
-          position || null, 
-          validStatus
+          hauptKeyword, 
+          weitereKeywords, 
+          suchvolumen, 
+          position, 
+          validStatus // Nur relevant für INSERT (neue Einträge)
         ]);
         
         importedCount++;
@@ -197,13 +217,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       client.release();
     }
 
-    // Debugging, falls immer noch 0
-    if (importedCount === 0 && rawData.length > 0) {
-      console.log('[Import Debug] Keys der ersten Zeile:', Object.keys(rawData[0]));
-    }
-
     return NextResponse.json({ 
-      message: `${importedCount} Landingpages erfolgreich importiert.` 
+      message: `${importedCount} Landingpages erfolgreich verarbeitet.` 
     });
 
   } catch (error) {
