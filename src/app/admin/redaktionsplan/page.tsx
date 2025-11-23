@@ -3,7 +3,7 @@
 
 import { useState, useEffect, ReactNode, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation'; // ✅ NEU: useSearchParams
 import type { User } from '@/types';
 import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector';
 import { cn } from '@/lib/utils'; 
@@ -58,7 +58,6 @@ const GscChangeIndicator = ({ change, isPosition = false }: { change: number | s
   const numChange = (change === null || change === undefined || change === '') ? 0 : parseFloat(String(change));
   if (numChange === 0) return null;
   
-  // Bei Position ist negativ gut (Platz 10 -> 5 = -5), sonst ist positiv gut
   let isPositive = isPosition ? numChange < 0 : numChange > 0;
   
   let text = isPosition 
@@ -84,9 +83,16 @@ const formatDateOnly = (dateString?: string | null) => {
 export default function RedaktionsplanPage() {
   const { data: session, status: authStatus } = useSession();
   const router = useRouter();
+  
+  // ✅ NEU: Parameter auslesen
+  const searchParams = useSearchParams();
+  const initialProjectId = searchParams.get('id');
 
   const [projects, setProjects] = useState<User[]>([]);
-  const [selectedProject, setSelectedProject] = useState<string>('');
+  
+  // ✅ FIX: State mit URL-Parameter initialisieren
+  const [selectedProject, setSelectedProject] = useState<string>(initialProjectId || '');
+  
   const [landingpages, setLandingpages] = useState<Landingpage[]>([]);
   const [filteredPages, setFilteredPages] = useState<Landingpage[]>([]);
   const [filterStatus, setFilterStatus] = useState<LandingpageStatus | 'alle'>('alle');
@@ -159,7 +165,6 @@ export default function RedaktionsplanPage() {
 
   const saveComment = async (landingpageId: number, newComment: string) => {
     try {
-      // Optimistisches Update
       setLandingpages(prev => prev.map(lp => lp.id === landingpageId ? { ...lp, comment: newComment } : lp));
       
       const response = await fetch(`/api/landingpages/${landingpageId}`, {
@@ -236,7 +241,6 @@ export default function RedaktionsplanPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
-      {/* Container auf max-w-full erweitert */}
       <div className="max-w-full mx-auto"> 
         <div className="mb-8 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
           <div>
@@ -252,7 +256,6 @@ export default function RedaktionsplanPage() {
           </div>
         )}
 
-        {/* Projekt-Auswahl */}
         <div className="bg-white p-6 rounded-lg shadow-md mb-6">
           <label htmlFor="projectSelect" className="block text-sm font-semibold text-gray-700 mb-2">Projekt auswählen</label>
           <select
@@ -303,13 +306,11 @@ export default function RedaktionsplanPage() {
                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[20%]">URL / Keyword</th>
                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><div className="flex items-center gap-1"><CalendarEvent/> Daten</div></th>
                        
-                       {/* GSC Spalten separat & gestapelt */}
                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">GSC Klicks</th>
                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">GSC Impr.</th>
                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">GSC Pos.</th>
                        
                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                       {/* Anmerkung: Breite 35% */}
                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[35%]">
                          <div className="flex items-center gap-1"><ChatSquareText/> Anmerkung</div>
                        </th>
@@ -319,19 +320,16 @@ export default function RedaktionsplanPage() {
                    <tbody className="bg-white divide-y divide-gray-200">
                      {filteredPages.map((lp) => (
                        <tr key={lp.id} className="hover:bg-gray-50 transition-colors">
-                         {/* 1. URL & Keyword */}
                          <td className="px-6 py-4 whitespace-nowrap align-top">
                            <div className="text-sm font-medium text-gray-900 truncate" title={lp.haupt_keyword || undefined}>{lp.haupt_keyword || <span className="text-gray-400 italic">Kein Keyword</span>}</div>
                            <a href={lp.url} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-800 text-xs truncate block" title={lp.url}>{lp.url}</a>
                          </td>
                          
-                         {/* 2. Daten */}
                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 align-top">
                            <div className="text-xs">Erstellt: {formatDateOnly(lp.created_at)}</div>
                            <div className="text-xs">Update: {formatDateOnly(lp.updated_at)}</div>
                          </td>
 
-                         {/* 3. GSC Klicks */}
                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right align-top">
                            <div className="flex flex-col items-end gap-1">
                              <span className="font-medium text-gray-900">{lp.gsc_klicks?.toLocaleString('de-DE') || '-'}</span>
@@ -339,7 +337,6 @@ export default function RedaktionsplanPage() {
                            </div>
                          </td>
 
-                         {/* 4. GSC Impressionen */}
                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right align-top">
                            <div className="flex flex-col items-end gap-1">
                              <span className="font-medium text-gray-900">{lp.gsc_impressionen?.toLocaleString('de-DE') || '-'}</span>
@@ -347,7 +344,6 @@ export default function RedaktionsplanPage() {
                            </div>
                          </td>
 
-                         {/* 5. GSC Position */}
                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right align-top">
                            <div className="flex flex-col items-end gap-1">
                              <span className="font-medium text-gray-900">{lp.gsc_position ? parseFloat(String(lp.gsc_position)).toFixed(2) : '-'}</span>
@@ -355,12 +351,10 @@ export default function RedaktionsplanPage() {
                            </div>
                          </td>
 
-                         {/* 6. Status */}
                          <td className="px-6 py-4 whitespace-nowrap align-top">
                            <span className={`px-2.5 py-0.5 text-xs font-medium rounded-full border ${getStatusStyle(lp.status)}`}>{getStatusIcon(lp.status)} {lp.status}</span>
                          </td>
 
-                         {/* 7. Anmerkung (Groß) */}
                          <td className="px-6 py-4 align-top">
                             <textarea
                               className="w-full text-sm p-2 border border-gray-300 rounded focus:ring-indigo-500 focus:border-indigo-500 resize-y"
@@ -375,7 +369,6 @@ export default function RedaktionsplanPage() {
                             />
                          </td>
 
-                         {/* 8. Aktionen (Admin: Alle Buttons beibehalten) */}
                          <td className="px-6 py-4 whitespace-nowrap align-top">
                            <div className="flex flex-wrap gap-1 w-32">
                              {(['Offen', 'In Prüfung', 'Freigegeben', 'Gesperrt'] as LandingpageStatus[]).map(status => (
