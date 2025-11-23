@@ -31,6 +31,7 @@ export interface Landingpage {
   status: 'Offen' | 'In Prüfung' | 'Gesperrt' | 'Freigegeben';
   haupt_keyword?: string;
   weitere_keywords?: string;
+  comment?: string | null; // ✅ NEU: Kommentarfeld
   gsc_klicks: number | null;
   gsc_klicks_change: number | null;
   gsc_impressionen: number | null;
