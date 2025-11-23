@@ -52,6 +52,7 @@ type Landingpage = {
 type LandingpageStatus = Landingpage['status'];
 
 // Helper für GSC Indicators (Grüne/Rote Zahlen)
+// KORREKTUR: ml-2 entfernt, da jetzt untereinander
 const GscChangeIndicator = ({ change, isPosition = false }: { change: number | string | null | undefined, isPosition?: boolean }) => {
   const numChange = (change === null || change === undefined || change === '') ? 0 : parseFloat(String(change));
   if (numChange === 0) return null;
@@ -67,8 +68,8 @@ const GscChangeIndicator = ({ change, isPosition = false }: { change: number | s
   const Icon = isPositive ? ArrowUp : ArrowDown;
 
   return (
-    <span className={cn('ml-2 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-bold', colorClasses)}>
-      <Icon size={10} />
+    <span className={cn('inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-[4px] text-[10px] font-bold tracking-wide', colorClasses)}>
+      <Icon size={9} />
       {text}
     </span>
   );
@@ -213,7 +214,6 @@ export default function FreigabePage() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
-      {/* Breite angepasst für mehr Spalten */}
       <div className="max-w-[1600px] mx-auto"> 
         
         <div className="mb-8 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
@@ -260,20 +260,19 @@ export default function FreigabePage() {
           </div>
         ) : (
           <div className="bg-white rounded-lg shadow-md overflow-x-auto">
-            {/* Tabelle exakt wie im Admin-Bereich aufgebaut */}
-            <table className="w-full min-w-[1400px]">
+            <table className="w-full min-w-[1200px]">
                <thead className="bg-gray-50 border-b border-gray-200">
                  <tr>
                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[20%]">URL / Keyword</th>
                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><div className="flex items-center gap-1"><CalendarEvent/> Daten</div></th>
                    
-                   {/* Getrennte GSC Spalten für Platz für Indikatoren */}
+                   {/* Getrennte GSC Spalten */}
                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">GSC Klicks</th>
                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">GSC Impr.</th>
                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">GSC Pos.</th>
                    
                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[20%]">
+                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[25%]">
                      <div className="flex items-center gap-1"><ChatSquareText/> Anmerkung</div>
                    </th>
                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aktionen</th>
@@ -294,26 +293,26 @@ export default function FreigabePage() {
                        <div className="text-xs">Update: {formatDateOnly(lp.updated_at)}</div>
                      </td>
 
-                     {/* 3. GSC Klicks */}
+                     {/* 3. GSC Klicks - GESTAPELT */}
                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right align-top">
-                       <div className="flex items-center justify-end">
-                         <span>{lp.gsc_klicks?.toLocaleString('de-DE') || '-'}</span>
+                       <div className="flex flex-col items-end gap-1">
+                         <span className="font-medium text-gray-900">{lp.gsc_klicks?.toLocaleString('de-DE') || '-'}</span>
                          <GscChangeIndicator change={lp.gsc_klicks_change} />
                        </div>
                      </td>
 
-                     {/* 4. GSC Impressionen */}
+                     {/* 4. GSC Impressionen - GESTAPELT */}
                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right align-top">
-                       <div className="flex items-center justify-end">
-                         <span>{lp.gsc_impressionen?.toLocaleString('de-DE') || '-'}</span>
+                       <div className="flex flex-col items-end gap-1">
+                         <span className="font-medium text-gray-900">{lp.gsc_impressionen?.toLocaleString('de-DE') || '-'}</span>
                          <GscChangeIndicator change={lp.gsc_impressionen_change} />
                        </div>
                      </td>
 
-                     {/* 5. GSC Position */}
+                     {/* 5. GSC Position - GESTAPELT */}
                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right align-top">
-                       <div className="flex items-center justify-end">
-                         <span>{lp.gsc_position ? parseFloat(String(lp.gsc_position)).toFixed(2) : '-'}</span>
+                       <div className="flex flex-col items-end gap-1">
+                         <span className="font-medium text-gray-900">{lp.gsc_position ? parseFloat(String(lp.gsc_position)).toFixed(2) : '-'}</span>
                          <GscChangeIndicator change={lp.gsc_position_change} isPosition={true} />
                        </div>
                      </td>
