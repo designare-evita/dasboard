@@ -1,6 +1,5 @@
 // src/types/index.ts
 
-// Definiert die Struktur eines Benutzer-Objekts, wie es in der Datenbank gespeichert wird.
 export interface User {
   id: string;
   email: string;
@@ -17,7 +16,8 @@ export interface User {
   
   // Admin & Ersteller
   createdByAdminId?: string;
-  creator_email?: string; // ✅ NEU: E-Mail des Admins/Erstellers
+  creator_email?: string;
+  assigned_admins?: string; // ✅ NEU: Liste aller zugewiesenen Admins
   
   createdAt: Date;
   semrush_organic_keywords?: number;
@@ -28,14 +28,15 @@ export interface User {
   project_duration_months?: number | null;
   project_timeline_active?: boolean | null;
 
-  // ✅ NEU: Landingpage Statistiken
-  landingpages_count?: number;      // Gesamtanzahl
-  landingpages_offen?: number;      // Anzahl Status 'Offen'
-  landingpages_in_pruefung?: number;// Anzahl Status 'In Prüfung'
-  landingpages_freigegeben?: number;// Anzahl Status 'Freigegeben'
-  landingpages_gesperrt?: number;   // Anzahl Status 'Gesperrt'
+  // Landingpage Statistiken
+  landingpages_count?: number;
+  landingpages_offen?: number;
+  landingpages_in_pruefung?: number;
+  landingpages_freigegeben?: number;
+  landingpages_gesperrt?: number;
 }
 
+// Der Rest bleibt gleich...
 export interface Landingpage {
   id: number;
   url: string;
@@ -57,19 +58,10 @@ export interface Landingpage {
 
 export type LandingpageStatus = Landingpage['status'];
 
-// Re-export dashboard types
 export type {
-  KPI,
-  KpiDatum,
-  ChartPoint,
-  ChartData,
-  TopQueryData,
-  ActiveKpi,
-  KpiMetadata
+  KPI, KpiDatum, ChartPoint, ChartData, TopQueryData, ActiveKpi, KpiMetadata
 } from './dashboard';
 
-// Re-export ai-traffic types
 export type {
-  AiTrafficData,
-  AiTrafficCardProps
+  AiTrafficData, AiTrafficCardProps
 } from './ai-traffic';
