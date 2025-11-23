@@ -23,17 +23,17 @@ import {
   ArrowDown,
   CalendarEvent, 
   ClockHistory,
-  ChatSquareText // Icon für Kommentare
+  ChatSquareText
 } from 'react-bootstrap-icons';
 
-// Typdefinition (identisch zum Admin)
+// Typdefinition
 type Landingpage = {
   id: number;
   url: string;
   haupt_keyword: string | null;
   weitere_keywords: string | null;
   status: 'Offen' | 'In Prüfung' | 'Gesperrt' | 'Freigegeben';
-  comment: string | null; // Anmerkung
+  comment: string | null; 
   user_id: string;
   created_at: string;
   updated_at?: string;
@@ -51,18 +51,29 @@ type Landingpage = {
 
 type LandingpageStatus = Landingpage['status'];
 
-// Helper für GSC Indicators
+// Helper für GSC Indicators (Grüne/Rote Zahlen)
 const GscChangeIndicator = ({ change, isPosition = false }: { change: number | string | null | undefined, isPosition?: boolean }) => {
   const numChange = (change === null || change === undefined || change === '') ? 0 : parseFloat(String(change));
   if (numChange === 0) return null;
+  
+  // Bei Position ist negativ gut (Platz 10 -> 5 = -5), sonst ist positiv gut
   let isPositive = isPosition ? numChange < 0 : numChange > 0;
-  let text = isPosition ? (numChange > 0 ? `+${numChange.toFixed(2)}` : numChange.toFixed(2)) : (numChange > 0 ? `+${numChange.toLocaleString('de-DE')}` : numChange.toLocaleString('de-DE'));
+  
+  let text = isPosition 
+    ? (numChange > 0 ? `+${numChange.toFixed(2)}` : numChange.toFixed(2)) 
+    : (numChange > 0 ? `+${numChange.toLocaleString('de-DE')}` : numChange.toLocaleString('de-DE'));
+  
   const colorClasses = isPositive ? 'text-green-700 bg-green-100' : 'text-red-700 bg-red-100';
   const Icon = isPositive ? ArrowUp : ArrowDown;
-  return <span className={cn('ml-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-bold', colorClasses)}><Icon size={12} />{text}</span>;
+
+  return (
+    <span className={cn('ml-2 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-bold', colorClasses)}>
+      <Icon size={10} />
+      {text}
+    </span>
+  );
 };
 
-// Datums-Helper
 const formatDateOnly = (dateString?: string | null) => {
   if (!dateString) return '-';
   return new Date(dateString).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -109,7 +120,7 @@ export default function FreigabePage() {
     setFilteredPages(filterStatus === 'alle' ? landingpages : landingpages.filter(lp => lp.status === filterStatus));
   }, [filterStatus, landingpages]);
 
-  // Status ändern (Nur Freigeben / Sperren)
+  // Status ändern
   const updateStatus = async (landingpageId: number, newStatus: 'Freigegeben' | 'Gesperrt') => {
     const now = new Date().toISOString();
     const originalLandingpages = [...landingpages];
@@ -131,7 +142,7 @@ export default function FreigabePage() {
     }
   };
 
-  // Kommentar speichern (Kunde darf kommentieren)
+  // Kommentar speichern
   const saveComment = async (landingpageId: number, newComment: string) => {
     try {
       setLandingpages(prev => prev.map(lp => lp.id === landingpageId ? { ...lp, comment: newComment } : lp));
@@ -168,7 +179,7 @@ export default function FreigabePage() {
     }
   };
 
-  // Styles & Icons
+  // UI Helpers
   const getStatusStyle = (status: LandingpageStatus) => {
     switch (status) {
       case 'Offen': return 'text-blue-700 border-blue-300 bg-blue-50';
@@ -202,17 +213,16 @@ export default function FreigabePage() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-full mx-auto">
+      {/* Breite angepasst für mehr Spalten */}
+      <div className="max-w-[1600px] mx-auto"> 
         
-        {/* Header */}
         <div className="mb-8 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Landingpages Freigabe</h1>
-            <p className="text-gray-600 mt-2">Geben Sie hier Landingpages frei, sperren Sie diese oder hinterlassen Sie Anmerkungen.</p>
+            <p className="text-gray-600 mt-2">Verwalten Sie den Status Ihrer Landingpages.</p>
           </div>
         </div>
 
-        {/* Message Box */}
         {message && (
           <div className={`mb-6 p-4 border rounded-md flex items-center gap-2 ${message.startsWith('Fehler') ? 'bg-red-50 border-red-200 text-red-800' : 'bg-blue-50 border-blue-200 text-blue-800'}`}>
             {message.startsWith('Fehler') ? <ExclamationTriangleFill size={18}/> : <InfoCircleFill size={18}/>}
@@ -220,7 +230,6 @@ export default function FreigabePage() {
           </div>
         )}
 
-        {/* GSC Abgleich */}
         <div className="bg-white p-6 rounded-lg shadow-md mb-6">
           <h3 className="text-lg font-semibold text-gray-800 mb-4">GSC-Daten Abgleich</h3>
           <div className="flex flex-col sm:flex-row gap-4">
@@ -232,7 +241,6 @@ export default function FreigabePage() {
           </div>
         </div>
 
-        {/* Filter */}
         <div className="bg-white p-4 rounded-lg shadow-md mb-6">
            <h3 className="text-sm font-semibold text-gray-500 mb-3 flex items-center gap-1"><Filter size={16}/> Filtern nach Status</h3>
            <div className="flex gap-2 flex-wrap">
@@ -244,7 +252,6 @@ export default function FreigabePage() {
           </div>
         </div>
 
-        {/* Tabelle */}
         {isLoading ? (
           <div className="text-center py-12"><ArrowRepeat className="animate-spin inline-block text-indigo-600 mr-2" size={24}/><p className="text-gray-600 inline-block">Lade Landingpages...</p></div>
         ) : filteredPages.length === 0 ? (
@@ -253,15 +260,20 @@ export default function FreigabePage() {
           </div>
         ) : (
           <div className="bg-white rounded-lg shadow-md overflow-x-auto">
-            <table className="w-full min-w-[1200px]">
+            {/* Tabelle exakt wie im Admin-Bereich aufgebaut */}
+            <table className="w-full min-w-[1400px]">
                <thead className="bg-gray-50 border-b border-gray-200">
                  <tr>
-                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/5">URL / Keyword</th>
+                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[20%]">URL / Keyword</th>
                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><div className="flex items-center gap-1"><CalendarEvent/> Daten</div></th>
-                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">GSC Stats</th>
+                   
+                   {/* Getrennte GSC Spalten für Platz für Indikatoren */}
+                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">GSC Klicks</th>
+                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">GSC Impr.</th>
+                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">GSC Pos.</th>
+                   
                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                   {/* Spalte für Anmerkung */}
-                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/4">
+                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[20%]">
                      <div className="flex items-center gap-1"><ChatSquareText/> Anmerkung</div>
                    </th>
                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aktionen</th>
@@ -270,31 +282,48 @@ export default function FreigabePage() {
                <tbody className="bg-white divide-y divide-gray-200">
                  {filteredPages.map((lp) => (
                    <tr key={lp.id} className="hover:bg-gray-50 transition-colors">
-                     {/* URL & Keyword */}
+                     {/* 1. URL & Keyword */}
                      <td className="px-6 py-4 whitespace-nowrap align-top">
                        <div className="text-sm font-medium text-gray-900 truncate" title={lp.haupt_keyword || undefined}>{lp.haupt_keyword || <span className="text-gray-400 italic">Kein Keyword</span>}</div>
                        <a href={lp.url} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-800 text-xs truncate block" title={lp.url}>{lp.url}</a>
                      </td>
                      
-                     {/* Daten */}
+                     {/* 2. Daten */}
                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 align-top">
                        <div className="text-xs">Erstellt: {formatDateOnly(lp.created_at)}</div>
                        <div className="text-xs">Update: {formatDateOnly(lp.updated_at)}</div>
                      </td>
 
-                     {/* GSC Stats */}
+                     {/* 3. GSC Klicks */}
                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right align-top">
-                       <div className="flex justify-between text-xs"><span>Klicks:</span> <span className="font-medium">{lp.gsc_klicks?.toLocaleString('de-DE') || '-'}</span></div>
-                       <div className="flex justify-between text-xs"><span>Impr.:</span> <span className="font-medium">{lp.gsc_impressionen?.toLocaleString('de-DE') || '-'}</span></div>
-                       <div className="flex justify-between text-xs"><span>Pos.:</span> <span className="font-medium">{lp.gsc_position ? parseFloat(String(lp.gsc_position)).toFixed(2) : '-'}</span></div>
+                       <div className="flex items-center justify-end">
+                         <span>{lp.gsc_klicks?.toLocaleString('de-DE') || '-'}</span>
+                         <GscChangeIndicator change={lp.gsc_klicks_change} />
+                       </div>
                      </td>
 
-                     {/* Status */}
+                     {/* 4. GSC Impressionen */}
+                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right align-top">
+                       <div className="flex items-center justify-end">
+                         <span>{lp.gsc_impressionen?.toLocaleString('de-DE') || '-'}</span>
+                         <GscChangeIndicator change={lp.gsc_impressionen_change} />
+                       </div>
+                     </td>
+
+                     {/* 5. GSC Position */}
+                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right align-top">
+                       <div className="flex items-center justify-end">
+                         <span>{lp.gsc_position ? parseFloat(String(lp.gsc_position)).toFixed(2) : '-'}</span>
+                         <GscChangeIndicator change={lp.gsc_position_change} isPosition={true} />
+                       </div>
+                     </td>
+
+                     {/* 6. Status */}
                      <td className="px-6 py-4 whitespace-nowrap align-top">
                        <span className={`px-2.5 py-0.5 text-xs font-medium rounded-full border ${getStatusStyle(lp.status)}`}>{getStatusIcon(lp.status)} {lp.status}</span>
                      </td>
 
-                     {/* Anmerkung (Editierbar für Kunden) */}
+                     {/* 7. Anmerkung */}
                      <td className="px-6 py-4 align-top">
                         <textarea
                           className="w-full text-sm p-2 border border-gray-300 rounded focus:ring-indigo-500 focus:border-indigo-500 resize-y"
@@ -309,7 +338,7 @@ export default function FreigabePage() {
                         />
                      </td>
 
-                     {/* Aktionen (Nur Freigeben/Sperren) */}
+                     {/* 8. Aktionen */}
                      <td className="px-6 py-4 whitespace-nowrap align-top">
                        <div className="flex gap-2">
                           <button onClick={() => updateStatus(lp.id, 'Freigegeben')} className="px-3 py-1.5 text-xs font-medium rounded bg-green-600 border border-green-600 text-white hover:bg-green-700 flex items-center gap-1"><CheckCircleFill size={14} /> Freigeben</button>
