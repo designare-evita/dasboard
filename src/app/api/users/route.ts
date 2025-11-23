@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
   try {
     let result;
 
-    // Basis-Select für Projekt-Statistiken + Subquery für ALLE zugewiesenen Admins
+    // ✅ NEU: project_start_date und project_duration_months hinzugefügt
     const statsSelect = `
       u.id::text as id, 
       u.email, 
@@ -28,6 +28,8 @@ export async function GET(request: NextRequest) {
       u.permissions, 
       u.favicon_url,
       u.project_timeline_active,
+      u.project_start_date,
+      u.project_duration_months,
       creator.email as creator_email,
       (
         SELECT STRING_AGG(DISTINCT admins.email, ', ')
@@ -71,7 +73,6 @@ export async function GET(request: NextRequest) {
       const adminId = session.user.id;
       
       if (onlyCustomers) {
-        // ✅ FIX: Zeige Projekte, wenn Admin zugewiesen ist ODER Ersteller ist
         result = await sql.query(`
           SELECT ${statsSelect}
           FROM users u
@@ -84,11 +85,10 @@ export async function GET(request: NextRequest) {
           ORDER BY u.domain ASC, u.email ASC
         `);
       } else {
-        // Admin-Panel Logik (Benutzerverwaltung)
+        // Admin-Panel Logik
         const adminMandantId = session.user.mandant_id;
         const kannAdminsVerwalten = session.user.permissions?.includes('kann_admins_verwalten');
 
-        // 1. Eigene Kunden holen (Zugewiesen oder Erstellt)
         const kundenRes = await sql`
           SELECT DISTINCT u.id::text as id, u.email, u.role, u.domain, u.mandant_id, u.permissions, u.favicon_url
           FROM users u
@@ -99,7 +99,6 @@ export async function GET(request: NextRequest) {
         let rows = kundenRes.rows;
 
         if (kannAdminsVerwalten && adminMandantId) {
-          // 2. Andere Admins im gleichen Mandanten holen
           const adminsRes = await sql`
             SELECT id::text as id, email, role, domain, mandant_id, permissions, favicon_url
             FROM users
@@ -110,7 +109,6 @@ export async function GET(request: NextRequest) {
           rows = [...rows, ...adminsRes.rows];
         }
         
-        // Manuell verpacken, da wir hier kein result-Objekt haben
         result = { rows };
       }
     }
@@ -119,7 +117,6 @@ export async function GET(request: NextRequest) {
        return NextResponse.json({ message: "Unbekannter Fehler" }, { status: 500 });
     }
 
-    // Zahlen-Konvertierung für Stats
     const rows = result.rows.map(r => ({
       ...r,
       landingpages_count: Number(r.landingpages_count || 0),
