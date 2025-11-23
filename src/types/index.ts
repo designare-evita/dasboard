@@ -1,5 +1,6 @@
 // src/types/index.ts
 
+// Definiert die Struktur eines Benutzer-Objekts, wie es in der Datenbank gespeichert wird.
 export interface User {
   id: string;
   email: string;
@@ -13,14 +14,8 @@ export interface User {
   semrush_project_id?: string | null;
   semrush_tracking_id?: string | null;
   semrush_tracking_id_02?: string | null;
-  
-  // Admin & Ersteller
   createdByAdminId?: string;
-  creator_email?: string; // ✅ NEU: E-Mail des Admins/Erstellers
-  
   createdAt: Date;
-  
-  // Semrush & Projekt Infos
   semrush_organic_keywords?: number;
   semrush_organic_traffic?: number;
   semrush_last_fetched?: string;
@@ -28,13 +23,6 @@ export interface User {
   project_start_date?: Date | null;
   project_duration_months?: number | null;
   project_timeline_active?: boolean | null;
-
-  // ✅ NEU: Landingpage Statistiken
-  landingpages_count?: number;      // Gesamtanzahl
-  landingpages_offen?: number;      // Anzahl Status 'Offen'
-  landingpages_in_pruefung?: number;// Anzahl Status 'In Prüfung'
-  landingpages_freigegeben?: number;// Anzahl Status 'Freigegeben'
-  landingpages_gesperrt?: number;   // Anzahl Status 'Gesperrt'
 }
 
 export interface Landingpage {
@@ -43,7 +31,7 @@ export interface Landingpage {
   status: 'Offen' | 'In Prüfung' | 'Gesperrt' | 'Freigegeben';
   haupt_keyword?: string;
   weitere_keywords?: string;
-  comment?: string | null;
+  comment?: string | null; // ✅ NEU: Kommentarfeld
   gsc_klicks: number | null;
   gsc_klicks_change: number | null;
   gsc_impressionen: number | null;
@@ -58,10 +46,19 @@ export interface Landingpage {
 
 export type LandingpageStatus = Landingpage['status'];
 
-// Re-exports bleiben gleich...
+// Re-export dashboard types
 export type {
-  KPI, KpiDatum, ChartPoint, ChartData, TopQueryData, ActiveKpi, KpiMetadata
+  KPI,
+  KpiDatum,
+  ChartPoint,
+  ChartData,
+  TopQueryData,
+  ActiveKpi,
+  KpiMetadata
 } from './dashboard';
+
+// Re-export ai-traffic types
 export type {
-  AiTrafficData, AiTrafficCardProps
+  AiTrafficData,
+  AiTrafficCardProps
 } from './ai-traffic';
