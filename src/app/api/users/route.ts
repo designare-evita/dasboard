@@ -18,48 +18,44 @@ export async function GET(request: NextRequest) {
   try {
     let result;
 
-    // SELECT-Felder für die Projekt-Übersicht
-    // Inklusive Subquery für ALLE zugewiesenen Admins
-    const statsSelect = `
-      u.id::text as id, 
-      u.email, 
-      u.role, 
-      u.domain, 
-      u.mandant_id, 
-      u.permissions, 
-      u.favicon_url,
-      u.project_timeline_active,
-      u.project_start_date,
-      u.project_duration_months,
-      creator.email as creator_email,
-      (
-        SELECT STRING_AGG(DISTINCT admins.email, ', ')
-        FROM project_assignments pa_sub
-        JOIN users admins ON pa_sub.user_id = admins.id
-        WHERE pa_sub.project_id = u.id
-      ) as assigned_admins,
-      COUNT(lp.id) as landingpages_count,
-      SUM(CASE WHEN lp.status = 'Offen' THEN 1 ELSE 0 END) as landingpages_offen,
-      SUM(CASE WHEN lp.status = 'In Prüfung' THEN 1 ELSE 0 END) as landingpages_in_pruefung,
-      SUM(CASE WHEN lp.status = 'Freigegeben' THEN 1 ELSE 0 END) as landingpages_freigegeben,
-      SUM(CASE WHEN lp.status = 'Gesperrt' THEN 1 ELSE 0 END) as landingpages_gesperrt
-    `;
-
-    const groupBy = `GROUP BY u.id, creator.email`;
-
     // --- SUPERADMIN Logik ---
     if (session.user.role === 'SUPERADMIN') {
       if (onlyCustomers) {
-        result = await sql.query(`
-          SELECT ${statsSelect}
+        // Projekt-Übersicht für Superadmin
+        // KORREKTUR: sql`...` statt sql.query(...) und SQL direkt hingeschrieben
+        result = await sql`
+          SELECT 
+            u.id::text as id, 
+            u.email, 
+            u.role, 
+            u.domain, 
+            u.mandant_id, 
+            u.permissions, 
+            u.favicon_url,
+            u.project_timeline_active,
+            u.project_start_date,
+            u.project_duration_months,
+            creator.email as creator_email,
+            (
+              SELECT STRING_AGG(DISTINCT admins.email, ', ')
+              FROM project_assignments pa_sub
+              JOIN users admins ON pa_sub.user_id = admins.id
+              WHERE pa_sub.project_id = u.id
+            ) as assigned_admins,
+            COUNT(lp.id) as landingpages_count,
+            SUM(CASE WHEN lp.status = 'Offen' THEN 1 ELSE 0 END) as landingpages_offen,
+            SUM(CASE WHEN lp.status = 'In Prüfung' THEN 1 ELSE 0 END) as landingpages_in_pruefung,
+            SUM(CASE WHEN lp.status = 'Freigegeben' THEN 1 ELSE 0 END) as landingpages_freigegeben,
+            SUM(CASE WHEN lp.status = 'Gesperrt' THEN 1 ELSE 0 END) as landingpages_gesperrt
           FROM users u
           LEFT JOIN users creator ON u."createdByAdminId" = creator.id
           LEFT JOIN landingpages lp ON u.id = lp.user_id
           WHERE u.role = 'BENUTZER'
-          ${groupBy}
+          GROUP BY u.id, creator.email
           ORDER BY u.mandant_id ASC, u.domain ASC, u.email ASC
-        `);
+        `;
       } else {
+        // Admin-Panel Liste (einfach)
         result = await sql`
           SELECT id::text as id, email, role, domain, mandant_id, permissions, favicon_url
           FROM users
@@ -74,12 +70,32 @@ export async function GET(request: NextRequest) {
       const adminId = session.user.id;
       
       if (onlyCustomers) {
-        // ✅ FIX: Robuste Abfrage mit EXISTS statt LEFT JOIN für die Berechtigung
-        // Zeigt Projekte, wenn:
-        // 1. Der Admin der Ersteller ist (createdByAdminId)
-        // 2. ODER eine Zuweisung in project_assignments existiert
-        result = await sql.query(`
-          SELECT ${statsSelect}
+        // Projekt-Übersicht für Admin
+        // KORREKTUR: sql`...` verwenden
+        result = await sql`
+          SELECT 
+            u.id::text as id, 
+            u.email, 
+            u.role, 
+            u.domain, 
+            u.mandant_id, 
+            u.permissions, 
+            u.favicon_url,
+            u.project_timeline_active,
+            u.project_start_date,
+            u.project_duration_months,
+            creator.email as creator_email,
+            (
+              SELECT STRING_AGG(DISTINCT admins.email, ', ')
+              FROM project_assignments pa_sub
+              JOIN users admins ON pa_sub.user_id = admins.id
+              WHERE pa_sub.project_id = u.id
+            ) as assigned_admins,
+            COUNT(lp.id) as landingpages_count,
+            SUM(CASE WHEN lp.status = 'Offen' THEN 1 ELSE 0 END) as landingpages_offen,
+            SUM(CASE WHEN lp.status = 'In Prüfung' THEN 1 ELSE 0 END) as landingpages_in_pruefung,
+            SUM(CASE WHEN lp.status = 'Freigegeben' THEN 1 ELSE 0 END) as landingpages_freigegeben,
+            SUM(CASE WHEN lp.status = 'Gesperrt' THEN 1 ELSE 0 END) as landingpages_gesperrt
           FROM users u
           LEFT JOIN users creator ON u."createdByAdminId" = creator.id
           LEFT JOIN landingpages lp ON u.id = lp.user_id
@@ -91,11 +107,11 @@ export async function GET(request: NextRequest) {
                 WHERE pa.project_id = u.id AND pa.user_id::text = ${adminId}
               )
             )
-          ${groupBy}
+          GROUP BY u.id, creator.email
           ORDER BY u.domain ASC, u.email ASC
-        `);
+        `;
       } else {
-        // Admin-Panel: Benutzerverwaltung (Logik bleibt wie gehabt)
+        // Admin-Panel: Benutzerverwaltung
         const adminMandantId = session.user.mandant_id;
         const kannAdminsVerwalten = session.user.permissions?.includes('kann_admins_verwalten');
 
@@ -123,6 +139,8 @@ export async function GET(request: NextRequest) {
           `;
           rows = [...rows, ...adminsRes.rows];
         }
+        
+        // Manuell result bauen für diesen Fall
         result = { rows };
       }
     }
@@ -131,7 +149,6 @@ export async function GET(request: NextRequest) {
        return NextResponse.json({ message: "Unbekannter Fehler" }, { status: 500 });
     }
 
-    // Konvertierung der Zahlenwerte
     const rows = result.rows.map(r => ({
       ...r,
       landingpages_count: Number(r.landingpages_count || 0),
@@ -152,7 +169,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST bleibt unverändert
+// POST: Neuen Benutzer erstellen (unverändert, muss aber enthalten sein)
 export async function POST(req: NextRequest) {
   const session = await auth(); 
 
