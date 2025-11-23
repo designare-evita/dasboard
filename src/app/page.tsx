@@ -14,10 +14,10 @@ import {
   ShieldLock, 
   BoxArrowInRight,
   Globe,
-  CalendarRange // NEU: Icon für Zeitraum
+  CalendarRange
 } from 'react-bootstrap-icons';
 import type { User } from '@/types';
-import { addMonths, format } from 'date-fns'; // NEU: Für Datumsberechnung
+import { addMonths, format } from 'date-fns';
 import { de } from 'date-fns/locale';
 
 export default function ProjectsPage() {
@@ -72,7 +72,7 @@ export default function ProjectsPage() {
   }
 
   if (session?.user?.role === 'BENUTZER') {
-     return null; // Leere Rückgabe während Weiterleitung
+     return null;
   }
 
   return (
@@ -152,10 +152,11 @@ export default function ProjectsPage() {
                           <span className="inline-flex items-center gap-1.5 text-sm font-medium text-green-700 bg-green-50 px-2.5 py-1 rounded-full border border-green-100 w-fit">
                             <CheckCircleFill size={12} /> Aktiviert
                           </span>
-                          {/* ✅ NEU: Datumsanzeige */}
-                          <span className="text-xs text-gray-500 flex items-center gap-1 mt-1 ml-1">
-                            <CalendarRange size={10} /> {dateRangeString}
-                          </span>
+                          {dateRangeString && (
+                            <span className="text-xs text-gray-500 flex items-center gap-1 mt-1 ml-1">
+                              <CalendarRange size={10} /> {dateRangeString}
+                            </span>
+                          )}
                         </>
                       ) : (
                         <span className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full border border-gray-200 w-fit">
@@ -169,8 +170,8 @@ export default function ProjectsPage() {
                   <div className="flex flex-col">
                     <span className="text-xs text-gray-400 uppercase font-bold tracking-wider block mb-1">Redaktionsplan</span>
                     {hasRedaktionsplan ? (
-                      /* ✅ NEU: Klickbarer Link zum Redaktionsplan */
-                      <Link href="/admin/redaktionsplan">
+                      /* ✅ FIX: Link mit ID Parameter */
+                      <Link href={`/admin/redaktionsplan?id=${user.id}`}>
                         <span className="inline-flex items-center gap-1.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 px-2.5 py-1 rounded-full border border-indigo-600 transition-colors w-fit cursor-pointer shadow-sm">
                           <FileEarmarkText size={12} /> Vorhanden (Öffnen)
                         </span>
