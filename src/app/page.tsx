@@ -18,7 +18,6 @@ import {
 } from 'react-bootstrap-icons';
 import type { User } from '@/types';
 import { addMonths, format } from 'date-fns';
-import { de } from 'date-fns/locale';
 
 export default function ProjectsPage() {
   const { data: session, status } = useSession();
@@ -29,12 +28,14 @@ export default function ProjectsPage() {
 
   useEffect(() => {
     if (status === 'authenticated') {
+      // 1. KUNDE: Direkt weiterleiten
       if (session?.user?.role === 'BENUTZER') {
         if (session.user.id) {
           router.push(`/projekt/${session.user.id}`);
         }
         return;
       }
+      // 2. ADMIN: Projekte laden
       if (session?.user?.role === 'ADMIN' || session?.user?.role === 'SUPERADMIN') {
         loadProjects();
       }
@@ -61,6 +62,7 @@ export default function ProjectsPage() {
     (user.domain && user.domain.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
+  // Lade-Status
   if (status === 'loading' || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -71,8 +73,9 @@ export default function ProjectsPage() {
     );
   }
 
+  // Wenn Kunde: Nichts rendern (da Redirect läuft)
   if (session?.user?.role === 'BENUTZER') {
-     return null;
+     return null; 
   }
 
   return (
@@ -107,7 +110,11 @@ export default function ProjectsPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {filteredProjects.map((user) => {
             const hasRedaktionsplan = (user.landingpages_count || 0) > 0;
-            const adminsDisplay = user.assigned_admins ? user.assigned_admins : (user.creator_email || 'System');
+            
+            // ✅ FIX: Alle zugewiesenen Admins anzeigen
+            const adminsDisplay = user.assigned_admins 
+              ? user.assigned_admins 
+              : (user.creator_email || 'System');
 
             // Datum Berechnen
             let dateRangeString = null;
@@ -170,7 +177,6 @@ export default function ProjectsPage() {
                   <div className="flex flex-col">
                     <span className="text-xs text-gray-400 uppercase font-bold tracking-wider block mb-1">Redaktionsplan</span>
                     {hasRedaktionsplan ? (
-                      /* ✅ FIX: Link mit ID Parameter */
                       <Link href={`/admin/redaktionsplan?id=${user.id}`}>
                         <span className="inline-flex items-center gap-1.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 px-2.5 py-1 rounded-full border border-indigo-600 transition-colors w-fit cursor-pointer shadow-sm">
                           <FileEarmarkText size={12} /> Vorhanden (Öffnen)
