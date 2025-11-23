@@ -25,7 +25,7 @@ import {
   ArrowDown,
   CalendarEvent, 
   ClockHistory,
-  ChatSquareText // NEU für Kommentar
+  ChatSquareText
 } from 'react-bootstrap-icons';
 
 // Typdefinition
@@ -35,7 +35,7 @@ type Landingpage = {
   haupt_keyword: string | null;
   weitere_keywords: string | null;
   status: 'Offen' | 'In Prüfung' | 'Gesperrt' | 'Freigegeben';
-  comment: string | null; // ✅ NEU
+  comment: string | null;
   user_id: string;
   created_at: string;
   updated_at?: string;
@@ -53,15 +53,27 @@ type Landingpage = {
 
 type LandingpageStatus = Landingpage['status'];
 
-// Helper für GSC Indicators (unverändert)
+// Helper für GSC Indicators (Stacked Layout)
 const GscChangeIndicator = ({ change, isPosition = false }: { change: number | string | null | undefined, isPosition?: boolean }) => {
   const numChange = (change === null || change === undefined || change === '') ? 0 : parseFloat(String(change));
   if (numChange === 0) return null;
+  
+  // Bei Position ist negativ gut (Platz 10 -> 5 = -5), sonst ist positiv gut
   let isPositive = isPosition ? numChange < 0 : numChange > 0;
-  let text = isPosition ? (numChange > 0 ? `+${numChange.toFixed(2)}` : numChange.toFixed(2)) : (numChange > 0 ? `+${numChange.toLocaleString('de-DE')}` : numChange.toLocaleString('de-DE'));
+  
+  let text = isPosition 
+    ? (numChange > 0 ? `+${numChange.toFixed(2)}` : numChange.toFixed(2)) 
+    : (numChange > 0 ? `+${numChange.toLocaleString('de-DE')}` : numChange.toLocaleString('de-DE'));
+  
   const colorClasses = isPositive ? 'text-green-700 bg-green-100' : 'text-red-700 bg-red-100';
   const Icon = isPositive ? ArrowUp : ArrowDown;
-  return <span className={cn('ml-2 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-bold', colorClasses)}><Icon size={12} />{text}</span>;
+
+  return (
+    <span className={cn('inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-[4px] text-[10px] font-bold tracking-wide', colorClasses)}>
+      <Icon size={9} />
+      {text}
+    </span>
+  );
 };
 
 const formatDateOnly = (dateString?: string | null) => {
@@ -145,7 +157,6 @@ export default function RedaktionsplanPage() {
     }
   };
 
-  // ✅ NEU: Kommentar speichern
   const saveComment = async (landingpageId: number, newComment: string) => {
     try {
       // Optimistisches Update
@@ -225,10 +236,11 @@ export default function RedaktionsplanPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-full mx-auto"> {/* max-w-full für mehr Platz bei Tabelle */}
+      {/* Container auf max-w-full erweitert */}
+      <div className="max-w-full mx-auto"> 
         <div className="mb-8 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Redaktionsplan</h1>
+            <h1 className="text-3xl font-bold text-gray-900">Redaktionsplan (Admin)</h1>
             <p className="text-gray-600 mt-2">Verwalten Sie Landingpages und Anmerkungen.</p>
           </div>
         </div>
@@ -240,6 +252,7 @@ export default function RedaktionsplanPage() {
           </div>
         )}
 
+        {/* Projekt-Auswahl */}
         <div className="bg-white p-6 rounded-lg shadow-md mb-6">
           <label htmlFor="projectSelect" className="block text-sm font-semibold text-gray-700 mb-2">Projekt auswählen</label>
           <select
@@ -287,12 +300,17 @@ export default function RedaktionsplanPage() {
                  <table className="w-full min-w-[1400px]">
                    <thead className="bg-gray-50 border-b border-gray-200">
                      <tr>
-                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/5">URL / Keyword</th>
+                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[20%]">URL / Keyword</th>
                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><div className="flex items-center gap-1"><CalendarEvent/> Daten</div></th>
-                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">GSC Stats</th>
+                       
+                       {/* GSC Spalten separat & gestapelt */}
+                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">GSC Klicks</th>
+                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">GSC Impr.</th>
+                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">GSC Pos.</th>
+                       
                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                       {/* ✅ NEU: Spalte für Anmerkung */}
-                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/4">
+                       {/* Anmerkung: Breite 35% */}
+                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[35%]">
                          <div className="flex items-center gap-1"><ChatSquareText/> Anmerkung</div>
                        </th>
                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aktionen</th>
@@ -301,31 +319,52 @@ export default function RedaktionsplanPage() {
                    <tbody className="bg-white divide-y divide-gray-200">
                      {filteredPages.map((lp) => (
                        <tr key={lp.id} className="hover:bg-gray-50 transition-colors">
+                         {/* 1. URL & Keyword */}
                          <td className="px-6 py-4 whitespace-nowrap align-top">
                            <div className="text-sm font-medium text-gray-900 truncate" title={lp.haupt_keyword || undefined}>{lp.haupt_keyword || <span className="text-gray-400 italic">Kein Keyword</span>}</div>
                            <a href={lp.url} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-800 text-xs truncate block" title={lp.url}>{lp.url}</a>
                          </td>
                          
+                         {/* 2. Daten */}
                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 align-top">
                            <div className="text-xs">Erstellt: {formatDateOnly(lp.created_at)}</div>
                            <div className="text-xs">Update: {formatDateOnly(lp.updated_at)}</div>
                          </td>
 
+                         {/* 3. GSC Klicks */}
                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right align-top">
-                           <div className="flex justify-between text-xs"><span>Klicks:</span> <span className="font-medium">{lp.gsc_klicks?.toLocaleString('de-DE') || '-'}</span></div>
-                           <div className="flex justify-between text-xs"><span>Impr.:</span> <span className="font-medium">{lp.gsc_impressionen?.toLocaleString('de-DE') || '-'}</span></div>
-                           <div className="flex justify-between text-xs"><span>Pos.:</span> <span className="font-medium">{lp.gsc_position ? parseFloat(String(lp.gsc_position)).toFixed(2) : '-'}</span></div>
+                           <div className="flex flex-col items-end gap-1">
+                             <span className="font-medium text-gray-900">{lp.gsc_klicks?.toLocaleString('de-DE') || '-'}</span>
+                             <GscChangeIndicator change={lp.gsc_klicks_change} />
+                           </div>
                          </td>
 
+                         {/* 4. GSC Impressionen */}
+                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right align-top">
+                           <div className="flex flex-col items-end gap-1">
+                             <span className="font-medium text-gray-900">{lp.gsc_impressionen?.toLocaleString('de-DE') || '-'}</span>
+                             <GscChangeIndicator change={lp.gsc_impressionen_change} />
+                           </div>
+                         </td>
+
+                         {/* 5. GSC Position */}
+                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right align-top">
+                           <div className="flex flex-col items-end gap-1">
+                             <span className="font-medium text-gray-900">{lp.gsc_position ? parseFloat(String(lp.gsc_position)).toFixed(2) : '-'}</span>
+                             <GscChangeIndicator change={lp.gsc_position_change} isPosition={true} />
+                           </div>
+                         </td>
+
+                         {/* 6. Status */}
                          <td className="px-6 py-4 whitespace-nowrap align-top">
                            <span className={`px-2.5 py-0.5 text-xs font-medium rounded-full border ${getStatusStyle(lp.status)}`}>{getStatusIcon(lp.status)} {lp.status}</span>
                          </td>
 
-                         {/* ✅ NEU: Anmerkungsfeld */}
+                         {/* 7. Anmerkung (Groß) */}
                          <td className="px-6 py-4 align-top">
                             <textarea
                               className="w-full text-sm p-2 border border-gray-300 rounded focus:ring-indigo-500 focus:border-indigo-500 resize-y"
-                              rows={2}
+                              rows={3}
                               defaultValue={lp.comment || ''}
                               placeholder="Anmerkung hinzufügen..."
                               onBlur={(e) => {
@@ -336,6 +375,7 @@ export default function RedaktionsplanPage() {
                             />
                          </td>
 
+                         {/* 8. Aktionen (Admin: Alle Buttons beibehalten) */}
                          <td className="px-6 py-4 whitespace-nowrap align-top">
                            <div className="flex flex-wrap gap-1 w-32">
                              {(['Offen', 'In Prüfung', 'Freigegeben', 'Gesperrt'] as LandingpageStatus[]).map(status => (
