@@ -1,44 +1,60 @@
 // src/app/api/users/route.ts
-// (FINALE KORREKTUR der GET-Logik basierend auf Ihren Regeln)
-// ✅ AKTUALISIERT mit favicon_url
-
 import { NextResponse, NextRequest } from 'next/server';
 import { sql } from '@vercel/postgres';
 import bcrypt from 'bcryptjs';
 import { User } from '@/types';
-import { auth } from '@/lib/auth'; // KORRIGIERT: Import von auth
+import { auth } from '@/lib/auth';
 
-// GET: Benutzer abrufen (mit korrekter Berechtigungs-Logik)
+// GET: Benutzer abrufen (mit Statistiken für Projekt-Übersicht)
 export async function GET(request: NextRequest) {
-  const session = await auth(); // KORRIGIERT: auth() aufgerufen
-
-  console.log('[/api/users] GET Request');
-  console.log('[/api/users] User:', session?.user?.email, 'Role:', session?.user?.role);
+  const session = await auth();
 
   if (!session?.user?.id || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
     return NextResponse.json({ message: "Nicht autorisiert" }, { status: 401 });
   }
 
   const { searchParams } = new URL(request.url);
-  // ?onlyCustomers=true wird vom Redaktionsplan-Dropdown verwendet
   const onlyCustomers = searchParams.get('onlyCustomers') === 'true';
 
   try {
     let result;
 
+    // Die SQL-Abfrage mit Aggregationen für Landingpages und Creator-Join
+    // Wir selektieren alles nötige und zählen die Status
+    const statsSelect = `
+      u.id::text as id, 
+      u.email, 
+      u.role, 
+      u.domain, 
+      u.mandant_id, 
+      u.permissions, 
+      u.favicon_url,
+      u.project_timeline_active,
+      creator.email as creator_email,
+      COUNT(lp.id) as landingpages_count,
+      SUM(CASE WHEN lp.status = 'Offen' THEN 1 ELSE 0 END) as landingpages_offen,
+      SUM(CASE WHEN lp.status = 'In Prüfung' THEN 1 ELSE 0 END) as landingpages_in_pruefung,
+      SUM(CASE WHEN lp.status = 'Freigegeben' THEN 1 ELSE 0 END) as landingpages_freigegeben,
+      SUM(CASE WHEN lp.status = 'Gesperrt' THEN 1 ELSE 0 END) as landingpages_gesperrt
+    `;
+
+    const groupBy = `GROUP BY u.id, creator.email`;
+
     // --- SUPERADMIN Logik ---
     if (session.user.role === 'SUPERADMIN') {
-      console.log('[/api/users] SUPERADMIN - Lade Benutzer');
       if (onlyCustomers) {
-        // Redaktionsplan: Alle Kunden
-        result = await sql`
-          SELECT id::text as id, email, role, domain, mandant_id, permissions, favicon_url
-          FROM users
-          WHERE role = 'BENUTZER'
-          ORDER BY mandant_id ASC, domain ASC, email ASC
-        `;
+        // Projekt-Übersicht (Alle Kunden + Stats)
+        result = await sql.query(`
+          SELECT ${statsSelect}
+          FROM users u
+          LEFT JOIN users creator ON u."createdByAdminId" = creator.id
+          LEFT JOIN landingpages lp ON u.id = lp.user_id
+          WHERE u.role = 'BENUTZER'
+          ${groupBy}
+          ORDER BY u.mandant_id ASC, u.domain ASC, u.email ASC
+        `);
       } else {
-        // Admin-Panel: Alle außer Superadmins
+        // Admin-Panel Liste (Einfache Liste)
         result = await sql`
           SELECT id::text as id, email, role, domain, mandant_id, permissions, favicon_url
           FROM users
@@ -46,76 +62,79 @@ export async function GET(request: NextRequest) {
           ORDER BY mandant_id ASC, role DESC, email ASC
         `;
       }
-      console.log('[/api/users] (SA) Gefunden:', result.rows.length, 'Benutzer');
-      return NextResponse.json(result.rows);
+      
+      // Konvertiere Counts zu Numbers (Postgres liefert Strings bei Aggregaten)
+      const rows = result.rows.map(r => ({
+        ...r,
+        landingpages_count: Number(r.landingpages_count || 0),
+        landingpages_offen: Number(r.landingpages_offen || 0),
+        landingpages_in_pruefung: Number(r.landingpages_in_pruefung || 0),
+        landingpages_freigegeben: Number(r.landingpages_freigegeben || 0),
+        landingpages_gesperrt: Number(r.landingpages_gesperrt || 0),
+      }));
+
+      return NextResponse.json(rows);
     }
 
     // --- ADMIN Logik ---
     if (session.user.role === 'ADMIN') {
       const adminId = session.user.id;
-      const adminMandantId = session.user.mandant_id;
-      const adminPermissions = session.user.permissions || [];
-      const kannAdminsVerwalten = adminPermissions.includes('kann_admins_verwalten');
-
+      
       if (onlyCustomers) {
-        // FÜR REDAKTIONSPLAN (/admin/redaktionsplan)
-        // Zeige nur explizit zugewiesene Kunden (Benutzer)
-        console.log(`[/api/users] ADMIN - Lade zugewiesene Kunden für Redaktionsplan`);
-        result = await sql`
-          SELECT u.id::text as id, u.email, u.role, u.domain, u.mandant_id, u.permissions, u.favicon_url
+        // Projekt-Übersicht für Admin (Nur zugewiesene Kunden + Stats)
+        result = await sql.query(`
+          SELECT ${statsSelect}
           FROM users u
           INNER JOIN project_assignments pa ON u.id = pa.project_id
+          LEFT JOIN users creator ON u."createdByAdminId" = creator.id
+          LEFT JOIN landingpages lp ON u.id = lp.user_id
           WHERE pa.user_id::text = ${adminId} AND u.role = 'BENUTZER'
+          ${groupBy}
           ORDER BY u.domain ASC, u.email ASC
-        `;
-        console.log('[/api/users] (Admin) Gefunden:', result.rows.length, 'zugewiesene Kunden');
-        return NextResponse.json(result.rows);
+        `);
+
+        const rows = result.rows.map(r => ({
+            ...r,
+            landingpages_count: Number(r.landingpages_count || 0),
+            landingpages_offen: Number(r.landingpages_offen || 0),
+            landingpages_in_pruefung: Number(r.landingpages_in_pruefung || 0),
+            landingpages_freigegeben: Number(r.landingpages_freigegeben || 0),
+            landingpages_gesperrt: Number(r.landingpages_gesperrt || 0),
+          }));
+
+        return NextResponse.json(rows);
       } 
       
-      // FÜR ADMIN-PANEL (/admin)
-      console.log(`[/api/users] ADMIN - Lade Ansicht für Admin-Panel`);
-      console.log(`[/api/users] ADMIN - Hat 'kann_admins_verwalten': ${kannAdminsVerwalten}`);
+      // Admin-Panel Logik (Standard User List ohne Stats für Admin-Verwaltung)
+      const kannAdminsVerwalten = session.user.permissions?.includes('kann_admins_verwalten');
+      const adminMandantId = session.user.mandant_id;
 
-      // 1. Hole immer die explizit zugewiesenen KUNDEN
-      const kundenQuery = sql`
+      let rows;
+      
+      // 1. Zugewiesene Kunden holen
+      const kundenRes = await sql`
         SELECT u.id::text as id, u.email, u.role, u.domain, u.mandant_id, u.permissions, u.favicon_url
         FROM users u
         INNER JOIN project_assignments pa ON u.id = pa.project_id
         WHERE pa.user_id::text = ${adminId} AND u.role = 'BENUTZER'
       `;
+      rows = kundenRes.rows;
 
       if (kannAdminsVerwalten && adminMandantId) {
-        // 2. Admin (Klasse 1) - Hole KUNDEN + ANDERE ADMINS (im selben Label)
-        console.log(`[/api/users] Admin (Klasse 1) lädt Admins + zugewiesene Kunden für Mandant: ${adminMandantId}`);
-        const adminsQuery = sql`
+        // 2. Andere Admins holen
+        const adminsRes = await sql`
           SELECT id::text as id, email, role, domain, mandant_id, permissions, favicon_url
           FROM users
           WHERE mandant_id = ${adminMandantId}
             AND role = 'ADMIN'
-            AND id::text != ${adminId} -- Sich selbst ausschließen
+            AND id::text != ${adminId}
         `;
-        
-        // Führe beide Abfragen parallel aus und kombiniere sie
-        const [kundenResult, adminsResult] = await Promise.all([kundenQuery, adminsQuery]);
-        const combinedUsers = [...kundenResult.rows, ...adminsResult.rows];
-        
-        // Sortieren (optional, aber schön)
-        combinedUsers.sort((a, b) => (a.role > b.role) ? -1 : (a.role === b.role) ? a.email.localeCompare(b.email) : 1);
-        
-        console.log('[/api/users] (Klasse 1) Gefunden:', combinedUsers.length, 'Benutzer/Admins');
-        return NextResponse.json(combinedUsers);
-        
-      } else {
-        // 3. Admin (Standard) - Hole NUR zugewiesene KUNDEN
-        console.log('[/api/users] Admin (Standard) lädt NUR zugewiesene Kunden');
-        result = await kundenQuery;
-        
-        console.log('[/api/users] (Standard) Gefunden:', result.rows.length, 'Benutzer');
-        return NextResponse.json(result.rows);
+        rows = [...rows, ...adminsRes.rows];
       }
+      
+      return NextResponse.json(rows);
     }
 
-    // Fallback (sollte nie eintreten)
     return NextResponse.json({ message: "Unbekannter Fehler" }, { status: 500 });
 
   } catch (error) {
@@ -127,7 +146,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST: Neuen Benutzer erstellen
+// POST: Neuen Benutzer erstellen (Unverändert lassen)
 export async function POST(req: NextRequest) {
   const session = await auth(); 
 
@@ -153,14 +172,13 @@ export async function POST(req: NextRequest) {
       favicon_url,
       project_start_date,
       project_duration_months,
-      project_timeline_active // KORREKTUR: Feld empfangen
+      project_timeline_active
     } = body;
 
     if (!email || !password || !role) {
       return NextResponse.json({ message: 'E-Mail, Passwort und Rolle sind erforderlich' }, { status: 400 });
     }
     
-    // (Berechtigungsprüfungen)
     const loggedInUserRole = session.user.role;
     const loggedInUserMandantId = session.user.mandant_id;
     const roleToCreate = role;
@@ -188,7 +206,6 @@ export async function POST(req: NextRequest) {
        return NextResponse.json({ message: 'Mandant-ID (Label) ist erforderlich' }, { status: 400 });
     }
 
-    
     const { rows } = await sql<User>`SELECT * FROM users WHERE email = ${email}`;
     if (rows.length > 0) {
       return NextResponse.json({ message: 'Benutzer existiert bereits' }, { status: 409 });
@@ -200,7 +217,6 @@ export async function POST(req: NextRequest) {
 
     const duration = project_duration_months ? parseInt(String(project_duration_months), 10) : 6;
     const startDate = project_start_date ? new Date(project_start_date).toISOString() : new Date().toISOString();
-    // KORREKTUR: Standardwert setzen
     const timelineActive = typeof project_timeline_active === 'boolean' ? project_timeline_active : false;
 
     const { rows: newUsers } = await sql<User>`
@@ -211,7 +227,7 @@ export async function POST(req: NextRequest) {
         favicon_url,
         project_start_date,
         project_duration_months,
-        project_timeline_active, -- KORREKTUR
+        project_timeline_active,
         "createdByAdminId"
       )
       VALUES (
@@ -223,31 +239,24 @@ export async function POST(req: NextRequest) {
         ${favicon_url || null},
         ${startDate},
         ${duration},
-        ${timelineActive}, -- KORREKTUR
+        ${timelineActive},
         ${createdByAdminId}
       )
-      RETURNING id, email, role, domain, mandant_id, permissions, favicon_url, project_start_date, project_duration_months, project_timeline_active`; // KORREKTUR
+      RETURNING id, email, role, domain, mandant_id, permissions, favicon_url`; 
       
     const newUser = newUsers[0];
 
-    // --- Automatische Zuweisung für den Ersteller ---
     if (loggedInUserRole === 'ADMIN' && roleToCreate === 'BENUTZER') {
       const newCustomerId = newUser.id;
-      
-      console.log(`[/api/users] ADMIN ${createdByAdminId} erstellt Kunde ${newCustomerId}.`);
-      console.log(`[/api/users] Füge automatische Zuweisung in 'project_assignments' hinzu...`);
-
       try {
         await sql`
           INSERT INTO project_assignments (user_id, project_id)
           VALUES (${createdByAdminId}::uuid, ${newCustomerId}::uuid)
         `;
-        console.log(`[/api/users] ✅ Zuweisung erfolgreich.`);
       } catch (assignError) {
-        console.error(`[/api/users] ❌ FEHLER bei automatischer Zuweisung:`, assignError);
+        console.error(`Fehler bei automatischer Zuweisung:`, assignError);
       }
     }
-    // --- ENDE KORREKTUR ---
 
     return NextResponse.json(newUser, { status: 201 });
 
