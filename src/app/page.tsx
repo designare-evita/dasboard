@@ -13,9 +13,12 @@ import {
   FileEarmarkText, 
   ShieldLock, 
   BoxArrowInRight,
-  Globe
+  Globe,
+  CalendarRange // NEU: Icon für Zeitraum
 } from 'react-bootstrap-icons';
 import type { User } from '@/types';
+import { addMonths, format } from 'date-fns'; // NEU: Für Datumsberechnung
+import { de } from 'date-fns/locale';
 
 export default function ProjectsPage() {
   const { data: session, status } = useSession();
@@ -26,20 +29,15 @@ export default function ProjectsPage() {
 
   useEffect(() => {
     if (status === 'authenticated') {
-      
-      // 1. KUNDE: Direkt weiterleiten zum eigenen Projekt-Dashboard
       if (session?.user?.role === 'BENUTZER') {
         if (session.user.id) {
           router.push(`/projekt/${session.user.id}`);
         }
         return;
       }
-
-      // 2. ADMIN / SUPERADMIN: Projekt-Übersicht laden
       if (session?.user?.role === 'ADMIN' || session?.user?.role === 'SUPERADMIN') {
         loadProjects();
       }
-
     } else if (status === 'unauthenticated') {
       router.push('/login');
     }
@@ -47,7 +45,6 @@ export default function ProjectsPage() {
 
   async function loadProjects() {
     try {
-      // Lädt alle zugewiesenen Projekte inkl. Stats
       const res = await fetch('/api/users?onlyCustomers=true');
       if (!res.ok) throw new Error('Fehler beim Laden der Projekte');
       const data = await res.json();
@@ -64,7 +61,6 @@ export default function ProjectsPage() {
     (user.domain && user.domain.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  // Lade-Bildschirm (auch während der Weiterleitung des Kunden sichtbar)
   if (status === 'loading' || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -75,8 +71,9 @@ export default function ProjectsPage() {
     );
   }
 
-  // Fallback, falls Admin-Daten geladen sind aber leer (sollte nicht passieren, da isLoading false wird)
-  // Das "Willkommen Kunde" HTML ist hier ENTFERNT.
+  if (session?.user?.role === 'BENUTZER') {
+     return null; // Leere Rückgabe während Weiterleitung
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
@@ -94,7 +91,6 @@ export default function ProjectsPage() {
             </p>
           </div>
           
-          {/* Search */}
           <div className="relative w-full md:w-96">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
             <input
@@ -111,15 +107,21 @@ export default function ProjectsPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {filteredProjects.map((user) => {
             const hasRedaktionsplan = (user.landingpages_count || 0) > 0;
-            // Zeige alle zugewiesenen Admins an
-            const adminsDisplay = user.assigned_admins 
-              ? user.assigned_admins 
-              : (user.creator_email || 'System');
+            const adminsDisplay = user.assigned_admins ? user.assigned_admins : (user.creator_email || 'System');
+
+            // Datum Berechnen
+            let dateRangeString = null;
+            if (user.project_timeline_active) {
+              const start = user.project_start_date ? new Date(user.project_start_date) : new Date(user.createdAt);
+              const duration = user.project_duration_months || 6;
+              const end = addMonths(start, duration);
+              dateRangeString = `${format(start, 'dd.MM.yyyy')} - ${format(end, 'dd.MM.yyyy')}`;
+            }
 
             return (
               <div key={user.id} className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-all duration-200 p-6 flex flex-col h-full">
                 
-                {/* Card Header: Domain & Email */}
+                {/* Card Header */}
                 <div className="flex justify-between items-start mb-4">
                   <div>
                     <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
@@ -142,28 +144,39 @@ export default function ProjectsPage() {
                 <div className="grid grid-cols-2 gap-4 mb-5">
                   
                   {/* 1. Timeline */}
-                  <div>
+                  <div className="flex flex-col">
                     <span className="text-xs text-gray-400 uppercase font-bold tracking-wider block mb-1">Projekt-Timeline</span>
-                    {user.project_timeline_active ? (
-                      <span className="inline-flex items-center gap-1.5 text-sm font-medium text-green-700 bg-green-50 px-2.5 py-1 rounded-full border border-green-100">
-                        <CheckCircleFill size={12} /> Aktiviert
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full border border-gray-200">
-                        <XCircleFill size={12} /> Deaktiviert
-                      </span>
-                    )}
+                    <div className="flex flex-col gap-1">
+                      {user.project_timeline_active ? (
+                        <>
+                          <span className="inline-flex items-center gap-1.5 text-sm font-medium text-green-700 bg-green-50 px-2.5 py-1 rounded-full border border-green-100 w-fit">
+                            <CheckCircleFill size={12} /> Aktiviert
+                          </span>
+                          {/* ✅ NEU: Datumsanzeige */}
+                          <span className="text-xs text-gray-500 flex items-center gap-1 mt-1 ml-1">
+                            <CalendarRange size={10} /> {dateRangeString}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full border border-gray-200 w-fit">
+                          <XCircleFill size={12} /> Deaktiviert
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   {/* 2. Redaktionsplan */}
-                  <div>
+                  <div className="flex flex-col">
                     <span className="text-xs text-gray-400 uppercase font-bold tracking-wider block mb-1">Redaktionsplan</span>
                     {hasRedaktionsplan ? (
-                      <span className="inline-flex items-center gap-1.5 text-sm font-medium text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-100">
-                        <FileEarmarkText size={12} /> Vorhanden
-                      </span>
+                      /* ✅ NEU: Klickbarer Link zum Redaktionsplan */
+                      <Link href="/admin/redaktionsplan">
+                        <span className="inline-flex items-center gap-1.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 px-2.5 py-1 rounded-full border border-indigo-600 transition-colors w-fit cursor-pointer shadow-sm">
+                          <FileEarmarkText size={12} /> Vorhanden (Öffnen)
+                        </span>
+                      </Link>
                     ) : (
-                      <span className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500">
+                      <span className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 w-fit">
                         <span className="w-3 h-3 rounded-full border-2 border-gray-300"></span>
                         Nein
                       </span>
