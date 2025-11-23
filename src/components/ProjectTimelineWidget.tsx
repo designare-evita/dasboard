@@ -23,7 +23,9 @@ import {
   Trophy,
   ArrowUp,
   ArrowDown, 
-  Dash 
+  Dash,
+  Search, // NEU: Für GSC Icon
+  Cpu     // NEU: Für KI Icon
 } from 'react-bootstrap-icons';
 import { addMonths, format, differenceInCalendarDays } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -136,7 +138,7 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
   const elapsedProjectDays = differenceInCalendarDays(today, startDate);
   const timeElapsedPercentage = Math.max(0, Math.min(100, (elapsedProjectDays / totalProjectDays) * 100));
   
-  // Daten zusammenführen
+  // Daten zusammenführen (Mit Korrektur für fehlende GSC Daten am Ende)
   const chartDataMap = new Map<string, { date: number; impressions: number | null; aiTraffic: number }>();
   
   gscImpressionTrend.forEach(d => {
@@ -150,7 +152,7 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
       if (entry) {
         entry.aiTraffic = d.value;
       } else {
-        // Wenn keine GSC Daten da sind (Verzögerung), setze impressions auf null statt 0
+        // KORREKTUR: null statt 0, damit die Linie nicht abstürzt wenn GSC Daten fehlen (Verzögerung)
         chartDataMap.set(d.date, { 
           date: new Date(d.date).getTime(), 
           impressions: null, 
@@ -162,9 +164,13 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
 
   const chartData = Array.from(chartDataMap.values()).sort((a, b) => a.date - b.date);
 
-  // Trends berechnen
+  // Trends & Summen berechnen
   const gscTrend = calculateTrendDirection(gscImpressionTrend);
   const aiTrend = calculateTrendDirection(aiTrafficTrend || []);
+  
+  // Summen seit Projektstart (für die neuen Icons)
+  const totalGscImpressions = gscImpressionTrend.reduce((acc, curr) => acc + curr.value, 0);
+  const totalAiSessions = aiTrafficTrend?.reduce((acc, curr) => acc + curr.value, 0) || 0;
 
   // Kleines Helper-Icon für die Trend-Anzeige
   const TrendIcon = ({ direction, colorClass }: { direction: 'up' | 'down' | 'neutral', colorClass: string }) => {
@@ -193,7 +199,7 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-full">
         
-        {/* SPALTE 1: Zeit & Status */}
+        {/* SPALTE 1: Zeit & Status & KPIs */}
         <div className="flex flex-col gap-8 border-b lg:border-b-0 lg:border-r border-gray-100 pb-6 lg:pb-0 lg:pr-6">
           {/* Zeitachse */}
           <div className="space-y-3">
@@ -238,6 +244,38 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
               <div className="flex items-center gap-1 font-medium text-gray-700"><BoxSeam size={10} />Ges: {counts.Total}</div>
             </div>
           </div>
+
+          {/* NEU: KI Trend & GSC Trend Icons mit Zahlen */}
+          <div className="grid grid-cols-2 gap-3 pt-2">
+            {/* GSC Summary */}
+            <div className="bg-blue-50/50 rounded-xl p-3 border border-blue-100 shadow-sm">
+               <div className="flex items-center gap-2 mb-1.5 text-blue-600">
+                  <Search size={14} />
+                  <span className="text-xs font-bold uppercase tracking-wide opacity-80">GSC Impr.</span>
+               </div>
+               <div className="flex items-end justify-between">
+                  <span className="text-xl font-bold text-gray-900">
+                    {new Intl.NumberFormat('de-DE', { notation: 'compact', maximumFractionDigits: 1 }).format(totalGscImpressions)}
+                  </span>
+                  <div className="mb-1"><TrendIcon direction={gscTrend} colorClass="text-blue-600" /></div>
+               </div>
+            </div>
+
+            {/* KI Summary */}
+            <div className="bg-purple-50/50 rounded-xl p-3 border border-purple-100 shadow-sm">
+               <div className="flex items-center gap-2 mb-1.5 text-purple-600">
+                  <Cpu size={14} />
+                  <span className="text-xs font-bold uppercase tracking-wide opacity-80">KI Traffic</span>
+               </div>
+               <div className="flex items-end justify-between">
+                  <span className="text-xl font-bold text-gray-900">
+                    {new Intl.NumberFormat('de-DE', { notation: 'compact', maximumFractionDigits: 1 }).format(totalAiSessions)}
+                  </span>
+                  <div className="mb-1"><TrendIcon direction={aiTrend} colorClass="text-purple-600" /></div>
+               </div>
+            </div>
+          </div>
+
         </div>
 
         {/* SPALTE 2: Top Movers */}
@@ -280,23 +318,6 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
                   <GraphUpArrow className="text-blue-500" size={18} />
                   Reichweite
                </h3>
-               
-               {/* Trend-Anzeige */}
-               <div className="flex items-center gap-3 ml-3 bg-gray-50/80 rounded-lg px-2.5 py-1 border border-gray-200/80 shadow-sm" title="Trend seit Projektstart">
-                  {/* GSC */}
-                  <div className="flex items-center gap-1.5" title="GSC Trend (Impressionen)">
-                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">GSC</span>
-                    <TrendIcon direction={gscTrend} colorClass="text-blue-600" />
-                  </div>
-                  
-                  <div className="h-3 w-px bg-gray-300"></div>
-                  
-                  {/* KI */}
-                  <div className="flex items-center gap-1.5" title="KI Trend (Sitzungen)">
-                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">KI</span>
-                    <TrendIcon direction={aiTrend} colorClass="text-purple-600" />
-                  </div>
-               </div>
             </div>
             
             {/* Legende */}
@@ -341,7 +362,7 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
                     <Tooltip 
                       contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: '12px', backgroundColor: 'rgba(255,255,255,0.95)' }}
                       labelFormatter={(v) => format(new Date(v), 'd. MMM yyyy', { locale: de })}
-                      // FIX: value als 'any' typisieren, um den Fehler mit number | null zu umgehen
+                      // FIX: Typisierung als 'any' um Probleme mit number|null zu vermeiden
                       formatter={(value: any, name: string) => {
                         if (value === null || value === undefined) return ['Keine Daten (verzögert)', name === 'impressions' ? 'GSC Impressionen' : 'KI Sitzungen'];
                         return [
