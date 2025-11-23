@@ -1,219 +1,410 @@
 // src/app/admin/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import { useEffect, useState, FormEvent } from 'react';
 import Link from 'next/link';
-import { 
-  PersonPlus, 
-  Trash, 
-  PencilSquare, 
-  Search,
-  CheckCircleFill,
-  XCircleFill,
-  FileEarmarkText,
-  ClockHistory,
-  ShieldLock,
-  ListCheck
-} from 'react-bootstrap-icons';
-import type { User } from '@/types';
+import { User } from '@/types';
+// Icons importiert
+import {
+  Pencil,
+  Trash,
+  PersonPlus,
+  ArrowRepeat,
+  InfoCircleFill,
+  ExclamationTriangleFill,
+  People,
+  FileText 
+} from 'react-bootstrap-icons'; 
+
+import LogoManager from './LogoManager';
+import LoginLogbook from './LoginLogbook'; 
 
 export default function AdminPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
+
+  // State management (unverändert)
+  const [message, setMessage] = useState<string>('');
   const [users, setUsers] = useState<User[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [isLoadingUsers, setIsLoadingUsers] = useState<boolean>(true);
+  const [selectedRole, setSelectedRole] = useState<'BENUTZER' | 'ADMIN'>('BENUTZER');
+  const [isSubmitting, setIsSubmitting] = useState(false); 
 
-  useEffect(() => {
-    if (status === 'authenticated') {
-      if (session?.user?.role !== 'ADMIN' && session?.user?.role !== 'SUPERADMIN') {
-        router.push('/dashboard');
-      } else {
-        loadUsers();
-      }
-    } else if (status === 'unauthenticated') {
-      router.push('/login');
-    }
-  }, [status, session, router]);
+  // Check if the current user is a Superadmin (unverändert)
+  const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
 
-  async function loadUsers() {
+  // Fetches the list of users from the API (unverändert)
+  const fetchUsers = async (): Promise<void> => {
+    setIsLoadingUsers(true);
     try {
-      // Wir rufen unsere angepasste API auf
-      const res = await fetch('/api/users');
-      if (!res.ok) throw new Error('Fehler beim Laden');
-      const data = await res.json();
+      const response = await fetch('/api/users');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Fehler beim Laden der Benutzerliste.');
+      }
+      const data: User[] = await response.json();
       setUsers(data);
     } catch (error) {
-      console.error(error);
+      console.error('[AdminPage] Fetch Users Error:', error);
+      setMessage(error instanceof Error ? `Fehler: ${error.message}` : 'Fehler: Beim Verbinden mit der API.');
     } finally {
-      setIsLoading(false);
+      setIsLoadingUsers(false);
     }
-  }
+  };
 
-  async function deleteUser(userId: string) {
-    if (!confirm('Diesen Benutzer wirklich löschen?')) return;
+  // Load users when the component mounts (unverändert)
+  useEffect(() => {
+    if (status === 'authenticated') {
+      void fetchUsers();
+    }
+  }, [status]);
+
+  // Handles the form submission for creating a new user (unverändert)
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>): Promise<void> => {
+    e.preventDefault();
+    setMessage('Erstelle Benutzer...');
+    setIsSubmitting(true); 
+
+    const formData = new FormData(e.currentTarget);
+    const rawData = Object.fromEntries(formData) as Record<string, unknown>;
+
+    // 'permissions' als Array aufbereiten
+    const permissionsString = (rawData.permissions as string) || '';
+    const permissionsArray = permissionsString.split(',')
+      .map(p => p.trim())
+      .filter(p => p.length > 0);
+
+    const payload = { 
+      ...rawData, 
+      role: selectedRole,
+      permissions: (isSuperAdmin && selectedRole === 'ADMIN') ? permissionsArray : [] // Nur übergeben, wenn Admin
+    };
+
     try {
-      const res = await fetch(`/api/users/${userId}`, { method: 'DELETE' });
-      if (res.ok) {
-        setUsers(users.filter(u => u.id !== userId));
+      const response = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || 'Ein unbekannter Fehler ist aufgetreten.');
       }
+
+      setMessage(`Benutzer "${result.email}" erfolgreich erstellt.`);
+      (e.target as HTMLFormElement).reset();
+      setSelectedRole('BENUTZER');
+      await fetchUsers();
     } catch (error) {
-      console.error(error);
+        setMessage(`Fehler: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`);
+    } finally {
+      setIsSubmitting(false); // Ladevorgang beenden
     }
+  };
+
+  // Handles deleting a user (unverändert)
+  const handleDelete = async (userId: string): Promise<void> => {
+    if (!window.confirm('Sind Sie sicher, dass Sie diesen Nutzer endgültig löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.')) {
+        return;
+    }
+    try {
+      const response = await fetch(`/api/users/${userId}`, { method: 'DELETE' });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.message || 'Fehler beim Löschen');
+      }
+      setMessage('Benutzer erfolgreich gelöscht.');
+      await fetchUsers(); // Refresh the user list
+    } catch (error) {
+      setMessage(`Fehler: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`);
+    }
+  };
+
+  // (Auth-Check - Unverändert)
+  if (status === 'loading') {
+    return (
+        <div className="p-8 text-center flex items-center justify-center min-h-screen">
+          <ArrowRepeat className="animate-spin text-indigo-600 mr-2" size={24} />
+          Lade Sitzung...
+        </div>
+    );
+  }
+  if (status === 'unauthenticated' || !session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
+    router.push('/login');
+    return null;
   }
 
-  const filteredUsers = users.filter(user => 
-    user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (user.domain && user.domain.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
-
-  if (status === 'loading' || isLoading) {
-    return <div className="p-8 text-center text-gray-500">Lade Benutzerverwaltung...</div>;
-  }
-
+  // Render the admin page UI
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-7xl mx-auto">
+  <div className="p-8 mt-8 max-w-7xl mx-auto bg-gray-50 min-h-screen">
+      {/* Header */}
+      <div className="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Admin-Bereich</h1>
+          <p className="text-gray-600 mt-2">Verwalten Sie Benutzer und Projekte</p>
+        </div>
+      </div>
+
+      {/* Nachrichtenanzeige */}
+      {message && (
+        <div className={`my-4 p-4 border rounded-md flex items-center gap-2 ${
+          message.startsWith('Fehler:')
+          ? 'bg-red-50 border-red-200 text-red-800'
+          : 'bg-blue-50 border-blue-200 text-blue-800'
+        }`}>
+          {message.startsWith('Fehler:') ? <ExclamationTriangleFill size={18}/> : <InfoCircleFill size={18}/>}
+          {message}
+        </div>
+      )}
+
+      {/* --- User Management Grid --- */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-6">
         
-        {/* Header */}
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Benutzerverwaltung</h1>
-            <p className="text-gray-500 mt-1">
-              Verwalten Sie Kunden, Projekte und Redaktionspläne.
-            </p>
-          </div>
-          <Link 
-            href="/admin/register" 
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-sm transition-colors"
-          >
-            <PersonPlus size={18} />
-            Neuen Benutzer anlegen
-          </Link>
-        </div>
+        {/* User Creation Form */}
+        <div className="bg-white p-6 rounded-lg shadow-md h-fit border border-gray-200">
+          <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+            <PersonPlus size={22} /> Neuen Nutzer anlegen
+          </h2>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Rolle</label>
+              <select
+                name="role"
+                value={selectedRole}
+                onChange={(e) => setSelectedRole(e.target.value as 'BENUTZER' | 'ADMIN')}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                disabled={isSubmitting}
+              >
+                <option value="BENUTZER">Kunde (Benutzer)</option>
+                {isSuperAdmin && <option value="ADMIN">Admin</option>}
+              </select>
+            </div>
 
-        {/* Search */}
-        <div className="bg-white p-4 rounded-xl shadow-sm mb-6 border border-gray-100">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-            <input
-              type="text"
-              placeholder="Suchen nach E-Mail oder Domain..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-        </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">E-Mail</label>
+              <input
+                name="email"
+                type="email"
+                required
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                disabled={isSubmitting}
+              />
+            </div>
 
-        {/* Users List */}
-        <div className="grid gap-4">
-          {filteredUsers.map((user) => (
-            <div key={user.id} className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
-              <div className="flex flex-col md:flex-row justify-between gap-6">
-                
-                {/* Linke Spalte: Basis Infos & Status */}
-                <div className="flex-grow">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      {/* Domain & Email */}
-                      <h3 className="text-xl font-bold text-gray-900">{user.domain || 'Keine Domain'}</h3>
-                      <div className="text-gray-500 font-medium mb-3">{user.email}</div>
-                      
-                      {/* ✅ NEU: Detaillierte Projekt-Infos */}
-                      <div className="space-y-2 text-sm mt-4 pl-1 border-l-2 border-gray-100">
-                        
-                        {/* 1. Projekt-Timeline Status */}
-                        <div className="flex items-center gap-2">
-                           <ClockHistory size={14} className="text-gray-400" />
-                           <span className="text-gray-600">Projekt-Timeline:</span>
-                           {user.project_timeline_active ? (
-                             <span className="text-green-600 font-medium flex items-center gap-1 text-xs bg-green-50 px-2 py-0.5 rounded-full"><CheckCircleFill size={10}/> Aktiv</span>
-                           ) : (
-                             <span className="text-gray-400 font-medium flex items-center gap-1 text-xs bg-gray-50 px-2 py-0.5 rounded-full"><XCircleFill size={10}/> Inaktiv</span>
-                           )}
-                        </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Initial-Passwort</label>
+              <input
+                name="password"
+                type="text"
+                required
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                disabled={isSubmitting}
+              />
+            </div>
+            
+            {/* Mandant-ID (Label) - Zeigt Superadmin-Platzhalter oder erbt von Admin */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Mandant-ID (Label)</label>
+              <input
+                name="mandant_id"
+                type="text"
+                required
+                readOnly={!isSuperAdmin}
+                defaultValue={!isSuperAdmin ? session?.user?.mandant_id || '' : undefined} // defaultValue verwenden
+                placeholder={isSuperAdmin ? "z.B. max-online (Gruppe)" : "Wird von Ihrem Konto geerbt"}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
+                disabled={isSubmitting || !isSuperAdmin} // Für Nicht-Superadmins komplett sperren
+              />
+            </div>
 
-                        {/* 2. Redaktionsplan Status (Vorhanden wenn Pages > 0) */}
-                        <div className="flex items-center gap-2">
-                           <FileEarmarkText size={14} className="text-gray-400" />
-                           <span className="text-gray-600">Redaktionsplan vorhanden:</span>
-                           {(user.landingpages_count || 0) > 0 ? (
-                             <span className="text-indigo-600 font-medium">Ja</span>
-                           ) : (
-                             <span className="text-gray-400">Nein</span>
-                           )}
-                        </div>
-
-                        {/* 3. Landingpages Breakdown */}
-                        {(user.landingpages_count || 0) > 0 && (
-                          <div className="flex flex-wrap items-center gap-2 mt-1">
-                             <span className="font-semibold text-gray-700 w-full sm:w-auto flex items-center gap-1">
-                               <ListCheck size={14} /> 
-                               {user.landingpages_count} Landingpages:
-                             </span>
-                             <span className="text-xs px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-100">Offen: {user.landingpages_offen}</span>
-                             <span className="text-xs px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-100">Prüfung: {user.landingpages_in_pruefung}</span>
-                             <span className="text-xs px-2 py-0.5 rounded bg-green-50 text-green-700 border border-green-100">Freig.: {user.landingpages_freigegeben}</span>
-                             <span className="text-xs px-2 py-0.5 rounded bg-red-50 text-red-700 border border-red-100">Gesperrt: {user.landingpages_gesperrt}</span>
-                          </div>
-                        )}
-
-                        {/* 4. Admin / Ersteller */}
-                        <div className="flex items-center gap-2 pt-1">
-                           <ShieldLock size={14} className="text-gray-400" />
-                           <span className="text-gray-600">Admin:</span>
-                           <span className="text-gray-800 font-medium bg-gray-100 px-2 py-0.5 rounded text-xs">
-                             {user.creator_email || 'System / Unbekannt'}
-                           </span>
-                        </div>
-
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Rechte Spalte: Buttons & Role Badge */}
-                <div className="flex flex-col items-end gap-3 min-w-[140px]">
-                  <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                    user.role === 'SUPERADMIN' ? 'bg-purple-100 text-purple-700' :
-                    user.role === 'ADMIN' ? 'bg-indigo-100 text-indigo-700' :
-                    'bg-gray-100 text-gray-700'
-                  }`}>
-                    {user.role}
-                  </span>
-                  
-                  <div className="flex items-center gap-2 mt-auto">
-                    <Link 
-                      href={`/admin/edit/${user.id}`}
-                      className="p-2 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                      title="Bearbeiten"
-                    >
-                      <PencilSquare size={20} />
-                    </Link>
-                    <button
-                      onClick={() => deleteUser(user.id)}
-                      className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                      title="Löschen"
-                    >
-                      <Trash size={20} />
-                    </button>
-                  </div>
-                </div>
-
+            {/* +++ KORREKTUR HIER +++
+                Dieses Feld wird nur angezeigt, wenn:
+                1. Der User ein SuperAdmin ist
+                2. UND die ausgewählte Rolle "ADMIN" ist
+            */}
+            {isSuperAdmin && selectedRole === 'ADMIN' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Berechtigungen (Klasse)</label>
+                <input
+                  name="permissions"
+                  type="text"
+                  placeholder="Optional: z.B. kann_admins_verwalten"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
+                  disabled={isSubmitting}
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Mehrere Labels mit Komma trennen (z.B. label1, label2)
+                </p>
               </div>
+            )}
+
+            {/* Diese Felder werden nur für "KUNDE (BENUTZER)" angezeigt */}
+            {selectedRole === 'BENUTZER' && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Domain (z. B. kundendomain.at)</label>
+                  <input
+                    name="domain"
+                    type="text"
+                    required
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    disabled={isSubmitting}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Favicon URL</label>
+                  <input
+                    name="favicon_url"
+                    type="text"
+                    placeholder="Optional: https://example.com/favicon.png"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
+                    disabled={isSubmitting}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">GSC Site URL (z. B. https://kundendomain.at/)</label>
+                  <input
+                    name="gsc_site_url"
+                    type="text"
+                    placeholder="Optional"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
+                    disabled={isSubmitting}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">GA4 Property ID (nur die Nummer)</label>
+                  <input
+                    name="ga4_property_id"
+                    type="text"
+                    placeholder="Optional"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
+                    disabled={isSubmitting}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Semrush Projekt ID</label>
+                  <input
+                    name="semrush_project_id"
+                    type="text"
+                    placeholder="Optional"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
+                    disabled={isSubmitting}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Semrush Tracking ID</label>
+                  <input
+                    name="semrush_tracking_id"
+                    type="text"
+                    placeholder="Optional"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
+                    disabled={isSubmitting}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Semrush Tracking ID 02</label>
+                  <input
+                    name="semrush_tracking_id_02"
+                    type="text"
+                    placeholder="Optional (z.B. für USA)"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
+                    disabled={isSubmitting}
+                  />
+                </div>
+              </>
+            )}
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full px-4 py-2 font-normal text-white bg-[#188bdb] border-[3px] border-[#188bdb] rounded-[3px] hover:shadow-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#188bdb] disabled:opacity-50 disabled:cursor-wait flex items-center justify-center gap-2"
+            >
+              {isSubmitting ? (
+                <>
+                  <ArrowRepeat className="animate-spin" size={18} />
+                  <span>Wird erstellt...</span>
+                </>
+              ) : (
+                <>
+                  <PersonPlus size={18} />
+                  {selectedRole === 'BENUTZER' ? 'Kunden erstellen' : 'Admin erstellen'}
+                </>
+              )}
+            </button>
+          </form>
+        </div>
+
+        {/* Vorhandene Nutzer Liste (Unverändert) */}
+        <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
+          <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+            <People size={22} /> Vorhandene Nutzer
+          </h2>
+          {isLoadingUsers ? (
+            <div className="flex items-center text-gray-500">
+              <ArrowRepeat className="animate-spin text-indigo-600 mr-2" size={18} />
+              Lade Benutzer...
             </div>
-          ))}
-          
-          {filteredUsers.length === 0 && (
-            <div className="text-center py-12 bg-white rounded-xl border border-gray-200 text-gray-500">
-              Keine Benutzer gefunden.
+          ) : users.length === 0 ? (
+            <div className="text-center text-gray-400 p-8">
+              <People size={32} className="mx-auto mb-2" />
+              <p>Keine Benutzer gefunden.</p>
             </div>
+          ) : (
+            <ul className="space-y-3">
+              {users.map((user) => (
+                  <li key={user.id} className="p-3 border rounded-md flex flex-col sm:flex-row justify-between sm:items-center gap-3 transition-colors hover:bg-gray-50">
+                    <div className="flex-1 overflow-hidden">
+                      <p className="font-semibold truncate" title={user.email}>{user.email}</p>
+                      {user.mandant_id && (
+                        <p className="text-xs text-indigo-600 font-medium truncate" title={`Mandant: ${user.mandant_id}`}>
+                          Label: {user.mandant_id}
+                        </p>
+                      )}
+                      {user.domain && (
+                        <p className="text-sm text-blue-600 font-medium truncate">{user.domain}</p>
+                      )}
+                      <p className="text-xs uppercase font-medium text-gray-500">{user.role}</p>
+                      {user.permissions && user.permissions.length > 0 && (
+                        <p className="text-xs text-green-700 truncate" title={`Klasse: ${user.permissions.join(', ')}`}>
+                          Klasse: {user.permissions.join(', ')}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex gap-2 flex-shrink-0 w-full sm:w-auto">
+                      <Link
+                        href={`/admin/edit/${user.id}`}
+                        className="flex-1 sm:flex-none justify-center bg-gray-200 text-gray-700 px-3 py-1.5 rounded hover:bg-gray-300 text-sm flex items-center gap-1.5 transition-colors"
+                      >
+                        <Pencil size={14} /> Bearbeiten
+                      </Link>
+                      {isSuperAdmin && (
+                        <button
+                          onClick={() => void handleDelete(user.id)}
+                          className="flex-1 sm:flex-none justify-center bg-red-500 text-white px-3 py-1.5 rounded hover:bg-red-600 text-sm flex items-center gap-1.5 transition-colors"
+                        >
+                          <Trash size={14} /> Löschen
+                        </button>
+                      )}
+                    </div>
+                  </li>
+                ))}
+            </ul>
           )}
         </div>
       </div>
+
+      {/* Superadmin-Tools (Unverändert) */}
+      {isSuperAdmin && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
+          <LogoManager />
+          <LoginLogbook />
+        </div>
+      )}
     </div>
   );
 }
