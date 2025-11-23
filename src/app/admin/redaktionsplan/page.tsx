@@ -1,9 +1,9 @@
 // src/app/admin/redaktionsplan/page.tsx
 'use client';
 
-import { useState, useEffect, ReactNode, useCallback } from 'react';
+import { useState, useEffect, ReactNode, useCallback, Suspense } from 'react'; // ✅ Suspense importieren
 import { useSession } from 'next-auth/react';
-import { useRouter, useSearchParams } from 'next/navigation'; // ✅ NEU: useSearchParams
+import { useRouter, useSearchParams } from 'next/navigation';
 import type { User } from '@/types';
 import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector';
 import { cn } from '@/lib/utils'; 
@@ -80,17 +80,16 @@ const formatDateOnly = (dateString?: string | null) => {
   return new Date(dateString).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
 };
 
-export default function RedaktionsplanPage() {
+// ✅ Interne Komponente mit der eigentlichen Logik
+function RedaktionsplanContent() {
   const { data: session, status: authStatus } = useSession();
   const router = useRouter();
   
-  // ✅ NEU: Parameter auslesen
+  // Parameter auslesen (Verursacher des Fehlers ohne Suspense)
   const searchParams = useSearchParams();
   const initialProjectId = searchParams.get('id');
 
   const [projects, setProjects] = useState<User[]>([]);
-  
-  // ✅ FIX: State mit URL-Parameter initialisieren
   const [selectedProject, setSelectedProject] = useState<string>(initialProjectId || '');
   
   const [landingpages, setLandingpages] = useState<Landingpage[]>([]);
@@ -387,5 +386,14 @@ export default function RedaktionsplanPage() {
         )}
       </div>
     </div>
+  );
+}
+
+// ✅ Wrapper für die Suspense-Boundary (Pflicht bei useSearchParams in Client Components)
+export default function RedaktionsplanPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-gray-50 text-gray-500">Lade Redaktionsplan...</div>}>
+      <RedaktionsplanContent />
+    </Suspense>
   );
 }
