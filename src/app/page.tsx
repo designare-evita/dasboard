@@ -13,7 +13,8 @@ import {
   FileEarmarkText, 
   ShieldLock, 
   BoxArrowInRight,
-  Globe
+  Globe,
+  People
 } from 'react-bootstrap-icons';
 import type { User } from '@/types';
 
@@ -26,13 +27,15 @@ export default function ProjectsPage() {
 
   useEffect(() => {
     if (status === 'authenticated') {
-      // Wir prüfen die Rolle: Nur Admins/Superadmins sehen diese Übersicht
-      // Normale Benutzer werden ggf. auf ihr Dashboard umgeleitet (wird meist im Header/Middleware geregelt)
-      if (session?.user?.role !== 'ADMIN' && session?.user?.role !== 'SUPERADMIN') {
-        // Fallback für normale User (falls sie hier landen)
-        return; 
+      // ✅ FIX: Wenn Benutzer ein Kunde ist, Ladevorgang beenden und return
+      if (session?.user?.role === 'BENUTZER') {
+        setIsLoading(false);
+        return;
       }
-      loadProjects();
+      // Wenn Admin/Superadmin, lade Projekte
+      if (session?.user?.role === 'ADMIN' || session?.user?.role === 'SUPERADMIN') {
+        loadProjects();
+      }
     } else if (status === 'unauthenticated') {
       router.push('/login');
     }
@@ -40,7 +43,6 @@ export default function ProjectsPage() {
 
   async function loadProjects() {
     try {
-      // Wir laden Benutzer mit "onlyCustomers=true", das triggert in der API auch die Stats
       const res = await fetch('/api/users?onlyCustomers=true');
       if (!res.ok) throw new Error('Fehler beim Laden der Projekte');
       const data = await res.json();
@@ -65,13 +67,20 @@ export default function ProjectsPage() {
     );
   }
 
-  // Wenn normaler User eingeloggt ist (nur zur Sicherheit, UI ist eigentlich für Admins)
+  // ✅ FIX: Ansicht für normale Kunden (Dashboard statt leerer Seite)
   if (session?.user?.role === 'BENUTZER') {
      return (
        <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
-         <div className="text-center">
-           <h1 className="text-2xl font-bold text-gray-800 mb-2">Willkommen im Dashboard</h1>
-           <Link href="/dashboard/freigabe" className="text-indigo-600 hover:underline">Zum Redaktionsplan</Link>
+         <div className="text-center bg-white p-8 rounded-xl shadow-sm border border-gray-100 max-w-md w-full">
+           <h1 className="text-2xl font-bold text-gray-900 mb-2">Willkommen!</h1>
+           <p className="text-gray-500 mb-6">Sie sind als Kunde angemeldet.</p>
+           <div className="space-y-3">
+             <Link href="/dashboard/freigabe" className="block w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+               Zum Redaktionsplan
+             </Link>
+             {/* Falls es ein Dashboard für Kunden gibt: */}
+             {/* <Link href="/dashboard" ... >Zum Dashboard</Link> */}
+           </div>
          </div>
        </div>
      );
@@ -81,7 +90,6 @@ export default function ProjectsPage() {
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-7xl mx-auto">
         
-        {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
@@ -93,7 +101,6 @@ export default function ProjectsPage() {
             </p>
           </div>
           
-          {/* Search */}
           <div className="relative w-full md:w-96">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
             <input
@@ -106,16 +113,17 @@ export default function ProjectsPage() {
           </div>
         </div>
 
-        {/* Projects Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {filteredProjects.map((user) => {
             const hasRedaktionsplan = (user.landingpages_count || 0) > 0;
-            const creator = user.creator_email || 'System';
+            // ✅ FIX: Zeige alle zugewiesenen Admins, fallback auf Creator, fallback auf System
+            const adminsDisplay = user.assigned_admins 
+              ? user.assigned_admins 
+              : (user.creator_email || 'System');
 
             return (
               <div key={user.id} className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-all duration-200 p-6 flex flex-col h-full">
                 
-                {/* Card Header: Domain & Email */}
                 <div className="flex justify-between items-start mb-4">
                   <div>
                     <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
@@ -134,10 +142,7 @@ export default function ProjectsPage() {
 
                 <hr className="border-gray-100 mb-4" />
 
-                {/* Status Grid */}
                 <div className="grid grid-cols-2 gap-4 mb-5">
-                  
-                  {/* 1. Timeline */}
                   <div>
                     <span className="text-xs text-gray-400 uppercase font-bold tracking-wider block mb-1">Projekt-Timeline</span>
                     {user.project_timeline_active ? (
@@ -151,7 +156,6 @@ export default function ProjectsPage() {
                     )}
                   </div>
 
-                  {/* 2. Redaktionsplan */}
                   <div>
                     <span className="text-xs text-gray-400 uppercase font-bold tracking-wider block mb-1">Redaktionsplan</span>
                     {hasRedaktionsplan ? (
@@ -167,7 +171,6 @@ export default function ProjectsPage() {
                   </div>
                 </div>
 
-                {/* Landingpage Stats */}
                 <div className="mb-5 bg-gray-50 rounded-lg p-3 border border-gray-100">
                   <div className="flex justify-between items-center mb-2">
                     <span className="text-xs font-semibold text-gray-700">Landingpages ({user.landingpages_count || 0})</span>
@@ -196,13 +199,19 @@ export default function ProjectsPage() {
                   )}
                 </div>
 
-                {/* Footer: Admin Info */}
-                <div className="mt-auto pt-3 border-t border-gray-100 flex items-center gap-2 text-xs text-gray-500">
-                  <ShieldLock size={12} />
-                  <span className="font-medium">Admin:</span>
-                  <span className="bg-gray-100 px-2 py-0.5 rounded text-gray-700 truncate max-w-[200px]" title={creator}>
-                    {creator}
-                  </span>
+                {/* ✅ FIX: Zeige mehrere Admins an */}
+                <div className="mt-auto pt-3 border-t border-gray-100 flex items-start gap-2 text-xs text-gray-500">
+                  <ShieldLock size={12} className="mt-0.5 flex-shrink-0" />
+                  <div className="flex flex-col w-full">
+                    <span className="font-medium mb-1">Betreut durch:</span>
+                    <div className="flex flex-wrap gap-1">
+                      {adminsDisplay.split(', ').map((adminEmail, idx) => (
+                        <span key={idx} className="bg-gray-100 px-2 py-0.5 rounded text-gray-700 truncate max-w-full" title={adminEmail}>
+                          {adminEmail}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
                 </div>
 
               </div>
