@@ -14,7 +14,11 @@ export interface User {
   semrush_project_id?: string | null;
   semrush_tracking_id?: string | null;
   semrush_tracking_id_02?: string | null;
+  
+  // Admin & Ersteller
   createdByAdminId?: string;
+  creator_email?: string; // ✅ NEU: E-Mail des Admins/Erstellers
+  
   createdAt: Date;
   semrush_organic_keywords?: number;
   semrush_organic_traffic?: number;
@@ -23,6 +27,13 @@ export interface User {
   project_start_date?: Date | null;
   project_duration_months?: number | null;
   project_timeline_active?: boolean | null;
+
+  // ✅ NEU: Landingpage Statistiken
+  landingpages_count?: number;      // Gesamtanzahl
+  landingpages_offen?: number;      // Anzahl Status 'Offen'
+  landingpages_in_pruefung?: number;// Anzahl Status 'In Prüfung'
+  landingpages_freigegeben?: number;// Anzahl Status 'Freigegeben'
+  landingpages_gesperrt?: number;   // Anzahl Status 'Gesperrt'
 }
 
 export interface Landingpage {
@@ -31,7 +42,7 @@ export interface Landingpage {
   status: 'Offen' | 'In Prüfung' | 'Gesperrt' | 'Freigegeben';
   haupt_keyword?: string;
   weitere_keywords?: string;
-  comment?: string | null; // ✅ NEU: Kommentarfeld
+  comment?: string | null;
   gsc_klicks: number | null;
   gsc_klicks_change: number | null;
   gsc_impressionen: number | null;
