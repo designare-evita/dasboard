@@ -38,7 +38,6 @@ type Landingpage = {
   created_at: string;
   updated_at?: string;
   
-  // GSC-Felder
   gsc_klicks: number | null;
   gsc_klicks_change: number | null;
   gsc_impressionen: number | null;
@@ -51,14 +50,12 @@ type Landingpage = {
 
 type LandingpageStatus = Landingpage['status'];
 
-// Helper für GSC Indicators (Grüne/Rote Zahlen)
+// Helper für GSC Indicators
 const GscChangeIndicator = ({ change, isPosition = false }: { change: number | string | null | undefined, isPosition?: boolean }) => {
   const numChange = (change === null || change === undefined || change === '') ? 0 : parseFloat(String(change));
   if (numChange === 0) return null;
   
-  // Bei Position ist negativ gut (Platz 10 -> 5 = -5), sonst ist positiv gut
   let isPositive = isPosition ? numChange < 0 : numChange > 0;
-  
   let text = isPosition 
     ? (numChange > 0 ? `+${numChange.toFixed(2)}` : numChange.toFixed(2)) 
     : (numChange > 0 ? `+${numChange.toLocaleString('de-DE')}` : numChange.toLocaleString('de-DE'));
@@ -89,10 +86,11 @@ export default function FreigabePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState('');
   
+  const [savedCommentId, setSavedCommentId] = useState<number | null>(null);
+  
   const [dateRange, setDateRange] = useState<DateRangeOption>('30d');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Daten laden
   const loadLandingpages = useCallback(async () => {
     if (!session?.user?.id) return;
     if (landingpages.length === 0) setIsLoading(true);
@@ -120,7 +118,6 @@ export default function FreigabePage() {
     setFilteredPages(filterStatus === 'alle' ? landingpages : landingpages.filter(lp => lp.status === filterStatus));
   }, [filterStatus, landingpages]);
 
-  // Status ändern
   const updateStatus = async (landingpageId: number, newStatus: 'Freigegeben' | 'Gesperrt') => {
     const now = new Date().toISOString();
     const originalLandingpages = [...landingpages];
@@ -142,7 +139,6 @@ export default function FreigabePage() {
     }
   };
 
-  // Kommentar speichern
   const saveComment = async (landingpageId: number, newComment: string) => {
     try {
       setLandingpages(prev => prev.map(lp => lp.id === landingpageId ? { ...lp, comment: newComment } : lp));
@@ -153,6 +149,10 @@ export default function FreigabePage() {
         body: JSON.stringify({ comment: newComment })
       });
       if (!response.ok) throw new Error('Fehler');
+      
+      setSavedCommentId(landingpageId);
+      setTimeout(() => setSavedCommentId(null), 2500);
+
     } catch (error) {
       console.error(error);
       setMessage('Kommentar konnte nicht gespeichert werden');
@@ -179,7 +179,6 @@ export default function FreigabePage() {
     }
   };
 
-  // UI Helpers
   const getStatusStyle = (status: LandingpageStatus) => {
     switch (status) {
       case 'Offen': return 'text-blue-700 border-blue-300 bg-blue-50';
@@ -213,7 +212,6 @@ export default function FreigabePage() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
-      {/* KORREKTUR: max-w-full für die ganze Breite */}
       <div className="max-w-full mx-auto"> 
         
         <div className="mb-8 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
@@ -266,13 +264,11 @@ export default function FreigabePage() {
                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[20%]">URL / Keyword</th>
                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><div className="flex items-center gap-1"><CalendarEvent/> Daten</div></th>
                    
-                   {/* Getrennte GSC Spalten */}
                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">GSC Klicks</th>
                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">GSC Impr.</th>
                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">GSC Pos.</th>
                    
                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                   {/* KORREKTUR: Spalte für Anmerkung jetzt 35% breit */}
                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[35%]">
                      <div className="flex items-center gap-1"><ChatSquareText/> Anmerkung</div>
                    </th>
@@ -294,7 +290,7 @@ export default function FreigabePage() {
                        <div className="text-xs">Update: {formatDateOnly(lp.updated_at)}</div>
                      </td>
 
-                     {/* 3. GSC Klicks - GESTAPELT */}
+                     {/* 3. GSC Klicks */}
                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right align-top">
                        <div className="flex flex-col items-end gap-1">
                          <span className="font-medium text-gray-900">{lp.gsc_klicks?.toLocaleString('de-DE') || '-'}</span>
@@ -302,7 +298,7 @@ export default function FreigabePage() {
                        </div>
                      </td>
 
-                     {/* 4. GSC Impressionen - GESTAPELT */}
+                     {/* 4. GSC Impressionen */}
                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right align-top">
                        <div className="flex flex-col items-end gap-1">
                          <span className="font-medium text-gray-900">{lp.gsc_impressionen?.toLocaleString('de-DE') || '-'}</span>
@@ -310,7 +306,7 @@ export default function FreigabePage() {
                        </div>
                      </td>
 
-                     {/* 5. GSC Position - GESTAPELT */}
+                     {/* 5. GSC Position */}
                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right align-top">
                        <div className="flex flex-col items-end gap-1">
                          <span className="font-medium text-gray-900">{lp.gsc_position ? parseFloat(String(lp.gsc_position)).toFixed(2) : '-'}</span>
@@ -323,11 +319,11 @@ export default function FreigabePage() {
                        <span className={`px-2.5 py-0.5 text-xs font-medium rounded-full border ${getStatusStyle(lp.status)}`}>{getStatusIcon(lp.status)} {lp.status}</span>
                      </td>
 
-                     {/* 7. Anmerkung (Große Textarea) */}
-                     <td className="px-6 py-4 align-top">
+                     {/* 7. Anmerkung (Relative Position für Hackerl) */}
+                     <td className="px-6 py-4 align-top relative">
                         <textarea
                           className="w-full text-sm p-2 border border-gray-300 rounded focus:ring-indigo-500 focus:border-indigo-500 resize-y"
-                          rows={3} 
+                          rows={3}
                           defaultValue={lp.comment || ''}
                           placeholder="Anmerkung hinzufügen..."
                           onBlur={(e) => {
@@ -336,9 +332,15 @@ export default function FreigabePage() {
                             }
                           }}
                         />
+                        {/* ✅ Das grüne Hackerl */}
+                        {savedCommentId === lp.id && (
+                          <div className="absolute top-2 right-2 bg-white rounded-full shadow-sm border border-green-100 p-1 animate-in fade-in zoom-in duration-300">
+                            <CheckCircleFill className="text-green-600" size={18} />
+                          </div>
+                        )}
                      </td>
 
-                     {/* 8. Aktionen - UNTEREINANDER */}
+                     {/* 8. Aktionen */}
                      <td className="px-6 py-4 whitespace-nowrap align-top">
                        <div className="flex flex-col gap-2">
                           <button onClick={() => updateStatus(lp.id, 'Freigegeben')} className="px-3 py-1.5 text-xs font-medium rounded bg-green-600 border border-green-600 text-white hover:bg-green-700 flex items-center gap-1 justify-center"><CheckCircleFill size={14} /> Freigeben</button>
