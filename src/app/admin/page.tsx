@@ -140,7 +140,8 @@ export default function AdminPage() {
 
   // Render the admin page UI
   return (
-  <div className="p-8 mt-8 max-w-7xl mx-auto bg-gray-50 min-h-screen">
+  // ✅ ÄNDERUNG: max-w-7xl entfernt, max-w-full gesetzt
+  <div className="p-8 mt-8 max-w-full mx-auto bg-gray-50 min-h-screen">
       {/* Header */}
       <div className="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -162,14 +163,16 @@ export default function AdminPage() {
       )}
 
       {/* --- User Management Grid --- */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-6">
+      {/* ✅ OPTIMIERUNG: Wenn volle Breite, können wir dem Grid auch mehr Platz geben */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-6">
         
-        {/* User Creation Form */}
-        <div className="bg-white p-6 rounded-lg shadow-md h-fit border border-gray-200">
+        {/* User Creation Form (1/3 Breite auf großen Screens) */}
+        <div className="lg:col-span-1 bg-white p-6 rounded-lg shadow-md h-fit border border-gray-200">
           <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
             <PersonPlus size={22} /> Neuen Nutzer anlegen
           </h2>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* ... Formularfelder bleiben ident ... */}
             <div>
               <label className="block text-sm font-medium text-gray-700">Rolle</label>
               <select
@@ -206,7 +209,6 @@ export default function AdminPage() {
               />
             </div>
             
-            {/* Mandant-ID (Label) - Zeigt Superadmin-Platzhalter oder erbt von Admin */}
             <div>
               <label className="block text-sm font-medium text-gray-700">Mandant-ID (Label)</label>
               <input
@@ -214,18 +216,13 @@ export default function AdminPage() {
                 type="text"
                 required
                 readOnly={!isSuperAdmin}
-                defaultValue={!isSuperAdmin ? session?.user?.mandant_id || '' : undefined} // defaultValue verwenden
+                defaultValue={!isSuperAdmin ? session?.user?.mandant_id || '' : undefined} 
                 placeholder={isSuperAdmin ? "z.B. max-online (Gruppe)" : "Wird von Ihrem Konto geerbt"}
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
-                disabled={isSubmitting || !isSuperAdmin} // Für Nicht-Superadmins komplett sperren
+                disabled={isSubmitting || !isSuperAdmin} 
               />
             </div>
 
-            {/* +++ KORREKTUR HIER +++
-                Dieses Feld wird nur angezeigt, wenn:
-                1. Der User ein SuperAdmin ist
-                2. UND die ausgewählte Rolle "ADMIN" ist
-            */}
             {isSuperAdmin && selectedRole === 'ADMIN' && (
               <div>
                 <label className="block text-sm font-medium text-gray-700">Berechtigungen (Klasse)</label>
@@ -242,7 +239,6 @@ export default function AdminPage() {
               </div>
             )}
 
-            {/* Diese Felder werden nur für "KUNDE (BENUTZER)" angezeigt */}
             {selectedRole === 'BENUTZER' && (
               <>
                 <div>
@@ -338,8 +334,8 @@ export default function AdminPage() {
           </form>
         </div>
 
-        {/* Vorhandene Nutzer Liste (Unverändert) */}
-        <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
+        {/* Vorhandene Nutzer Liste (2/3 Breite auf großen Screens) */}
+        <div className="lg:col-span-2 bg-white p-6 rounded-lg shadow-md border border-gray-200">
           <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
             <People size={22} /> Vorhandene Nutzer
           </h2>
@@ -354,38 +350,43 @@ export default function AdminPage() {
               <p>Keine Benutzer gefunden.</p>
             </div>
           ) : (
-            <ul className="space-y-3">
+            // ✅ Grid Layout für die Benutzerkarten (besser bei voller Breite als eine lange Liste)
+            <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {users.map((user) => (
-                  <li key={user.id} className="p-3 border rounded-md flex flex-col sm:flex-row justify-between sm:items-center gap-3 transition-colors hover:bg-gray-50">
+                  <li key={user.id} className="p-4 border rounded-lg flex flex-col justify-between gap-3 transition-colors hover:bg-gray-50 shadow-sm h-full">
                     <div className="flex-1 overflow-hidden">
-                      <p className="font-semibold truncate" title={user.email}>{user.email}</p>
+                      <p className="font-semibold text-gray-900 truncate" title={user.email}>{user.email}</p>
                       {user.mandant_id && (
                         <p className="text-xs text-indigo-600 font-medium truncate" title={`Mandant: ${user.mandant_id}`}>
                           Label: {user.mandant_id}
                         </p>
                       )}
                       {user.domain && (
-                        <p className="text-sm text-blue-600 font-medium truncate">{user.domain}</p>
+                        <p className="text-sm text-blue-600 font-medium truncate mt-1">{user.domain}</p>
                       )}
-                      <p className="text-xs uppercase font-medium text-gray-500">{user.role}</p>
-                      {user.permissions && user.permissions.length > 0 && (
-                        <p className="text-xs text-green-700 truncate" title={`Klasse: ${user.permissions.join(', ')}`}>
-                          Klasse: {user.permissions.join(', ')}
-                        </p>
-                      )}
+                      <div className="flex gap-2 mt-2">
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium uppercase ${user.role === 'ADMIN' || user.role === 'SUPERADMIN' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}`}>
+                          {user.role}
+                        </span>
+                        {user.permissions && user.permissions.length > 0 && (
+                          <span className="px-2 py-0.5 rounded text-xs font-medium bg-green-50 text-green-700 border border-green-100 truncate max-w-[150px]" title={`Klasse: ${user.permissions.join(', ')}`}>
+                            {user.permissions.join(', ')}
+                          </span>
+                        )}
+                      </div>
                     </div>
 
-                    <div className="flex gap-2 flex-shrink-0 w-full sm:w-auto">
+                    <div className="flex gap-2 pt-2 border-t border-gray-100 mt-2">
                       <Link
                         href={`/admin/edit/${user.id}`}
-                        className="flex-1 sm:flex-none justify-center bg-gray-200 text-gray-700 px-3 py-1.5 rounded hover:bg-gray-300 text-sm flex items-center gap-1.5 transition-colors"
+                        className="flex-1 justify-center bg-white border border-gray-300 text-gray-700 px-3 py-1.5 rounded hover:bg-gray-50 text-sm flex items-center gap-1.5 transition-colors"
                       >
                         <Pencil size={14} /> Bearbeiten
                       </Link>
                       {isSuperAdmin && (
                         <button
                           onClick={() => void handleDelete(user.id)}
-                          className="flex-1 sm:flex-none justify-center bg-red-500 text-white px-3 py-1.5 rounded hover:bg-red-600 text-sm flex items-center gap-1.5 transition-colors"
+                          className="flex-1 justify-center bg-white border border-red-200 text-red-600 px-3 py-1.5 rounded hover:bg-red-50 text-sm flex items-center gap-1.5 transition-colors"
                         >
                           <Trash size={14} /> Löschen
                         </button>
