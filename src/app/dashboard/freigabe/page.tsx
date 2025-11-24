@@ -12,7 +12,7 @@ import {
   FileEarmarkText,
   Search,
   SlashCircleFill,
-  CheckCircleFill,
+  CheckCircleFill, // ✅ Wichtig
   InfoCircle,
   ExclamationTriangleFill,
   ArrowRepeat,
@@ -86,6 +86,7 @@ export default function FreigabePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState('');
   
+  // ✅ State für das grüne Hackerl
   const [savedCommentId, setSavedCommentId] = useState<number | null>(null);
   
   const [dateRange, setDateRange] = useState<DateRangeOption>('30d');
@@ -139,6 +140,7 @@ export default function FreigabePage() {
     }
   };
 
+  // ✅ Kommentarspeicher-Logik MIT Hackerl
   const saveComment = async (landingpageId: number, newComment: string) => {
     try {
       setLandingpages(prev => prev.map(lp => lp.id === landingpageId ? { ...lp, comment: newComment } : lp));
@@ -150,8 +152,9 @@ export default function FreigabePage() {
       });
       if (!response.ok) throw new Error('Fehler');
       
+      // ✅ LÄNGERE DAUER (60 Sekunden) & Feedback
       setSavedCommentId(landingpageId);
-      setTimeout(() => setSavedCommentId(null), 2500);
+      setTimeout(() => setSavedCommentId(null), 60000); // 60000ms = 1 Minute
 
     } catch (error) {
       console.error(error);
@@ -278,48 +281,38 @@ export default function FreigabePage() {
                <tbody className="bg-white divide-y divide-gray-200">
                  {filteredPages.map((lp) => (
                    <tr key={lp.id} className="hover:bg-gray-50 transition-colors">
-                     {/* 1. URL & Keyword */}
+                     {/* (Spalten 1-6 bleiben gleich) */}
                      <td className="px-6 py-4 whitespace-nowrap align-top">
                        <div className="text-sm font-medium text-gray-900 truncate" title={lp.haupt_keyword || undefined}>{lp.haupt_keyword || <span className="text-gray-400 italic">Kein Keyword</span>}</div>
                        <a href={lp.url} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-800 text-xs truncate block" title={lp.url}>{lp.url}</a>
                      </td>
-                     
-                     {/* 2. Daten */}
                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 align-top">
                        <div className="text-xs">Erstellt: {formatDateOnly(lp.created_at)}</div>
                        <div className="text-xs">Update: {formatDateOnly(lp.updated_at)}</div>
                      </td>
-
-                     {/* 3. GSC Klicks */}
                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right align-top">
                        <div className="flex flex-col items-end gap-1">
                          <span className="font-medium text-gray-900">{lp.gsc_klicks?.toLocaleString('de-DE') || '-'}</span>
                          <GscChangeIndicator change={lp.gsc_klicks_change} />
                        </div>
                      </td>
-
-                     {/* 4. GSC Impressionen */}
                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right align-top">
                        <div className="flex flex-col items-end gap-1">
                          <span className="font-medium text-gray-900">{lp.gsc_impressionen?.toLocaleString('de-DE') || '-'}</span>
                          <GscChangeIndicator change={lp.gsc_impressionen_change} />
                        </div>
                      </td>
-
-                     {/* 5. GSC Position */}
                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right align-top">
                        <div className="flex flex-col items-end gap-1">
                          <span className="font-medium text-gray-900">{lp.gsc_position ? parseFloat(String(lp.gsc_position)).toFixed(2) : '-'}</span>
                          <GscChangeIndicator change={lp.gsc_position_change} isPosition={true} />
                        </div>
                      </td>
-
-                     {/* 6. Status */}
                      <td className="px-6 py-4 whitespace-nowrap align-top">
                        <span className={`px-2.5 py-0.5 text-xs font-medium rounded-full border ${getStatusStyle(lp.status)}`}>{getStatusIcon(lp.status)} {lp.status}</span>
                      </td>
 
-                     {/* 7. Anmerkung (Relative Position für Hackerl) */}
+                     {/* ✅ Anmerkung mit Badge für Kunde */}
                      <td className="px-6 py-4 align-top relative">
                         <textarea
                           className="w-full text-sm p-2 border border-gray-300 rounded focus:ring-indigo-500 focus:border-indigo-500 resize-y"
@@ -332,15 +325,15 @@ export default function FreigabePage() {
                             }
                           }}
                         />
-                        {/* ✅ Das grüne Hackerl */}
+                        {/* ✅ Feedback Badge (1 Minute) */}
                         {savedCommentId === lp.id && (
-                          <div className="absolute top-2 right-2 bg-white rounded-full shadow-sm border border-green-100 p-1 animate-in fade-in zoom-in duration-300">
-                            <CheckCircleFill className="text-green-600" size={18} />
+                          <div className="absolute top-2 right-2 bg-green-50 text-green-700 text-[10px] font-medium px-2 py-1 rounded border border-green-200 shadow-sm flex items-center gap-1.5 animate-in fade-in zoom-in duration-300 z-10">
+                            <CheckCircleFill size={10} />
+                            <span>Gespeichert & Betreuer benachrichtigt</span>
                           </div>
                         )}
                      </td>
 
-                     {/* 8. Aktionen */}
                      <td className="px-6 py-4 whitespace-nowrap align-top">
                        <div className="flex flex-col gap-2">
                           <button onClick={() => updateStatus(lp.id, 'Freigegeben')} className="px-3 py-1.5 text-xs font-medium rounded bg-green-600 border border-green-600 text-white hover:bg-green-700 flex items-center gap-1 justify-center"><CheckCircleFill size={14} /> Freigeben</button>
