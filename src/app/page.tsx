@@ -28,14 +28,12 @@ export default function ProjectsPage() {
 
   useEffect(() => {
     if (status === 'authenticated') {
-      // 1. KUNDE: Direkt weiterleiten
       if (session?.user?.role === 'BENUTZER') {
         if (session.user.id) {
           router.push(`/projekt/${session.user.id}`);
         }
         return;
       }
-      // 2. ADMIN: Projekte laden
       if (session?.user?.role === 'ADMIN' || session?.user?.role === 'SUPERADMIN') {
         loadProjects();
       }
@@ -62,7 +60,6 @@ export default function ProjectsPage() {
     (user.domain && user.domain.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  // Lade-Status
   if (status === 'loading' || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -73,16 +70,15 @@ export default function ProjectsPage() {
     );
   }
 
-  // Wenn Kunde: Nichts rendern (da Redirect läuft)
   if (session?.user?.role === 'BENUTZER') {
      return null; 
   }
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-7xl mx-auto">
+      {/* ✅ ÄNDERUNG: max-w-7xl -> max-w-full für volle Breite */}
+      <div className="max-w-full mx-auto">
         
-        {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
@@ -106,17 +102,14 @@ export default function ProjectsPage() {
           </div>
         </div>
 
-        {/* Projects Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* ✅ OPTIMIERUNG: 3 Spalten auf großen Bildschirmen (2xl) für bessere Nutzung der Breite */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-6">
           {filteredProjects.map((user) => {
             const hasRedaktionsplan = (user.landingpages_count || 0) > 0;
-            
-            // ✅ FIX: Alle zugewiesenen Admins anzeigen
             const adminsDisplay = user.assigned_admins 
               ? user.assigned_admins 
               : (user.creator_email || 'System');
 
-            // Datum Berechnen
             let dateRangeString = null;
             if (user.project_timeline_active) {
               const start = user.project_start_date ? new Date(user.project_start_date) : new Date(user.createdAt);
@@ -128,7 +121,6 @@ export default function ProjectsPage() {
             return (
               <div key={user.id} className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-all duration-200 p-6 flex flex-col h-full">
                 
-                {/* Card Header */}
                 <div className="flex justify-between items-start mb-4">
                   <div>
                     <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
@@ -147,10 +139,7 @@ export default function ProjectsPage() {
 
                 <hr className="border-gray-100 mb-4" />
 
-                {/* Status Grid */}
                 <div className="grid grid-cols-2 gap-4 mb-5">
-                  
-                  {/* 1. Timeline */}
                   <div className="flex flex-col">
                     <span className="text-xs text-gray-400 uppercase font-bold tracking-wider block mb-1">Projekt-Timeline</span>
                     <div className="flex flex-col gap-1">
@@ -173,7 +162,6 @@ export default function ProjectsPage() {
                     </div>
                   </div>
 
-                  {/* 2. Redaktionsplan */}
                   <div className="flex flex-col">
                     <span className="text-xs text-gray-400 uppercase font-bold tracking-wider block mb-1">Redaktionsplan</span>
                     {hasRedaktionsplan ? (
@@ -191,7 +179,6 @@ export default function ProjectsPage() {
                   </div>
                 </div>
 
-                {/* Landingpage Stats */}
                 <div className="mb-5 bg-gray-50 rounded-lg p-3 border border-gray-100">
                   <div className="flex justify-between items-center mb-2">
                     <span className="text-xs font-semibold text-gray-700">Landingpages ({user.landingpages_count || 0})</span>
@@ -220,7 +207,6 @@ export default function ProjectsPage() {
                   )}
                 </div>
 
-                {/* Footer: Admin Info */}
                 <div className="mt-auto pt-3 border-t border-gray-100 flex items-start gap-2 text-xs text-gray-500">
                   <ShieldLock size={12} className="mt-0.5 flex-shrink-0" />
                   <div className="flex flex-col w-full">
