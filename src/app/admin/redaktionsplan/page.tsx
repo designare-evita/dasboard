@@ -13,7 +13,7 @@ import {
   FileEarmarkText,
   Search,
   SlashCircleFill,
-  CheckCircleFill, // ✅ Wichtig für das Hackerl
+  CheckCircleFill,
   InfoCircle,
   ExclamationTriangleFill,
   ArrowRepeat,
@@ -25,7 +25,8 @@ import {
   ArrowDown,
   CalendarEvent, 
   ClockHistory,
-  ChatSquareText
+  ChatSquareText,
+  EnvelopeCheck // NEU: Icon für Email-Bestätigung
 } from 'react-bootstrap-icons';
 
 // Typdefinition
@@ -58,6 +59,7 @@ const GscChangeIndicator = ({ change, isPosition = false }: { change: number | s
   if (numChange === 0) return null;
   
   let isPositive = isPosition ? numChange < 0 : numChange > 0;
+  
   let text = isPosition 
     ? (numChange > 0 ? `+${numChange.toFixed(2)}` : numChange.toFixed(2)) 
     : (numChange > 0 ? `+${numChange.toLocaleString('de-DE')}` : numChange.toLocaleString('de-DE'));
@@ -94,7 +96,6 @@ function RedaktionsplanContent() {
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
   const [message, setMessage] = useState('');
   
-  // ✅ State für das grüne Hackerl
   const [savedCommentId, setSavedCommentId] = useState<number | null>(null);
   
   const [dateRange, setDateRange] = useState<DateRangeOption>('30d');
@@ -160,7 +161,6 @@ function RedaktionsplanContent() {
     }
   };
 
-  // ✅ Kommentarspeicher-Logik MIT Hackerl
   const saveComment = async (landingpageId: number, newComment: string) => {
     try {
       setLandingpages(prev => prev.map(lp => lp.id === landingpageId ? { ...lp, comment: newComment } : lp));
@@ -173,9 +173,9 @@ function RedaktionsplanContent() {
 
       if (!response.ok) throw new Error('Kommentar konnte nicht gespeichert werden');
       
-      // ✅ Hackerl anzeigen
+      // ✅ LÄNGERE DAUER (60 Sekunden) & Feedback
       setSavedCommentId(landingpageId);
-      setTimeout(() => setSavedCommentId(null), 2500); // Nach 2.5s ausblenden
+      setTimeout(() => setSavedCommentId(null), 60000); // 60000ms = 1 Minute
 
     } catch (error) {
       console.error(error);
@@ -210,8 +210,8 @@ function RedaktionsplanContent() {
     } catch (error) { setMessage('Fehler beim Abgleich'); } finally { setIsRefreshing(false); }
   };
 
-  // Styles & Icons (gekürzt, da unverändert)
-  const getStatusStyle = (status: LandingpageStatus) => { /* ... wie zuvor ... */ 
+  // Styles
+  const getStatusStyle = (status: LandingpageStatus) => {
     switch (status) {
       case 'Offen': return 'text-blue-700 border-blue-300 bg-blue-50';
       case 'In Prüfung': return 'text-yellow-700 border-yellow-300 bg-yellow-50';
@@ -220,7 +220,7 @@ function RedaktionsplanContent() {
       default: return 'text-gray-700 border-gray-300 bg-gray-50';
     }
   };
-  const getStatusIcon = (status: LandingpageStatus) => { /* ... wie zuvor ... */ 
+  const getStatusIcon = (status: LandingpageStatus) => {
     switch (status) {
       case 'Offen': return <FileEarmarkText className="inline-block mr-1" size={16} />;
       case 'In Prüfung': return <Search className="inline-block mr-1" size={16} />;
@@ -229,7 +229,7 @@ function RedaktionsplanContent() {
       default: return <InfoCircle className="inline-block mr-1" size={16} />;
     }
   };
-  const filterOptions = [
+  const filterOptions: { label: string; value: LandingpageStatus | 'alle'; icon: ReactNode }[] = [
     { label: 'Alle', value: 'alle', icon: <ListTask className="inline-block mr-1" size={16}/> },
     { label: 'Offen', value: 'Offen', icon: <FileEarmarkText className="inline-block mr-1" size={16}/> },
     { label: 'In Prüfung', value: 'In Prüfung', icon: <Search className="inline-block mr-1" size={16}/> },
@@ -308,11 +308,9 @@ function RedaktionsplanContent() {
                      <tr>
                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[20%]">URL / Keyword</th>
                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><div className="flex items-center gap-1"><CalendarEvent/> Daten</div></th>
-                       
                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">GSC Klicks</th>
                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">GSC Impr.</th>
                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">GSC Pos.</th>
-                       
                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[35%]">
                          <div className="flex items-center gap-1"><ChatSquareText/> Anmerkung</div>
@@ -323,42 +321,38 @@ function RedaktionsplanContent() {
                    <tbody className="bg-white divide-y divide-gray-200">
                      {filteredPages.map((lp) => (
                        <tr key={lp.id} className="hover:bg-gray-50 transition-colors">
+                         {/* (Spalten 1-6 bleiben gleich) */}
                          <td className="px-6 py-4 whitespace-nowrap align-top">
                            <div className="text-sm font-medium text-gray-900 truncate" title={lp.haupt_keyword || undefined}>{lp.haupt_keyword || <span className="text-gray-400 italic">Kein Keyword</span>}</div>
                            <a href={lp.url} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-800 text-xs truncate block" title={lp.url}>{lp.url}</a>
                          </td>
-                         
                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 align-top">
                            <div className="text-xs">Erstellt: {formatDateOnly(lp.created_at)}</div>
                            <div className="text-xs">Update: {formatDateOnly(lp.updated_at)}</div>
                          </td>
-
                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right align-top">
                            <div className="flex flex-col items-end gap-1">
                              <span className="font-medium text-gray-900">{lp.gsc_klicks?.toLocaleString('de-DE') || '-'}</span>
                              <GscChangeIndicator change={lp.gsc_klicks_change} />
                            </div>
                          </td>
-
                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right align-top">
                            <div className="flex flex-col items-end gap-1">
                              <span className="font-medium text-gray-900">{lp.gsc_impressionen?.toLocaleString('de-DE') || '-'}</span>
                              <GscChangeIndicator change={lp.gsc_impressionen_change} />
                            </div>
                          </td>
-
                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right align-top">
                            <div className="flex flex-col items-end gap-1">
                              <span className="font-medium text-gray-900">{lp.gsc_position ? parseFloat(String(lp.gsc_position)).toFixed(2) : '-'}</span>
                              <GscChangeIndicator change={lp.gsc_position_change} isPosition={true} />
                            </div>
                          </td>
-
                          <td className="px-6 py-4 whitespace-nowrap align-top">
                            <span className={`px-2.5 py-0.5 text-xs font-medium rounded-full border ${getStatusStyle(lp.status)}`}>{getStatusIcon(lp.status)} {lp.status}</span>
                          </td>
 
-                         {/* ✅ Anmerkung mit relativem Wrapper für das Icon */}
+                         {/* ✅ Anmerkung mit Badge für Admin */}
                          <td className="px-6 py-4 align-top relative">
                             <textarea
                               className="w-full text-sm p-2 border border-gray-300 rounded focus:ring-indigo-500 focus:border-indigo-500 resize-y"
@@ -371,10 +365,11 @@ function RedaktionsplanContent() {
                                 }
                               }}
                             />
-                            {/* ✅ Das grüne Hackerl */}
+                            {/* ✅ Feedback Badge (1 Minute) */}
                             {savedCommentId === lp.id && (
-                              <div className="absolute top-2 right-2 bg-white rounded-full shadow-sm border border-green-100 p-1 animate-in fade-in zoom-in duration-300">
-                                <CheckCircleFill className="text-green-600" size={18} />
+                              <div className="absolute top-2 right-2 bg-green-50 text-green-700 text-[10px] font-medium px-2 py-1 rounded border border-green-200 shadow-sm flex items-center gap-1.5 animate-in fade-in zoom-in duration-300 z-10">
+                                <CheckCircleFill size={10} />
+                                <span>Gespeichert & Kunde benachrichtigt</span>
                               </div>
                             )}
                          </td>
