@@ -1,7 +1,7 @@
 // src/app/admin/redaktionsplan/page.tsx
 'use client';
 
-import { useState, useEffect, ReactNode, useCallback, Suspense } from 'react'; // ✅ Suspense importieren
+import { useState, useEffect, ReactNode, useCallback, Suspense } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { User } from '@/types';
@@ -13,7 +13,7 @@ import {
   FileEarmarkText,
   Search,
   SlashCircleFill,
-  CheckCircleFill,
+  CheckCircleFill, // ✅ Wichtig für das Hackerl
   InfoCircle,
   ExclamationTriangleFill,
   ArrowRepeat,
@@ -40,7 +40,6 @@ type Landingpage = {
   created_at: string;
   updated_at?: string;
   
-  // GSC-Felder
   gsc_klicks: number | null;
   gsc_klicks_change: number | null;
   gsc_impressionen: number | null;
@@ -53,13 +52,12 @@ type Landingpage = {
 
 type LandingpageStatus = Landingpage['status'];
 
-// Helper für GSC Indicators (Stacked Layout)
+// Helper für GSC Indicators
 const GscChangeIndicator = ({ change, isPosition = false }: { change: number | string | null | undefined, isPosition?: boolean }) => {
   const numChange = (change === null || change === undefined || change === '') ? 0 : parseFloat(String(change));
   if (numChange === 0) return null;
   
   let isPositive = isPosition ? numChange < 0 : numChange > 0;
-  
   let text = isPosition 
     ? (numChange > 0 ? `+${numChange.toFixed(2)}` : numChange.toFixed(2)) 
     : (numChange > 0 ? `+${numChange.toLocaleString('de-DE')}` : numChange.toLocaleString('de-DE'));
@@ -80,24 +78,24 @@ const formatDateOnly = (dateString?: string | null) => {
   return new Date(dateString).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
 };
 
-// ✅ Interne Komponente mit der eigentlichen Logik
+// Interne Komponente
 function RedaktionsplanContent() {
   const { data: session, status: authStatus } = useSession();
   const router = useRouter();
-  
-  // Parameter auslesen (Verursacher des Fehlers ohne Suspense)
   const searchParams = useSearchParams();
   const initialProjectId = searchParams.get('id');
 
   const [projects, setProjects] = useState<User[]>([]);
   const [selectedProject, setSelectedProject] = useState<string>(initialProjectId || '');
-  
   const [landingpages, setLandingpages] = useState<Landingpage[]>([]);
   const [filteredPages, setFilteredPages] = useState<Landingpage[]>([]);
   const [filterStatus, setFilterStatus] = useState<LandingpageStatus | 'alle'>('alle');
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
   const [message, setMessage] = useState('');
+  
+  // ✅ State für das grüne Hackerl
+  const [savedCommentId, setSavedCommentId] = useState<number | null>(null);
   
   const [dateRange, setDateRange] = useState<DateRangeOption>('30d');
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -162,6 +160,7 @@ function RedaktionsplanContent() {
     }
   };
 
+  // ✅ Kommentarspeicher-Logik MIT Hackerl
   const saveComment = async (landingpageId: number, newComment: string) => {
     try {
       setLandingpages(prev => prev.map(lp => lp.id === landingpageId ? { ...lp, comment: newComment } : lp));
@@ -173,6 +172,11 @@ function RedaktionsplanContent() {
       });
 
       if (!response.ok) throw new Error('Kommentar konnte nicht gespeichert werden');
+      
+      // ✅ Hackerl anzeigen
+      setSavedCommentId(landingpageId);
+      setTimeout(() => setSavedCommentId(null), 2500); // Nach 2.5s ausblenden
+
     } catch (error) {
       console.error(error);
       setMessage('Fehler beim Speichern des Kommentars');
@@ -206,8 +210,8 @@ function RedaktionsplanContent() {
     } catch (error) { setMessage('Fehler beim Abgleich'); } finally { setIsRefreshing(false); }
   };
 
-  // Styles
-  const getStatusStyle = (status: LandingpageStatus) => {
+  // Styles & Icons (gekürzt, da unverändert)
+  const getStatusStyle = (status: LandingpageStatus) => { /* ... wie zuvor ... */ 
     switch (status) {
       case 'Offen': return 'text-blue-700 border-blue-300 bg-blue-50';
       case 'In Prüfung': return 'text-yellow-700 border-yellow-300 bg-yellow-50';
@@ -216,7 +220,7 @@ function RedaktionsplanContent() {
       default: return 'text-gray-700 border-gray-300 bg-gray-50';
     }
   };
-  const getStatusIcon = (status: LandingpageStatus) => {
+  const getStatusIcon = (status: LandingpageStatus) => { /* ... wie zuvor ... */ 
     switch (status) {
       case 'Offen': return <FileEarmarkText className="inline-block mr-1" size={16} />;
       case 'In Prüfung': return <Search className="inline-block mr-1" size={16} />;
@@ -225,7 +229,7 @@ function RedaktionsplanContent() {
       default: return <InfoCircle className="inline-block mr-1" size={16} />;
     }
   };
-  const filterOptions: { label: string; value: LandingpageStatus | 'alle'; icon: ReactNode }[] = [
+  const filterOptions = [
     { label: 'Alle', value: 'alle', icon: <ListTask className="inline-block mr-1" size={16}/> },
     { label: 'Offen', value: 'Offen', icon: <FileEarmarkText className="inline-block mr-1" size={16}/> },
     { label: 'In Prüfung', value: 'In Prüfung', icon: <Search className="inline-block mr-1" size={16}/> },
@@ -285,7 +289,7 @@ function RedaktionsplanContent() {
             <div className="bg-white p-4 rounded-lg shadow-md mb-6">
                <h3 className="text-sm font-semibold text-gray-500 mb-3 flex items-center gap-1"><Filter size={16}/> Filtern nach Status</h3>
                <div className="flex gap-2 flex-wrap">
-                  {filterOptions.map(option => (
+                  {filterOptions.map((option: any) => (
                     <button key={option.value} onClick={() => setFilterStatus(option.value)} className={`px-3 py-1.5 text-sm rounded-md border transition-colors flex items-center gap-1 ${filterStatus === option.value ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}>
                         {option.icon} {option.label} ({option.value === 'alle' ? landingpages.length : landingpages.filter(lp => lp.status === option.value).length})
                     </button>
@@ -354,7 +358,8 @@ function RedaktionsplanContent() {
                            <span className={`px-2.5 py-0.5 text-xs font-medium rounded-full border ${getStatusStyle(lp.status)}`}>{getStatusIcon(lp.status)} {lp.status}</span>
                          </td>
 
-                         <td className="px-6 py-4 align-top">
+                         {/* ✅ Anmerkung mit relativem Wrapper für das Icon */}
+                         <td className="px-6 py-4 align-top relative">
                             <textarea
                               className="w-full text-sm p-2 border border-gray-300 rounded focus:ring-indigo-500 focus:border-indigo-500 resize-y"
                               rows={3}
@@ -366,6 +371,12 @@ function RedaktionsplanContent() {
                                 }
                               }}
                             />
+                            {/* ✅ Das grüne Hackerl */}
+                            {savedCommentId === lp.id && (
+                              <div className="absolute top-2 right-2 bg-white rounded-full shadow-sm border border-green-100 p-1 animate-in fade-in zoom-in duration-300">
+                                <CheckCircleFill className="text-green-600" size={18} />
+                              </div>
+                            )}
                          </td>
 
                          <td className="px-6 py-4 whitespace-nowrap align-top">
@@ -389,7 +400,6 @@ function RedaktionsplanContent() {
   );
 }
 
-// ✅ Wrapper für die Suspense-Boundary (Pflicht bei useSearchParams in Client Components)
 export default function RedaktionsplanPage() {
   return (
     <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-gray-50 text-gray-500">Lade Redaktionsplan...</div>}>
