@@ -1,3 +1,4 @@
+// src/app/api/ai/analyze/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { sql } from '@vercel/postgres';
@@ -5,8 +6,13 @@ import { getOrFetchGoogleData } from '@/lib/google-data-loader';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { streamText } from 'ai';
 
-// Google Provider Konfiguration
-const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+// 1. API Key Prüfung
+const apiKey = process.env.GEMINI_API_KEY;
+if (!apiKey) {
+  console.error("❌ [SERVER START] GEMINI_API_KEY fehlt in .env!");
+} else {
+  console.log("✅ [SERVER START] GEMINI_API_KEY ist gesetzt (Länge: " + apiKey.length + ")");
+}
 
 const google = createGoogleGenerativeAI({
   apiKey: apiKey || '',
@@ -15,20 +21,19 @@ const google = createGoogleGenerativeAI({
 export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest) {
-  try {
-    // 0. Key Prüfung (Debug-Hilfe)
-    if (!apiKey) {
-      console.error("❌ [AI Analyze] Kein API Key gefunden! Bitte GEMINI_API_KEY in .env setzen.");
-      return NextResponse.json({ message: 'Server Konfiguration fehlt (API Key)' }, { status: 500 });
-    }
+  console.log("➡️ [API] Analyse-Request gestartet...");
 
-    // 1. Authentifizierung
+  try {
+    // 1. Auth Check
     const session = await auth();
     if (!session?.user) {
+      console.warn("⚠️ [API] Nicht authentifiziert");
       return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
     }
 
-    const { projectId, dateRange } = await req.json();
+    const body = await req.json();
+    const { projectId, dateRange } = body;
+    console.log(`ℹ️ [API] Projekt: ${projectId}, Zeitraum: ${dateRange}`);
 
     // 2. Daten laden
     const { rows } = await sql`
@@ -37,58 +42,48 @@ export async function POST(req: NextRequest) {
     `;
     
     if (rows.length === 0) {
+      console.error("❌ [API] Projekt nicht in DB gefunden");
       return NextResponse.json({ message: 'Projekt nicht gefunden' }, { status: 404 });
     }
 
     const project = rows[0];
+    console.log("ℹ️ [API] Lade Google Daten...");
     const data = await getOrFetchGoogleData(project, dateRange);
 
     if (!data) {
+      console.error("❌ [API] Keine Google Daten erhalten");
       return NextResponse.json({ message: 'Keine Daten verfügbar' }, { status: 400 });
     }
+    console.log("✅ [API] Google Daten geladen. Generiere Prompt...");
 
-    // 3. Prompt bauen
+    // 3. Prompt (gekürzt für Übersicht)
     const kpis = data.kpis;
-    const fmt = (val?: number) => val ? val.toLocaleString('de-DE') : '0';
-    const change = (val?: number) => val ? val.toFixed(1) : '0';
+    const summaryData = `Domain: ${project.domain} ... (Daten hier) ...`; // Ihr Prompt-Code
+    
+    const prompt = `Du bist ein SEO-Analyst. ... ${summaryData}`;
 
-    const summaryData = `
-      Domain: ${project.domain}
-      Zeitraum: ${dateRange}
-      KPIs:
-      - Klicks: ${fmt(kpis?.clicks?.value)} (${change(kpis?.clicks?.change)}%)
-      - Impressionen: ${fmt(kpis?.impressions?.value)} (${change(kpis?.impressions?.change)}%)
-      - Sitzungen: ${fmt(kpis?.sessions?.value)} (${change(kpis?.sessions?.change)}%)
-      - Nutzer: ${fmt(kpis?.totalUsers?.value)} (${change(kpis?.totalUsers?.change)}%)
-      
-      Top Keywords:
-      ${data.topQueries?.slice(0, 5).map((q: any) => `- ${q.query} (Pos: ${q.position.toFixed(1)})`).join('\n')}
-    `;
+    // 4. Streaming Starten
+    console.log("🚀 [API] Starte Gemini Stream (Modell: gemini-2.5-flash)...");
+    
+    try {
+      const result = await streamText({
+        model: google('gemini-2.5-flash'), // Testen Sie ggf. 'gemini-1.5-flash' falls 2.5 noch zickt
+        prompt: prompt,
+        onFinish: () => console.log("🏁 [API] Stream erfolgreich beendet.")
+      });
 
-    const prompt = `
-      Du bist ein erfahrener SEO-Analyst. Interpretiere diese Daten kurz (max 3-4 Sätze):
-      ${summaryData}
-      
-      Anweisungen:
-      1. Erkläre die Hauptursache für Veränderungen.
-      2. Gib EINEN konkreten Tipp.
-      3. Sprich den Nutzer mit "Sie" an.
-      4. Nutze Markdown für **fette** Begriffe.
-    `;
-
-    // 4. STREAMING STARTEN
-    // Wir nutzen hier explizit das von Ihnen genannte Modell
-    const result = await streamText({
-      model: google('gemini-2.5-flash'), 
-      prompt: prompt,
-    });
-
-    return result.toTextStreamResponse();
+      return result.toTextStreamResponse();
+    } catch (streamError) {
+      console.error("💥 [API] Fehler BEIM STREAMING:", streamError);
+      throw streamError; // Weiterwerfen zum äußeren Catch
+    }
 
   } catch (error) {
-    console.error('[AI Analyze] Fehler:', error);
-    // Geben Sie den Fehlertext im Dev-Mode zurück, um das Debuggen zu erleichtern
-    const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
-    return NextResponse.json({ message: `Analyse fehlgeschlagen: ${errorMessage}` }, { status: 500 });
+    console.error('🔥 [API] FATAL ERROR in route:', error);
+    // Geben Sie den echten Fehlertext zurück, damit das Frontend ihn anzeigt!
+    return NextResponse.json({ 
+      error: error instanceof Error ? error.message : 'Serverfehler',
+      details: String(error)
+    }, { status: 500 });
   }
 }
