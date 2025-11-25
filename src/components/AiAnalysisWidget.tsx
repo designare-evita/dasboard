@@ -1,8 +1,7 @@
 'use client';
 
-import { useState } from 'react';
 import { Lightbulb, ArrowRepeat, Stars } from 'react-bootstrap-icons';
-import { cn } from '@/lib/utils';
+import { useCompletion } from 'ai/react'; // WICHTIG: Hook importieren
 
 interface Props {
   projectId: string;
@@ -10,33 +9,45 @@ interface Props {
 }
 
 export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
-  const [analysis, setAnalysis] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  // Wir nutzen useCompletion statt manuellem fetch
+  const { 
+    completion,   // Der aktuelle Text (wächst während des Streamens)
+    isLoading,    // true, während geladen/gestreamt wird
+    complete      // Funktion zum Starten
+  } = useCompletion({
+    api: '/api/ai/analyze', // Deine Route
+    onError: (error) => {
+      console.error("Stream error:", error);
+    }
+  });
 
   const handleAnalyze = async () => {
-    setIsLoading(true);
-    try {
-      const res = await fetch('/api/ai/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId, dateRange }),
-      });
-      
-      if (!res.ok) throw new Error('Fehler bei der Anfrage');
-      
-      const data = await res.json();
-      setAnalysis(data.analysis);
-    } catch (e) {
-      setAnalysis("Entschuldigung, die KI-Analyse konnte momentan nicht erstellt werden. Bitte versuchen Sie es später erneut.");
-    } finally {
-      setIsLoading(false);
-    }
+    // Wir starten die Completion und übergeben projectId/dateRange im Body
+    // Der erste Parameter ist der "Prompt" (hier leer, da wir Daten senden), 
+    // der zweite sind Optionen.
+    await complete('', {
+      body: { projectId, dateRange }
+    });
+  };
+
+  // Hilfsfunktion für einfache Markdown-Formatierung (wie in deinem Original)
+  const renderMarkdown = (text: string) => {
+    return text.split('\n').map((line, i) => (
+      <p key={i} className="mb-2">
+        {line.split(/(\*\*.*?\*\*)/).map((part, j) => {
+          if (part.startsWith('**') && part.endsWith('**')) {
+            return <strong key={j}>{part.slice(2, -2)}</strong>;
+          }
+          return part;
+        })}
+      </p>
+    ));
   };
 
   return (
     <div className="card-glass p-6 mb-6 relative overflow-hidden transition-all border-l-4 border-l-indigo-500">
       <div className="flex items-start gap-4">
-        <div className={`p-3 rounded-xl ${analysis ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-100 text-gray-500'}`}>
+        <div className={`p-3 rounded-xl ${completion ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-100 text-gray-500'}`}>
           {isLoading ? <ArrowRepeat className="animate-spin" size={24} /> : <Stars size={24} />}
         </div>
         
@@ -48,7 +59,8 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
             </h3>
           </div>
           
-          {!analysis && !isLoading && (
+          {/* Zeige Button, wenn noch keine Analyse da ist UND nicht geladen wird */}
+          {!completion && !isLoading && (
             <div className="mt-2">
               <p className="text-sm text-gray-500 mb-3">
                 Lassen Sie Google Gemini Ihre aktuellen Daten interpretieren, um Ursachen für Traffic-Veränderungen zu finden.
@@ -63,18 +75,21 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
             </div>
           )}
 
-          {analysis && (
+          {/* Anzeige während des Ladens oder wenn Text da ist */}
+          {(completion || isLoading) && (
             <div className="mt-2 animate-in fade-in slide-in-from-bottom-2">
-              <div className="text-gray-700 text-sm leading-relaxed prose prose-sm max-w-none">
-                {/* Falls Sie react-markdown installiert haben, sonst einfach {analysis} */}
-                {analysis.split('\n').map((line, i) => <p key={i} className="mb-2">{line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').split(/(<strong>.*?<\/strong>)/).map((part, j) => part.startsWith('<strong>') ? <strong key={j}>{part.replace(/<\/?strong>/g, '')}</strong> : part)}</p>)}
+              <div className="text-gray-700 text-sm leading-relaxed prose prose-sm max-w-none min-h-[60px]">
+                {completion ? renderMarkdown(completion) : <span className="text-gray-400 italic">Analysiere Daten...</span>}
               </div>
-              <button 
-                onClick={handleAnalyze} 
-                className="text-xs text-gray-400 hover:text-indigo-600 mt-3 flex items-center gap-1"
-              >
-                <ArrowRepeat size={10} /> Neu analysieren
-              </button>
+              
+              {!isLoading && completion && (
+                <button 
+                  onClick={handleAnalyze} 
+                  className="text-xs text-gray-400 hover:text-indigo-600 mt-3 flex items-center gap-1"
+                >
+                  <ArrowRepeat size={10} /> Neu analysieren
+                </button>
+              )}
             </div>
           )}
         </div>
