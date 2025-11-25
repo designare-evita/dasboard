@@ -50,9 +50,9 @@ export async function POST(req: NextRequest) {
       ${data.topQueries?.slice(0, 5).map(q => `- "${q.query}" (Pos: ${q.position.toFixed(1)}, Klicks: ${q.clicks})`).join('\n')}
     `;
 
-    // 5. Gemini Pro aufrufen
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
-
+    // 5. Gemini aufrufen
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    
     const prompt = `
       Du bist ein erfahrener SEO-Analyst für das Dashboard "Data Peak".
       Deine Aufgabe ist es, die folgenden Web-Performance-Daten kurz und prägnant zu interpretieren.
