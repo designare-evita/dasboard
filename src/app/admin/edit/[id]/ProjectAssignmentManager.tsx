@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { User } from '@/types';
-import { Pencil, ArrowRepeat, CheckCircle, X } from 'react-bootstrap-icons';
+import { Pencil, ArrowRepeat, CheckCircle } from 'react-bootstrap-icons';
 
 // Projekt-Interface
 interface Project {
@@ -12,8 +12,8 @@ interface Project {
   mandant_id: string | null;
 }
 
-// Erweiteres User-Interface mit assigned_projects
-interface UserWithAssignments extends User {
+// KORREKTUR: Omit<User, 'assigned_projects'> entfernt den Konflikt mit der string-Definition aus @/types
+interface UserWithAssignments extends Omit<User, 'assigned_projects'> {
   assigned_projects: { project_id: string }[];
 }
 
@@ -21,7 +21,7 @@ interface UserWithAssignments extends User {
 export interface ProjectAssignmentManagerProps {
   user: UserWithAssignments;
   allProjects: Project[];
-  availableProjects: Project[]; // ← NEUES PROP
+  availableProjects: Project[]; 
 }
 
 export default function ProjectAssignmentManager({ 
@@ -36,7 +36,7 @@ export default function ProjectAssignmentManager({
 
   // Lade die aktuellen Zuweisungen beim Mount
   useEffect(() => {
-    if (user?.assigned_projects) {
+    if (user?.assigned_projects && Array.isArray(user.assigned_projects)) {
       setSelectedProjects(user.assigned_projects.map(ap => ap.project_id));
     }
   }, [user?.assigned_projects]);
