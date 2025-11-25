@@ -18,30 +18,33 @@ export async function GET(request: NextRequest) {
   try {
     let result;
 
+    // Subqueries für Zusatzinfos
+    const additionalFields = `
+      (
+        SELECT STRING_AGG(DISTINCT admins.email, ', ')
+        FROM project_assignments pa_sub
+        JOIN users admins ON pa_sub.user_id = admins.id
+        WHERE pa_sub.project_id = u.id
+      ) as assigned_admins,
+      (
+        SELECT STRING_AGG(DISTINCT p.domain, ', ')
+        FROM project_assignments pa_sub2
+        JOIN users p ON pa_sub2.project_id = p.id
+        WHERE pa_sub2.user_id = u.id
+      ) as assigned_projects
+    `;
+
     // --- SUPERADMIN Logik ---
     if (session.user.role === 'SUPERADMIN') {
       if (onlyCustomers) {
-        // Projekt-Übersicht für Superadmin
-        // KORREKTUR: sql`...` statt sql.query(...) und SQL direkt hingeschrieben
+        // Projekt-Übersicht (Wie vorher, nur Kunden)
+        // ... Code für Projekt-Übersicht ...
         result = await sql`
           SELECT 
-            u.id::text as id, 
-            u.email, 
-            u.role, 
-            u.domain, 
-            u.mandant_id, 
-            u.permissions, 
-            u.favicon_url,
-            u.project_timeline_active,
-            u.project_start_date,
-            u.project_duration_months,
+            u.id::text as id, u.email, u.role, u.domain, u.mandant_id, u.permissions, u.favicon_url,
+            u.project_timeline_active, u.project_start_date, u.project_duration_months,
             creator.email as creator_email,
-            (
-              SELECT STRING_AGG(DISTINCT admins.email, ', ')
-              FROM project_assignments pa_sub
-              JOIN users admins ON pa_sub.user_id = admins.id
-              WHERE pa_sub.project_id = u.id
-            ) as assigned_admins,
+            ${sql.raw(additionalFields)},
             COUNT(lp.id) as landingpages_count,
             SUM(CASE WHEN lp.status = 'Offen' THEN 1 ELSE 0 END) as landingpages_offen,
             SUM(CASE WHEN lp.status = 'In Prüfung' THEN 1 ELSE 0 END) as landingpages_in_pruefung,
@@ -55,12 +58,20 @@ export async function GET(request: NextRequest) {
           ORDER BY u.mandant_id ASC, u.domain ASC, u.email ASC
         `;
       } else {
-        // Admin-Panel Liste (einfach)
+        // ✅ Admin-Panel (Benutzerverwaltung): Hier brauchen wir die neuen Felder
         result = await sql`
-          SELECT id::text as id, email, role, domain, mandant_id, permissions, favicon_url
-          FROM users
-          WHERE role != 'SUPERADMIN'
-          ORDER BY mandant_id ASC, role DESC, email ASC
+          SELECT 
+            u.id::text as id, 
+            u.email, 
+            u.role, 
+            u.domain, 
+            u.mandant_id, 
+            u.permissions, 
+            u.favicon_url,
+            ${sql.raw(additionalFields)}
+          FROM users u
+          WHERE u.role != 'SUPERADMIN'
+          ORDER BY u.mandant_id ASC, u.role DESC, u.email ASC
         `;
       }
     }
@@ -71,26 +82,12 @@ export async function GET(request: NextRequest) {
       
       if (onlyCustomers) {
         // Projekt-Übersicht für Admin
-        // KORREKTUR: sql`...` verwenden
         result = await sql`
           SELECT 
-            u.id::text as id, 
-            u.email, 
-            u.role, 
-            u.domain, 
-            u.mandant_id, 
-            u.permissions, 
-            u.favicon_url,
-            u.project_timeline_active,
-            u.project_start_date,
-            u.project_duration_months,
+            u.id::text as id, u.email, u.role, u.domain, u.mandant_id, u.permissions, u.favicon_url,
+            u.project_timeline_active, u.project_start_date, u.project_duration_months,
             creator.email as creator_email,
-            (
-              SELECT STRING_AGG(DISTINCT admins.email, ', ')
-              FROM project_assignments pa_sub
-              JOIN users admins ON pa_sub.user_id = admins.id
-              WHERE pa_sub.project_id = u.id
-            ) as assigned_admins,
+            ${sql.raw(additionalFields)},
             COUNT(lp.id) as landingpages_count,
             SUM(CASE WHEN lp.status = 'Offen' THEN 1 ELSE 0 END) as landingpages_offen,
             SUM(CASE WHEN lp.status = 'In Prüfung' THEN 1 ELSE 0 END) as landingpages_in_pruefung,
@@ -111,12 +108,15 @@ export async function GET(request: NextRequest) {
           ORDER BY u.domain ASC, u.email ASC
         `;
       } else {
-        // Admin-Panel: Benutzerverwaltung
+        // ✅ Admin-Panel: Benutzerverwaltung
         const adminMandantId = session.user.mandant_id;
         const kannAdminsVerwalten = session.user.permissions?.includes('kann_admins_verwalten');
 
+        // 1. Eigene Kunden holen (Mit Zusatzinfos)
         const kundenRes = await sql`
-          SELECT DISTINCT u.id::text as id, u.email, u.role, u.domain, u.mandant_id, u.permissions, u.favicon_url
+          SELECT DISTINCT 
+            u.id::text as id, u.email, u.role, u.domain, u.mandant_id, u.permissions, u.favicon_url,
+            ${sql.raw(additionalFields)}
           FROM users u
           WHERE u.role = 'BENUTZER' 
             AND (
@@ -130,18 +130,24 @@ export async function GET(request: NextRequest) {
         let rows = kundenRes.rows;
 
         if (kannAdminsVerwalten && adminMandantId) {
+          // 2. Andere Admins im gleichen Mandanten holen (Mit Zusatzinfos)
           const adminsRes = await sql`
-            SELECT id::text as id, email, role, domain, mandant_id, permissions, favicon_url
-            FROM users
-            WHERE mandant_id = ${adminMandantId}
-              AND role = 'ADMIN'
-              AND id::text != ${adminId}
+            SELECT 
+              u.id::text as id, u.email, u.role, u.domain, u.mandant_id, u.permissions, u.favicon_url,
+              ${sql.raw(additionalFields)}
+            FROM users u
+            WHERE u.mandant_id = ${adminMandantId}
+              AND u.role = 'ADMIN'
+              AND u.id::text != ${adminId}
           `;
           rows = [...rows, ...adminsRes.rows];
         }
         
-        // Manuell result bauen für diesen Fall
+        // Manuell verpacken, da wir hier kein result-Objekt haben
         result = { rows };
+        
+        // Sortierung
+        result.rows.sort((a, b) => (a.role > b.role) ? -1 : (a.role === b.role) ? a.email.localeCompare(b.email) : 1);
       }
     }
 
@@ -149,6 +155,7 @@ export async function GET(request: NextRequest) {
        return NextResponse.json({ message: "Unbekannter Fehler" }, { status: 500 });
     }
 
+    // Zahlen-Konvertierung für Stats (falls vorhanden)
     const rows = result.rows.map(r => ({
       ...r,
       landingpages_count: Number(r.landingpages_count || 0),
@@ -169,7 +176,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST: Neuen Benutzer erstellen (unverändert, muss aber enthalten sein)
+// POST bleibt gleich...
 export async function POST(req: NextRequest) {
   const session = await auth(); 
 
@@ -181,21 +188,9 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const createdByAdminId = session.user.id;
     const { 
-      email, 
-      password, 
-      role, 
-      mandant_id, 
-      permissions,
-      domain, 
-      gsc_site_url, 
-      ga4_property_id, 
-      semrush_project_id, 
-      semrush_tracking_id, 
-      semrush_tracking_id_02,
-      favicon_url,
-      project_start_date,
-      project_duration_months,
-      project_timeline_active
+      email, password, role, mandant_id, permissions, domain, gsc_site_url, ga4_property_id, 
+      semrush_project_id, semrush_tracking_id, semrush_tracking_id_02, favicon_url,
+      project_start_date, project_duration_months, project_timeline_active
     } = body;
 
     if (!email || !password || !role) {
@@ -206,33 +201,21 @@ export async function POST(req: NextRequest) {
     const loggedInUserMandantId = session.user.mandant_id;
     const roleToCreate = role;
 
-    if (roleToCreate === 'SUPERADMIN') {
-       return NextResponse.json({ message: 'Superadmins können nicht über diese API erstellt werden.' }, { status: 403 });
-    }
+    if (roleToCreate === 'SUPERADMIN') return NextResponse.json({ message: 'Keine Berechtigung' }, { status: 403 });
     
     let effective_mandant_id = mandant_id;
 
     if (loggedInUserRole === 'ADMIN') {
-      if (roleToCreate !== 'BENUTZER') {
-         return NextResponse.json({ message: 'Admins dürfen nur Kunden (Benutzer) erstellen.' }, { status: 403 });
-      }
+      if (roleToCreate !== 'BENUTZER') return NextResponse.json({ message: 'Admins dürfen nur Kunden erstellen.' }, { status: 403 });
       effective_mandant_id = loggedInUserMandantId; 
-      if (!effective_mandant_id) {
-         return NextResponse.json({ message: 'Ihr Admin-Konto hat kein Label (Mandant-ID) und kann keine Benutzer erstellen.' }, { status: 400 });
-      }
-      if (permissions && permissions.length > 0) {
-         return NextResponse.json({ message: 'Admins dürfen keine Berechtigungen (Klasse) zuweisen.' }, { status: 403 });
-      }
+      if (!effective_mandant_id) return NextResponse.json({ message: 'Kein Label vorhanden.' }, { status: 400 });
+      if (permissions && permissions.length > 0) return NextResponse.json({ message: 'Keine Berechtigung für Klassen.' }, { status: 403 });
     }
     
-    if (roleToCreate !== 'SUPERADMIN' && !effective_mandant_id) {
-       return NextResponse.json({ message: 'Mandant-ID (Label) ist erforderlich' }, { status: 400 });
-    }
+    if (roleToCreate !== 'SUPERADMIN' && !effective_mandant_id) return NextResponse.json({ message: 'Label erforderlich' }, { status: 400 });
 
     const { rows } = await sql<User>`SELECT * FROM users WHERE email = ${email}`;
-    if (rows.length > 0) {
-      return NextResponse.json({ message: 'Benutzer existiert bereits' }, { status: 409 });
-    }
+    if (rows.length > 0) return NextResponse.json({ message: 'Benutzer existiert bereits' }, { status: 409 });
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const permissionsArray = Array.isArray(permissions) ? permissions : [];
@@ -248,9 +231,7 @@ export async function POST(req: NextRequest) {
         domain, gsc_site_url, ga4_property_id,
         semrush_project_id, semrush_tracking_id, semrush_tracking_id_02,
         favicon_url,
-        project_start_date,
-        project_duration_months,
-        project_timeline_active,
+        project_start_date, project_duration_months, project_timeline_active,
         "createdByAdminId"
       )
       VALUES (
@@ -260,9 +241,7 @@ export async function POST(req: NextRequest) {
         ${domain || null}, ${gsc_site_url || null}, ${ga4_property_id || null},
         ${semrush_project_id || null}, ${semrush_tracking_id || null}, ${semrush_tracking_id_02 || null},
         ${favicon_url || null},
-        ${startDate},
-        ${duration},
-        ${timelineActive},
+        ${startDate}, ${duration}, ${timelineActive},
         ${createdByAdminId}
       )
       RETURNING id, email, role, domain, mandant_id, permissions, favicon_url`; 
@@ -270,24 +249,14 @@ export async function POST(req: NextRequest) {
     const newUser = newUsers[0];
 
     if (loggedInUserRole === 'ADMIN' && roleToCreate === 'BENUTZER') {
-      const newCustomerId = newUser.id;
       try {
-        await sql`
-          INSERT INTO project_assignments (user_id, project_id)
-          VALUES (${createdByAdminId}::uuid, ${newCustomerId}::uuid)
-        `;
-      } catch (assignError) {
-        console.error(`Fehler bei automatischer Zuweisung:`, assignError);
-      }
+        await sql`INSERT INTO project_assignments (user_id, project_id) VALUES (${createdByAdminId}::uuid, ${newUser.id}::uuid)`;
+      } catch (e) { console.error(e); }
     }
 
     return NextResponse.json(newUser, { status: 201 });
 
   } catch (error) {
-    console.error('Fehler bei der Benutzererstellung:', error);
-    return NextResponse.json({
-        message: 'Interner Serverfehler',
-        error: error instanceof Error ? error.message : 'Unbekannter Fehler'
-    }, { status: 500 });
+    return NextResponse.json({ message: 'Serverfehler', error: error instanceof Error ? error.message : 'Unbekannter Fehler' }, { status: 500 });
   }
 }
