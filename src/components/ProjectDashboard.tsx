@@ -18,6 +18,7 @@ import SemrushTopKeywords02 from '@/components/SemrushTopKeywords02';
 import DashboardHeader from '@/components/DashboardHeader';
 import GlobalHeader from '@/components/GlobalHeader';
 import ProjectTimelineWidget from '@/components/ProjectTimelineWidget'; 
+import AiAnalysisWidget from '@/components/AiAnalysisWidget';
 import { useSession } from 'next-auth/react'; 
 
 import CountryChart from './CountryChart';
@@ -97,6 +98,13 @@ export default function ProjectDashboard({
             onPdfExport={onPdfExport || (() => console.warn('PDF Export not implemented'))}
           />
         </div>
+
+        {/* ⚡️ NEU: AI ANALYSE WIDGET */}
+{projectId && (
+  <div className="mt-6 print:hidden">
+    <AiAnalysisWidget projectId={projectId} dateRange={dateRange} />
+  </div>
+)}
 
         {/* 4. KPI CARDS */}
         <div className="mt-6 print-kpi-grid">
