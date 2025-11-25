@@ -69,15 +69,14 @@ export async function POST(req: NextRequest) {
       4. Nutze Markdown für **fette** Begriffe.
     `;
 
-    // 4. STREAMING STARTEN (Neue Vorgehensweise)
-    // Wir nutzen 'streamText' für eine einfachere Handhabung
+  // 4. STREAMING STARTEN
     const result = await streamText({
-      model: google('gemini-1.5-flash'),
+      model: google('gemini-2.5-flash'),
       prompt: prompt,
     });
 
-    // Gibt den Stream direkt im richtigen Format zurück
-    return result.toDataStreamResponse();
+    // KORREKTUR: Nutze .toTextStreamResponse() statt .toDataStreamResponse()
+    return result.toTextStreamResponse();
 
   } catch (error) {
     console.error('[AI Analyze] Fehler:', error);
