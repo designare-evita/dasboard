@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@ai-sdk/google": "^2.0.43",
+    "@ai-sdk/react": "^2.0.102",
     "@e965/xlsx": "^0.20.3",
     "@getbrevo/brevo": "^3.0.1",
     "@google/generative-ai": "^0.24.1",
