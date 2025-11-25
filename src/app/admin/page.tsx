@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState, FormEvent } from 'react';
 import Link from 'next/link';
 import { User } from '@/types';
-// Icons importiert
 import {
   Pencil,
   Trash,
@@ -15,7 +14,8 @@ import {
   InfoCircleFill,
   ExclamationTriangleFill,
   People,
-  FileText 
+  PersonVideo, // Icon für Ansprechpartner
+  Briefcase // Icon für Projekte
 } from 'react-bootstrap-icons'; 
 
 import LogoManager from './LogoManager';
@@ -25,17 +25,14 @@ export default function AdminPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
 
-  // State management (unverändert)
   const [message, setMessage] = useState<string>('');
   const [users, setUsers] = useState<User[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState<boolean>(true);
   const [selectedRole, setSelectedRole] = useState<'BENUTZER' | 'ADMIN'>('BENUTZER');
   const [isSubmitting, setIsSubmitting] = useState(false); 
 
-  // Check if the current user is a Superadmin (unverändert)
   const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
 
-  // Fetches the list of users from the API (unverändert)
   const fetchUsers = async (): Promise<void> => {
     setIsLoadingUsers(true);
     try {
@@ -54,14 +51,12 @@ export default function AdminPage() {
     }
   };
 
-  // Load users when the component mounts (unverändert)
   useEffect(() => {
     if (status === 'authenticated') {
       void fetchUsers();
     }
   }, [status]);
 
-  // Handles the form submission for creating a new user (unverändert)
   const handleSubmit = async (e: FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
     setMessage('Erstelle Benutzer...');
@@ -70,7 +65,6 @@ export default function AdminPage() {
     const formData = new FormData(e.currentTarget);
     const rawData = Object.fromEntries(formData) as Record<string, unknown>;
 
-    // 'permissions' als Array aufbereiten
     const permissionsString = (rawData.permissions as string) || '';
     const permissionsArray = permissionsString.split(',')
       .map(p => p.trim())
@@ -79,7 +73,7 @@ export default function AdminPage() {
     const payload = { 
       ...rawData, 
       role: selectedRole,
-      permissions: (isSuperAdmin && selectedRole === 'ADMIN') ? permissionsArray : [] // Nur übergeben, wenn Admin
+      permissions: (isSuperAdmin && selectedRole === 'ADMIN') ? permissionsArray : [] 
     };
 
     try {
@@ -102,11 +96,10 @@ export default function AdminPage() {
     } catch (error) {
         setMessage(`Fehler: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`);
     } finally {
-      setIsSubmitting(false); // Ladevorgang beenden
+      setIsSubmitting(false); 
     }
   };
 
-  // Handles deleting a user (unverändert)
   const handleDelete = async (userId: string): Promise<void> => {
     if (!window.confirm('Sind Sie sicher, dass Sie diesen Nutzer endgültig löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.')) {
         return;
@@ -118,13 +111,12 @@ export default function AdminPage() {
         throw new Error(result.message || 'Fehler beim Löschen');
       }
       setMessage('Benutzer erfolgreich gelöscht.');
-      await fetchUsers(); // Refresh the user list
+      await fetchUsers(); 
     } catch (error) {
       setMessage(`Fehler: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`);
     }
   };
 
-  // (Auth-Check - Unverändert)
   if (status === 'loading') {
     return (
         <div className="p-8 text-center flex items-center justify-center min-h-screen">
@@ -138,11 +130,8 @@ export default function AdminPage() {
     return null;
   }
 
-  // Render the admin page UI
   return (
-  // ✅ ÄNDERUNG: max-w-7xl entfernt, max-w-full gesetzt
   <div className="p-8 mt-8 max-w-full mx-auto bg-gray-50 min-h-screen">
-      {/* Header */}
       <div className="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Admin-Bereich</h1>
@@ -150,7 +139,6 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* Nachrichtenanzeige */}
       {message && (
         <div className={`my-4 p-4 border rounded-md flex items-center gap-2 ${
           message.startsWith('Fehler:')
@@ -162,17 +150,13 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* --- User Management Grid --- */}
-      {/* ✅ OPTIMIERUNG: Wenn volle Breite, können wir dem Grid auch mehr Platz geben */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-6">
         
-        {/* User Creation Form (1/3 Breite auf großen Screens) */}
         <div className="lg:col-span-1 bg-white p-6 rounded-lg shadow-md h-fit border border-gray-200">
           <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
             <PersonPlus size={22} /> Neuen Nutzer anlegen
           </h2>
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* ... Formularfelder bleiben ident ... */}
             <div>
               <label className="block text-sm font-medium text-gray-700">Rolle</label>
               <select
@@ -334,7 +318,7 @@ export default function AdminPage() {
           </form>
         </div>
 
-        {/* Vorhandene Nutzer Liste (2/3 Breite auf großen Screens) */}
+        {/* Vorhandene Nutzer Liste */}
         <div className="lg:col-span-2 bg-white p-6 rounded-lg shadow-md border border-gray-200">
           <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
             <People size={22} /> Vorhandene Nutzer
@@ -350,12 +334,17 @@ export default function AdminPage() {
               <p>Keine Benutzer gefunden.</p>
             </div>
           ) : (
-            // ✅ Grid Layout für die Benutzerkarten (besser bei voller Breite als eine lange Liste)
             <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {users.map((user) => (
                   <li key={user.id} className="p-4 border rounded-lg flex flex-col justify-between gap-3 transition-colors hover:bg-gray-50 shadow-sm h-full">
                     <div className="flex-1 overflow-hidden">
-                      <p className="font-semibold text-gray-900 truncate" title={user.email}>{user.email}</p>
+                      <div className="flex justify-between items-start">
+                        <p className="font-semibold text-gray-900 truncate" title={user.email}>{user.email}</p>
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium uppercase ${user.role === 'ADMIN' || user.role === 'SUPERADMIN' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}`}>
+                          {user.role}
+                        </span>
+                      </div>
+                      
                       {user.mandant_id && (
                         <p className="text-xs text-indigo-600 font-medium truncate" title={`Mandant: ${user.mandant_id}`}>
                           Label: {user.mandant_id}
@@ -364,16 +353,34 @@ export default function AdminPage() {
                       {user.domain && (
                         <p className="text-sm text-blue-600 font-medium truncate mt-1">{user.domain}</p>
                       )}
-                      <div className="flex gap-2 mt-2">
-                        <span className={`px-2 py-0.5 rounded text-xs font-medium uppercase ${user.role === 'ADMIN' || user.role === 'SUPERADMIN' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}`}>
-                          {user.role}
-                        </span>
-                        {user.permissions && user.permissions.length > 0 && (
-                          <span className="px-2 py-0.5 rounded text-xs font-medium bg-green-50 text-green-700 border border-green-100 truncate max-w-[150px]" title={`Klasse: ${user.permissions.join(', ')}`}>
+
+                      {/* ✅ NEU: Ansprechpartner für Benutzer */}
+                      {user.role === 'BENUTZER' && user.assigned_admins && (
+                        <div className="mt-2 text-xs text-gray-600 flex items-center gap-1" title="Zugewiesener Ansprechpartner">
+                          <PersonVideo size={12} />
+                          <span className="font-medium">Ansprechpartner:</span>
+                          <span className="bg-gray-100 px-1 rounded text-gray-800 truncate max-w-[150px]">{user.assigned_admins}</span>
+                        </div>
+                      )}
+
+                      {/* ✅ NEU: Projektzuweisung für Admins */}
+                      {user.role === 'ADMIN' && user.assigned_projects && (
+                        <div className="mt-2 text-xs text-gray-600 flex items-start gap-1" title="Zugewiesene Projekte">
+                          <Briefcase size={12} className="mt-0.5 flex-shrink-0" />
+                          <div>
+                            <span className="font-medium block">Projekte:</span>
+                            <span className="text-gray-500 leading-snug block line-clamp-2">{user.assigned_projects}</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {user.permissions && user.permissions.length > 0 && (
+                        <div className="mt-2">
+                          <span className="px-2 py-0.5 rounded text-xs font-medium bg-green-50 text-green-700 border border-green-100 truncate max-w-full inline-block" title={`Klasse: ${user.permissions.join(', ')}`}>
                             {user.permissions.join(', ')}
                           </span>
-                        )}
-                      </div>
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex gap-2 pt-2 border-t border-gray-100 mt-2">
@@ -399,7 +406,6 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* Superadmin-Tools (Unverändert) */}
       {isSuperAdmin && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
           <LogoManager />
