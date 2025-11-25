@@ -5,7 +5,7 @@ import { getOrFetchGoogleData } from '@/lib/google-data-loader';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // Initialisierung von Google Gemini
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || '');
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 export async function POST(req: NextRequest) {
   try {
