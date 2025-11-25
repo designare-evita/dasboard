@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { sql } from '@vercel/postgres';
@@ -109,16 +110,15 @@ export async function POST(req: NextRequest) {
       3. **Handlung:** Gib EINEN konkreten, strategischen Handlungsschritt.
     `;
 
-    // 6. Streaming starten (Das ist der Geschwindigkeits-Boost!)
-    // Wir verwenden streamText statt generateText für sofortiges Feedback
+    // 6. Streaming starten
     const result = streamText({
-      model: google('gemini-2.5-flash'), // Flash Modell für maximale Geschwindigkeit
+      model: google('gemini-1.5-flash'),
       system: systemPrompt,
       prompt: userPrompt,
     });
 
-    // Gibt einen Daten-Stream zurück, den das Frontend verarbeiten kann
-    return result.toDataStreamResponse();
+    // KORREKTUR: toTextStreamResponse() verwenden
+    return result.toTextStreamResponse();
 
   } catch (error) {
     console.error('[AI Analyze] Fehler:', error);
