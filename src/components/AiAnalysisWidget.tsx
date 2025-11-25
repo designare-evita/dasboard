@@ -1,7 +1,7 @@
 'use client';
 
 import { Lightbulb, ArrowRepeat, Stars } from 'react-bootstrap-icons';
-import { useCompletion } from 'ai/react'; // WICHTIG: Hook importieren
+import { useCompletion } from '@ai-sdk/react'; // KORREKTUR: Import aus @ai-sdk/react
 
 interface Props {
   projectId: string;
@@ -9,28 +9,28 @@ interface Props {
 }
 
 export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
-  // Wir nutzen useCompletion statt manuellem fetch
+  // useCompletion verwaltet den Stream und den Ladezustand
   const { 
-    completion,   // Der aktuelle Text (wächst während des Streamens)
-    isLoading,    // true, während geladen/gestreamt wird
+    completion,   // Der generierte Text (wächst live)
+    isLoading,    // true während der Generierung
     complete      // Funktion zum Starten
   } = useCompletion({
-    api: '/api/ai/analyze', // Deine Route
+    api: '/api/ai/analyze', 
     onError: (error) => {
       console.error("Stream error:", error);
     }
   });
 
   const handleAnalyze = async () => {
-    // Wir starten die Completion und übergeben projectId/dateRange im Body
-    // Der erste Parameter ist der "Prompt" (hier leer, da wir Daten senden), 
-    // der zweite sind Optionen.
+    // Wir starten die Generierung. 
+    // Der erste Parameter ist der Prompt (hier leer, da wir serverseitig Daten nutzen),
+    // der zweite Parameter übergibt unseren Body.
     await complete('', {
       body: { projectId, dateRange }
     });
   };
 
-  // Hilfsfunktion für einfache Markdown-Formatierung (wie in deinem Original)
+  // Hilfsfunktion: Rendert einfaches Markdown (fett gedruckt) live
   const renderMarkdown = (text: string) => {
     return text.split('\n').map((line, i) => (
       <p key={i} className="mb-2">
@@ -59,7 +59,7 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
             </h3>
           </div>
           
-          {/* Zeige Button, wenn noch keine Analyse da ist UND nicht geladen wird */}
+          {/* Zeige Start-Button nur, wenn noch nichts läuft und kein Ergebnis da ist */}
           {!completion && !isLoading && (
             <div className="mt-2">
               <p className="text-sm text-gray-500 mb-3">
