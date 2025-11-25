@@ -112,7 +112,7 @@ export async function POST(req: NextRequest) {
 
     // 6. Streaming starten
     const result = streamText({
-      model: google('gemini-1.5-flash'),
+      model: google('gemini-2.5-flash'),
       system: systemPrompt,
       prompt: userPrompt,
     });
