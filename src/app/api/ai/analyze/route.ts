@@ -3,14 +3,14 @@ import { auth } from '@/lib/auth';
 import { sql } from '@vercel/postgres';
 import { getOrFetchGoogleData } from '@/lib/google-data-loader';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { streamText } from 'ai';
+import { generateText } from 'ai'; // ÄNDERUNG: generateText statt streamText importieren
 
-// Konfiguration des Google Providers mit deinem existierenden Key
+// Konfiguration des Google Providers
 const google = createGoogleGenerativeAI({
   apiKey: process.env.GEMINI_API_KEY || '',
 });
 
-// Da Streaming-Antworten verwendet werden, muss Edge-Runtime oder Nodejs korrekt gesetzt sein.
+// Runtime auf nodejs belassen oder edge, beides sollte mit generateText funktionieren
 export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest) {
@@ -42,6 +42,11 @@ export async function POST(req: NextRequest) {
 
     // 3. Prompt bauen
     const kpis = data.kpis;
+    // Sicherheitscheck, falls kpis undefined sind
+    if (!kpis) {
+        return NextResponse.json({ message: 'Keine KPI Daten für Analyse vorhanden' }, { status: 400 });
+    }
+
     const fmt = (val?: number) => val ? val.toLocaleString('de-DE') : '0';
     const change = (val?: number) => val ? val.toFixed(1) : '0';
 
@@ -49,10 +54,10 @@ export async function POST(req: NextRequest) {
       Domain: ${project.domain}
       Zeitraum: ${dateRange}
       KPIs:
-      - Klicks: ${fmt(kpis?.clicks?.value)} (${change(kpis?.clicks?.change)}%)
-      - Impressionen: ${fmt(kpis?.impressions?.value)} (${change(kpis?.impressions?.change)}%)
-      - Sitzungen: ${fmt(kpis?.sessions?.value)} (${change(kpis?.sessions?.change)}%)
-      - Nutzer: ${fmt(kpis?.totalUsers?.value)} (${change(kpis?.totalUsers?.change)}%)
+      - Klicks: ${fmt(kpis.clicks?.value)} (${change(kpis.clicks?.change)}%)
+      - Impressionen: ${fmt(kpis.impressions?.value)} (${change(kpis.impressions?.change)}%)
+      - Sitzungen: ${fmt(kpis.sessions?.value)} (${change(kpis.sessions?.change)}%)
+      - Nutzer: ${fmt(kpis.totalUsers?.value)} (${change(kpis.totalUsers?.change)}%)
       
       Top Keywords:
       ${data.topQueries?.slice(0, 5).map((q: any) => `- ${q.query} (Pos: ${q.position.toFixed(1)})`).join('\n')}
@@ -69,17 +74,21 @@ export async function POST(req: NextRequest) {
       4. Nutze Markdown für **fette** Begriffe.
     `;
 
-  // 4. STREAMING STARTEN
-    const result = await streamText({
-      model: google('gemini-2.5-flash'),
+    // 4. GENERIERUNG (BLOCKING)
+    const { text } = await generateText({
+      model: google('gemini-2.5-flash'), 
       prompt: prompt,
     });
 
-    // KORREKTUR: Nutze .toTextStreamResponse() statt .toDataStreamResponse()
-    return result.toTextStreamResponse();
+    // ÄNDERUNG: Wir senden ein normales JSON zurück
+    return NextResponse.json({ analysis: text });
 
   } catch (error) {
     console.error('[AI Analyze] Fehler:', error);
-    return NextResponse.json({ message: 'Analyse fehlgeschlagen' }, { status: 500 });
+    // Hier wird der Fehler auch im Backend-Log sichtbar gemacht
+    return NextResponse.json(
+        { message: 'Analyse fehlgeschlagen', error: error instanceof Error ? error.message : String(error) }, 
+        { status: 500 }
+    );
   }
 }
