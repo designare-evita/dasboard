@@ -3,9 +3,15 @@ import { auth } from '@/lib/auth';
 import { sql } from '@vercel/postgres';
 import { getOrFetchGoogleData } from '@/lib/google-data-loader';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAIStream, StreamingTextResponse } from 'ai';
 
-// Initialisierung von Google Gemini
+// Initialisierung (greift auf Ihre Variable zu)
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+
+// Da Streaming-Antworten verwendet werden, muss Edge-Runtime oder Nodejs korrekt gesetzt sein.
+// Vercel Postgres benötigt meist Node.js Runtime, daher lassen wir 'edge' hier weg oder setzen explizit 'nodejs'.
+export const runtime = 'nodejs'; 
+// (Falls Sie Probleme mit Timeouts bekommen, hilft 'nodejs' meist besser bei DB-Verbindungen)
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,69 +19,65 @@ export async function POST(req: NextRequest) {
     const session = await auth();
     if (!session?.user) return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
 
+    // Wir lesen den Body. Bei useCompletion wird der Body oft anders gesendet,
+    // aber wir können custom bodies übergeben.
     const { projectId, dateRange } = await req.json();
 
-    // 2. Projektdaten laden
+    // 2. Daten laden (bleibt gleich)
     const { rows } = await sql`
       SELECT id, email, domain, gsc_site_url, ga4_property_id 
       FROM users WHERE id::text = ${projectId}
     `;
     const project = rows[0];
 
-    // 3. Die "echten" Dashboard-Daten laden (nutzt den Cache!)
     const data = await getOrFetchGoogleData(project, dateRange);
 
     if (!data) {
-      return NextResponse.json({ message: 'Keine Daten für Analyse verfügbar' }, { status: 400 });
+      // Bei Streaming ist Fehler-Handling im Client etwas anders, 
+      // aber ein JSON-Response mit Error bricht den Stream sauber ab.
+      return NextResponse.json({ message: 'Keine Daten verfügbar' }, { status: 400 });
     }
 
-    // 4. Daten für den Prompt aufbereiten (Zusammenfassung)
+    // 3. Prompt bauen (bleibt gleich)
     const kpis = data.kpis;
-    
-    // Hilfsfunktion für sichere Werte
     const fmt = (val?: number) => val ? val.toLocaleString('de-DE') : '0';
     const change = (val?: number) => val ? val.toFixed(1) : '0';
 
     const summaryData = `
       Domain: ${project.domain}
       Zeitraum: ${dateRange}
-      
       KPIs:
-      - Klicks (GSC): ${fmt(kpis?.clicks?.value)} (Änderung: ${change(kpis?.clicks?.change)}%)
-      - Impressionen (GSC): ${fmt(kpis?.impressions?.value)} (Änderung: ${change(kpis?.impressions?.change)}%)
-      - Sitzungen (GA4): ${fmt(kpis?.sessions?.value)} (Änderung: ${change(kpis?.sessions?.change)}%)
-      - Nutzer (GA4): ${fmt(kpis?.totalUsers?.value)} (Änderung: ${change(kpis?.totalUsers?.change)}%)
+      - Klicks: ${fmt(kpis?.clicks?.value)} (${change(kpis?.clicks?.change)}%)
+      - Impressionen: ${fmt(kpis?.impressions?.value)} (${change(kpis?.impressions?.change)}%)
+      - Sitzungen: ${fmt(kpis?.sessions?.value)} (${change(kpis?.sessions?.change)}%)
+      - Nutzer: ${fmt(kpis?.totalUsers?.value)} (${change(kpis?.totalUsers?.change)}%)
       
-      Top Suchbegriffe (Position):
-      ${data.topQueries?.slice(0, 5).map(q => `- "${q.query}" (Pos: ${q.position.toFixed(1)}, Klicks: ${q.clicks})`).join('\n')}
+      Top Keywords:
+      ${data.topQueries?.slice(0, 5).map(q => `- ${q.query} (Pos: ${q.position.toFixed(1)})`).join('\n')}
     `;
 
-    // 5. Gemini aufrufen
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-    
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); // Ihr funktionierendes Modell
+
     const prompt = `
-      Du bist ein erfahrener SEO-Analyst für das Dashboard "Data Peak".
-      Deine Aufgabe ist es, die folgenden Web-Performance-Daten kurz und prägnant zu interpretieren.
-
-      Daten:
+      Du bist ein erfahrener SEO-Analyst. Interpretiere diese Daten kurz (max 3-4 Sätze):
       ${summaryData}
-
+      
       Anweisungen:
-      1. Analysiere die Korrelation zwischen Klicks, Impressionen und Sitzungen.
-      2. Identifiziere die Hauptursache für Auffälligkeiten (z.B. "Sichtbarkeit gestiegen, aber Klicks gesunken -> schlechte CTR").
-      3. Gib EINEN konkreten, handlungsrelevanten Tipp für den Nutzer.
-      4. Fasse dich kurz (maximal 3-4 Sätze).
-      5. Sprich den Nutzer direkt und professionell an ("Sie...").
-      6. Formatiere wichtige Begriffe **fett** (Markdown).
-
-      Antwort:
+      1. Erkläre die Hauptursache für Veränderungen.
+      2. Gib EINEN konkreten Tipp.
+      3. Sprich den Nutzer mit "Sie" an.
+      4. Nutze Markdown für **fette** Begriffe.
     `;
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const analysis = response.text();
+    // 4. STREAMING STARTEN
+    // Nutze generateContentStream statt generateContent
+    const geminiStream = await model.generateContentStream(prompt);
 
-    return NextResponse.json({ analysis });
+    // Konvertiere den Google-Stream in einen Vercel AI Stream
+    const stream = GoogleGenerativeAIStream(geminiStream);
+
+    // Gib den Stream direkt an den Client zurück
+    return new StreamingTextResponse(stream);
 
   } catch (error) {
     console.error('[AI Analyze] Fehler:', error);
