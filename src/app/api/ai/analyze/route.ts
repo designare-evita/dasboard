@@ -5,16 +5,23 @@ import { getOrFetchGoogleData } from '@/lib/google-data-loader';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { streamText } from 'ai';
 
-// Konfiguration des Google Providers mit deinem existierenden Key
+// Google Provider Konfiguration
+const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+
 const google = createGoogleGenerativeAI({
-  apiKey: process.env.GEMINI_API_KEY || '',
+  apiKey: apiKey || '',
 });
 
-// Da Streaming-Antworten verwendet werden, muss Edge-Runtime oder Nodejs korrekt gesetzt sein.
 export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest) {
   try {
+    // 0. Key Prüfung (Debug-Hilfe)
+    if (!apiKey) {
+      console.error("❌ [AI Analyze] Kein API Key gefunden! Bitte GEMINI_API_KEY in .env setzen.");
+      return NextResponse.json({ message: 'Server Konfiguration fehlt (API Key)' }, { status: 500 });
+    }
+
     // 1. Authentifizierung
     const session = await auth();
     if (!session?.user) {
@@ -69,17 +76,19 @@ export async function POST(req: NextRequest) {
       4. Nutze Markdown für **fette** Begriffe.
     `;
 
-  // 4. STREAMING STARTEN
+    // 4. STREAMING STARTEN
+    // Wir nutzen hier explizit das von Ihnen genannte Modell
     const result = await streamText({
-      model: google('gemini-2.5-flash'),
+      model: google('gemini-2.5-flash'), 
       prompt: prompt,
     });
 
-    // KORREKTUR: Nutze .toTextStreamResponse() statt .toDataStreamResponse()
     return result.toTextStreamResponse();
 
   } catch (error) {
     console.error('[AI Analyze] Fehler:', error);
-    return NextResponse.json({ message: 'Analyse fehlgeschlagen' }, { status: 500 });
+    // Geben Sie den Fehlertext im Dev-Mode zurück, um das Debuggen zu erleichtern
+    const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
+    return NextResponse.json({ message: `Analyse fehlgeschlagen: ${errorMessage}` }, { status: 500 });
   }
 }
