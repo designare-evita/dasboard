@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { Lightbulb, ArrowRepeat, Stars } from 'react-bootstrap-icons';
 import { cn } from '@/lib/utils';
-import ReactMarkdown from 'react-markdown'; // Optional: Für schöne Fettschrift
 
 interface Props {
   projectId: string;
