@@ -1,7 +1,7 @@
 // src/app/admin/edit/[id]/page.tsx
 
 import { sql } from '@vercel/postgres';
-import { auth } from '@/lib/auth'; // KORRIGIERT: auth statt getServerSession
+import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import type { User } from '@/types';
 import EditUserForm from './EditUserForm';
@@ -20,8 +20,8 @@ interface Project {
   mandant_id: string | null;
 }
 
-// Admin-Interface (Der Benutzer, der bearbeitet wird)
-interface UserWithAssignments extends User {
+// KORREKTUR: Omit verwenden, um den Typ-Konflikt mit 'string' aus dem User-Interface zu lösen
+interface UserWithAssignments extends Omit<User, 'assigned_projects'> {
   assigned_projects: { project_id: string }[];
 }
 
@@ -29,7 +29,7 @@ interface UserWithAssignments extends User {
 async function getUserData(id: string): Promise<UserWithAssignments | null> {
   try {
     console.log('[getUserData] 🔍 Suche Benutzer mit ID:', id);
-    // 1. Benutzerdaten laden (KORRIGIERT)
+    // 1. Benutzerdaten laden
     const { rows: users } = await sql`
       SELECT
         id::text as id,
@@ -54,7 +54,8 @@ async function getUserData(id: string): Promise<UserWithAssignments | null> {
       console.error('[getUserData] ❌ Benutzer nicht gefunden!');
       return null;
     }
-    const user = users[0] as User;
+    // Cast to unknown first to avoid intersection type issues with Omit
+    const user = users[0] as unknown as Omit<User, 'assigned_projects'>;
     
     // 2. Projekt-Zuweisungen (Ausnahmen) laden
     let assigned_projects: { project_id: string }[] = [];
@@ -68,7 +69,7 @@ async function getUserData(id: string): Promise<UserWithAssignments | null> {
       console.warn('[getUserData] ⚠️ Projektzuweisungen konnten nicht geladen werden:', paError);
     }
     
-    return { ...user, assigned_projects };
+    return { ...user, assigned_projects } as UserWithAssignments;
   } catch (error) {
     console.error('[getUserData] ❌ FEHLER:', error);
     throw error;
@@ -101,7 +102,7 @@ async function getAllProjects(): Promise<Project[]> {
 // --- Hauptkomponente der Seite ---
 
 export default async function EditUserPage({ params }: PageProps) {
-  const session = await auth(); // KORRIGIERT: auth() statt getServerSession()
+  const session = await auth();
 
   if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
     redirect('/');
@@ -110,7 +111,6 @@ export default async function EditUserPage({ params }: PageProps) {
   const resolvedParams = await params;
   const { id } = resolvedParams;
 
-  // (ID-Validierung - Unverändert)
   if (!id || typeof id !== 'string' || id.length !== 36) {
     return (
         <div className="min-h-screen bg-gray-50 p-8">
@@ -135,7 +135,6 @@ export default async function EditUserPage({ params }: PageProps) {
     loadError = error instanceof Error ? error.message : 'Unbekannter Fehler';
   }
 
-  // (Fehlerbehandlung beim Laden - Unverändert)
   if (!user || loadError) {
      return (
         <div className="min-h-screen bg-gray-50 p-8">
@@ -148,14 +147,12 @@ export default async function EditUserPage({ params }: PageProps) {
     );
   }
 
-  // KORREKTUR: Berechtigungen des EINGELOGGTEN Benutzers prüfen
   const currentUserIsSuperAdmin = session.user.role === 'SUPERADMIN';
   const currentUserIsKlasse1 = session.user.permissions?.includes('kann_admins_verwalten');
   const canManageAssignments = currentUserIsSuperAdmin || currentUserIsKlasse1;
   
   const userBeingEditedIsAdmin = user.role === 'ADMIN';
 
-  // --- Seiten-Rendering ---
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-4xl mx-auto space-y-8">
@@ -177,9 +174,9 @@ export default async function EditUserPage({ params }: PageProps) {
               </span>
             </div>
           </div>
-         {/* KORREKTUR: Prop 'isSuperAdmin' wird übergeben */}
+         {/* Hier muss Cast verwendet werden, da EditUserForm das normale User Interface erwartet */}
          <EditUserForm 
-           user={user}
+           user={user as unknown as User}
            isSuperAdmin={currentUserIsSuperAdmin}
          />
         </div>
@@ -192,17 +189,14 @@ export default async function EditUserPage({ params }: PageProps) {
           </>
         )}
 
-        {/* Projektzuweisungen (Nur für Superadmin ODER Klasse 1 Admins, wenn ein Admin bearbeitet wird) */}
+        {/* Projektzuweisungen */}
         {canManageAssignments && userBeingEditedIsAdmin && (
           <ProjectAssignmentManager 
             user={user} 
             allProjects={allProjects} 
-            // KORREKTUR: Darf der Admin Label-übergreifend zuweisen? NEIN.
-            // Wir filtern die Projekte auf den Mandanten des Admins,
-            // ABER der Superadmin sieht alle.
             availableProjects={currentUserIsSuperAdmin 
-                ? allProjects // Superadmin sieht alle Kunden
-                : allProjects.filter(p => p.mandant_id === session.user.mandant_id) // Klasse 1 Admin sieht nur Kunden im eigenen Mandanten
+                ? allProjects 
+                : allProjects.filter(p => p.mandant_id === session.user.mandant_id)
             }
           />
         )}
