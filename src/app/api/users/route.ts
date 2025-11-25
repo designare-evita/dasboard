@@ -18,32 +18,27 @@ export async function GET(request: NextRequest) {
   try {
     let result;
 
-    // Subqueries für Zusatzinfos
-    const additionalFields = `
-      (
-        SELECT STRING_AGG(DISTINCT admins.email, ', ')
-        FROM project_assignments pa_sub
-        JOIN users admins ON pa_sub.user_id = admins.id
-        WHERE pa_sub.project_id = u.id
-      ) as assigned_admins,
-      (
-        SELECT STRING_AGG(DISTINCT p.domain, ', ')
-        FROM project_assignments pa_sub2
-        JOIN users p ON pa_sub2.project_id = p.id
-        WHERE pa_sub2.user_id = u.id
-      ) as assigned_projects
-    `;
-
     // --- SUPERADMIN Logik ---
     if (session.user.role === 'SUPERADMIN') {
       if (onlyCustomers) {
-        // Projekt-Übersicht (Alle Kunden + Stats + Ansprechpartner)
+        // 1. Projekt-Übersicht (Nur Kunden)
         result = await sql`
           SELECT 
             u.id::text as id, u.email, u.role, u.domain, u.mandant_id, u.permissions, u.favicon_url,
             u.project_timeline_active, u.project_start_date, u.project_duration_months,
             creator.email as creator_email,
-            ${sql.raw(additionalFields)},
+            (
+              SELECT STRING_AGG(DISTINCT admins.email, ', ')
+              FROM project_assignments pa_sub
+              JOIN users admins ON pa_sub.user_id = admins.id
+              WHERE pa_sub.project_id = u.id
+            ) as assigned_admins,
+            (
+              SELECT STRING_AGG(DISTINCT p.domain, ', ')
+              FROM project_assignments pa_sub2
+              JOIN users p ON pa_sub2.project_id = p.id
+              WHERE pa_sub2.user_id = u.id
+            ) as assigned_projects,
             COUNT(lp.id) as landingpages_count,
             SUM(CASE WHEN lp.status = 'Offen' THEN 1 ELSE 0 END) as landingpages_offen,
             SUM(CASE WHEN lp.status = 'In Prüfung' THEN 1 ELSE 0 END) as landingpages_in_pruefung,
@@ -57,7 +52,7 @@ export async function GET(request: NextRequest) {
           ORDER BY u.mandant_id ASC, u.domain ASC, u.email ASC
         `;
       } else {
-        // Admin-Panel (Benutzerverwaltung): Alle Benutzer außer Superadmins
+        // 2. Admin-Panel (Benutzerverwaltung)
         result = await sql`
           SELECT 
             u.id::text as id, 
@@ -67,7 +62,18 @@ export async function GET(request: NextRequest) {
             u.mandant_id, 
             u.permissions, 
             u.favicon_url,
-            ${sql.raw(additionalFields)}
+            (
+              SELECT STRING_AGG(DISTINCT admins.email, ', ')
+              FROM project_assignments pa_sub
+              JOIN users admins ON pa_sub.user_id = admins.id
+              WHERE pa_sub.project_id = u.id
+            ) as assigned_admins,
+            (
+              SELECT STRING_AGG(DISTINCT p.domain, ', ')
+              FROM project_assignments pa_sub2
+              JOIN users p ON pa_sub2.project_id = p.id
+              WHERE pa_sub2.user_id = u.id
+            ) as assigned_projects
           FROM users u
           WHERE u.role != 'SUPERADMIN'
           ORDER BY u.mandant_id ASC, u.role DESC, u.email ASC
@@ -81,14 +87,24 @@ export async function GET(request: NextRequest) {
       const adminMandantId = session.user.mandant_id; // Label des Admins
       
       if (onlyCustomers) {
-        // Projekt-Übersicht für Admin
-        // FIX: Filterung nach mandant_id hinzugefügt
+        // 3. Projekt-Übersicht für Admin
         result = await sql`
           SELECT 
             u.id::text as id, u.email, u.role, u.domain, u.mandant_id, u.permissions, u.favicon_url,
             u.project_timeline_active, u.project_start_date, u.project_duration_months,
             creator.email as creator_email,
-            ${sql.raw(additionalFields)},
+            (
+              SELECT STRING_AGG(DISTINCT admins.email, ', ')
+              FROM project_assignments pa_sub
+              JOIN users admins ON pa_sub.user_id = admins.id
+              WHERE pa_sub.project_id = u.id
+            ) as assigned_admins,
+            (
+              SELECT STRING_AGG(DISTINCT p.domain, ', ')
+              FROM project_assignments pa_sub2
+              JOIN users p ON pa_sub2.project_id = p.id
+              WHERE pa_sub2.user_id = u.id
+            ) as assigned_projects,
             COUNT(lp.id) as landingpages_count,
             SUM(CASE WHEN lp.status = 'Offen' THEN 1 ELSE 0 END) as landingpages_offen,
             SUM(CASE WHEN lp.status = 'In Prüfung' THEN 1 ELSE 0 END) as landingpages_in_pruefung,
@@ -98,7 +114,7 @@ export async function GET(request: NextRequest) {
           LEFT JOIN users creator ON u."createdByAdminId" = creator.id
           LEFT JOIN landingpages lp ON u.id = lp.user_id
           WHERE u.role = 'BENUTZER'
-            AND u.mandant_id = ${adminMandantId} -- ✅ WICHTIG: Nur Benutzer mit gleichem Label
+            AND u.mandant_id = ${adminMandantId}
             AND (
               u."createdByAdminId"::text = ${adminId}
               OR EXISTS (
@@ -110,18 +126,28 @@ export async function GET(request: NextRequest) {
           ORDER BY u.domain ASC, u.email ASC
         `;
       } else {
-        // Admin-Panel: Benutzerverwaltung
+        // 4. Admin-Panel: Benutzerverwaltung
         const kannAdminsVerwalten = session.user.permissions?.includes('kann_admins_verwalten');
 
-        // 1. Eigene Kunden holen
-        // FIX: Filterung nach mandant_id hinzugefügt
+        // A. Eigene Kunden holen
         const kundenRes = await sql`
           SELECT DISTINCT 
             u.id::text as id, u.email, u.role, u.domain, u.mandant_id, u.permissions, u.favicon_url,
-            ${sql.raw(additionalFields)}
+            (
+              SELECT STRING_AGG(DISTINCT admins.email, ', ')
+              FROM project_assignments pa_sub
+              JOIN users admins ON pa_sub.user_id = admins.id
+              WHERE pa_sub.project_id = u.id
+            ) as assigned_admins,
+            (
+              SELECT STRING_AGG(DISTINCT p.domain, ', ')
+              FROM project_assignments pa_sub2
+              JOIN users p ON pa_sub2.project_id = p.id
+              WHERE pa_sub2.user_id = u.id
+            ) as assigned_projects
           FROM users u
           WHERE u.role = 'BENUTZER' 
-            AND u.mandant_id = ${adminMandantId} -- ✅ WICHTIG: Nur Benutzer mit gleichem Label
+            AND u.mandant_id = ${adminMandantId}
             AND (
               u."createdByAdminId"::text = ${adminId}
               OR EXISTS (
@@ -133,11 +159,22 @@ export async function GET(request: NextRequest) {
         let rows = kundenRes.rows;
 
         if (kannAdminsVerwalten && adminMandantId) {
-          // 2. Andere Admins im gleichen Mandanten holen
+          // B. Andere Admins im gleichen Mandanten holen
           const adminsRes = await sql`
             SELECT 
               u.id::text as id, u.email, u.role, u.domain, u.mandant_id, u.permissions, u.favicon_url,
-              ${sql.raw(additionalFields)}
+              (
+                SELECT STRING_AGG(DISTINCT admins.email, ', ')
+                FROM project_assignments pa_sub
+                JOIN users admins ON pa_sub.user_id = admins.id
+                WHERE pa_sub.project_id = u.id
+              ) as assigned_admins,
+              (
+                SELECT STRING_AGG(DISTINCT p.domain, ', ')
+                FROM project_assignments pa_sub2
+                JOIN users p ON pa_sub2.project_id = p.id
+                WHERE pa_sub2.user_id = u.id
+              ) as assigned_projects
             FROM users u
             WHERE u.mandant_id = ${adminMandantId}
               AND u.role = 'ADMIN'
@@ -148,7 +185,7 @@ export async function GET(request: NextRequest) {
         
         result = { rows };
         
-        // Sortierung
+        // Sortierung: Admins zuerst, dann alphabetisch
         result.rows.sort((a, b) => (a.role > b.role) ? -1 : (a.role === b.role) ? a.email.localeCompare(b.email) : 1);
       }
     }
@@ -178,7 +215,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST bleibt gleich...
+// POST Methode (unverändert, aber muss in der Datei bleiben)
 export async function POST(req: NextRequest) {
   const session = await auth(); 
 
