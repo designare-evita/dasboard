@@ -17,7 +17,8 @@ export interface User {
   // Admin & Ersteller
   createdByAdminId?: string;
   creator_email?: string;
-  assigned_admins?: string; // ✅ NEU: Liste aller zugewiesenen Admins
+  assigned_admins?: string; // Für BENUTZER: Wer betreut mich?
+  assigned_projects?: string; // ✅ NEU: Für ADMINS: Welche Projekte betreue ich?
   
   createdAt: Date;
   semrush_organic_keywords?: number;
@@ -36,7 +37,7 @@ export interface User {
   landingpages_gesperrt?: number;
 }
 
-// Der Rest bleibt gleich...
+// Rest bleibt gleich...
 export interface Landingpage {
   id: number;
   url: string;
