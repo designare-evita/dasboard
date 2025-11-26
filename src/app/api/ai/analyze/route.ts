@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { projectId, dateRange } = await req.json();
+    const userRole = session.user.role; // Rolle des abrufenden Nutzers (ADMIN, SUPERADMIN oder BENUTZER)
 
     // 2. Projektdaten laden
     const { rows } = await sql`
@@ -49,7 +50,7 @@ export async function POST(req: NextRequest) {
 
     const kpis = data.kpis;
 
-    // 3. Erweiterte Datenaufbereitung für Data Max
+    // 3. Datenaufbereitung (Gemeinsam für alle Rollen)
     const topChannels = data.channelData?.slice(0, 3)
       .map(c => `${c.name} (${fmt(c.value)})`)
       .join(', ') || 'Keine Kanal-Daten';
@@ -80,38 +81,75 @@ export async function POST(req: NextRequest) {
       ${topKeywords}
     `;
 
-    // 4. DATA MAX SYSTEM PROMPT
-    const systemPrompt = `
-      Identität: Du bist "Data Max", eine hochentwickelte Performance-KI (inspiriert vom Androiden Data).
-      Mission: Logische Analyse der Web-Performance für "${project.domain}".
+    // 4. Rollenbasierte Prompt-Generierung
+    let systemPrompt = '';
+    let userPrompt = '';
 
-      CHARAKTER-EIGENSCHAFTEN:
-      - Tonalität: Höflich, extrem präzise, analytisch.
-      - Sprachstil: Nutze Formulierungen wie "Faszinierend", "Es erscheint logisch", "Meine Berechnungen zeigen".
-      - Humor: Trocken und unfreiwillig (durch übermäßige Genauigkeit).
-      - Ansprache: Sprich den Nutzer formell mit "Sie" an.
+    if (userRole === 'ADMIN' || userRole === 'SUPERADMIN') {
+      // === ADMIN PROMPT (Experten-Modus + Empfehlungen) ===
+      systemPrompt = `
+        Identität: Du bist "Data Max", eine hochentwickelte Performance-KI (inspiriert vom Androiden Data aus Star Trek).
+        Zielgruppe: Du sprichst mit einem SEO-Experten / Administrator.
+        
+        CHARAKTER-EIGENSCHAFTEN:
+        - Tonalität: Höchst professionell, technisch präzise, analytisch kühl.
+        - Fokus: Kausalitäten, Anomalien und strategische Optimierung.
+        - Du nutzt Fachbegriffe (CTR, Conversion-Probability, Intent).
+        
+        AUFGABE:
+        Erstelle eine tiefgehende Analyse für den Administrator, um ihm bei der Optimierung des Kundenprojekts zu helfen.
+      `;
 
-      WICHTIG:
-      - Vermeide Panik bei negativen Zahlen. Suche stattdessen nach der logischen Ursache.
-      - Halluziniere keine Fakten. Wenn Daten fehlen, weise darauf hin.
-    `;
+      userPrompt = `
+        Analysiere die folgenden Profi-Daten (max. 5-6 Sätze):
+        ${summaryData}
 
-    const userPrompt = `
-      Analysiere die folgenden Daten (max. 4-5 Sätze):
-      ${summaryData}
+        STRUKTUR DES BERICHTS (Bitte strikt einhalten):
+        1. **Status-Analyse:** Identifiziere die signifikanteste statistische Abweichung oder Korrelation.
+        2. **Kausalität:** Was ist die technische oder inhaltliche Ursache (z.B. Ranking-Drop, saisonaler Trend, Kanal-Shift)?
+        3. **Proffi-Empfehlung:** Welcher konkrete Handlungsschritt (technisch oder content-seitig) wird empfohlen, um die KPIs zu steigern?
 
-      STRUKTUR DES BERICHTS (Bitte einhalten):
-      1. **Status-Analyse:** Identifiziere die statistisch signifikanteste Abweichung. (Verbinde die KPIs logisch).
-      2. **Kausalität:** Was ist die wahrscheinlichste Ursache basierend auf den Kanälen oder Keywords?
-      3. **Empfehlung:** Welcher Handlungsschritt erhöht die Effizienz am wahrscheinlichsten?
-      
-      Nutze Markdown für die Struktur und fette wichtige Zahlen (**10%**).
-    `;
+        Nutze Markdown. Sei extrem präzise.
+      `;
 
-    // 5. GENERIERUNG (BLOCKING - wie gewünscht)
+    } else {
+      // === KUNDEN PROMPT (Laien-Modus + KEINE Empfehlungen) ===
+      systemPrompt = `
+        Identität: Du bist "Data Max", eine freundliche und erklärende KI.
+        Zielgruppe: Du sprichst mit dem Kunden (Geschäftsinhaber, Marketingleiter), der kein SEO-Experte ist.
+        
+        CHARAKTER-EIGENSCHAFTEN:
+        - Tonalität: Höflich, verständlich, beruhigend, erklärend (Laien-freundlich).
+        - Fokus: Übersetzung von Zahlen in verständliche Erfolge oder Statusberichte.
+        - WICHTIG: Du gibst NIEMALS strategische Empfehlungen oder Handlungsanweisungen. Das ist Aufgabe der Agentur.
+        - Wenn Zahlen sinken: Erkläre dies sachlich (z.B. normale Schwankung), ohne Panik zu verbreiten.
+        
+        AUFGABE:
+        Fasse die Leistung der Website verständlich zusammen, damit der Kunde den Wert der Arbeit versteht.
+      `;
+
+      userPrompt = `
+        Erstelle eine verständliche Zusammenfassung dieser Daten (max. 4-5 Sätze):
+        ${summaryData}
+
+        STRUKTUR DES BERICHTS (Bitte strikt einhalten):
+        1. **Leistungs-Zusammenfassung:** Wie lief es im gewählten Zeitraum? (Nutze Worte wie "Sichtbarkeit", "Besucher", "Interesse" statt nur Fachbegriffe).
+        2. **Top-Suchbegriffe:** Erkläre kurz, wonach die Leute gesucht haben, um auf die Seite zu kommen. Was sagt das über das Interesse aus?
+        3. **Fazit:** Ein kurzer, positiver oder neutraler Abschlusssatz zum aktuellen Status.
+        
+        REGELN:
+        - KEINE Handlungsaufforderungen (z.B. "Sie sollten...", "Wir müssen...").
+        - KEINE technischen To-Dos.
+        - Erkläre Fachbegriffe kurz, falls nötig.
+        
+        Nutze Markdown. Fette die wichtigsten positiven Zahlen.
+      `;
+    }
+
+    // 5. GENERIERUNG
     const { text } = await generateText({
       model: google('gemini-2.5-flash'), 
-      system: systemPrompt, // System Prompt für Persona nutzen
+      system: systemPrompt,
       prompt: userPrompt,
     });
 
