@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     const { projectId, dateRange } = await req.json();
     const userRole = session.user.role;
 
-    // 2. Projektdaten laden (INKLUSIVE TIMELINE DATEN)
+    // 2. Projektdaten laden
     const { rows } = await sql`
       SELECT 
         id, email, domain, gsc_site_url, ga4_property_id,
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
 
     const kpis = data.kpis;
 
-    // 3. Status-Daten berechnen
+    // 3. Status-Daten berechnen (Wird nun auch für Kunden verwendet)
     let statusContext = "Standard Betreuung (Keine aktive Zeitlinie)";
     if (project.project_timeline_active) {
         const start = new Date(project.project_start_date || project.createdAt);
@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
         // Berechne vergangenen Monate
         const diffTime = Math.abs(now.getTime() - start.getTime());
         const diffMonths = Math.ceil(diffTime / (1000 * 60 * 60 * 24 * 30)); 
-        const currentMonth = Math.min(diffMonths, duration); // Nicht höher als Laufzeit
+        const currentMonth = Math.min(diffMonths, duration); 
         
         const endDate = new Date(start);
         endDate.setMonth(start.getMonth() + duration);
@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
         `;
     }
 
-    // 4. Datenaufbereitung für KI
+    // 4. Datenaufbereitung
     const topChannels = data.channelData?.slice(0, 3)
       .map(c => `${c.name} (${fmt(c.value)})`)
       .join(', ') || 'Keine Kanal-Daten';
@@ -86,8 +86,8 @@ export async function POST(req: NextRequest) {
       : '0';
 
     const topKeywords = data.topQueries?.slice(0, 5)
-      .map((q: any) => `- "${q.query}" (Pos: ${q.position.toFixed(1)}, ${q.clicks} Klicks)`)
-      .join('\n') || 'Keine Keywords';
+      .map((q: any) => `<li>"${q.query}" (Pos: ${q.position.toFixed(1)}, ${q.clicks} Klicks)</li>`)
+      .join('') || '<li>Keine Keywords</li>';
 
     const summaryData = `
       PROJEKT STATUS INFOS:
@@ -106,90 +106,73 @@ export async function POST(req: NextRequest) {
       - Top Kanäle: ${topChannels}
       - KI-Interferenz (Bot Traffic): ${aiShare}%
       
-      SEMANTISCHE ZIELE (Top Keywords):
-      ${topKeywords}
+      TOP KEYWORDS (HTML Liste):
+      <ul>${topKeywords}</ul>
     `;
 
-    // 5. Rollenbasierte Prompt-Generierung mit 2-Spalten Layout
+    // 5. Rollenbasierte Prompt-Generierung
     let systemPrompt = '';
     let userPrompt = '';
-
-    // Gemeinsames HTML Layout Template
-    // Wir nutzen Tailwind 'grid-cols-1 md:grid-cols-2' für Responsive Design
-    const layoutInstruction = `
-      OUTPUT FORMAT (HTML GRID):
-      Du musst deine Antwort ZWINGEND in folgende HTML-Struktur verpacken. Nutze keine Markdown-Codeblöcke (\`\`\`), sondern direktes HTML.
-
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-        
-        <div class="bg-indigo-50/50 rounded-2xl p-6 border border-indigo-100 h-full">
-           <h3 class="text-lg font-bold text-indigo-900 mb-4 flex items-center gap-2">
-             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-info-circle-fill" viewBox="0 0 16 16">
-               <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm.93-9.412-1 4.705c-.07.34.029.533.304.533.194 0 .487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703 0-1.002-.422-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.47l-.451-.081.082-.381 2.29-.287zM8 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/>
-             </svg>
-             Projekt Status
-           </h3>
-           <div class="space-y-3 text-indigo-800 text-sm">
-             </div>
-        </div>
-
-        <div class="space-y-5">
-           </div>
-
-      </div>
+    
+    const htmlRules = `
+      ANTWORTE IN REINEM HTML (ohne Markdown-Codeblöcke):
+      - Nutze <h4> für Überschriften.
+      - Nutze <p> für Text.
+      - Nutze <ul>/<li> für Listen.
+      - Nutze Tailwind-Klassen für Farben: <span class="text-green-600 font-bold">...</span>
     `;
 
     if (userRole === 'ADMIN' || userRole === 'SUPERADMIN') {
-      // === ADMIN PROMPT ===
+      // === ADMIN MODE ===
       systemPrompt = `
-        Identität: "Data Max", Performance-KI. Zielgruppe: Admin/Experte.
-        Ton: Präzise, Analytisch, Strategisch.
+        Identität: "Data Max", Performance-KI für Experten.
+        Ton: Präzise, Analytisch.
         
-        VISUELLE REGELN:
-        - Nutze HTML Tags für Farben: <span class="text-green-600 font-bold">positiv</span>, <span class="text-red-600 font-bold">negativ/kritisch</span>.
-        - Halte dich strikt an das 2-Spalten HTML Layout.
+        REGELN:
+        1. Positive Werte: <span class="text-green-600 font-bold">Grün</span>
+        2. Negative Werte/Probleme: <span class="text-red-600 font-bold">Rot</span>
         
-        INHALT SPALTE 1 (Status):
-        - Zeige technisch präzise den Projektfortschritt.
-        
-        INHALT SPALTE 2 (Analyse):
-        - Status-Analyse (Abweichungen).
-        - Kausalität (Warum passiert das?).
-        - Profi-Empfehlung (Was tun?).
+        ${htmlRules}
+      `;
+      userPrompt = `
+        Analysiere für einen Experten:
+        ${summaryData}
+
+        STRUKTUR:
+        <h4>Status-Analyse</h4> (Abweichungen inkl. Projekt-Fortschritt)
+        <h4>Kausalität</h4> (Ursachen)
+        <h4>Profi-Empfehlung</h4> (Technische Maßnahmen)
       `;
     } else {
-      // === KUNDEN PROMPT ===
+      // === KUNDEN MODE ===
       systemPrompt = `
-        Identität: "Data Max", freundlicher Assistent. Zielgruppe: Kunde/Laie.
-        Ton: Höflich, Ermutigend, Verständlich.
-        Constraint: KEINE strategischen Empfehlungen. KEINE Panik bei schlechten Zahlen.
+        Identität: "Data Max", freundlicher Assistent für Kunden.
+        Ton: Höflich, Verständlich.
         
-        VISUELLE REGELN:
-        - Nutze HTML Tags für Farben: <span class="text-green-600 font-bold">Erfolge/Anstiege</span>.
-        - Negative Zahlen: Neutral darstellen (kein Rot).
-        - Halte dich strikt an das 2-Spalten HTML Layout.
+        REGELN:
+        1. Positive Werte/Erfolge: <span class="text-green-600 font-bold">Grün</span>
+        2. Negative Werte/Rückgänge: NEUTRAL darstellen (kein Rot, keine Warnfarben).
+        3. KEINE Handlungsaufforderungen.
         
-        INHALT SPALTE 1 (Status):
-        - Erkläre den Status freundlich ("Wir befinden uns in Monat X...").
-        - Wenn keine Timeline aktiv: "Ihr Projekt wird dauerhaft betreut."
-        
-        INHALT SPALTE 2 (Analyse):
-        - Zusammenfassung der Leistung (Sichtbarkeit, Besucher).
-        - Was suchen die Nutzer? (Top Keywords).
-        - Positives Fazit.
+        ${htmlRules}
+      `;
+
+      // Hier fügen wir den Block "Projekt Status" für den Kunden hinzu
+      userPrompt = `
+        Fasse für den Kunden zusammen:
+        ${summaryData}
+
+        STRUKTUR:
+        <h4>Projekt Status</h4> (Fasse hier sachlich den Status aus "PROJEKT STATUS INFOS" zusammen: Phase, Monat, Zeitraum, Domain. Ohne Wertung.)
+        <h4>Leistungs-Überblick</h4> (Wie lief es? Hebe Erfolge grün hervor. Erkläre Rückgänge neutral.)
+        <h4>Suchbegriffe</h4> (Was wurde gesucht?)
+        <h4>Fazit</h4> (Positiver Abschluss)
       `;
     }
 
-    userPrompt = `
-      ${layoutInstruction}
-      
-      Hier sind die Daten für die Analyse:
-      ${summaryData}
-    `;
-
     // 6. Generierung
     const { text } = await generateText({
-      model: google('gemini-2.5-flash'), 
+      model: google('gemini-2.5-flash'),
       system: systemPrompt,
       prompt: userPrompt,
     });
@@ -198,9 +181,6 @@ export async function POST(req: NextRequest) {
 
   } catch (error) {
     console.error('[AI Analyze] Fehler:', error);
-    return NextResponse.json(
-        { message: 'Analyse fehlgeschlagen', error: String(error) }, 
-        { status: 500 }
-    );
+    return NextResponse.json({ message: 'Fehler', error: String(error) }, { status: 500 });
   }
 }
