@@ -71,7 +71,7 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
                 className="text-sm bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300 px-4 py-2 rounded-md transition-all flex items-center gap-2 shadow-sm group"
               >
                 <Lightbulb size={14} className="group-hover:text-yellow-500 transition-colors"/>
-                Analyse initiieren
+                Analyse starten
               </button>
             </div>
           )}
