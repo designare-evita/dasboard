@@ -29,11 +29,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
     }
 
-    // Daten aus dem Request Body holen
+    // 2. Request Body parsen
     const { projectId, dateRange } = await req.json();
     const userRole = session.user.role;
 
-    // 2. Projektdaten laden
+    // 3. Projektdaten laden
     const { rows } = await sql`
       SELECT 
         id, email, domain, gsc_site_url, ga4_property_id,
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
 
     const kpis = data.kpis;
 
-    // 3. Timeline-Daten berechnen
+    // 4. Timeline-Daten berechnen
     let timelineInfo = "Standard Betreuung (Keine aktive Zeitlinie)";
     
     if (project.project_timeline_active) {
@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
         `;
     }
 
-    // 4. Datenaufbereitung für KI
+    // 5. Datenaufbereitung für KI
     const totalUsers = kpis.totalUsers?.value || 0;
     const aiUsers = data.aiTraffic?.totalUsers || 0;
     const realUsers = Math.max(0, totalUsers - aiUsers);
@@ -124,7 +124,7 @@ export async function POST(req: NextRequest) {
       ${topKeywords}
     `;
 
-    // 5. Rollenbasierte Prompt-Generierung
+    // 6. Rollenbasierte Prompt-Generierung
     let systemPrompt = '';
     let userPrompt = '';
 
@@ -246,16 +246,16 @@ export async function POST(req: NextRequest) {
       ${summaryData}
     `;
 
-    // 6. Generierung MIT Streaming (streamText statt generateText)
+    // 7. Generierung
     const result = streamText({
-      model: google('gemini-2.5-flash'), 
+      model: google('gemini-2.5-flash'),
       system: systemPrompt,
       prompt: userPrompt,
       temperature: 0.7,
     });
 
-    // WICHTIG: Rückgabe als Datenstrom
-    return result.toDataStreamResponse();
+    // 8. Rückgabe als Text-Stream (korrigierte Methode)
+    return result.toTextStreamResponse();
 
   } catch (error) {
     console.error('[AI Analyze] Fehler:', error);
