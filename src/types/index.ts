@@ -35,6 +35,9 @@ export interface User {
   landingpages_in_pruefung?: number;
   landingpages_freigegeben?: number;
   landingpages_gesperrt?: number;
+
+  // Aggregierte Reichweiten-Änderung (Summe GSC Impression Change)
+  total_impression_change?: number;
 }
 
 // Rest bleibt gleich...
