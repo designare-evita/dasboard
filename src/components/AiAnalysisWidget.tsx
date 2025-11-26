@@ -20,20 +20,35 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
     api: '/api/ai/analyze',
     streamProtocol: 'text',  // Wichtig: Text-Streaming Protokoll aktivieren
     onError: (err) => {
-      console.error("Stream Error:", err);
+      console.error("[AI Widget] Stream Error:", err);
+      console.error("[AI Widget] Error details:", {
+        message: err.message,
+        stack: err.stack
+      });
+    },
+    onFinish: (prompt, completion) => {
+      console.log("[AI Widget] Stream finished. Completion length:", completion.length);
     }
   });
 
   const handleAnalyze = async () => {
     // Wir starten die Generierung und übergeben die notwendigen Daten im Body.
     // Ein leerer Prompt wird übergeben, da der Server den Prompt baut.
-    await complete('', {
-      body: { projectId, dateRange }
-    });
+    console.log("[AI Widget] Starting analysis with:", { projectId, dateRange });
+    try {
+      await complete('', {
+        body: { projectId, dateRange }
+      });
+      console.log("[AI Widget] Complete function finished");
+    } catch (err) {
+      console.error("[AI Widget] Complete function error:", err);
+    }
   };
 
   // Benutzerfreundliche Fehlermeldung
-  const displayError = error ? "Meine Verbindung zu den neuralen Netzwerken ist unterbrochen. Bitte versuchen Sie es erneut." : null;
+  const displayError = error
+    ? `Meine Verbindung zu den neuralen Netzwerken ist unterbrochen. ${error.message || 'Unbekannter Fehler'}`
+    : null;
 
   return (
     <div className="card-glass p-6 mb-6 relative overflow-hidden transition-all border-l-4 border-l-indigo-500">

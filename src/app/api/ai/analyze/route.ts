@@ -30,8 +30,21 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Request Body parsen
-    const { projectId, dateRange } = await req.json();
+    const body = await req.json();
+    const { projectId, dateRange, prompt } = body;
     const userRole = session.user.role;
+
+    // Debug-Logging
+    console.log('[AI Analyze] Request body:', { projectId, dateRange, hasPrompt: !!prompt });
+
+    // Validierung
+    if (!projectId || !dateRange) {
+      console.error('[AI Analyze] Fehlende Parameter:', { projectId, dateRange });
+      return NextResponse.json(
+        { message: 'projectId und dateRange sind erforderlich' },
+        { status: 400 }
+      );
+    }
 
     // 3. Projektdaten laden
     const { rows } = await sql`
@@ -247,6 +260,7 @@ export async function POST(req: NextRequest) {
     `;
 
     // 7. Generierung
+    console.log('[AI Analyze] Starte Text-Streaming...');
     const result = streamText({
       model: google('gemini-2.5-flash'),
       system: systemPrompt,
@@ -255,12 +269,18 @@ export async function POST(req: NextRequest) {
     });
 
     // 8. Rückgabe als Text-Stream für useCompletion mit streamProtocol: 'text'
+    console.log('[AI Analyze] Sende Stream-Response...');
     return result.toTextStreamResponse();
 
   } catch (error) {
     console.error('[AI Analyze] Fehler:', error);
+    console.error('[AI Analyze] Fehler Stack:', error instanceof Error ? error.stack : 'Kein Stack verfügbar');
     return NextResponse.json(
-        { message: 'Analyse fehlgeschlagen', error: String(error) }, 
+        {
+          message: 'Analyse fehlgeschlagen',
+          error: String(error),
+          details: error instanceof Error ? error.message : 'Unbekannter Fehler'
+        },
         { status: 500 }
     );
   }
