@@ -11,13 +11,14 @@ interface Props {
 
 export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
   // Verwendung des useCompletion Hooks für Streaming
-  const { 
+  const {
     completion,   // Enthält den generierten Text, der sich live aufbaut
     complete,     // Funktion zum Starten der Generierung
     isLoading,    // Status während der Generierung
     error         // Mögliche Fehler
   } = useCompletion({
     api: '/api/ai/analyze',
+    streamProtocol: 'text',  // Wichtig: Text-Streaming Protokoll aktivieren
     onError: (err) => {
       console.error("Stream Error:", err);
     }
