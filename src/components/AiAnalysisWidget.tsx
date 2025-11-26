@@ -42,10 +42,12 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
         throw new Error('Response body is null');
       }
 
-      // Stream verarbeiten
+      // Stream verarbeiten mit Throttling für flüssigeres Rendering
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let accumulatedText = '';
+      let lastUpdateTime = Date.now();
+      const UPDATE_INTERVAL = 100; // Update UI alle 100ms
 
       console.log("[AI Widget] Starting to read stream...");
 
@@ -53,6 +55,8 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
         const { done, value } = await reader.read();
 
         if (done) {
+          // Finales Update mit komplettem Text
+          setCompletion(accumulatedText);
           console.log("[AI Widget] Stream completed. Total length:", accumulatedText.length);
           break;
         }
@@ -60,7 +64,13 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
         const chunk = decoder.decode(value, { stream: true });
         console.log("[AI Widget] Received chunk:", chunk.substring(0, 100));
         accumulatedText += chunk;
-        setCompletion(accumulatedText);
+
+        // Throttle UI updates: Nur alle 100ms updaten
+        const now = Date.now();
+        if (now - lastUpdateTime >= UPDATE_INTERVAL) {
+          setCompletion(accumulatedText);
+          lastUpdateTime = now;
+        }
       }
 
       setIsLoading(false);
