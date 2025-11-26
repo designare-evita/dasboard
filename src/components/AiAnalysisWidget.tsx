@@ -1,161 +1,126 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
-import { sql } from '@vercel/postgres';
-import { getOrFetchGoogleData } from '@/lib/google-data-loader';
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { generateText } from 'ai';
+'use client';
 
-// Konfiguration des Google Providers
-const google = createGoogleGenerativeAI({
-  apiKey: process.env.GEMINI_API_KEY || '',
-});
+import { useState } from 'react';
+// Nur Icons importieren, keine Server-Logik!
+import { Lightbulb, ArrowRepeat, Robot, Cpu, ExclamationTriangle } from 'react-bootstrap-icons';
 
-export const runtime = 'nodejs';
+interface Props {
+  projectId: string;
+  dateRange: string;
+}
 
-// Hilfsfunktionen für Formatierung
-const fmt = (val?: number) => (val ? val.toLocaleString('de-DE') : '0');
-const change = (val?: number) => {
-  if (val === undefined || val === null) return '0';
-  const prefix = val > 0 ? '+' : '';
-  return `${prefix}${val.toFixed(1)}`;
-};
+export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
+  const [analysis, setAnalysis] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-export async function POST(req: NextRequest) {
-  try {
-    // 1. Authentifizierung
-    const session = await auth();
-    if (!session?.user) {
-      return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
-    }
-
-    const { projectId, dateRange } = await req.json();
-    const userRole = session.user.role;
-
-    // 2. Projektdaten laden
-    const { rows } = await sql`
-      SELECT id, email, domain, gsc_site_url, ga4_property_id 
-      FROM users WHERE id::text = ${projectId}
-    `;
+  const handleAnalyze = async () => {
+    setIsLoading(true);
+    setError(null);
+    setAnalysis(null);
     
-    if (rows.length === 0) {
-      return NextResponse.json({ message: 'Projekt nicht gefunden' }, { status: 404 });
-    }
-
-    const project = rows[0];
-    const data = await getOrFetchGoogleData(project, dateRange);
-
-    if (!data || !data.kpis) {
-      return NextResponse.json({ message: 'Keine Daten verfügbar' }, { status: 400 });
-    }
-
-    const kpis = data.kpis;
-
-    // 3. Datenaufbereitung
-    const topChannels = data.channelData?.slice(0, 3)
-      .map(c => `${c.name} (${fmt(c.value)})`)
-      .join(', ') || 'Keine Kanal-Daten';
-
-    const aiShare = data.aiTraffic && kpis.sessions?.value
-      ? (data.aiTraffic.totalSessions / kpis.sessions.value * 100).toFixed(1)
-      : '0';
-
-    const topKeywords = data.topQueries?.slice(0, 5)
-      .map((q: any) => `<li>"${q.query}" (Pos: ${q.position.toFixed(1)}, ${q.clicks} Klicks)</li>`)
-      .join('') || '<li>Keine Keywords verfügbar</li>';
-
-    const summaryData = `
-      Domain: ${project.domain}
-      Zeitraum: ${dateRange}
+    try {
+      // Wir rufen die API auf, anstatt die Logik hier zu haben
+      const res = await fetch('/api/ai/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId, dateRange }),
+      });
       
-      KPI MATRIX:
-      - Klicks: ${fmt(kpis.clicks?.value)} (${change(kpis.clicks?.change)}%)
-      - Impressionen: ${fmt(kpis.impressions?.value)} (${change(kpis.impressions?.change)}%)
-      - Sitzungen: ${fmt(kpis.sessions?.value)} (${change(kpis.sessions?.change)}%)
-      - Nutzer: ${fmt(kpis.totalUsers?.value)} (${change(kpis.totalUsers?.change)}%)
+      const data = await res.json();
       
-      INPUT VARIABLEN:
-      - Top Kanäle: ${topChannels}
-      - KI-Interferenz (Bot Traffic): ${aiShare}%
+      if (!res.ok) throw new Error(data.message || 'Fehler bei der Anfrage');
       
-      TOP KEYWORDS (HTML Liste):
-      <ul>${topKeywords}</ul>
-    `;
-
-    // 4. Rollenbasierte Prompt-Generierung
-    let systemPrompt = '';
-    let userPrompt = '';
-
-    // Gemeinsame HTML-Anweisungen
-    const htmlInstructions = `
-      FORMATIERUNG (HTML ONLY):
-      - Antworte NICHT in Markdown. Antworte in reinem HTML.
-      - Nutze <p class="mb-3"> für Absätze.
-      - Nutze <strong> für Hervorhebungen.
-      - Nutze <ul class="list-disc pl-5 mb-3 space-y-1"> und <li> für Listen.
-    `;
-
-    if (userRole === 'ADMIN' || userRole === 'SUPERADMIN') {
-      // === ADMIN MODE ===
-      systemPrompt = `
-        Identität: "Data Max", Performance-KI für Experten.
-        Ton: Präzise, Analytisch.
-        
-        FARB-REGELN (HTML classes):
-        - Positive Werte/Trends: <span class="text-green-600 font-bold">...</span>
-        - Negative Werte/Probleme: <span class="text-red-600 font-bold">...</span>
-        
-        ${htmlInstructions}
-      `;
-
-      userPrompt = `
-        Analysiere die Daten für einen Experten:
-        ${summaryData}
-
-        STRUKTUR:
-        1. <h4 class="font-bold text-gray-900 mt-2">Status-Analyse</h4> (Signifikante Abweichungen)
-        2. <h4 class="font-bold text-gray-900 mt-2">Kausalität</h4> (Ursachenforschung)
-        3. <h4 class="font-bold text-gray-900 mt-2">Profi-Empfehlung</h4> (Konkrete technische Maßnahmen)
-      `;
-
-    } else {
-      // === KUNDEN MODE ===
-      systemPrompt = `
-        Identität: "Data Max", freundlicher Assistent für Kunden.
-        Ton: Höflich, Verständlich, Ermutigend.
-        
-        WICHTIGE REGELN:
-        1. KEINE roten Farben/Warnungen für negative Zahlen. Stelle Rückgänge neutral dar (nur Text oder <strong>).
-        2. Nutze <span class="text-green-600 font-bold">...</span> NUR für positive Entwicklungen und Erfolge.
-        3. KEINE Handlungsaufforderungen an den Kunden.
-        
-        ${htmlInstructions}
-      `;
-
-      userPrompt = `
-        Fasse die Leistung für den Kunden zusammen:
-        ${summaryData}
-
-        STRUKTUR:
-        1. <h4 class="font-bold text-gray-900 mt-2">Leistungs-Überblick</h4> (Wie lief es? Hebe Erfolge grün hervor.)
-        2. <h4 class="font-bold text-gray-900 mt-2">Suchbegriffe</h4> (Was wurde gesucht?)
-        3. <h4 class="font-bold text-gray-900 mt-2">Fazit</h4> (Kurzer, positiver Abschluss)
-      `;
+      setAnalysis(data.analysis);
+    } catch (e) {
+      console.error(e);
+      setError("Meine Verbindung zu den neuralen Netzwerken ist unterbrochen. Bitte versuchen Sie es erneut.");
+    } finally {
+      setIsLoading(false);
     }
+  };
 
-    // 5. Generierung
-    const { text } = await generateText({
-      model: google('gemini-2.5-flash'), 
-      system: systemPrompt,
-      prompt: userPrompt,
-    });
+  return (
+    <div className="card-glass p-6 mb-6 relative overflow-hidden transition-all border-l-4 border-l-indigo-500">
+      <div className="flex items-start gap-4">
+        <div className={`p-3 rounded-xl transition-colors duration-500 ${
+          isLoading ? 'bg-indigo-100 text-indigo-600' : 
+          analysis ? 'bg-indigo-50 text-indigo-600' : 'bg-gray-100 text-gray-500'
+        }`}>
+          {isLoading ? <Cpu size={24} className="animate-spin" /> : <Robot size={24} />}
+        </div>
+        
+        <div className="flex-1">
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              Data Max 
+              <span className="text-[10px] font-normal bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full border border-gray-200">
+                Performance Android v1.0
+              </span>
+            </h3>
+          </div>
+          
+          {!analysis && !isLoading && !error && (
+            <div className="mt-2">
+              <p className="text-sm text-gray-500 mb-3 italic">
+                &quot;Hallo. Mein Name ist Data Max. Ich bin spezialisiert auf die Auswertung komplexer Suchdaten. Darf ich die Analyse starten?&quot;
+              </p>
+              <button
+                onClick={handleAnalyze}
+                className="text-sm bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300 px-4 py-2 rounded-md transition-all flex items-center gap-2 shadow-sm group"
+              >
+                <Lightbulb size={14} className="group-hover:text-yellow-500 transition-colors"/>
+                Analyse starten
+              </button>
+            </div>
+          )}
 
-    return NextResponse.json({ analysis: text });
+          {isLoading && (
+            <div className="mt-3 space-y-2">
+               <p className="text-sm text-indigo-600 font-medium animate-pulse">Verarbeite Datenströme...</p>
+               <div className="h-2 bg-indigo-100 rounded overflow-hidden max-w-[200px]">
+                 <div className="h-full bg-indigo-500 animate-progress origin-left"></div>
+               </div>
+            </div>
+          )}
 
-  } catch (error) {
-    console.error('[AI Analyze] Fehler:', error);
-    return NextResponse.json(
-        { message: 'Analyse fehlgeschlagen', error: String(error) }, 
-        { status: 500 }
-    );
-  }
+          {/* Hier wird das HTML von der KI gerendert */}
+          {analysis && (
+            <div className="mt-2 animate-in fade-in slide-in-from-bottom-2">
+              <div 
+                className="text-gray-700 text-sm leading-relaxed prose prose-sm max-w-none prose-p:my-2 prose-ul:my-2 prose-li:my-0.5 prose-h4:text-indigo-900 prose-h4:font-bold prose-h4:mb-1 prose-h4:mt-3"
+                dangerouslySetInnerHTML={{ __html: analysis }}
+              />
+              
+              <button 
+                onClick={handleAnalyze} 
+                className="text-xs text-gray-400 hover:text-indigo-600 mt-4 flex items-center gap-1 transition-colors"
+              >
+                <ArrowRepeat size={10} /> Re-Kalkulation anfordern
+              </button>
+            </div>
+          )}
+          
+          {error && (
+             <div className="mt-2 text-xs text-red-600 bg-red-50 p-3 rounded border border-red-100 flex items-center gap-2">
+               <ExclamationTriangle size={16} className="shrink-0" />
+               {error}
+               <button onClick={handleAnalyze} className="ml-auto text-red-700 underline font-semibold">Wiederholen</button>
+             </div>
+          )}
+        </div>
+      </div>
+
+      <style jsx>{`
+        @keyframes progress {
+          0% { width: 0%; }
+          50% { width: 70%; }
+          100% { width: 95%; }
+        }
+        .animate-progress {
+          animation: progress 3s ease-out forwards;
+        }
+      `}</style>
+    </div>
+  );
 }
