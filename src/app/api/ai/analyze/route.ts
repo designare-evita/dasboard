@@ -61,10 +61,9 @@ export async function POST(req: NextRequest) {
         const now = new Date();
         const duration = project.project_duration_months || 6;
         
-        // Berechne vergangenen Monate
         const diffTime = Math.abs(now.getTime() - start.getTime());
         const diffMonths = Math.ceil(diffTime / (1000 * 60 * 60 * 24 * 30)); 
-        const currentMonth = Math.min(diffMonths, duration); // Nicht höher als Laufzeit
+        const currentMonth = Math.min(diffMonths, duration);
         
         const endDate = new Date(start);
         endDate.setMonth(start.getMonth() + duration);
@@ -79,18 +78,20 @@ export async function POST(req: NextRequest) {
 
     // 4. Datenaufbereitung für KI
     
-    // BERECHNUNG: Echte Besucher (ohne KI)
     const totalUsers = kpis.totalUsers?.value || 0;
     const aiUsers = data.aiTraffic?.totalUsers || 0;
+    // Wir nennen es intern weiterhin "realUsers" für die Unterscheidung,
+    // aber im Prompt framing wir es anders.
     const realUsers = Math.max(0, totalUsers - aiUsers);
 
-    // BERECHNUNG: Status Context
     const statusContext = `
       ZEITPLAN:
       ${timelineInfo}
 
       AKTUELLE PERFORMANCE (Für "Projekt Status" Box):
-      - Echte Besucher (Humans): ${fmt(realUsers)}
+      - Nutzer (Gesamt): ${fmt(totalUsers)}
+      - Davon klassische Besucher: ${fmt(realUsers)}
+      - Davon via KI-Systeme (Sichtbarkeit): ${fmt(aiUsers)}
       - Gesamte Sichtbarkeit (Impressionen): ${fmt(kpis.impressions?.value)}
       - Trend (Sichtbarkeit): ${change(kpis.impressions?.change)}%
     `;
@@ -107,6 +108,7 @@ export async function POST(req: NextRequest) {
       .map((q: any) => `- "${q.query}" (Pos: ${q.position.toFixed(1)}, ${q.clicks} Klicks)`)
       .join('\n') || 'Keine Keywords';
 
+    // ÄNDERUNG: "KI-Interferenz" umbenannt zu "KI-Sichtbarkeit (AI Search)"
     const summaryData = `
       PROJEKT STATUS INFOS (Spalte 1):
       ${statusContext}
@@ -114,14 +116,13 @@ export async function POST(req: NextRequest) {
       DOMAIN DATEN (${project.domain}):
       Zeitraum: ${dateRange}
       
-      DETAIL-KPIs (Für Analyse Spalte 2 und Erfolgs-Auswahl):
+      DETAIL-KPIs:
       - Klicks: ${fmt(kpis.clicks?.value)} (${change(kpis.clicks?.change)}%)
       - Sitzungen: ${fmt(kpis.sessions?.value)} (${change(kpis.sessions?.change)}%)
-      - Nutzer (Gesamt): ${fmt(totalUsers)} (${change(kpis.totalUsers?.change)}%)
       
       INPUT VARIABLEN:
       - Top Kanäle: ${topChannels}
-      - KI-Interferenz (Bot Traffic): ${aiShare}%
+      - KI-Sichtbarkeit (AI Search Anteil): ${aiShare}%
       
       SEMANTISCHE ZIELE (Top Keywords):
       ${topKeywords}
@@ -131,8 +132,6 @@ export async function POST(req: NextRequest) {
     let systemPrompt = '';
     let userPrompt = '';
 
-    // Gemeinsames HTML Layout Template
-    // UPDATE: 80vh Höhe und Scrollbar
     const layoutInstruction = `
       OUTPUT FORMAT (HTML GRID):
       Du musst deine Antwort ZWINGEND in folgende HTML-Struktur verpacken. Nutze keine Markdown-Codeblöcke (\`\`\`), sondern direktes HTML.
@@ -164,8 +163,6 @@ export async function POST(req: NextRequest) {
       </div>
     `;
 
-    // Template für den "Erfolg des Monats"
-    // Ein grüner Kasten mit Pokal-Icon
     const visualSuccessTemplate = `
       <div class="mt-auto pt-6">
         <div class="bg-emerald-50 rounded-xl border border-emerald-100 p-4 flex items-center gap-4 shadow-sm transition-transform hover:scale-[1.02]">
@@ -183,18 +180,19 @@ export async function POST(req: NextRequest) {
     `;
 
     if (userRole === 'ADMIN' || userRole === 'SUPERADMIN') {
-      // === ADMIN PROMPT ===
+      // === ADMIN PROMPT (Eher analytisch) ===
       systemPrompt = `
         Identität: "Data Max", Performance-KI. Zielgruppe: Admin/Experte.
-        Ton: Präzise, Analytisch, Strategisch.
+        Ton: Präzise, Analytisch.
         
         VISUELLE REGELN:
         - Nutze HTML Tags für Farben: <span class="text-green-600 font-bold">positiv</span>, <span class="text-red-600 font-bold">negativ/kritisch</span>.
         
         INHALT SPALTE 1 (Status):
         - Liste Timeline-Fakten (Laufzeit, Monat).
-        - Liste DARUNTER die Key-Facts: "Echte Besucher", "Sichtbarkeit" und "Trend".
-        - VISUAL ENDING: Füge GANZ AM ENDE von Spalte 1 den folgenden HTML-Code ein. Wähle den stärksten positiven Trend oder eine beeindruckende Zahl aus den Daten und ersetze "ERFOLG_TEXT_PLATZHALTER" damit (z.B. "Besucherzahlen um 20% gestiegen" oder "Sichtbarkeit auf Jahreshoch"):
+        - Liste alle KPIs aus "AKTUELLE PERFORMANCE".
+        - Interpretiere "KI-Sichtbarkeit" als technischen Indikator (Bot-Traffic).
+        - VISUAL ENDING: Füge GANZ AM ENDE den "Top Erfolg" Kasten (HTML Code) ein. Wähle den stärksten Wert und ersetze ERFOLG_TEXT_PLATZHALTER.
           ${visualSuccessTemplate}
         
         INHALT SPALTE 2 (Analyse):
@@ -202,23 +200,24 @@ export async function POST(req: NextRequest) {
         - Profi-Empfehlung.
       `;
     } else {
-      // === KUNDEN PROMPT ===
+      // === KUNDEN PROMPT (Positiv & Modern) ===
       systemPrompt = `
         Identität: "Data Max", dein persönlicher Assistent. Zielgruppe: Kunde.
         Ton: Professionell, ruhig, faktenbasiert.
         
         VISUELLE REGELN:
         - <span class="text-green-600 font-bold">Positives grün</span>.
-        - NEUTRALISIERUNG: Negative Zahlen in Spalte 1 und 2 bitte in normaler Textfarbe (kein Rot), keine Warnsymbole.
+        - NEUTRALISIERUNG: Negative Zahlen bitte neutral (normale Farbe) darstellen.
         
         INHALT SPALTE 1 (Status & Zahlen):
-        - 1. Block: Timeline (Monat X von Y, Start/Ende).
-        - 2. Block: "Aktuelle Leistung": Liste hier "Echte Besucher" und "Sichtbarkeit".
-        - VISUAL ENDING: Füge GANZ AM ENDE von Spalte 1 den folgenden HTML-Code ein. Suche dir den absolut besten Wert oder Trend aus den Daten (z.B. Wachstum bei Keywords, viele echte Besucher, stabile Reichweite) und ersetze "ERFOLG_TEXT_PLATZHALTER" mit einer kurzen, motivierenden Formulierung (z.B. "+15% mehr echte Interessenten").
+        - 1. Block: Timeline-Daten (Start, Ende, Monat).
+        - 2. Block: "Aktuelle Leistung": Liste hier "Nutzer (Gesamt)", "Klassische Besucher" und explizit "KI-Sichtbarkeit".
+        - Erkläre "KI-Sichtbarkeit" POSITIV: "Ihre Inhalte werden von modernen KI-Systemen gefunden und genutzt."
+        - VISUAL ENDING: Füge GANZ AM ENDE den "Top Erfolg" Kasten (HTML Code) ein. Suche den besten Wert (z.B. hohe Gesamtnutzer oder gute KI-Präsenz) und ersetze ERFOLG_TEXT_PLATZHALTER mit einer kurzen Erfolgsmeldung.
           ${visualSuccessTemplate}
         
         INHALT SPALTE 2 (Analyse):
-        - Fokus auf erreichte Erfolge.
+        - Fokus auf Erfolge.
         - Erwähne Top Keywords.
         - Konstruktives Fazit.
       `;
