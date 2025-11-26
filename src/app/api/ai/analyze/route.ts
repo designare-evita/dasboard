@@ -1,4 +1,7 @@
-// src/app/api/ai/analyze/route.ts
+{
+type: uploaded file
+fileName: designare-evita/dasboard/dasboard-6d561aab221f9cc548aa9584d6faef14a0ede5f4/src/app/api/ai/analyze/route.ts
+fullContent:
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { sql } from '@vercel/postgres';
@@ -53,8 +56,10 @@ export async function POST(req: NextRequest) {
 
     const kpis = data.kpis;
 
-    // 3. Status-Daten berechnen
-    let statusContext = "Standard Betreuung (Keine aktive Zeitlinie)";
+    // 3. Timeline-Daten berechnen
+    let timelineInfo = "Standard Betreuung (Keine aktive Zeitlinie)";
+    let progressPercent = 0;
+    
     if (project.project_timeline_active) {
         const start = new Date(project.project_start_date || project.createdAt);
         const now = new Date();
@@ -67,17 +72,37 @@ export async function POST(req: NextRequest) {
         
         const endDate = new Date(start);
         endDate.setMonth(start.getMonth() + duration);
+        
+        progressPercent = Math.round((currentMonth / duration) * 100);
 
-        statusContext = `
+        timelineInfo = `
           Status: AKTIVE PROJEKT-LAUFZEIT
           Aktueller Monat: ${currentMonth} von ${duration}
           Start: ${start.toLocaleDateString('de-DE')}
           Geplantes Ende: ${endDate.toLocaleDateString('de-DE')}
-          Fortschritt: ${Math.round((currentMonth / duration) * 100)}%
+          Fortschritt: ${progressPercent}%
         `;
     }
 
     // 4. Datenaufbereitung für KI
+    
+    // BERECHNUNG: Echte Besucher (ohne KI)
+    const totalUsers = kpis.totalUsers?.value || 0;
+    const aiUsers = data.aiTraffic?.totalUsers || 0;
+    const realUsers = Math.max(0, totalUsers - aiUsers);
+
+    // BERECHNUNG: Status Context (Timeline + Key Metrics)
+    // Wir fügen hier explizit die "Zahlen" hinzu, damit sie in Spalte 1 landen
+    const statusContext = `
+      ZEITPLAN:
+      ${timelineInfo}
+
+      AKTUELLE PERFORMANCE (Für "Projekt Status" Box):
+      - Echte Besucher (Humans): ${fmt(realUsers)}
+      - Gesamte Sichtbarkeit (Impressionen): ${fmt(kpis.impressions?.value)}
+      - Trend (Sichtbarkeit): ${change(kpis.impressions?.change)}%
+    `;
+
     const topChannels = data.channelData?.slice(0, 3)
       .map(c => `${c.name} (${fmt(c.value)})`)
       .join(', ') || 'Keine Kanal-Daten';
@@ -86,30 +111,20 @@ export async function POST(req: NextRequest) {
       ? (data.aiTraffic.totalSessions / kpis.sessions.value * 100).toFixed(1)
       : '0';
 
-    // BERECHNUNG: Echte Besucher (ohne KI) für Kunden-Ansicht
-    const totalUsers = kpis.totalUsers?.value || 0;
-    const aiUsers = data.aiTraffic?.totalUsers || 0;
-    const realUsers = Math.max(0, totalUsers - aiUsers);
-
     const topKeywords = data.topQueries?.slice(0, 5)
       .map((q: any) => `- "${q.query}" (Pos: ${q.position.toFixed(1)}, ${q.clicks} Klicks)`)
       .join('\n') || 'Keine Keywords';
 
     const summaryData = `
-      PROJEKT STATUS INFOS:
+      PROJEKT STATUS INFOS (Spalte 1):
       ${statusContext}
 
       DOMAIN DATEN (${project.domain}):
       Zeitraum: ${dateRange}
       
-      KPI MATRIX:
+      DETAIL-KPIs (Für Analyse Spalte 2):
       - Klicks: ${fmt(kpis.clicks?.value)} (${change(kpis.clicks?.change)}%)
-      - Impressionen: ${fmt(kpis.impressions?.value)} (${change(kpis.impressions?.change)}%)
       - Sitzungen: ${fmt(kpis.sessions?.value)} (${change(kpis.sessions?.change)}%)
-      - Nutzer (Gesamt): ${fmt(totalUsers)} (${change(kpis.totalUsers?.change)}%)
-      
-      ZUSATZ-METRIKEN:
-      - Echte Menschen (Bereinigt um KI): ${fmt(realUsers)} (Nutze diesen Wert für Kunden-Kommunikation!)
       
       INPUT VARIABLEN:
       - Top Kanäle: ${topChannels}
@@ -119,12 +134,11 @@ export async function POST(req: NextRequest) {
       ${topKeywords}
     `;
 
-    // 5. Rollenbasierte Prompt-Generierung mit 2-Spalten Layout
+    // 5. Rollenbasierte Prompt-Generierung
     let systemPrompt = '';
     let userPrompt = '';
 
     // Gemeinsames HTML Layout Template
-    // UPDATE: 'items-stretch' sorgt für gleiche Höhe. Beide Spalten haben nun identische Box-Styles.
     const layoutInstruction = `
       OUTPUT FORMAT (HTML GRID):
       Du musst deine Antwort ZWINGEND in folgende HTML-Struktur verpacken. Nutze keine Markdown-Codeblöcke (\`\`\`), sondern direktes HTML.
@@ -136,7 +150,7 @@ export async function POST(req: NextRequest) {
              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-info-circle-fill" viewBox="0 0 16 16">
                <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm.93-9.412-1 4.705c-.07.34.029.533.304.533.194 0 .487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703 0-1.002-.422-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.47l-.451-.081.082-.381 2.29-.287zM8 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/>
              </svg>
-             Projekt Status
+             Projekt Status & Zahlen
            </h3>
            <div class="space-y-3 text-indigo-900 text-sm flex-grow">
              </div>
@@ -164,35 +178,33 @@ export async function POST(req: NextRequest) {
         
         VISUELLE REGELN:
         - Nutze HTML Tags für Farben: <span class="text-green-600 font-bold">positiv</span>, <span class="text-red-600 font-bold">negativ/kritisch</span>.
-        - Halte dich strikt an das HTML Grid Layout.
         
         INHALT SPALTE 1 (Status):
-        - Zeige technisch präzise den Projektfortschritt (Startdatum, Laufzeit, Ende, aktueller Stand).
+        - Liste Timeline-Fakten (Laufzeit, Monat).
+        - Liste DARUNTER die Key-Facts: "Echte Besucher", "Sichtbarkeit" und "Trend".
         
         INHALT SPALTE 2 (Analyse):
         - Status-Analyse (Abweichungen).
-        - Erwähne die "Echten Menschen" im Vergleich zum Gesamt-Traffic, falls relevant.
-        - Profi-Empfehlung (Was tun?).
+        - Profi-Empfehlung.
       `;
     } else {
       // === KUNDEN PROMPT ===
       systemPrompt = `
-        Identität: "Data Max", dein persönlicher Assistent. Zielgruppe: Kunde/Webseiten-Betreiber.
+        Identität: "Data Max", dein persönlicher Assistent. Zielgruppe: Kunde.
         Ton: Professionell, ruhig, faktenbasiert.
         
         VISUELLE REGELN:
-        - Nutze HTML Tags für Farben: <span class="text-green-600 font-bold">positiv/Wachstum</span>.
-        - WICHTIG: Negative Zahlen oder Rückgänge müssen NEUTRAL dargestellt werden (normale Textfarbe, kein Rot, keine Warnungen).
-        - Halte dich strikt an das HTML Grid Layout.
+        - <span class="text-green-600 font-bold">Positives grün</span>.
+        - NEUTRALISIERUNG: Negative Zahlen in Spalte 1 und 2 bitte in normaler Textfarbe (kein Rot), keine Warnsymbole.
         
-        INHALT SPALTE 1 (Status):
-        - Struktur IDENTISCH zum Admin (Faktenbasiert: Laufzeit, Start, Ende, Monat X von Y). 
-        - Vermeide blumige Sprache im Status-Bereich, bleibe bei den Datenpunkten.
+        INHALT SPALTE 1 (Status & Zahlen):
+        - 1. Block: Timeline (Monat X von Y, Start/Ende).
+        - 2. Block: "Aktuelle Leistung": Liste hier unbedingt "Echte Besucher" und "Sichtbarkeit".
+        - Das sorgt dafür, dass der Kunde sofort sieht, wo er steht (Zeitlich + Zahlentechnisch).
         
         INHALT SPALTE 2 (Analyse):
         - Fokus auf erreichte Erfolge.
-        - WICHTIG: Hebe die Zahl der "Echten Menschen" (Zusatz-Metriken) hervor, um den Wert der Seite zu zeigen, bereinigt von Technik-Traffic.
-        - Was suchen die Nutzer? (Top Keywords erwähnen).
+        - Erwähne Top Keywords.
         - Konstruktives Fazit.
       `;
     }
@@ -220,4 +232,5 @@ export async function POST(req: NextRequest) {
         { status: 500 }
     );
   }
+}
 }
