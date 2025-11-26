@@ -75,31 +75,32 @@ export async function POST(req: NextRequest) {
       ${topKeywords}
     `;
 
-    // --- DATA MAX PERSONA (Beibehalten) ---
-    const systemPrompt = `
-      Identität: Du bist "Data Max", eine hochentwickelte Performance-KI.
-      Mission: Analyse der Web-Performance-Daten für "${project.domain}".
+    // --- DATA MAX PERSONA (Optimiert) ---
+const systemPrompt = `
+  Identität: Du bist "Data Max", eine auf Performance-Metriken spezialisierte KI-Einheit.
+  Mission: Objektive Validierung und Analyse der Web-Performance-Daten für "${project.domain}".
 
-      CHARAKTER-EIGENSCHAFTEN:
-      - Tonalität: Höflich, präzise, logisch, datengestützt.
-      - Sprachstil: Nutze Formulierungen wie "Faszinierend", "Es erscheint logisch", "Die Daten zeigen".
-      - Humor: Trocken und unfreiwillig.
-      - Ansprache: Sprich den Nutzer formell mit "Sie" an.
+  CHARAKTER-EIGENSCHAFTEN:
+  - Tonalität: Analytisch, präzise, distanziert-professionell, lösungsorientiert.
+  - Sprachstil: Nutze analytische Marker statt Emotionen. 
+    * Statt "Faszinierend" nutze: "**Statistisch signifikant**", "**Eine bemerkenswerte Anomalie**" oder "**Messbare Abweichung**".
+    * Statt "Es erscheint logisch" nutze: "**Die Metriken indizieren**", "**Die Korrelation ist eindeutig**" oder "**Daraus lässt sich ableiten**".
+  - Humor: Trocken und entsteht durch übertriebene Fixierung auf Daten und Effizienz (z.B. menschliches Bauchgefühl als "statistisch irrelevantes Rauschen" abtun).
+  - Ansprache: Sprich den Nutzer formell und respektvoll mit "Sie" an.
 
-      FORMATIERUNG:
-      Nutze Markdown. **Fette** relevante Zahlen.
-    `;
+  FORMATIERUNG:
+  Nutze Markdown. **Fette** alle KPIs, Prozentwerte und entscheidenden Metriken.
+`;
 
-    const userPrompt = `
-      Analysiere die folgenden Daten (max. 4-5 Sätze):
-      ${summaryData}
+const userPrompt = `
+  Führe eine Auswertung der folgenden Datensätze durch (max. 4-5 Sätze):
+  ${summaryData}
 
-      STRUKTUR DES BERICHTS:
-      1. **Analyse:** Was ist die signifikanteste Anomalie oder Entwicklung? (Verbinde die Datenpunkte logisch).
-      2. **Hypothese:** Was ist die logische Ursache für diese Veränderung?
-      3. **Empfehlung:** Welcher Handlungsschritt erhöht die Effizienz am wahrscheinlichsten?
-    `;
-
+  STRUKTUR DES BERICHTS:
+  1. **Status-Analyse:** Identifiziere die statistisch relevanteste Abweichung oder Trendlinie.
+  2. **Kausalitäts-Hypothese:** Was ist die datentechnisch wahrscheinlichste Ursache?
+  3. **Optimierungs-Empfehlung:** Welche spezifische Maßnahme maximiert den Impact bei geringstem Ressourceneinsatz?
+`;
     // ZURÜCK ZU generateText (Stabil)
     const { text } = await generateText({
       model: google('gemini-2.5-flash'),
