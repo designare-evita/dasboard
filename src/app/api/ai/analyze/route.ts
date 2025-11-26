@@ -114,27 +114,34 @@ export async function POST(req: NextRequest) {
     let systemPrompt = '';
     let userPrompt = '';
 
-    // Gemeinsames HTML Layout Template
-    // Wir nutzen Tailwind 'grid-cols-1 md:grid-cols-2' für Responsive Design
+    // Gemeinsames HTML Layout Template - VERBESSERT: items-stretch für gleiche Höhe
     const layoutInstruction = `
       OUTPUT FORMAT (HTML GRID):
       Du musst deine Antwort ZWINGEND in folgende HTML-Struktur verpacken. Nutze keine Markdown-Codeblöcke (\`\`\`), sondern direktes HTML.
 
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
         
-        <div class="bg-indigo-50/50 rounded-2xl p-6 border border-indigo-100 h-full">
+        <div class="bg-indigo-50/50 rounded-2xl p-6 border border-indigo-100 h-full flex flex-col">
            <h3 class="text-lg font-bold text-indigo-900 mb-4 flex items-center gap-2">
              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-info-circle-fill" viewBox="0 0 16 16">
                <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm.93-9.412-1 4.705c-.07.34.029.533.304.533.194 0 .487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703 0-1.002-.422-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.47l-.451-.081.082-.381 2.29-.287zM8 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/>
              </svg>
              Projekt Status
            </h3>
-           <div class="space-y-3 text-indigo-800 text-sm">
+           <div class="space-y-3 text-indigo-900 text-sm flex-grow">
              </div>
         </div>
 
-        <div class="space-y-5">
-           </div>
+        <div class="bg-white rounded-2xl p-6 border border-gray-200 h-full shadow-sm flex flex-col">
+           <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-graph-up-arrow" viewBox="0 0 16 16">
+               <path fill-rule="evenodd" d="M0 0h1v15h15v1H0V0Zm10 3.5a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 .5.5v4a.5.5 0 0 1-1 0V4.9l-3.613 4.417a.5.5 0 0 1-.74.037L7.06 6.767l-3.656 5.027a.5.5 0 0 1-.808-.588l4-5.5a.5.5 0 0 1 .758-.06l2.609 2.61L13.445 4H10.5a.5.5 0 0 1-.5-.5Z"/>
+             </svg>
+             Performance Analyse
+           </h3>
+           <div class="space-y-4 text-gray-700 text-sm flex-grow">
+             </div>
+        </div>
 
       </div>
     `;
@@ -150,7 +157,7 @@ export async function POST(req: NextRequest) {
         - Halte dich strikt an das 2-Spalten HTML Layout.
         
         INHALT SPALTE 1 (Status):
-        - Zeige technisch präzise den Projektfortschritt.
+        - Zeige technisch präzise den Projektfortschritt (Laufzeit, Start, Ende).
         
         INHALT SPALTE 2 (Analyse):
         - Status-Analyse (Abweichungen).
@@ -158,25 +165,24 @@ export async function POST(req: NextRequest) {
         - Profi-Empfehlung (Was tun?).
       `;
     } else {
-      // === KUNDEN PROMPT ===
+      // === KUNDEN PROMPT (Angepasst) ===
       systemPrompt = `
-        Identität: "Data Max", freundlicher Assistent. Zielgruppe: Kunde/Laie.
-        Ton: Höflich, Ermutigend, Verständlich.
-        Constraint: KEINE strategischen Empfehlungen. KEINE Panik bei schlechten Zahlen.
+        Identität: "Data Max", dein persönlicher Assistent. Zielgruppe: Kunde/Webseiten-Betreiber.
+        Ton: Professionell, ruhig, faktenbasiert.
         
         VISUELLE REGELN:
-        - Nutze HTML Tags für Farben: <span class="text-green-600 font-bold">Erfolge/Anstiege</span>.
-        - Negative Zahlen: Neutral darstellen (kein Rot).
+        - Nutze HTML Tags für Farben: <span class="text-green-600 font-bold">positiv/Wachstum</span>.
+        - WICHTIG: Negative Zahlen oder Rückgänge müssen NEUTRAL dargestellt werden (normale Textfarbe, kein Rot, keine Warnungen).
         - Halte dich strikt an das 2-Spalten HTML Layout.
         
         INHALT SPALTE 1 (Status):
-        - Erkläre den Status freundlich ("Wir befinden uns in Monat X...").
-        - Wenn keine Timeline aktiv: "Ihr Projekt wird dauerhaft betreut."
+        - Struktur IDENTISCH zum Admin (Fakten: Laufzeit, Start, Ende, aktueller Monat).
+        - Aber: Blende negative Trends aus oder formuliere sie neutral.
         
         INHALT SPALTE 2 (Analyse):
-        - Zusammenfassung der Leistung (Sichtbarkeit, Besucher).
-        - Was suchen die Nutzer? (Top Keywords).
-        - Positives Fazit.
+        - Fokus auf erreichte Erfolge und Sichtbarkeit.
+        - Was suchen die Nutzer? (Top Keywords erwähnen).
+        - Konstruktives, motivierendes Fazit.
       `;
     }
 
@@ -203,4 +209,5 @@ export async function POST(req: NextRequest) {
         { status: 500 }
     );
   }
+}
 }
