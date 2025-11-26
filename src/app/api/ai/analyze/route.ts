@@ -1,3 +1,4 @@
+// src/app/api/ai/analyze/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { sql } from '@vercel/postgres';
@@ -85,6 +86,11 @@ export async function POST(req: NextRequest) {
       ? (data.aiTraffic.totalSessions / kpis.sessions.value * 100).toFixed(1)
       : '0';
 
+    // BERECHNUNG: Echte Besucher (ohne KI) für Kunden-Ansicht
+    const totalUsers = kpis.totalUsers?.value || 0;
+    const aiUsers = data.aiTraffic?.totalUsers || 0;
+    const realUsers = Math.max(0, totalUsers - aiUsers);
+
     const topKeywords = data.topQueries?.slice(0, 5)
       .map((q: any) => `- "${q.query}" (Pos: ${q.position.toFixed(1)}, ${q.clicks} Klicks)`)
       .join('\n') || 'Keine Keywords';
@@ -100,7 +106,10 @@ export async function POST(req: NextRequest) {
       - Klicks: ${fmt(kpis.clicks?.value)} (${change(kpis.clicks?.change)}%)
       - Impressionen: ${fmt(kpis.impressions?.value)} (${change(kpis.impressions?.change)}%)
       - Sitzungen: ${fmt(kpis.sessions?.value)} (${change(kpis.sessions?.change)}%)
-      - Nutzer: ${fmt(kpis.totalUsers?.value)} (${change(kpis.totalUsers?.change)}%)
+      - Nutzer (Gesamt): ${fmt(totalUsers)} (${change(kpis.totalUsers?.change)}%)
+      
+      ZUSATZ-METRIKEN:
+      - Echte Menschen (Bereinigt um KI): ${fmt(realUsers)} (Nutze diesen Wert für Kunden-Kommunikation!)
       
       INPUT VARIABLEN:
       - Top Kanäle: ${topChannels}
@@ -114,7 +123,8 @@ export async function POST(req: NextRequest) {
     let systemPrompt = '';
     let userPrompt = '';
 
-    // Gemeinsames HTML Layout Template - VERBESSERT: items-stretch für gleiche Höhe
+    // Gemeinsames HTML Layout Template
+    // UPDATE: 'items-stretch' sorgt für gleiche Höhe. Beide Spalten haben nun identische Box-Styles.
     const layoutInstruction = `
       OUTPUT FORMAT (HTML GRID):
       Du musst deine Antwort ZWINGEND in folgende HTML-Struktur verpacken. Nutze keine Markdown-Codeblöcke (\`\`\`), sondern direktes HTML.
@@ -154,18 +164,18 @@ export async function POST(req: NextRequest) {
         
         VISUELLE REGELN:
         - Nutze HTML Tags für Farben: <span class="text-green-600 font-bold">positiv</span>, <span class="text-red-600 font-bold">negativ/kritisch</span>.
-        - Halte dich strikt an das 2-Spalten HTML Layout.
+        - Halte dich strikt an das HTML Grid Layout.
         
         INHALT SPALTE 1 (Status):
-        - Zeige technisch präzise den Projektfortschritt (Laufzeit, Start, Ende).
+        - Zeige technisch präzise den Projektfortschritt (Startdatum, Laufzeit, Ende, aktueller Stand).
         
         INHALT SPALTE 2 (Analyse):
         - Status-Analyse (Abweichungen).
-        - Kausalität (Warum passiert das?).
+        - Erwähne die "Echten Menschen" im Vergleich zum Gesamt-Traffic, falls relevant.
         - Profi-Empfehlung (Was tun?).
       `;
     } else {
-      // === KUNDEN PROMPT (Angepasst) ===
+      // === KUNDEN PROMPT ===
       systemPrompt = `
         Identität: "Data Max", dein persönlicher Assistent. Zielgruppe: Kunde/Webseiten-Betreiber.
         Ton: Professionell, ruhig, faktenbasiert.
@@ -173,16 +183,17 @@ export async function POST(req: NextRequest) {
         VISUELLE REGELN:
         - Nutze HTML Tags für Farben: <span class="text-green-600 font-bold">positiv/Wachstum</span>.
         - WICHTIG: Negative Zahlen oder Rückgänge müssen NEUTRAL dargestellt werden (normale Textfarbe, kein Rot, keine Warnungen).
-        - Halte dich strikt an das 2-Spalten HTML Layout.
+        - Halte dich strikt an das HTML Grid Layout.
         
         INHALT SPALTE 1 (Status):
-        - Struktur IDENTISCH zum Admin (Fakten: Laufzeit, Start, Ende, aktueller Monat).
-        - Aber: Blende negative Trends aus oder formuliere sie neutral.
+        - Struktur IDENTISCH zum Admin (Faktenbasiert: Laufzeit, Start, Ende, Monat X von Y). 
+        - Vermeide blumige Sprache im Status-Bereich, bleibe bei den Datenpunkten.
         
         INHALT SPALTE 2 (Analyse):
-        - Fokus auf erreichte Erfolge und Sichtbarkeit.
+        - Fokus auf erreichte Erfolge.
+        - WICHTIG: Hebe die Zahl der "Echten Menschen" (Zusatz-Metriken) hervor, um den Wert der Seite zu zeigen, bereinigt von Technik-Traffic.
         - Was suchen die Nutzer? (Top Keywords erwähnen).
-        - Konstruktives, motivierendes Fazit.
+        - Konstruktives Fazit.
       `;
     }
 
