@@ -55,7 +55,7 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
             <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
               Data Max 
               <span className="text-[10px] font-normal bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full border border-gray-200">
-                Performance AI v1.0
+                Performance Intelligence
               </span>
             </h3>
           </div>
@@ -64,7 +64,7 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
           {!analysis && !isLoading && !error && (
             <div className="mt-2">
               <p className="text-sm text-gray-500 mb-3 italic">
-                &quot;Ich bin bereit, Ihre Daten zu verarbeiten. Soll ich eine logische Analyse der aktuellen Performance-Parameter initiieren?&quot;
+                &quot;?Hallo. Mein Name ist Data Max. Ich bin spezialisiert auf die Auswertung komplexer Suchdaten. Ich stehe bereit, um Ihren Ist-Zustand zu validieren und Optimierungen abzuleiten. Darf ich die Analyse starten?&quot;
               </p>
               <button
                 onClick={handleAnalyze}
