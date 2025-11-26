@@ -81,22 +81,20 @@ export async function POST(req: NextRequest) {
       ${topKeywords}
     `;
 
-    // 4. Rollenbasierte Prompt-Generierung mit Farb-Anweisungen
+    // 4. Rollenbasierte Prompt-Generierung
     let systemPrompt = '';
     let userPrompt = '';
 
-    // Gemeinsame Anweisung für das Styling
-    const styleInstruction = `
-      VISUELLE FORMATIERUNG (WICHTIG):
-      - Nutze HTML-Tags für Farben, da Markdown keine Farben unterstützt.
-      - Markiere positive Zahlen, Anstiege oder gute Nachrichten GRÜN: <span class="text-green-600 font-bold">...</span>
-      - Markiere negative Zahlen, Rückgänge oder Probleme ROT: <span class="text-red-600 font-bold">...</span>
-      - Nutze weiterhin **fett** für wichtige neutrale Begriffe.
-      - Mache den Text optisch ansprechend und leicht scanbar.
-    `;
-
     if (userRole === 'ADMIN' || userRole === 'SUPERADMIN') {
-      // === ADMIN PROMPT ===
+      // === ADMIN PROMPT (Vollständige Farbcodierung Rot/Grün) ===
+      const adminStyle = `
+        VISUELLE FORMATIERUNG:
+        - Nutze HTML-Tags für Farben.
+        - Positive Zahlen/Trends: <span class="text-green-600 font-bold">...</span>
+        - Negative Zahlen/Probleme: <span class="text-red-600 font-bold">...</span>
+        - Neutrale wichtige Werte: **fett**.
+      `;
+
       systemPrompt = `
         Identität: Du bist "Data Max", eine hochentwickelte Performance-KI.
         Zielgruppe: SEO-Experte / Administrator.
@@ -106,11 +104,11 @@ export async function POST(req: NextRequest) {
         - Fokus: Kausalitäten, Anomalien, Strategie.
         - Fachbegriffe erwünscht.
         
-        ${styleInstruction}
+        ${adminStyle}
       `;
 
       userPrompt = `
-        Analysiere diese Profi-Daten (max. 10-12 Sätze):
+        Analysiere diese Profi-Daten (max. 5-6 Sätze):
         ${summaryData}
 
         STRUKTUR:
@@ -120,7 +118,15 @@ export async function POST(req: NextRequest) {
       `;
 
     } else {
-      // === KUNDEN PROMPT ===
+      // === KUNDEN PROMPT (Nur Grün, KEIN Rot) ===
+      const customerStyle = `
+        VISUELLE FORMATIERUNG (WICHTIG):
+        - Positive Zahlen, Anstiege oder Erfolge: <span class="text-green-600 font-bold">...</span>
+        - Negative Zahlen oder Rückgänge: KEINE ROTE FARBE! Stelle diese neutral dar (nur **fett** oder normal).
+        - Vermeide visuelle Warnsignale (Rot/Orange).
+        - Das Ziel ist ein positives, aufbauendes Erlebnis.
+      `;
+
       systemPrompt = `
         Identität: Du bist "Data Max", eine freundliche und erklärende KI.
         Zielgruppe: Kunde / Laie (kein SEO-Experte).
@@ -129,17 +135,17 @@ export async function POST(req: NextRequest) {
         - Tonalität: Höflich, verständlich, beruhigend.
         - Fokus: Übersetzung von Zahlen in Erfolge/Status.
         - CONSTRAINT: Gib KEINE strategischen Empfehlungen oder Handlungsanweisungen (Aufgabe der Agentur).
-        - Erkläre sinkende Zahlen sachlich ohne Panik.
+        - Erkläre sinkende Zahlen sachlich als "Marktschwankung" oder ähnlich neutral, ohne Panik.
         
-        ${styleInstruction}
+        ${customerStyle}
       `;
 
       userPrompt = `
-        Fasse diese Daten verständlich zusammen (max. 7-9 Sätze):
+        Fasse diese Daten verständlich zusammen (max. 4-5 Sätze):
         ${summaryData}
 
         STRUKTUR:
-        1. **Leistungs-Zusammenfassung:** Wie lief es? (Nutze Worte wie "Sichtbarkeit", "Besucher").
+        1. **Leistungs-Zusammenfassung:** Wie lief es? (Nutze Worte wie "Sichtbarkeit", "Besucher"). Hebe Erfolge grün hervor.
         2. **Top-Suchbegriffe:** Wonach haben Leute gesucht? Was sagt das über das Interesse?
         3. **Fazit:** Kurzer, positiver/neutraler Abschluss.
         
