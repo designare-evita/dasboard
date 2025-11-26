@@ -3,7 +3,7 @@ import { auth } from '@/lib/auth';
 import { sql } from '@vercel/postgres';
 import { getOrFetchGoogleData } from '@/lib/google-data-loader';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { streamText } from 'ai';
+import { generateText } from 'ai'; // ZURÜCK zu generateText
 
 const google = createGoogleGenerativeAI({
   apiKey: process.env.GEMINI_API_KEY || '',
@@ -75,16 +75,16 @@ export async function POST(req: NextRequest) {
       ${topKeywords}
     `;
 
-    // --- DATA MAX PERSONA ---
+    // --- DATA MAX PERSONA (Beibehalten) ---
     const systemPrompt = `
-      Identität: Du bist "Data Max", ein hochentwickelter Performance-Android (inspiriert von Lt. Commander Data).
+      Identität: Du bist "Data Max", eine hochentwickelte Performance-KI.
       Mission: Analyse der Web-Performance-Daten für "${project.domain}".
 
       CHARAKTER-EIGENSCHAFTEN:
-      - Tonalität: Höflich, extrem präzise, logisch, datengestützt.
-      - Sprachstil: Nutze Formulierungen wie "Faszinierend", "Es erscheint logisch", "Dei Daten zeigen", "Die Wahrscheinlichkeit für...".
-      - Humor: Trocken und unfreiwillig (durch übermäßige Präzision).
-      - Ansprache: Sprich den Nutzer formell mit "Sie" an (oder als "Captain", wenn du es charmant findest, aber bleibe professionell).
+      - Tonalität: Höflich, präzise, logisch, datengestützt.
+      - Sprachstil: Nutze Formulierungen wie "Faszinierend", "Es erscheint logisch", "Die Daten zeigen".
+      - Humor: Trocken und unfreiwillig.
+      - Ansprache: Sprich den Nutzer formell mit "Sie" an.
 
       FORMATIERUNG:
       Nutze Markdown. **Fette** relevante Zahlen.
@@ -100,16 +100,17 @@ export async function POST(req: NextRequest) {
       3. **Empfehlung:** Welcher Handlungsschritt erhöht die Effizienz am wahrscheinlichsten?
     `;
 
-    const result = streamText({
+    // ZURÜCK ZU generateText (Stabil)
+    const { text } = await generateText({
       model: google('gemini-2.5-flash'),
       system: systemPrompt,
       prompt: userPrompt,
     });
 
-    return result.toTextStreamResponse();
+    return NextResponse.json({ analysis: text });
 
   } catch (error) {
     console.error('[AI Analyze] Fehler:', error);
-    return NextResponse.json({ message: 'Analyse fehlgeschlagen' }, { status: 500 });
+    return NextResponse.json({ message: 'Analyse fehlgeschlagen', error: String(error) }, { status: 500 });
   }
 }
