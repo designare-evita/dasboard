@@ -4,7 +4,7 @@ import { auth } from '@/lib/auth';
 import { sql } from '@vercel/postgres';
 import { getOrFetchGoogleData } from '@/lib/google-data-loader';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { generateText } from 'ai';
+import { streamText } from 'ai'; // WICHTIG: streamText statt generateText
 
 // Konfiguration des Google Providers
 const google = createGoogleGenerativeAI({
@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
     }
 
+    // Daten aus dem Request Body holen
     const { projectId, dateRange } = await req.json();
     const userRole = session.user.role;
 
@@ -64,7 +65,7 @@ export async function POST(req: NextRequest) {
         // Berechne vergangenen Monate
         const diffTime = Math.abs(now.getTime() - start.getTime());
         const diffMonths = Math.ceil(diffTime / (1000 * 60 * 60 * 24 * 30)); 
-        const currentMonth = Math.min(diffMonths, duration); // Nicht höher als Laufzeit
+        const currentMonth = Math.min(diffMonths, duration); 
         
         const endDate = new Date(start);
         endDate.setMonth(start.getMonth() + duration);
@@ -127,7 +128,6 @@ export async function POST(req: NextRequest) {
     let systemPrompt = '';
     let userPrompt = '';
 
-    // UPDATE: Layout mit visuellem "Mehr anzeigen" Verlauf am Boden
     const layoutInstruction = `
       OUTPUT FORMAT (HTML GRID):
       Du musst deine Antwort ZWINGEND in folgende HTML-Struktur verpacken. Nutze keine Markdown-Codeblöcke (\`\`\`), sondern direktes HTML.
@@ -246,14 +246,16 @@ export async function POST(req: NextRequest) {
       ${summaryData}
     `;
 
-    // 6. Generierung
-    const { text } = await generateText({
+    // 6. Generierung MIT Streaming (streamText statt generateText)
+    const result = streamText({
       model: google('gemini-2.5-flash'), 
       system: systemPrompt,
       prompt: userPrompt,
+      temperature: 0.7,
     });
 
-    return NextResponse.json({ analysis: text });
+    // WICHTIG: Rückgabe als Datenstrom
+    return result.toDataStreamResponse();
 
   } catch (error) {
     console.error('[AI Analyze] Fehler:', error);
