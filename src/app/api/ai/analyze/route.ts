@@ -5,14 +5,12 @@ import { getOrFetchGoogleData } from '@/lib/google-data-loader';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { generateText } from 'ai';
 
-// Konfiguration des Google Providers
 const google = createGoogleGenerativeAI({
   apiKey: process.env.GEMINI_API_KEY || '',
 });
 
 export const runtime = 'nodejs';
 
-// Hilfsfunktionen für Formatierung
 const fmt = (val?: number) => (val ? val.toLocaleString('de-DE') : '0');
 const change = (val?: number) => {
   if (val === undefined || val === null) return '0';
@@ -22,7 +20,6 @@ const change = (val?: number) => {
 
 export async function POST(req: NextRequest) {
   try {
-    // 1. Authentifizierung
     const session = await auth();
     if (!session?.user) {
       return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
@@ -31,7 +28,7 @@ export async function POST(req: NextRequest) {
     const { projectId, dateRange } = await req.json();
     const userRole = session.user.role;
 
-    // 2. Projektdaten laden
+    // 1. Daten laden
     const { rows } = await sql`
       SELECT 
         id, email, domain, gsc_site_url, ga4_property_id,
@@ -39,140 +36,126 @@ export async function POST(req: NextRequest) {
       FROM users WHERE id::text = ${projectId}
     `;
     
-    if (rows.length === 0) {
-      return NextResponse.json({ message: 'Projekt nicht gefunden' }, { status: 404 });
-    }
+    if (rows.length === 0) return NextResponse.json({ message: 'Projekt nicht gefunden' }, { status: 404 });
 
     const project = rows[0];
     const data = await getOrFetchGoogleData(project, dateRange);
 
-    if (!data || !data.kpis) {
-      return NextResponse.json({ message: 'Keine Daten verfügbar' }, { status: 400 });
-    }
+    if (!data || !data.kpis) return NextResponse.json({ message: 'Keine Daten' }, { status: 400 });
 
     const kpis = data.kpis;
 
-    // 3. Status-Daten berechnen (Wird nun auch für Kunden verwendet)
-    let statusContext = "Standard Betreuung (Keine aktive Zeitlinie)";
+    // 2. Projekt-Status berechnen (HTML für linke Spalte vorbereiten)
+    let statusContext = "<strong>Standard Betreuung</strong><br>Laufende Optimierung";
+    let progressPercentage = 0;
+
     if (project.project_timeline_active) {
         const start = new Date(project.project_start_date || project.createdAt);
         const now = new Date();
         const duration = project.project_duration_months || 6;
         
-        // Berechne vergangenen Monate
         const diffTime = Math.abs(now.getTime() - start.getTime());
         const diffMonths = Math.ceil(diffTime / (1000 * 60 * 60 * 24 * 30)); 
-        const currentMonth = Math.min(diffMonths, duration); 
+        const currentMonth = Math.min(diffMonths, duration);
+        progressPercentage = Math.round((currentMonth / duration) * 100);
         
         const endDate = new Date(start);
         endDate.setMonth(start.getMonth() + duration);
 
         statusContext = `
-          Status: AKTIVE PROJEKT-LAUFZEIT
-          Aktueller Monat: ${currentMonth} von ${duration}
-          Start: ${start.toLocaleDateString('de-DE')}
-          Geplantes Ende: ${endDate.toLocaleDateString('de-DE')}
-          Fortschritt: ${Math.round((currentMonth / duration) * 100)}%
+          <strong>Phase:</strong> AKTIVE PROJEKT-LAUFZEIT<br>
+          <strong>Fortschritt:</strong> Monat ${currentMonth} von ${duration} (${progressPercentage}%)<br>
+          <strong>Zeitraum:</strong> ${start.toLocaleDateString('de-DE')} - ${endDate.toLocaleDateString('de-DE')}
         `;
     }
 
-    // 4. Datenaufbereitung
-    const topChannels = data.channelData?.slice(0, 3)
-      .map(c => `${c.name} (${fmt(c.value)})`)
-      .join(', ') || 'Keine Kanal-Daten';
-
-    const aiShare = data.aiTraffic && kpis.sessions?.value
-      ? (data.aiTraffic.totalSessions / kpis.sessions.value * 100).toFixed(1)
-      : '0';
-
-    const topKeywords = data.topQueries?.slice(0, 5)
-      .map((q: any) => `<li>"${q.query}" (Pos: ${q.position.toFixed(1)}, ${q.clicks} Klicks)</li>`)
-      .join('') || '<li>Keine Keywords</li>';
-
-    const summaryData = `
-      PROJEKT STATUS INFOS:
-      ${statusContext}
-
-      DOMAIN DATEN (${project.domain}):
-      Zeitraum: ${dateRange}
-      
-      KPI MATRIX:
-      - Klicks: ${fmt(kpis.clicks?.value)} (${change(kpis.clicks?.change)}%)
-      - Impressionen: ${fmt(kpis.impressions?.value)} (${change(kpis.impressions?.change)}%)
-      - Sitzungen: ${fmt(kpis.sessions?.value)} (${change(kpis.sessions?.change)}%)
-      - Nutzer: ${fmt(kpis.totalUsers?.value)} (${change(kpis.totalUsers?.change)}%)
-      
-      INPUT VARIABLEN:
-      - Top Kanäle: ${topChannels}
-      - KI-Interferenz (Bot Traffic): ${aiShare}%
-      
-      TOP KEYWORDS (HTML Liste):
-      <ul>${topKeywords}</ul>
+    const statusHtml = `
+      <div class="bg-indigo-50/60 rounded-xl p-5 border border-indigo-100 h-full">
+        <h4 class="font-bold text-indigo-900 mb-3 flex items-center gap-2">
+           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.037-.492.046-.686-.07-.198-.143-.236-.338-.129-.562l.61-2.86zM8 15"/></svg>
+           Projekt Status
+        </h4>
+        <div class="text-sm text-indigo-800 space-y-2 leading-relaxed">
+          <p>${statusContext}</p>
+          <p class="text-xs opacity-80 mt-2 border-t border-indigo-200 pt-2">
+            Daten-Basis: ${project.domain} (${dateRange})
+          </p>
+        </div>
+      </div>
     `;
 
-    // 5. Rollenbasierte Prompt-Generierung
+    // 3. Daten für KI
+    const topChannels = data.channelData?.slice(0, 3).map(c => `${c.name} (${fmt(c.value)})`).join(', ') || '-';
+    const aiShare = data.aiTraffic && kpis.sessions?.value ? (data.aiTraffic.totalSessions / kpis.sessions.value * 100).toFixed(1) : '0';
+    const topKeywords = data.topQueries?.slice(0, 5).map((q: any) => `<li>"${q.query}" (Pos: ${q.position.toFixed(1)}, ${q.clicks} Klicks)</li>`).join('') || '<li>Keine Keywords</li>';
+
+    const summaryData = `
+      KPIs: Klicks ${fmt(kpis.clicks?.value)} (${change(kpis.clicks?.change)}%), Impr. ${fmt(kpis.impressions?.value)} (${change(kpis.impressions?.change)}%), Nutzer ${fmt(kpis.totalUsers?.value)} (${change(kpis.totalUsers?.change)}%)
+      Kanäle: ${topChannels} | KI-Anteil: ${aiShare}%
+      Top-Keywords: ${topKeywords}
+    `;
+
     let systemPrompt = '';
     let userPrompt = '';
-    
-    const htmlRules = `
-      ANTWORTE IN REINEM HTML (ohne Markdown-Codeblöcke):
-      - Nutze <h4> für Überschriften.
-      - Nutze <p> für Text.
-      - Nutze <ul>/<li> für Listen.
-      - Nutze Tailwind-Klassen für Farben: <span class="text-green-600 font-bold">...</span>
+
+    // Wir geben das HTML-Gerüst vor
+    const layoutInstruction = `
+      ANTWORT-FORMAT (HTML):
+      Erstelle ein HTML-Grid mit 2 Spalten.
+      
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div>
+           ${statusHtml}
+        </div>
+
+        <div class="space-y-4">
+           </div>
+      </div>
     `;
 
     if (userRole === 'ADMIN' || userRole === 'SUPERADMIN') {
       // === ADMIN MODE ===
       systemPrompt = `
-        Identität: "Data Max", Performance-KI für Experten.
-        Ton: Präzise, Analytisch.
-        
+        Identität: "Data Max" für Experten. Ton: Präzise, Analytisch.
         REGELN:
-        1. Positive Werte: <span class="text-green-600 font-bold">Grün</span>
-        2. Negative Werte/Probleme: <span class="text-red-600 font-bold">Rot</span>
-        
-        ${htmlRules}
+        - Positive Werte: <span class="text-green-600 font-bold">...</span>
+        - Negative Werte: <span class="text-red-600 font-bold">...</span>
+        - Halte dich an das 2-Spalten HTML Layout.
       `;
       userPrompt = `
-        Analysiere für einen Experten:
+        ${layoutInstruction}
+        Analysiere die Daten in Spalte 2:
         ${summaryData}
 
-        STRUKTUR:
-        <h4>Status-Analyse</h4> (Abweichungen inkl. Projekt-Fortschritt)
+        STRUKTUR SPALTE 2:
+        <h4>Status-Analyse</h4> (Abweichungen)
         <h4>Kausalität</h4> (Ursachen)
-        <h4>Profi-Empfehlung</h4> (Technische Maßnahmen)
+        <h4>Profi-Empfehlung</h4> (Maßnahmen)
       `;
     } else {
       // === KUNDEN MODE ===
       systemPrompt = `
-        Identität: "Data Max", freundlicher Assistent für Kunden.
-        Ton: Höflich, Verständlich.
-        
+        Identität: "Data Max" für Kunden. Ton: Höflich, Verständlich.
         REGELN:
-        1. Positive Werte/Erfolge: <span class="text-green-600 font-bold">Grün</span>
-        2. Negative Werte/Rückgänge: NEUTRAL darstellen (kein Rot, keine Warnfarben).
-        3. KEINE Handlungsaufforderungen.
-        
-        ${htmlRules}
+        - Positive Werte: <span class="text-green-600 font-bold">...</span>
+        - Negative Werte: NEUTRAL darstellen (kein Rot).
+        - KEINE Handlungsaufforderungen.
+        - Halte dich an das 2-Spalten HTML Layout.
       `;
-
-      // Hier fügen wir den Block "Projekt Status" für den Kunden hinzu
       userPrompt = `
-        Fasse für den Kunden zusammen:
+        ${layoutInstruction}
+        Fasse die Leistung in Spalte 2 zusammen:
         ${summaryData}
 
-        STRUKTUR:
-        <h4>Projekt Status</h4> (Fasse hier sachlich den Status aus "PROJEKT STATUS INFOS" zusammen: Phase, Monat, Zeitraum, Domain. Ohne Wertung.)
-        <h4>Leistungs-Überblick</h4> (Wie lief es? Hebe Erfolge grün hervor. Erkläre Rückgänge neutral.)
+        STRUKTUR SPALTE 2:
+        <h4>Leistungs-Überblick</h4> (Wie lief es? Hebe Erfolge grün hervor.)
         <h4>Suchbegriffe</h4> (Was wurde gesucht?)
         <h4>Fazit</h4> (Positiver Abschluss)
       `;
     }
 
-    // 6. Generierung
     const { text } = await generateText({
-      model: google('gemini-2.5-flash'),
+      model: google('gemini-2.5-flash'), 
       system: systemPrompt,
       prompt: userPrompt,
     });
