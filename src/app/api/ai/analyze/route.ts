@@ -1,10 +1,9 @@
-// src/app/api/ai/analyze/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { sql } from '@vercel/postgres';
 import { getOrFetchGoogleData } from '@/lib/google-data-loader';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { streamText } from 'ai'; // WICHTIG: streamText importieren
+import { streamText } from 'ai';
 
 // Konfiguration des Google Providers
 const google = createGoogleGenerativeAI({
@@ -55,6 +54,7 @@ export async function POST(req: NextRequest) {
 
     // 3. Timeline-Daten berechnen
     let timelineInfo = "Standard Betreuung (Keine aktive Zeitlinie)";
+    let progressPercent = 0;
     
     if (project.project_timeline_active) {
         const start = new Date(project.project_start_date || project.createdAt);
@@ -68,20 +68,26 @@ export async function POST(req: NextRequest) {
         
         const endDate = new Date(start);
         endDate.setMonth(start.getMonth() + duration);
+        
+        progressPercent = Math.round((currentMonth / duration) * 100);
 
         timelineInfo = `
           Status: AKTIVE PROJEKT-LAUFZEIT
           Aktueller Monat: ${currentMonth} von ${duration}
           Start: ${start.toLocaleDateString('de-DE')}
           Geplantes Ende: ${endDate.toLocaleDateString('de-DE')}
+          Fortschritt: ${progressPercent}%
         `;
     }
 
     // 4. Datenaufbereitung für KI
+    
+    // BERECHNUNG: Echte Besucher (ohne KI)
     const totalUsers = kpis.totalUsers?.value || 0;
     const aiUsers = data.aiTraffic?.totalUsers || 0;
     const realUsers = Math.max(0, totalUsers - aiUsers);
 
+    // BERECHNUNG: Status Context
     const statusContext = `
       ZEITPLAN:
       ${timelineInfo}
@@ -111,9 +117,10 @@ export async function POST(req: NextRequest) {
       DOMAIN DATEN (${project.domain}):
       Zeitraum: ${dateRange}
       
-      DETAIL-KPIs:
+      DETAIL-KPIs (Für Analyse Spalte 2):
       - Klicks: ${fmt(kpis.clicks?.value)} (${change(kpis.clicks?.change)}%)
       - Sitzungen: ${fmt(kpis.sessions?.value)} (${change(kpis.sessions?.change)}%)
+      - Nutzer (Gesamt): ${fmt(totalUsers)} (${change(kpis.totalUsers?.change)}%)
       
       INPUT VARIABLEN:
       - Top Kanäle: ${topChannels}
@@ -125,7 +132,7 @@ export async function POST(req: NextRequest) {
 
     // 5. Rollenbasierte Prompt-Generierung
     let systemPrompt = '';
-    let userPrompt = '';
+    let userPrompt = ''; // Hier definiert, später zugewiesen
 
     // Gemeinsames HTML Layout Template
     const layoutInstruction = `
@@ -195,37 +202,64 @@ export async function POST(req: NextRequest) {
       </div>
     `;
 
-    let systemPrompt = '';
     if (userRole === 'ADMIN' || userRole === 'SUPERADMIN') {
       // === ADMIN PROMPT ===
       systemPrompt = `
         Identität: "Data Max", Performance-KI. Zielgruppe: Admin/Experte.
         Ton: Präzise, Analytisch.
-        VISUELLE REGELN: <span class="text-green-600 font-bold">positiv</span>, <span class="text-red-600 font-bold">negativ</span>.
-        INHALT SPALTE 1: Timeline + KPIs + KI-Sichtbarkeit (technisch). VISUAL ENDING: "${visualSuccessTemplate}".
-        INHALT SPALTE 2: Status-Analyse + Profi-Empfehlung.
+        
+        VISUELLE REGELN:
+        - Nutze HTML Tags für Farben: <span class="text-green-600 font-bold">positiv</span>, <span class="text-red-600 font-bold">negativ/kritisch</span>.
+        
+        INHALT SPALTE 1 (Status):
+        - Liste Timeline-Fakten (Laufzeit, Monat).
+        - Liste DARUNTER die Key-Facts: "Echte Besucher", "Sichtbarkeit" und "Trend".
+        - VISUAL ENDING: Füge GANZ AM ENDE den "Top Erfolg" Kasten (HTML Code) ein. Wähle den stärksten Wert und ersetze ERFOLG_TEXT_PLATZHALTER.
+          ${visualSuccessTemplate}
+        
+        INHALT SPALTE 2 (Analyse):
+        - Status-Analyse (Abweichungen).
+        - Profi-Empfehlung.
       `;
     } else {
       // === KUNDEN PROMPT ===
       systemPrompt = `
-        Identität: "Data Max", dein Assistent.
-        Ton: Professionell, ruhig, positiv.
-        VISUELLE REGELN: <span class="text-green-600 font-bold">positiv</span>, negative Zahlen neutral (kein rot).
-        INHALT SPALTE 1: Timeline + Aktuelle Leistung (Echte Besucher, KI-Sichtbarkeit positiv erklären). VISUAL ENDING: "${visualSuccessTemplate}" (Wähle besten Wert für Platzhalter).
-        INHALT SPALTE 2: Erfolge + Top Keywords + Fazit.
+        Identität: "Data Max", dein persönlicher Assistent. Zielgruppe: Kunde.
+        Ton: Professionell, ruhig, faktenbasiert.
+        
+        VISUELLE REGELN:
+        - <span class="text-green-600 font-bold">Positives grün</span>.
+        - NEUTRALISIERUNG: Negative Zahlen bitte neutral (normale Farbe) darstellen.
+        
+        INHALT SPALTE 1 (Status & Zahlen):
+        - 1. Block: Timeline-Daten (Start, Ende, Monat).
+        - 2. Block: "Aktuelle Leistung": Liste hier "Nutzer (Gesamt)", "Klassische Besucher" und explizit "KI-Sichtbarkeit".
+        - Erkläre "KI-Sichtbarkeit" POSITIV: "Ihre Inhalte werden von modernen KI-Systemen gefunden."
+        - VISUAL ENDING: Füge GANZ AM ENDE den "Top Erfolg" Kasten (HTML Code) ein. Suche den besten Wert (z.B. hohe Gesamtnutzer oder gute KI-Präsenz) und ersetze ERFOLG_TEXT_PLATZHALTER mit einer kurzen Erfolgsmeldung.
+          ${visualSuccessTemplate}
+        
+        INHALT SPALTE 2 (Analyse):
+        - Fokus auf Erfolge.
+        - Erwähne Top Keywords.
+        - Konstruktives Fazit.
       `;
     }
 
-    const userPrompt = `${layoutInstruction}\n\nHier sind die Daten:\n${summaryData}`;
+    userPrompt = `
+      ${layoutInstruction}
+      
+      Hier sind die Daten für die Analyse:
+      ${summaryData}
+    `;
 
     // --- STREAMING START ---
     const result = await streamText({
-      model: google('gemini-2.5-flash'),
+      model: google('gemini-2.5-flash'), 
       system: systemPrompt,
       prompt: userPrompt,
     });
 
-    // FIX: toTextStreamResponse() statt toDataStreamResponse() für den Build-Fehler
+    // Korrekte Methode für Text-Stream
     return result.toTextStreamResponse();
 
   } catch (error) {
