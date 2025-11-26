@@ -30,23 +30,44 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Request Body parsen
-    const { projectId, dateRange } = await req.json();
+    const body = await req.json();
+    const { projectId, dateRange, prompt } = body;
     const userRole = session.user.role;
 
+    // Debug-Logging
+    console.log('[AI Analyze] Request body:', { projectId, dateRange, hasPrompt: !!prompt });
+
+    // Validierung
+    if (!projectId || !dateRange) {
+      console.error('[AI Analyze] Fehlende Parameter:', { projectId, dateRange });
+      return NextResponse.json(
+        { message: 'projectId und dateRange sind erforderlich' },
+        { status: 400 }
+      );
+    }
+
     // 3. Projektdaten laden
+    console.log('[AI Analyze] Lade Projektdaten aus DB...');
     const { rows } = await sql`
-      SELECT 
+      SELECT
         id, email, domain, gsc_site_url, ga4_property_id,
         project_timeline_active, project_start_date, project_duration_months, "createdAt"
       FROM users WHERE id::text = ${projectId}
     `;
-    
+
+    console.log('[AI Analyze] DB Abfrage erfolgreich. Gefundene Zeilen:', rows.length);
+
     if (rows.length === 0) {
+      console.error('[AI Analyze] Kein Projekt gefunden für ID:', projectId);
       return NextResponse.json({ message: 'Projekt nicht gefunden' }, { status: 404 });
     }
 
     const project = rows[0];
+    console.log('[AI Analyze] Projekt gefunden:', { domain: project.domain, email: project.email });
+
+    console.log('[AI Analyze] Lade Google Daten...');
     const data = await getOrFetchGoogleData(project, dateRange);
+    console.log('[AI Analyze] Google Daten geladen. Hat KPIs:', !!data?.kpis);
 
     if (!data || !data.kpis) {
       return NextResponse.json({ message: 'Keine Daten verfügbar' }, { status: 400 });
@@ -125,6 +146,7 @@ export async function POST(req: NextRequest) {
     `;
 
     // 6. Rollenbasierte Prompt-Generierung
+    console.log('[AI Analyze] Baue Prompts für Rolle:', userRole);
     let systemPrompt = '';
     let userPrompt = '';
 
@@ -246,7 +268,22 @@ export async function POST(req: NextRequest) {
       ${summaryData}
     `;
 
-    // 7. Generierung
+    // 7. API Key Check
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      console.error('[AI Analyze] FEHLER: GEMINI_API_KEY nicht gesetzt!');
+      return NextResponse.json(
+        { message: 'Server-Konfigurationsfehler: API Key fehlt' },
+        { status: 500 }
+      );
+    }
+    console.log('[AI Analyze] GEMINI_API_KEY gesetzt:', apiKey.substring(0, 10) + '...');
+
+    // 8. Generierung
+    console.log('[AI Analyze] Starte Text-Streaming mit Gemini...');
+    console.log('[AI Analyze] System Prompt Länge:', systemPrompt.length, 'Zeichen');
+    console.log('[AI Analyze] User Prompt Länge:', userPrompt.length, 'Zeichen');
+
     const result = streamText({
       model: google('gemini-2.5-flash'),
       system: systemPrompt,
@@ -254,13 +291,21 @@ export async function POST(req: NextRequest) {
       temperature: 0.7,
     });
 
-    // 8. Rückgabe als Text-Stream (korrigierte Methode)
+    console.log('[AI Analyze] streamText() initialisiert');
+
+    // 9. Rückgabe als Text-Stream
+    console.log('[AI Analyze] Sende Stream-Response...');
     return result.toTextStreamResponse();
 
   } catch (error) {
     console.error('[AI Analyze] Fehler:', error);
+    console.error('[AI Analyze] Fehler Stack:', error instanceof Error ? error.stack : 'Kein Stack verfügbar');
     return NextResponse.json(
-        { message: 'Analyse fehlgeschlagen', error: String(error) }, 
+        {
+          message: 'Analyse fehlgeschlagen',
+          error: String(error),
+          details: error instanceof Error ? error.message : 'Unbekannter Fehler'
+        },
         { status: 500 }
     );
   }
