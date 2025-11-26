@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
       `;
 
       userPrompt = `
-        Analysiere die folgenden Profi-Daten (max. 5-6 Sätze):
+        Analysiere die folgenden Profi-Daten (max. 7-9 Sätze):
         ${summaryData}
 
         STRUKTUR DES BERICHTS (Bitte strikt einhalten):
@@ -129,7 +129,7 @@ export async function POST(req: NextRequest) {
       `;
 
       userPrompt = `
-        Erstelle eine verständliche Zusammenfassung dieser Daten (max. 4-5 Sätze):
+        Erstelle eine verständliche Zusammenfassung dieser Daten (max. 6-8 Sätze):
         ${summaryData}
 
         STRUKTUR DES BERICHTS (Bitte strikt einhalten):
