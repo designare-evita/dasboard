@@ -61,9 +61,10 @@ export async function POST(req: NextRequest) {
         const now = new Date();
         const duration = project.project_duration_months || 6;
         
+        // Berechne vergangenen Monate
         const diffTime = Math.abs(now.getTime() - start.getTime());
         const diffMonths = Math.ceil(diffTime / (1000 * 60 * 60 * 24 * 30)); 
-        const currentMonth = Math.min(diffMonths, duration);
+        const currentMonth = Math.min(diffMonths, duration); // Nicht höher als Laufzeit
         
         const endDate = new Date(start);
         endDate.setMonth(start.getMonth() + duration);
@@ -77,11 +78,8 @@ export async function POST(req: NextRequest) {
     }
 
     // 4. Datenaufbereitung für KI
-    
     const totalUsers = kpis.totalUsers?.value || 0;
     const aiUsers = data.aiTraffic?.totalUsers || 0;
-    // Wir nennen es intern weiterhin "realUsers" für die Unterscheidung,
-    // aber im Prompt framing wir es anders.
     const realUsers = Math.max(0, totalUsers - aiUsers);
 
     const statusContext = `
@@ -89,9 +87,7 @@ export async function POST(req: NextRequest) {
       ${timelineInfo}
 
       AKTUELLE PERFORMANCE (Für "Projekt Status" Box):
-      - Nutzer (Gesamt): ${fmt(totalUsers)}
-      - Davon klassische Besucher: ${fmt(realUsers)}
-      - Davon via KI-Systeme (Sichtbarkeit): ${fmt(aiUsers)}
+      - Echte Besucher (Humans): ${fmt(realUsers)}
       - Gesamte Sichtbarkeit (Impressionen): ${fmt(kpis.impressions?.value)}
       - Trend (Sichtbarkeit): ${change(kpis.impressions?.change)}%
     `;
@@ -108,7 +104,6 @@ export async function POST(req: NextRequest) {
       .map((q: any) => `- "${q.query}" (Pos: ${q.position.toFixed(1)}, ${q.clicks} Klicks)`)
       .join('\n') || 'Keine Keywords';
 
-    // ÄNDERUNG: "KI-Interferenz" umbenannt zu "KI-Sichtbarkeit (AI Search)"
     const summaryData = `
       PROJEKT STATUS INFOS (Spalte 1):
       ${statusContext}
@@ -132,39 +127,60 @@ export async function POST(req: NextRequest) {
     let systemPrompt = '';
     let userPrompt = '';
 
+    // UPDATE: Layout mit visuellem "Mehr anzeigen" Verlauf am Boden
     const layoutInstruction = `
       OUTPUT FORMAT (HTML GRID):
       Du musst deine Antwort ZWINGEND in folgende HTML-Struktur verpacken. Nutze keine Markdown-Codeblöcke (\`\`\`), sondern direktes HTML.
 
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
         
-        <div class="bg-indigo-50/50 rounded-2xl p-6 border border-indigo-100 h-[80vh] flex flex-col">
-           <h3 class="text-lg font-bold text-indigo-900 mb-4 flex items-center gap-2 flex-shrink-0">
-             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-info-circle-fill" viewBox="0 0 16 16">
-               <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm.93-9.412-1 4.705c-.07.34.029.533.304.533.194 0 .487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703 0-1.002-.422-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.47l-.451-.081.082-.381 2.29-.287zM8 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/>
-             </svg>
-             Projekt Status & Zahlen
-           </h3>
-           <div class="space-y-3 text-indigo-900 text-sm flex-grow overflow-y-auto pr-2">
+        <div class="bg-indigo-50/50 rounded-2xl border border-indigo-100 h-[80vh] flex flex-col relative group overflow-hidden">
+           <div class="p-6 pb-0 flex-shrink-0">
+             <h3 class="text-lg font-bold text-indigo-900 mb-2 flex items-center gap-2">
+               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-info-circle-fill" viewBox="0 0 16 16">
+                 <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm.93-9.412-1 4.705c-.07.34.029.533.304.533.194 0 .487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703 0-1.002-.422-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.47l-.451-.081.082-.381 2.29-.287zM8 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/>
+               </svg>
+               Projekt Status & Zahlen
+             </h3>
+           </div>
+           
+           <div class="p-6 pt-2 space-y-3 text-indigo-900 text-sm flex-grow overflow-y-auto pr-2 pb-16 scroll-smooth">
              </div>
+
+           <div class="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-indigo-50 via-indigo-50/90 to-transparent pointer-events-none flex justify-center items-end pb-4 transition-opacity duration-300 group-hover:opacity-0">
+              <span class="text-indigo-400 text-xs font-medium flex items-center gap-1 bg-white/50 px-3 py-1 rounded-full border border-indigo-100 shadow-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" fill="currentColor" class="bi bi-arrow-down" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8 1a.5.5 0 0 1 .5.5v11.793l3.146-3.147a.5.5 0 0 1 .708.708l-4 4a.5.5 0 0 1-.708 0l-4-4a.5.5 0 0 1 .708-.708L7.5 13.293V1.5A.5.5 0 0 1 8 1z"/></svg>
+                Mehr anzeigen
+              </span>
+           </div>
         </div>
 
-        <div class="bg-white rounded-2xl p-6 border border-gray-200 h-[80vh] shadow-sm flex flex-col">
-           <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2 flex-shrink-0">
-             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-graph-up-arrow" viewBox="0 0 16 16">
-               <path fill-rule="evenodd" d="M0 0h1v15h15v1H0V0Zm10 3.5a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 .5.5v4a.5.5 0 0 1-1 0V4.9l-3.613 4.417a.5.5 0 0 1-.74.037L7.06 6.767l-3.656 5.027a.5.5 0 0 1-.808-.588l4-5.5a.5.5 0 0 1 .758-.06l2.609 2.61L13.445 4H10.5a.5.5 0 0 1-.5-.5Z"/>
-             </svg>
-             Performance Analyse
-           </h3>
-           <div class="space-y-4 text-gray-700 text-sm flex-grow overflow-y-auto pr-2">
+        <div class="bg-white rounded-2xl border border-gray-200 h-[80vh] shadow-sm flex flex-col relative group overflow-hidden">
+           <div class="p-6 pb-0 flex-shrink-0">
+             <h3 class="text-lg font-bold text-gray-900 mb-2 flex items-center gap-2">
+               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-graph-up-arrow" viewBox="0 0 16 16">
+                 <path fill-rule="evenodd" d="M0 0h1v15h15v1H0V0Zm10 3.5a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 .5.5v4a.5.5 0 0 1-1 0V4.9l-3.613 4.417a.5.5 0 0 1-.74.037L7.06 6.767l-3.656 5.027a.5.5 0 0 1-.808-.588l4-5.5a.5.5 0 0 1 .758-.06l2.609 2.61L13.445 4H10.5a.5.5 0 0 1-.5-.5Z"/>
+               </svg>
+               Performance Analyse
+             </h3>
+           </div>
+
+           <div class="p-6 pt-2 space-y-4 text-gray-700 text-sm flex-grow overflow-y-auto pr-2 pb-16 scroll-smooth">
              </div>
+
+           <div class="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-white via-white/90 to-transparent pointer-events-none flex justify-center items-end pb-4 transition-opacity duration-300 group-hover:opacity-0">
+              <span class="text-gray-400 text-xs font-medium flex items-center gap-1 bg-gray-50 px-3 py-1 rounded-full border border-gray-200 shadow-sm">
+                 <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" fill="currentColor" class="bi bi-arrow-down" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8 1a.5.5 0 0 1 .5.5v11.793l3.146-3.147a.5.5 0 0 1 .708.708l-4 4a.5.5 0 0 1-.708 0l-4-4a.5.5 0 0 1 .708-.708L7.5 13.293V1.5A.5.5 0 0 1 8 1z"/></svg>
+                 Mehr lesen
+              </span>
+           </div>
         </div>
 
       </div>
     `;
 
     const visualSuccessTemplate = `
-      <div class="mt-auto pt-6">
+      <div class="mt-auto pt-8 pb-2">
         <div class="bg-emerald-50 rounded-xl border border-emerald-100 p-4 flex items-center gap-4 shadow-sm transition-transform hover:scale-[1.02]">
            <div class="bg-white p-2.5 rounded-full text-emerald-500 shadow-sm flex-shrink-0">
              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-trophy-fill" viewBox="0 0 16 16">
@@ -180,7 +196,7 @@ export async function POST(req: NextRequest) {
     `;
 
     if (userRole === 'ADMIN' || userRole === 'SUPERADMIN') {
-      // === ADMIN PROMPT (Eher analytisch) ===
+      // === ADMIN PROMPT ===
       systemPrompt = `
         Identität: "Data Max", Performance-KI. Zielgruppe: Admin/Experte.
         Ton: Präzise, Analytisch.
@@ -191,7 +207,7 @@ export async function POST(req: NextRequest) {
         INHALT SPALTE 1 (Status):
         - Liste Timeline-Fakten (Laufzeit, Monat).
         - Liste alle KPIs aus "AKTUELLE PERFORMANCE".
-        - Interpretiere "KI-Sichtbarkeit" als technischen Indikator (Bot-Traffic).
+        - Interpretiere "KI-Sichtbarkeit" als technischen Indikator.
         - VISUAL ENDING: Füge GANZ AM ENDE den "Top Erfolg" Kasten (HTML Code) ein. Wähle den stärksten Wert und ersetze ERFOLG_TEXT_PLATZHALTER.
           ${visualSuccessTemplate}
         
@@ -200,19 +216,19 @@ export async function POST(req: NextRequest) {
         - Profi-Empfehlung.
       `;
     } else {
-      // === KUNDEN PROMPT (Positiv & Modern) ===
+      // === KUNDEN PROMPT ===
       systemPrompt = `
         Identität: "Data Max", dein persönlicher Assistent. Zielgruppe: Kunde.
         Ton: Professionell, ruhig, faktenbasiert.
         
         VISUELLE REGELN:
         - <span class="text-green-600 font-bold">Positives grün</span>.
-        - NEUTRALISIERUNG: Negative Zahlen bitte neutral (normale Farbe) darstellen.
+        - NEUTRALISIERUNG: Negative Zahlen in Spalte 1 und 2 bitte in normaler Textfarbe (kein Rot) darstellen.
         
         INHALT SPALTE 1 (Status & Zahlen):
         - 1. Block: Timeline-Daten (Start, Ende, Monat).
         - 2. Block: "Aktuelle Leistung": Liste hier "Nutzer (Gesamt)", "Klassische Besucher" und explizit "KI-Sichtbarkeit".
-        - Erkläre "KI-Sichtbarkeit" POSITIV: "Ihre Inhalte werden von modernen KI-Systemen gefunden und genutzt."
+        - Erkläre "KI-Sichtbarkeit" POSITIV: "Ihre Inhalte werden von modernen KI-Systemen gefunden."
         - VISUAL ENDING: Füge GANZ AM ENDE den "Top Erfolg" Kasten (HTML Code) ein. Suche den besten Wert (z.B. hohe Gesamtnutzer oder gute KI-Präsenz) und ersetze ERFOLG_TEXT_PLATZHALTER mit einer kurzen Erfolgsmeldung.
           ${visualSuccessTemplate}
         
