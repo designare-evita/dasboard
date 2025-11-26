@@ -14,9 +14,9 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
-  const handleAnalyze = async (useTestStream = false) => {
-    const endpoint = useTestStream ? '/api/ai/test-stream' : '/api/ai/analyze';
-    console.log("[AI Widget] Starting analysis with:", { projectId, dateRange, endpoint });
+  const handleAnalyze = async () => {
+    const endpoint = '/api/ai/analyze';
+    console.log("[AI Widget] Starting analysis with:", { projectId, dateRange });
     setIsLoading(true);
     setError(null);
     setCompletion('');
@@ -114,22 +114,13 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
               <p className="text-sm text-gray-500 mb-3 italic">
                 &quot;Hallo. Mein Name ist Data Max. Ich bin spezialisiert auf die Auswertung komplexer Suchdaten. Darf ich die Analyse starten?&quot;
               </p>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => handleAnalyze(false)}
-                  className="text-sm bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300 px-4 py-2 rounded-md transition-all flex items-center gap-2 shadow-sm group"
-                >
-                  <Lightbulb size={14} className="group-hover:text-yellow-500 transition-colors"/>
-                  Analyse starten
-                </button>
-                <button
-                  onClick={() => handleAnalyze(true)}
-                  className="text-sm bg-green-50 border border-green-200 text-green-700 hover:bg-green-100 hover:border-green-300 px-4 py-2 rounded-md transition-all flex items-center gap-2 shadow-sm"
-                  title="Test-Stream ohne externe APIs (schnell)"
-                >
-                  Test Stream
-                </button>
-              </div>
+              <button
+                onClick={handleAnalyze}
+                className="text-sm bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300 px-4 py-2 rounded-md transition-all flex items-center gap-2 shadow-sm group"
+              >
+                <Lightbulb size={14} className="group-hover:text-yellow-500 transition-colors"/>
+                Analyse starten
+              </button>
             </div>
           )}
 
@@ -154,7 +145,7 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
               
               {!isLoading && (
                 <button
-                  onClick={() => handleAnalyze(false)}
+                  onClick={handleAnalyze}
                   className="text-xs text-gray-400 hover:text-indigo-600 mt-4 flex items-center gap-1 transition-colors"
                 >
                   <ArrowRepeat size={10} /> Re-Kalkulation anfordern
@@ -167,7 +158,7 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
              <div className="mt-2 text-xs text-red-600 bg-red-50 p-3 rounded border border-red-100 flex items-center gap-2">
                <ExclamationTriangle size={16} className="shrink-0" />
                {displayError}
-               <button onClick={() => handleAnalyze(false)} className="ml-auto text-red-700 underline font-semibold">Wiederholen</button>
+               <button onClick={handleAnalyze} className="ml-auto text-red-700 underline font-semibold">Wiederholen</button>
              </div>
           )}
         </div>
