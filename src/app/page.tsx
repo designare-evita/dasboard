@@ -14,10 +14,16 @@ import {
   ShieldLock, 
   BoxArrowInRight,
   Globe,
-  CalendarRange
+  CalendarRange,
+  // ✅ NEU: Pfeil-Icons importieren
+  ArrowUp,
+  ArrowDown,
+  ArrowRight
 } from 'react-bootstrap-icons';
 import type { User } from '@/types';
 import { addMonths, format } from 'date-fns';
+
+// ... (Rest der Imports)
 
 export default function ProjectsPage() {
   const { data: session, status } = useSession();
@@ -74,9 +80,24 @@ export default function ProjectsPage() {
      return null; 
   }
 
+  // ✅ Helper für Trend-Pfeil
+  const renderTrendArrow = (change: number | undefined) => {
+    if (change === undefined || change === null) {
+      // Keine Daten -> Blauer Pfeil nach rechts (neutral/standard)
+      return <ArrowRight size={18} className="text-blue-500" title="Keine Trenddaten" />;
+    }
+
+    if (change > 0) {
+      return <ArrowUp size={18} className="text-green-600" title={`Reichweite steigend (+${change})`} />;
+    } else if (change < 0) {
+      return <ArrowDown size={18} className="text-red-600" title={`Reichweite sinkend (${change})`} />;
+    } else {
+      return <ArrowRight size={18} className="text-blue-500" title="Reichweite gleichbleibend" />;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-8">
-      {/* ✅ ÄNDERUNG: max-w-7xl -> max-w-full für volle Breite */}
       <div className="max-w-full mx-auto">
         
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
@@ -102,7 +123,6 @@ export default function ProjectsPage() {
           </div>
         </div>
 
-        {/* ✅ OPTIMIERUNG: 3 Spalten auf großen Bildschirmen (2xl) für bessere Nutzung der Breite */}
         <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-6">
           {filteredProjects.map((user) => {
             const hasRedaktionsplan = (user.landingpages_count || 0) > 0;
@@ -123,10 +143,17 @@ export default function ProjectsPage() {
                 
                 <div className="flex justify-between items-start mb-4">
                   <div>
-                    <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                      <Globe size={18} className="text-gray-400" />
-                      {user.domain || 'Keine Domain'}
-                    </h3>
+                    {/* ✅ UPDATE: Hier wird der Pfeil eingebaut */}
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                        <Globe size={18} className="text-gray-400" />
+                        {user.domain || 'Keine Domain'}
+                      </h3>
+                      {/* Pfeil-Anzeige */}
+                      <div className="bg-gray-50 rounded-full p-1 shadow-sm border border-gray-100">
+                        {renderTrendArrow(user.total_impression_change)}
+                      </div>
+                    </div>
                     <div className="text-sm text-gray-500 mt-1">{user.email}</div>
                   </div>
                   <Link 
@@ -139,6 +166,7 @@ export default function ProjectsPage() {
 
                 <hr className="border-gray-100 mb-4" />
 
+                {/* ... (Rest der Karte bleibt unverändert) ... */}
                 <div className="grid grid-cols-2 gap-4 mb-5">
                   <div className="flex flex-col">
                     <span className="text-xs text-gray-400 uppercase font-bold tracking-wider block mb-1">Projekt-Timeline</span>
