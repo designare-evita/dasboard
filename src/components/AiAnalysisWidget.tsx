@@ -1,9 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-// Robot Icon hinzugefügt für "Data Max" Feeling
-import { Lightbulb, ArrowRepeat, Robot, Cpu } from 'react-bootstrap-icons';
-import { useCompletion } from '@ai-sdk/react';
+import { Lightbulb, ArrowRepeat, Robot, Cpu, ExclamationTriangle } from 'react-bootstrap-icons';
+// KEIN useCompletion mehr nötig
 
 interface Props {
   projectId: string;
@@ -11,14 +10,33 @@ interface Props {
 }
 
 export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
-  const { complete, completion, isLoading, error } = useCompletion({
-    api: '/api/ai/analyze',
-  });
+  const [analysis, setAnalysis] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleAnalyze = async () => {
-    await complete('', {
-      body: { projectId, dateRange }
-    });
+    setIsLoading(true);
+    setError(null);
+    setAnalysis(null);
+    
+    try {
+      const res = await fetch('/api/ai/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId, dateRange }),
+      });
+      
+      const data = await res.json();
+      
+      if (!res.ok) throw new Error(data.message || 'Fehler bei der Anfrage');
+      
+      setAnalysis(data.analysis);
+    } catch (e) {
+      console.error(e);
+      setError("Meine Verbindung zu den Langstreckensensoren ist unterbrochen. Bitte versuchen Sie es erneut.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -27,7 +45,7 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
         {/* Icon Container: Robot Icon für Data Max */}
         <div className={`p-3 rounded-xl transition-colors duration-500 ${
           isLoading ? 'bg-indigo-100 text-indigo-600 animate-pulse' : 
-          completion ? 'bg-indigo-50 text-indigo-600' : 'bg-gray-100 text-gray-500'
+          analysis ? 'bg-indigo-50 text-indigo-600' : 'bg-gray-100 text-gray-500'
         }`}>
           {isLoading ? <Cpu size={24} className="animate-spin" /> : <Robot size={24} />}
         </div>
@@ -42,10 +60,11 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
             </h3>
           </div>
           
-          {!completion && !isLoading && (
+          {/* Start-Zustand */}
+          {!analysis && !isLoading && !error && (
             <div className="mt-2">
               <p className="text-sm text-gray-500 mb-3 italic">
-                "Ich bin bereit, Ihre Daten zu verarbeiten. Soll ich eine logische Analyse der aktuellen Performance-Parameter initiieren?"
+                &quot;Ich bin bereit, Ihre Daten zu verarbeiten. Soll ich eine logische Analyse der aktuellen Performance-Parameter initiieren?&quot;
               </p>
               <button
                 onClick={handleAnalyze}
@@ -57,36 +76,57 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
             </div>
           )}
 
-          {(completion || isLoading) && (
+          {/* Lade-Zustand */}
+          {isLoading && (
+            <div className="mt-3 space-y-2">
+               <p className="text-sm text-indigo-600 font-medium animate-pulse">Verarbeite Datenströme...</p>
+               <div className="h-2 bg-indigo-100 rounded overflow-hidden max-w-[200px]">
+                 <div className="h-full bg-indigo-500 animate-progress origin-left"></div>
+               </div>
+            </div>
+          )}
+
+          {/* Ergebnis-Zustand */}
+          {analysis && (
             <div className="mt-2 animate-in fade-in slide-in-from-bottom-2">
               <div className="text-gray-700 text-sm leading-relaxed prose prose-sm max-w-none">
-                {/* Data Max Antwort rendern */}
-                {completion.split('\n').map((line, i) => (
+                {analysis.split('\n').map((line, i) => (
                   <p key={i} className="mb-2" dangerouslySetInnerHTML={{ 
                     __html: line.replace(/\*\*(.*?)\*\*/g, '<strong class="text-indigo-900">$1</strong>') 
                   }} />
                 ))}
-                {isLoading && <span className="inline-flex gap-1 ml-1 items-center"><span className="w-1 h-1 bg-indigo-400 rounded-full animate-bounce"></span><span className="w-1 h-1 bg-indigo-400 rounded-full animate-bounce delay-100"></span><span className="w-1 h-1 bg-indigo-400 rounded-full animate-bounce delay-200"></span></span>}
               </div>
               
-              {!isLoading && (
-                <button 
-                  onClick={handleAnalyze} 
-                  className="text-xs text-gray-400 hover:text-indigo-600 mt-4 flex items-center gap-1 transition-colors"
-                >
-                  <ArrowRepeat size={10} /> Re-Kalkulation anfordern
-                </button>
-              )}
+              <button 
+                onClick={handleAnalyze} 
+                className="text-xs text-gray-400 hover:text-indigo-600 mt-4 flex items-center gap-1 transition-colors"
+              >
+                <ArrowRepeat size={10} /> Re-Kalkulation anfordern
+              </button>
             </div>
           )}
           
+          {/* Fehler-Zustand */}
           {error && (
-             <div className="mt-2 text-xs text-red-500 bg-red-50 p-2 rounded border border-red-100">
-               Es gibt einen Fehler im System. Bitte versuchen Sie es erneut.
+             <div className="mt-2 text-xs text-red-600 bg-red-50 p-3 rounded border border-red-100 flex items-center gap-2">
+               <ExclamationTriangle size={16} className="shrink-0" />
+               {error}
+               <button onClick={handleAnalyze} className="ml-auto text-red-700 underline font-semibold">Wiederholen</button>
              </div>
           )}
         </div>
       </div>
+      
+      <style jsx>{`
+        @keyframes progress {
+          0% { width: 0%; }
+          50% { width: 70%; }
+          100% { width: 95%; }
+        }
+        .animate-progress {
+          animation: progress 2s ease-out forwards;
+        }
+      `}</style>
     </div>
   );
 }
