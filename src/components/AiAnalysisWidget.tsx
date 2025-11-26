@@ -1,7 +1,7 @@
+// src/components/AiAnalysisWidget.tsx
 'use client';
 
-import { useState } from 'react';
-// Nur Icons importieren, keine Server-Logik!
+import { useCompletion } from '@ai-sdk/react';
 import { Lightbulb, ArrowRepeat, Robot, Cpu, ExclamationTriangle } from 'react-bootstrap-icons';
 
 interface Props {
@@ -10,42 +10,36 @@ interface Props {
 }
 
 export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
-  const [analysis, setAnalysis] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Verwendung des useCompletion Hooks für Streaming
+  const { 
+    completion,   // Enthält den generierten Text, der sich live aufbaut
+    complete,     // Funktion zum Starten der Generierung
+    isLoading,    // Status während der Generierung
+    error         // Mögliche Fehler
+  } = useCompletion({
+    api: '/api/ai/analyze',
+    onError: (err) => {
+      console.error("Stream Error:", err);
+    }
+  });
 
   const handleAnalyze = async () => {
-    setIsLoading(true);
-    setError(null);
-    setAnalysis(null);
-    
-    try {
-      // Wir rufen die API auf, anstatt die Logik hier zu haben
-      const res = await fetch('/api/ai/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId, dateRange }),
-      });
-      
-      const data = await res.json();
-      
-      if (!res.ok) throw new Error(data.message || 'Fehler bei der Anfrage');
-      
-      setAnalysis(data.analysis);
-    } catch (e) {
-      console.error(e);
-      setError("Meine Verbindung zu den neuralen Netzwerken ist unterbrochen. Bitte versuchen Sie es erneut.");
-    } finally {
-      setIsLoading(false);
-    }
+    // Wir starten die Generierung und übergeben die notwendigen Daten im Body.
+    // Ein leerer Prompt wird übergeben, da der Server den Prompt baut.
+    await complete('', {
+      body: { projectId, dateRange }
+    });
   };
+
+  // Benutzerfreundliche Fehlermeldung
+  const displayError = error ? "Meine Verbindung zu den neuralen Netzwerken ist unterbrochen. Bitte versuchen Sie es erneut." : null;
 
   return (
     <div className="card-glass p-6 mb-6 relative overflow-hidden transition-all border-l-4 border-l-indigo-500">
       <div className="flex items-start gap-4">
         <div className={`p-3 rounded-xl transition-colors duration-500 ${
           isLoading ? 'bg-indigo-100 text-indigo-600' : 
-          analysis ? 'bg-indigo-50 text-indigo-600' : 'bg-gray-100 text-gray-500'
+          completion ? 'bg-indigo-50 text-indigo-600' : 'bg-gray-100 text-gray-500'
         }`}>
           {isLoading ? <Cpu size={24} className="animate-spin" /> : <Robot size={24} />}
         </div>
@@ -60,7 +54,8 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
             </h3>
           </div>
           
-          {!analysis && !isLoading && !error && (
+          {/* Initialzustand: Weder am Laden, noch Text vorhanden, noch Fehler */}
+          {!completion && !isLoading && !displayError && (
             <div className="mt-2">
               <p className="text-sm text-gray-500 mb-3 italic">
                 &quot;Hallo. Mein Name ist Data Max. Ich bin spezialisiert auf die Auswertung komplexer Suchdaten. Darf ich die Analyse starten?&quot;
@@ -75,7 +70,8 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
             </div>
           )}
 
-          {isLoading && (
+          {/* Ladebalken, während die Daten verarbeitet werden (optional, falls der Stream etwas braucht um zu starten) */}
+          {isLoading && !completion && (
             <div className="mt-3 space-y-2">
                <p className="text-sm text-indigo-600 font-medium animate-pulse">Verarbeite Datenströme...</p>
                <div className="h-2 bg-indigo-100 rounded overflow-hidden max-w-[200px]">
@@ -84,27 +80,30 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
             </div>
           )}
 
-          {/* Hier wird das HTML von der KI gerendert */}
-          {analysis && (
+          {/* Hier wird das gestreamte HTML gerendert */}
+          {completion && (
             <div className="mt-2 animate-in fade-in slide-in-from-bottom-2">
               <div 
                 className="text-gray-700 text-sm leading-relaxed prose prose-sm max-w-none prose-p:my-2 prose-ul:my-2 prose-li:my-0.5 prose-h4:text-indigo-900 prose-h4:font-bold prose-h4:mb-1 prose-h4:mt-3"
-                dangerouslySetInnerHTML={{ __html: analysis }}
+                // Das HTML baut sich hier live auf
+                dangerouslySetInnerHTML={{ __html: completion }}
               />
               
-              <button 
-                onClick={handleAnalyze} 
-                className="text-xs text-gray-400 hover:text-indigo-600 mt-4 flex items-center gap-1 transition-colors"
-              >
-                <ArrowRepeat size={10} /> Re-Kalkulation anfordern
-              </button>
+              {!isLoading && (
+                <button 
+                  onClick={handleAnalyze} 
+                  className="text-xs text-gray-400 hover:text-indigo-600 mt-4 flex items-center gap-1 transition-colors"
+                >
+                  <ArrowRepeat size={10} /> Re-Kalkulation anfordern
+                </button>
+              )}
             </div>
           )}
           
-          {error && (
+          {displayError && (
              <div className="mt-2 text-xs text-red-600 bg-red-50 p-3 rounded border border-red-100 flex items-center gap-2">
                <ExclamationTriangle size={16} className="shrink-0" />
-               {error}
+               {displayError}
                <button onClick={handleAnalyze} className="ml-auto text-red-700 underline font-semibold">Wiederholen</button>
              </div>
           )}
