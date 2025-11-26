@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { projectId, dateRange } = await req.json();
-    const userRole = session.user.role; // Rolle des abrufenden Nutzers (ADMIN, SUPERADMIN oder BENUTZER)
+    const userRole = session.user.role; // Rolle des abrufenden Nutzers
 
     // 2. Projektdaten laden
     const { rows } = await sql`
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
 
     const kpis = data.kpis;
 
-    // 3. Datenaufbereitung (Gemeinsam für alle Rollen)
+    // 3. Datenaufbereitung
     const topChannels = data.channelData?.slice(0, 3)
       .map(c => `${c.name} (${fmt(c.value)})`)
       .join(', ') || 'Keine Kanal-Daten';
@@ -81,72 +81,73 @@ export async function POST(req: NextRequest) {
       ${topKeywords}
     `;
 
-    // 4. Rollenbasierte Prompt-Generierung
+    // 4. Rollenbasierte Prompt-Generierung mit Farb-Anweisungen
     let systemPrompt = '';
     let userPrompt = '';
 
+    // Gemeinsame Anweisung für das Styling
+    const styleInstruction = `
+      VISUELLE FORMATIERUNG (WICHTIG):
+      - Nutze HTML-Tags für Farben, da Markdown keine Farben unterstützt.
+      - Markiere positive Zahlen, Anstiege oder gute Nachrichten GRÜN: <span class="text-green-600 font-bold">...</span>
+      - Markiere negative Zahlen, Rückgänge oder Probleme ROT: <span class="text-red-600 font-bold">...</span>
+      - Nutze weiterhin **fett** für wichtige neutrale Begriffe.
+      - Mache den Text optisch ansprechend und leicht scanbar.
+    `;
+
     if (userRole === 'ADMIN' || userRole === 'SUPERADMIN') {
-      // === ADMIN PROMPT (Experten-Modus + Empfehlungen) ===
+      // === ADMIN PROMPT ===
       systemPrompt = `
-        Identität: Du bist "Data Max", eine hochentwickelte Performance-KI (inspiriert vom Androiden Data aus Star Trek).
-        Zielgruppe: Du sprichst mit einem SEO-Experten / Administrator.
+        Identität: Du bist "Data Max", eine hochentwickelte Performance-KI.
+        Zielgruppe: SEO-Experte / Administrator.
         
-        CHARAKTER-EIGENSCHAFTEN:
-        - Tonalität: Höchst professionell, technisch präzise, analytisch kühl.
-        - Fokus: Kausalitäten, Anomalien und strategische Optimierung.
-        - Du nutzt Fachbegriffe (CTR, Conversion-Probability, Intent).
+        CHARAKTER:
+        - Tonalität: Professionell, präzise, analytisch.
+        - Fokus: Kausalitäten, Anomalien, Strategie.
+        - Fachbegriffe erwünscht.
         
-        AUFGABE:
-        Erstelle eine tiefgehende Analyse für den Administrator, um ihm bei der Optimierung des Kundenprojekts zu helfen.
+        ${styleInstruction}
       `;
 
       userPrompt = `
-        Analysiere die folgenden Profi-Daten (max. 7-9 Sätze):
+        Analysiere diese Profi-Daten (max. 5-6 Sätze):
         ${summaryData}
 
-        STRUKTUR DES BERICHTS (Bitte strikt einhalten):
-        1. **Status-Analyse:** Identifiziere die signifikanteste statistische Abweichung oder Korrelation.
-        2. **Kausalität:** Was ist die technische oder inhaltliche Ursache (z.B. Ranking-Drop, saisonaler Trend, Kanal-Shift)?
-        3. **Proffi-Empfehlung:** Welcher konkrete Handlungsschritt (technisch oder content-seitig) wird empfohlen, um die KPIs zu steigern?
-
-        Nutze Markdown. Sei extrem präzise.
+        STRUKTUR:
+        1. **Status-Analyse:** Signifikanteste statistische Abweichung/Korrelation.
+        2. **Kausalität:** Technische oder inhaltliche Ursache.
+        3. **Profi-Empfehlung:** Konkreter technischer oder Content-Handlungsschritt zur Steigerung.
       `;
 
     } else {
-      // === KUNDEN PROMPT (Laien-Modus + KEINE Empfehlungen) ===
+      // === KUNDEN PROMPT ===
       systemPrompt = `
         Identität: Du bist "Data Max", eine freundliche und erklärende KI.
-        Zielgruppe: Du sprichst mit dem Kunden (Geschäftsinhaber, Marketingleiter), der kein SEO-Experte ist.
+        Zielgruppe: Kunde / Laie (kein SEO-Experte).
         
-        CHARAKTER-EIGENSCHAFTEN:
-        - Tonalität: Höflich, verständlich, beruhigend, erklärend (Laien-freundlich).
-        - Fokus: Übersetzung von Zahlen in verständliche Erfolge oder Statusberichte.
-        - WICHTIG: Du gibst NIEMALS strategische Empfehlungen oder Handlungsanweisungen. Das ist Aufgabe der Agentur.
-        - Wenn Zahlen sinken: Erkläre dies sachlich (z.B. normale Schwankung), ohne Panik zu verbreiten.
+        CHARAKTER:
+        - Tonalität: Höflich, verständlich, beruhigend.
+        - Fokus: Übersetzung von Zahlen in Erfolge/Status.
+        - CONSTRAINT: Gib KEINE strategischen Empfehlungen oder Handlungsanweisungen (Aufgabe der Agentur).
+        - Erkläre sinkende Zahlen sachlich ohne Panik.
         
-        AUFGABE:
-        Fasse die Leistung der Website verständlich zusammen, damit der Kunde den Wert der Arbeit versteht.
+        ${styleInstruction}
       `;
 
       userPrompt = `
-        Erstelle eine verständliche Zusammenfassung dieser Daten (max. 6-8 Sätze):
+        Fasse diese Daten verständlich zusammen (max. 4-5 Sätze):
         ${summaryData}
 
-        STRUKTUR DES BERICHTS (Bitte strikt einhalten):
-        1. **Leistungs-Zusammenfassung:** Wie lief es im gewählten Zeitraum? (Nutze Worte wie "Sichtbarkeit", "Besucher", "Interesse" statt nur Fachbegriffe).
-        2. **Top-Suchbegriffe:** Erkläre kurz, wonach die Leute gesucht haben, um auf die Seite zu kommen. Was sagt das über das Interesse aus?
-        3. **Fazit:** Ein kurzer, positiver oder neutraler Abschlusssatz zum aktuellen Status.
+        STRUKTUR:
+        1. **Leistungs-Zusammenfassung:** Wie lief es? (Nutze Worte wie "Sichtbarkeit", "Besucher").
+        2. **Top-Suchbegriffe:** Wonach haben Leute gesucht? Was sagt das über das Interesse?
+        3. **Fazit:** Kurzer, positiver/neutraler Abschluss.
         
-        REGELN:
-        - KEINE Handlungsaufforderungen (z.B. "Sie sollten...", "Wir müssen...").
-        - KEINE technischen To-Dos.
-        - Erkläre Fachbegriffe kurz, falls nötig.
-        
-        Nutze Markdown. Fette die wichtigsten positiven Zahlen.
+        Keine To-Dos oder technischen Anweisungen!
       `;
     }
 
-    // 5. GENERIERUNG
+    // 5. Generierung
     const { text } = await generateText({
       model: google('gemini-2.5-flash'), 
       system: systemPrompt,
