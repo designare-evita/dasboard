@@ -1,7 +1,7 @@
 // src/components/AiAnalysisWidget.tsx
 'use client';
 
-import { useCompletion } from '@ai-sdk/react';
+import { useState } from 'react';
 import { Lightbulb, ArrowRepeat, Robot, Cpu, ExclamationTriangle } from 'react-bootstrap-icons';
 
 interface Props {
@@ -10,38 +10,65 @@ interface Props {
 }
 
 export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
-  // Verwendung des useCompletion Hooks für Streaming
-  const {
-    completion,   // Enthält den generierten Text, der sich live aufbaut
-    complete,     // Funktion zum Starten der Generierung
-    isLoading,    // Status während der Generierung
-    error         // Mögliche Fehler
-  } = useCompletion({
-    api: '/api/ai/analyze',
-    streamProtocol: 'text',  // Wichtig: Text-Streaming Protokoll aktivieren
-    onError: (err) => {
-      console.error("[AI Widget] Stream Error:", err);
-      console.error("[AI Widget] Error details:", {
-        message: err.message,
-        stack: err.stack
-      });
-    },
-    onFinish: (prompt, completion) => {
-      console.log("[AI Widget] Stream finished. Completion length:", completion.length);
-    }
-  });
+  const [completion, setCompletion] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
 
   const handleAnalyze = async () => {
-    // Wir starten die Generierung und übergeben die notwendigen Daten im Body.
-    // Ein leerer Prompt wird übergeben, da der Server den Prompt baut.
     console.log("[AI Widget] Starting analysis with:", { projectId, dateRange });
+    setIsLoading(true);
+    setError(null);
+    setCompletion('');
+
     try {
-      await complete('', {
-        body: { projectId, dateRange }
+      const response = await fetch('/api/ai/analyze', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ projectId, dateRange }),
       });
-      console.log("[AI Widget] Complete function finished");
+
+      console.log("[AI Widget] Response status:", response.status);
+      console.log("[AI Widget] Response headers:", Object.fromEntries(response.headers.entries()));
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `HTTP ${response.status}`);
+      }
+
+      if (!response.body) {
+        throw new Error('Response body is null');
+      }
+
+      // Stream verarbeiten
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let accumulatedText = '';
+
+      console.log("[AI Widget] Starting to read stream...");
+
+      while (true) {
+        const { done, value } = await reader.read();
+
+        if (done) {
+          console.log("[AI Widget] Stream completed. Total length:", accumulatedText.length);
+          break;
+        }
+
+        const chunk = decoder.decode(value, { stream: true });
+        console.log("[AI Widget] Received chunk:", chunk.substring(0, 100));
+        accumulatedText += chunk;
+        setCompletion(accumulatedText);
+      }
+
+      setIsLoading(false);
+      console.log("[AI Widget] Analysis finished successfully");
+
     } catch (err) {
-      console.error("[AI Widget] Complete function error:", err);
+      console.error("[AI Widget] Error:", err);
+      setError(err instanceof Error ? err : new Error(String(err)));
+      setIsLoading(false);
     }
   };
 
