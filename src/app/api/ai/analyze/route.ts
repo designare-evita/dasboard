@@ -1,7 +1,3 @@
-{
-type: uploaded file
-fileName: designare-evita/dasboard/dasboard-6d561aab221f9cc548aa9584d6faef14a0ede5f4/src/app/api/ai/analyze/route.ts
-fullContent:
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { sql } from '@vercel/postgres';
@@ -232,5 +228,4 @@ export async function POST(req: NextRequest) {
         { status: 500 }
     );
   }
-}
 }
