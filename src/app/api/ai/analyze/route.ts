@@ -3,14 +3,16 @@ import { auth } from '@/lib/auth';
 import { sql } from '@vercel/postgres';
 import { getOrFetchGoogleData } from '@/lib/google-data-loader';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { generateText } from 'ai'; // ZURÜCK zu generateText
+import { generateText } from 'ai';
 
+// Konfiguration des Google Providers
 const google = createGoogleGenerativeAI({
   apiKey: process.env.GEMINI_API_KEY || '',
 });
 
 export const runtime = 'nodejs';
 
+// Hilfsfunktionen für Formatierung
 const fmt = (val?: number) => (val ? val.toLocaleString('de-DE') : '0');
 const change = (val?: number) => {
   if (val === undefined || val === null) return '0';
@@ -20,6 +22,7 @@ const change = (val?: number) => {
 
 export async function POST(req: NextRequest) {
   try {
+    // 1. Authentifizierung
     const session = await auth();
     if (!session?.user) {
       return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
@@ -27,6 +30,7 @@ export async function POST(req: NextRequest) {
 
     const { projectId, dateRange } = await req.json();
 
+    // 2. Projektdaten laden
     const { rows } = await sql`
       SELECT id, email, domain, gsc_site_url, ga4_property_id 
       FROM users WHERE id::text = ${projectId}
@@ -45,9 +49,10 @@ export async function POST(req: NextRequest) {
 
     const kpis = data.kpis;
 
+    // 3. Erweiterte Datenaufbereitung für Data Max
     const topChannels = data.channelData?.slice(0, 3)
       .map(c => `${c.name} (${fmt(c.value)})`)
-      .join(', ') || 'Keine Daten';
+      .join(', ') || 'Keine Kanal-Daten';
 
     const aiShare = data.aiTraffic && kpis.sessions?.value
       ? (data.aiTraffic.totalSessions / kpis.sessions.value * 100).toFixed(1)
@@ -75,39 +80,38 @@ export async function POST(req: NextRequest) {
       ${topKeywords}
     `;
 
-   // --- DATA MAX PERSONA (Kundenfreundlich) ---
-const systemPrompt = `
-  Identität: Du bist "Data Max", eine Performance-KI, die komplexe Daten einfach erklärt.
-  Mission: Analysiere die Daten für "${project.domain}" so, dass auch ein Laie sie versteht.
+    // 4. DATA MAX SYSTEM PROMPT
+    const systemPrompt = `
+      Identität: Du bist "Data Max", eine hochentwickelte Performance-KI (inspiriert vom Androiden Data).
+      Mission: Logische Analyse der Web-Performance für "${project.domain}".
 
-  CHARAKTER-EIGENSCHAFTEN:
-  - Tonalität: Professionell, aber verständlich. Kein Fachchinesisch.
-  - Sprachstil: Erkläre Zusammenhänge ("Das bedeutet für Sie..."), statt nur Daten aufzulisten.
-  - Humor: Trocken. Nutze Vergleiche aus der echten Welt, wenn Zahlen zu abstrakt sind.
-  - Ansprache: Direktes "Sie", starte mit "Hallo, hier ist Data Max." (Keine Floskeln wie "Sehr geehrte").
+      CHARAKTER-EIGENSCHAFTEN:
+      - Tonalität: Höflich, extrem präzise, analytisch.
+      - Sprachstil: Nutze Formulierungen wie "Faszinierend", "Es erscheint logisch", "Meine Berechnungen zeigen".
+      - Humor: Trocken und unfreiwillig (durch übermäßige Genauigkeit).
+      - Ansprache: Sprich den Nutzer formell mit "Sie" an.
 
-  WICHTIGE REGELN:
-  1. Vermeide Wörter wie "Kausalitäts-Hypothese", "Interferenz" oder "Indizieren".
-  2. Nutze stattdessen: "Mögliche Ursache", "Das zeigt uns", "Auffällig ist".
-  3. Erkläre bei negativen Zahlen sofort, woran es liegen könnte, ohne Panik zu verbreiten.
+      WICHTIG:
+      - Vermeide Panik bei negativen Zahlen. Suche stattdessen nach der logischen Ursache.
+      - Halluziniere keine Fakten. Wenn Daten fehlen, weise darauf hin.
+    `;
 
-  FORMATIERUNG:
-  Nutze Markdown. Fette wichtige Zahlen (**10%**), aber achte darauf, dass der Textfluss lesbar bleibt.
-`;
-    
-const userPrompt = `
-  Führe eine Auswertung der folgenden Datensätze durch (max. 4-5 Sätze):
-  ${summaryData}
+    const userPrompt = `
+      Analysiere die folgenden Daten (max. 4-5 Sätze):
+      ${summaryData}
 
-  STRUKTUR DES BERICHTS:
-  1. **Status-Analyse:** Identifiziere die statistisch relevanteste Abweichung oder Trendlinie.
-  2. **Kausalitäts-Hypothese:** Was ist die datentechnisch wahrscheinlichste Ursache?
-  3. **Optimierungs-Empfehlung:** Welche spezifische Maßnahme maximiert den Impact bei geringstem Ressourceneinsatz?
-`;
-    // ZURÜCK ZU generateText (Stabil)
+      STRUKTUR DES BERICHTS (Bitte einhalten):
+      1. **Status-Analyse:** Identifiziere die statistisch signifikanteste Abweichung. (Verbinde die KPIs logisch).
+      2. **Kausalität:** Was ist die wahrscheinlichste Ursache basierend auf den Kanälen oder Keywords?
+      3. **Empfehlung:** Welcher Handlungsschritt erhöht die Effizienz am wahrscheinlichsten?
+      
+      Nutze Markdown für die Struktur und fette wichtige Zahlen (**10%**).
+    `;
+
+    // 5. GENERIERUNG (BLOCKING - wie gewünscht)
     const { text } = await generateText({
-      model: google('gemini-2.5-flash'),
-      system: systemPrompt,
+      model: google('gemini-2.5-flash'), 
+      system: systemPrompt, // System Prompt für Persona nutzen
       prompt: userPrompt,
     });
 
@@ -115,6 +119,9 @@ const userPrompt = `
 
   } catch (error) {
     console.error('[AI Analyze] Fehler:', error);
-    return NextResponse.json({ message: 'Analyse fehlgeschlagen', error: String(error) }, { status: 500 });
+    return NextResponse.json(
+        { message: 'Analyse fehlgeschlagen', error: String(error) }, 
+        { status: 500 }
+    );
   }
 }
