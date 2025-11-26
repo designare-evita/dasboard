@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
     if (session.user.role === 'SUPERADMIN') {
       if (onlyCustomers) {
         // 1. Projekt-Übersicht (Nur Kunden)
+        // ✅ UPDATE: SUM(lp.gsc_impressionen_change) hinzugefügt
         result = await sql`
           SELECT 
             u.id::text as id, u.email, u.role, u.domain, u.mandant_id, u.permissions, u.favicon_url,
@@ -43,7 +44,8 @@ export async function GET(request: NextRequest) {
             SUM(CASE WHEN lp.status = 'Offen' THEN 1 ELSE 0 END) as landingpages_offen,
             SUM(CASE WHEN lp.status = 'In Prüfung' THEN 1 ELSE 0 END) as landingpages_in_pruefung,
             SUM(CASE WHEN lp.status = 'Freigegeben' THEN 1 ELSE 0 END) as landingpages_freigegeben,
-            SUM(CASE WHEN lp.status = 'Gesperrt' THEN 1 ELSE 0 END) as landingpages_gesperrt
+            SUM(CASE WHEN lp.status = 'Gesperrt' THEN 1 ELSE 0 END) as landingpages_gesperrt,
+            SUM(lp.gsc_impressionen_change) as total_impression_change
           FROM users u
           LEFT JOIN users creator ON u."createdByAdminId" = creator.id
           LEFT JOIN landingpages lp ON u.id = lp.user_id
@@ -52,7 +54,7 @@ export async function GET(request: NextRequest) {
           ORDER BY u.mandant_id ASC, u.domain ASC, u.email ASC
         `;
       } else {
-        // 2. Admin-Panel (Benutzerverwaltung)
+        // 2. Admin-Panel (Benutzerverwaltung) - bleibt unverändert
         result = await sql`
           SELECT 
             u.id::text as id, 
@@ -88,6 +90,7 @@ export async function GET(request: NextRequest) {
       
       if (onlyCustomers) {
         // 3. Projekt-Übersicht für Admin
+        // ✅ UPDATE: SUM(lp.gsc_impressionen_change) hinzugefügt
         result = await sql`
           SELECT 
             u.id::text as id, u.email, u.role, u.domain, u.mandant_id, u.permissions, u.favicon_url,
@@ -109,7 +112,8 @@ export async function GET(request: NextRequest) {
             SUM(CASE WHEN lp.status = 'Offen' THEN 1 ELSE 0 END) as landingpages_offen,
             SUM(CASE WHEN lp.status = 'In Prüfung' THEN 1 ELSE 0 END) as landingpages_in_pruefung,
             SUM(CASE WHEN lp.status = 'Freigegeben' THEN 1 ELSE 0 END) as landingpages_freigegeben,
-            SUM(CASE WHEN lp.status = 'Gesperrt' THEN 1 ELSE 0 END) as landingpages_gesperrt
+            SUM(CASE WHEN lp.status = 'Gesperrt' THEN 1 ELSE 0 END) as landingpages_gesperrt,
+            SUM(lp.gsc_impressionen_change) as total_impression_change
           FROM users u
           LEFT JOIN users creator ON u."createdByAdminId" = creator.id
           LEFT JOIN landingpages lp ON u.id = lp.user_id
@@ -126,10 +130,9 @@ export async function GET(request: NextRequest) {
           ORDER BY u.domain ASC, u.email ASC
         `;
       } else {
-        // 4. Admin-Panel: Benutzerverwaltung
+        // 4. Admin-Panel: Benutzerverwaltung - bleibt unverändert
         const kannAdminsVerwalten = session.user.permissions?.includes('kann_admins_verwalten');
 
-        // A. Eigene Kunden holen
         const kundenRes = await sql`
           SELECT DISTINCT 
             u.id::text as id, u.email, u.role, u.domain, u.mandant_id, u.permissions, u.favicon_url,
@@ -159,7 +162,6 @@ export async function GET(request: NextRequest) {
         let rows = kundenRes.rows;
 
         if (kannAdminsVerwalten && adminMandantId) {
-          // B. Andere Admins im gleichen Mandanten holen
           const adminsRes = await sql`
             SELECT 
               u.id::text as id, u.email, u.role, u.domain, u.mandant_id, u.permissions, u.favicon_url,
@@ -185,7 +187,6 @@ export async function GET(request: NextRequest) {
         
         result = { rows };
         
-        // Sortierung: Admins zuerst, dann alphabetisch
         result.rows.sort((a, b) => (a.role > b.role) ? -1 : (a.role === b.role) ? a.email.localeCompare(b.email) : 1);
       }
     }
@@ -202,6 +203,8 @@ export async function GET(request: NextRequest) {
       landingpages_in_pruefung: Number(r.landingpages_in_pruefung || 0),
       landingpages_freigegeben: Number(r.landingpages_freigegeben || 0),
       landingpages_gesperrt: Number(r.landingpages_gesperrt || 0),
+      // ✅ NEU: Konvertierung
+      total_impression_change: Number(r.total_impression_change || 0),
     }));
 
     return NextResponse.json(rows);
@@ -215,7 +218,8 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST Methode (unverändert, aber muss in der Datei bleiben)
+// POST Methode bleibt unverändert...
+// (Ich lasse den Rest der Datei hier weg, da er sich nicht ändert, aber er muss natürlich in der Datei bleiben)
 export async function POST(req: NextRequest) {
   const session = await auth(); 
 
