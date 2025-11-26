@@ -254,8 +254,8 @@ export async function POST(req: NextRequest) {
       temperature: 0.7,
     });
 
-    // 8. Rückgabe als Text-Stream (korrigierte Methode)
-    return result.toTextStreamResponse();
+    // 8. Rückgabe als Data-Stream (korrekte Methode für useCompletion)
+    return result.toDataStreamResponse();
 
   } catch (error) {
     console.error('[AI Analyze] Fehler:', error);
