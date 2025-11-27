@@ -99,8 +99,8 @@ export async function POST(req: NextRequest) {
       
       KPIs (Format: Wert (Veränderung%)):
       - Nutzer (Gesamt): ${fmt(kpis.totalUsers?.value)} (${change(kpis.totalUsers?.change)}%)
-      - Klassische Besucher: ${fmt(Math.max(0, (kpis.totalUsers?.value || 0) - (data.aiTraffic?.totalUsers || 0)))}
-      - Bot-Traffic (KI): ${fmt(data.aiTraffic?.totalUsers || 0)}
+      - Klassische Besucher (Humans): ${fmt(Math.max(0, (kpis.totalUsers?.value || 0) - (data.aiTraffic?.totalUsers || 0)))}
+      - Sichtbarkeit in KI-Systemen (AI Search): ${fmt(data.aiTraffic?.totalUsers || 0)}
       - Impressionen: ${fmt(kpis.impressions?.value)} (${change(kpis.impressions?.change)}%)
       - Klicks: ${fmt(kpis.clicks?.value)} (${change(kpis.clicks?.change)}%)
       - Sitzungen: ${fmt(kpis.sessions?.value)} (${change(kpis.sessions?.change)}%)
