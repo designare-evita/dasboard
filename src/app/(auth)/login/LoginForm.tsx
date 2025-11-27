@@ -78,14 +78,14 @@ export default function LoginForm() {
       >
         <div className="text-center">
           {/* Logo ohne Text darunter */}
-          <div className="relative w-[200px] h-[60px] mx-auto mb-2">
+          <div className="relative w-[260px] h-[78px] mx-auto mb-2">
              <Image
                 src="/logo-data-peak.webp"
                 alt="Data Peak Logo"
                 fill
                 className="object-contain"
                 priority
-                sizes="300px"
+                sizes="260px"
              />
           </div>
         </div>
