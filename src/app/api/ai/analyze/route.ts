@@ -5,7 +5,7 @@ import { sql } from '@vercel/postgres';
 import { getOrFetchGoogleData } from '@/lib/google-data-loader';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { streamText } from 'ai';
-import crypto from 'node:crypto'; // Für den Hash
+import crypto from 'node:crypto';
 
 const google = createGoogleGenerativeAI({
   apiKey: process.env.GEMINI_API_KEY || '',
@@ -21,10 +21,6 @@ const change = (val?: number) => {
   return `${prefix}${val.toFixed(1)}`;
 };
 
-/**
- * Erstellt einen SHA-256 Hash aus einem String.
- * Dient als Fingerabdruck für die Eingabedaten.
- */
 function createHash(data: string): string {
   return crypto.createHash('sha256').update(data).digest('hex');
 }
@@ -59,14 +55,27 @@ export async function POST(req: NextRequest) {
     const kpis = data.kpis;
 
     // Timeline Logik
-    let timelineInfo = "Standard Betreuung";
+    let timelineInfo = "";
+    let startDateStr = "";
+    let endDateStr = "";
+    
     if (project.project_timeline_active) {
         const start = new Date(project.project_start_date || project.createdAt);
         const now = new Date();
         const duration = project.project_duration_months || 6;
         const diffMonths = Math.ceil(Math.abs(now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 30)); 
-        const currentMonth = Math.min(diffMonths, duration); 
+        const currentMonth = Math.min(diffMonths, duration);
+        
+        const end = new Date(start);
+        end.setMonth(start.getMonth() + duration);
+        
         timelineInfo = `Aktiver Monat: ${currentMonth} von ${duration}`;
+        startDateStr = start.toLocaleDateString('de-DE');
+        endDateStr = end.toLocaleDateString('de-DE');
+    } else {
+        timelineInfo = "Laufende Betreuung";
+        startDateStr = "Fortlaufend";
+        endDateStr = "Offen";
     }
 
     // Datenaufbereitung
@@ -75,29 +84,39 @@ export async function POST(req: NextRequest) {
       : '0';
 
     const topKeywords = data.topQueries?.slice(0, 5)
-      .map((q: any) => `- "${q.query}" (Pos: ${q.position.toFixed(1)})`)
+      .map((q: any) => `- "${q.query}" (Pos: ${q.position.toFixed(1)}, Klicks: ${q.clicks})`)
       .join('\n') || 'Keine Keywords';
+      
+    const topChannels = data.channelData?.slice(0, 3)
+      .map(c => `${c.name} (${fmt(c.value)})`)
+      .join(', ') || 'Keine Kanal-Daten';
 
-    // Dieser String enthält ALLE Fakten, die die KI sieht.
     const summaryData = `
       DOMAIN: ${project.domain}
-      ZEITPLAN: ${timelineInfo}
-      KPIs:
+      ZEITPLAN STATUS: ${timelineInfo}
+      START: ${startDateStr}
+      ENDE: ${endDateStr}
+      
+      KPIs (Format: Wert (Veränderung%)):
+      - Nutzer (Gesamt): ${fmt(kpis.totalUsers?.value)} (${change(kpis.totalUsers?.change)}%)
+      - Klassische Besucher: ${fmt(Math.max(0, (kpis.totalUsers?.value || 0) - (data.aiTraffic?.totalUsers || 0)))}
+      - Bot-Traffic (KI): ${fmt(data.aiTraffic?.totalUsers || 0)}
+      - Impressionen: ${fmt(kpis.impressions?.value)} (${change(kpis.impressions?.change)}%)
       - Klicks: ${fmt(kpis.clicks?.value)} (${change(kpis.clicks?.change)}%)
       - Sitzungen: ${fmt(kpis.sessions?.value)} (${change(kpis.sessions?.change)}%)
-      - KI-Anteil: ${aiShare}%
-      KEYWORDS:
+      - KI-Anteil am Traffic: ${aiShare}%
+      
+      TOP KEYWORDS:
       ${topKeywords}
+      
+      KANÄLE:
+      ${topChannels}
     `;
 
-    // --- CACHE LOGIK START (48 Stunden) ---
-    
-    const cacheInputString = `${summaryData}|ROLE:${userRole}`;
+    // --- CACHE LOGIK (48 Stunden) ---
+    const cacheInputString = `${summaryData}|ROLE:${userRole}|V2_DETAIL`; // V2_DETAIL hinzugefügt um alten Cache ungültig zu machen
     const inputHash = createHash(cacheInputString);
 
-    console.log('[AI Cache] Checking Hash:', inputHash);
-
-    // Prüfen, ob wir einen aktuellen Eintrag in der DB haben (jünger als 48h)
     const { rows: cacheRows } = await sql`
       SELECT response 
       FROM ai_analysis_cache
@@ -105,90 +124,113 @@ export async function POST(req: NextRequest) {
         user_id = ${projectId}::uuid 
         AND date_range = ${dateRange}
         AND input_hash = ${inputHash}
-        AND created_at > NOW() - INTERVAL '48 hours' -- HIER AUF 48 STUNDEN GESETZT
+        AND created_at > NOW() - INTERVAL '48 hours'
       ORDER BY created_at DESC
       LIMIT 1
     `;
 
     if (cacheRows.length > 0) {
       console.log('[AI Cache] ✅ HIT! Liefere gespeicherte Antwort.');
-      const cachedResponse = cacheRows[0].response;
-
       const stream = new ReadableStream({
         start(controller) {
-          controller.enqueue(new TextEncoder().encode(cachedResponse));
+          controller.enqueue(new TextEncoder().encode(cacheRows[0].response));
           controller.close();
         },
       });
-
-      return new Response(stream, {
-        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-      });
+      return new Response(stream, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
     }
-
-    console.log('[AI Cache] ❌ MISS. Generiere neu...');
-    // --- CACHE LOGIK ENDE ---
+    // --- ENDE CACHE ---
 
 
-    // 2. Prompting
+    // 2. PROMPT SETUP (Detail-Modus)
+    
     const visualSuccessTemplate = `
-      <div class="mt-4 p-3 bg-emerald-50 rounded-lg border border-emerald-100 flex items-center gap-3">
-         <div class="bg-white p-2 rounded-full text-emerald-600 shadow-sm">🏆</div>
-         <div><div class="text-[10px] font-bold text-emerald-700 uppercase">Top Erfolg</div>
-         <div class="text-sm font-semibold text-emerald-900">ERFOLG_TEXT_PLATZHALTER</div></div>
+      <div class="mt-6 p-4 bg-emerald-50 rounded-xl border border-emerald-100 flex items-start gap-4 shadow-sm">
+         <div class="bg-white p-2.5 rounded-full text-emerald-600 shadow-sm mt-1">🏆</div>
+         <div><div class="text-[10px] font-bold text-emerald-700 uppercase tracking-wider mb-1">Top Erfolg</div>
+         <div class="text-sm font-semibold text-emerald-900 leading-relaxed">ERFOLG_TEXT_PLATZHALTER</div></div>
       </div>
     `;
 
     let systemPrompt = `
-      Du bist "Data Max", ein Performance-Analyst.
+      Du bist "Data Max", ein hochspezialisierter Performance-Analyst für SEO & Web-Daten.
       
-      TECHNISCHE REGELN:
+      TECHNISCHE ANWEISUNGEN:
       1. Antworte NUR mit dem Inhalt.
       2. Trenne Spalte 1 und Spalte 2 exakt mit dem Marker "[[SPLIT]]".
-      3. Nutze HTML für Text-Formatierung (<b>, <ul>, <li>, <span class="text-green-600">), aber KEINE Layout-Container.
-      4. Fasse dich kurz.
+      3. Nutze HTML-Tags für Struktur und Tailwind-Klassen für Styling.
+      
+      STYLING REGELN (WICHTIG):
+      - Überschriften: <h4 class="font-bold text-indigo-900 mt-4 mb-2 text-base">
+      - Listen: <ul class="space-y-1.5 mb-4 text-sm text-indigo-900/80">
+      - Fettgedruckte Werte: <span class="font-semibold text-indigo-950">
       
       OUTPUT STRUKTUR:
-      [Inhalt für Spalte 1: Status]
+      [Inhalt für Spalte 1: Status & Zahlen]
       [[SPLIT]]
-      [Inhalt für Spalte 2: Analyse]
+      [Inhalt für Spalte 2: Performance Analyse]
     `;
 
     if (userRole === 'ADMIN' || userRole === 'SUPERADMIN') {
+      // === ADMIN MODUS (Detailliert & Kritisch) ===
       systemPrompt += `
         ZIELGRUPPE: Admin/Experte.
-        TON: Präzise, Analytisch, "Du"-Stil.
-        INHALT SPALTE 1: Fokus auf harte KPIs. Interpretiere "KI-Sichtbarkeit" technisch.
-        VISUAL ENDING SPALTE 1: Füge am Ende den "Top Erfolg" Kasten ein (Wähle den stärksten technischen Wert):
-        ${visualSuccessTemplate}
+        TON: Analytisch, Kritisch, "Du"-Stil. Warne bei negativen Trends deutlich.
+        
+        INHALT SPALTE 1 (Status):
+        1. Überschrift "Zeitplan:". Liste Status, aktueller Monat, Start, Ende.
+        2. Überschrift "Aktuelle Performance Kennzahlen:". 
+           - Liste ALLE KPIs auf.
+           - WICHTIG: Wenn ein Trend negativ ist (z.B. -20%), färbe ihn ROT und FETT: <span class="text-red-600 font-bold">(-20%)</span>.
+           - Wenn positiv, neutral lassen oder grün.
+        3. Überschrift "Top Kanäle:". Liste die Kanäle auf.
+        4. VISUAL ENDING: ${visualSuccessTemplate} (Fülle mit dem technisch stärksten Keyword oder Wachstum).
+        
+        INHALT SPALTE 2 (Analyse):
+        1. Überschrift "Status-Analyse:".
+        2. Fließtext: Analysiere den aktuellen Projektfortschritt.
+        3. Nutze fette rote Markierungen im Text für Probleme (<span class="text-red-600 font-bold">...</span>) und grüne für Erfolge (<span class="text-green-600 font-bold">...</span>).
+        4. Erwähne explizit Bot-Traffic vs. echte Nutzer.
+        5. Gebe konkrete Handlungsanweisungen basierend auf den Keywords.
       `;
     } else {
+      // === KUNDEN MODUS (Erklärend & Positiv) ===
       systemPrompt += `
-        ZIELGRUPPE: Kunde.
-        TON: Professionell, ruhig, "Sie"-Stil.
-        INHALT SPALTE 1: Erkläre Zahlen verständlich. Verkaufe "KI-Sichtbarkeit" positiv.
-        VISUAL ENDING SPALTE 1: Füge am Ende den "Top Erfolg" Kasten ein (Wähle den motivierendsten Wert):
-        ${visualSuccessTemplate}
+        ZIELGRUPPE: Kunde / Geschäftsführer.
+        TON: Höflich ("Sie"), Erklärend, Positiv, Zukunftsorientiert.
+        
+        INHALT SPALTE 1 (Status):
+        1. Überschrift "Projekt-Laufzeit:". Liste Status, Monat, Start, Ende.
+        2. Überschrift "Aktuelle Leistung:".
+           - Liste "Nutzer (Gesamt)", "Klassische Besucher" und "KI-Sichtbarkeit".
+           - Füge unter KI-Sichtbarkeit einen kurzen Satz in <span class="text-xs text-indigo-600 block mt-0.5"> ein: "Ihre Inhalte werden von modernen KI-Systemen gefunden."
+           - Liste Impressionen und Trend. Färbe positive Trends GRÜN: <span class="text-green-600 font-bold">...</span>.
+        3. VISUAL ENDING: ${visualSuccessTemplate} (Fülle mit einer motivierenden Erfolgsmeldung, z.B. hohe Reichweite).
+        
+        INHALT SPALTE 2 (Analyse):
+        1. Beginne mit einer persönlichen Anrede (Sehr geehrte Kundin/Kunde).
+        2. Überschrift "Erfolgreiche Kanäle & Sichtbarkeit:".
+           - Beschreibe die Traffic-Quellen im Fließtext.
+           - Hebe positive Zahlen grün und fett hervor (<span class="text-green-600 font-bold">...</span>).
+           - Erkläre den Vorteil der KI-Sichtbarkeit (Zukunftssicherheit).
+        3. Überschrift "Top Keywords – Fokus auf Relevanz:".
+           - Liste die besten 3-4 Keywords auf und kommentiere deren Position kurz.
       `;
     }
 
-    // 3. Streaming mit onFinish Callback zum Speichern
     const result = streamText({
       model: google('gemini-2.5-flash'),
       system: systemPrompt,
-      prompt: `Analysiere diese Daten:\n${summaryData}`,
-      temperature: 0.5,
+      prompt: `Analysiere diese Daten für den Zeitraum ${dateRange}:\n${summaryData}`,
+      temperature: 0.4, // Etwas kreativer für bessere Texte, aber strukturiert
       onFinish: async ({ text }) => {
         if (text && text.length > 50) {
           try {
-            console.log('[AI Cache] Speichere neue Antwort...');
             await sql`
               INSERT INTO ai_analysis_cache (user_id, date_range, input_hash, response)
               VALUES (${projectId}::uuid, ${dateRange}, ${inputHash}, ${text})
             `;
-          } catch (e) {
-            console.error('[AI Cache] Fehler beim Speichern:', e);
-          }
+          } catch (e) { console.error('Cache Error', e); }
         }
       }
     });
