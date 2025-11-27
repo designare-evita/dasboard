@@ -77,7 +77,8 @@ export default function LoginForm() {
         transition={{ duration: 0.4, ease: "easeOut" }}
       >
         <div className="text-center">
-          <div className="relative w-[200px] h-[60px] mx-auto mb-6">
+          {/* Logo ohne Text darunter */}
+          <div className="relative w-[200px] h-[60px] mx-auto mb-2">
              <Image
                 src="/logo-data-peak.webp"
                 alt="Data Peak Logo"
@@ -86,6 +87,8 @@ export default function LoginForm() {
                 priority
                 sizes="300px"
              />
+          </div>
+        </div>
         
         <form className="space-y-6" onSubmit={handleSubmit}>
           
@@ -114,7 +117,6 @@ export default function LoginForm() {
 
           {/* PASSWORT FELD */}
           <div>
-            {/* "Passwort vergessen?" Link entfernt */}
             <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
               Passwort
             </label>
@@ -178,9 +180,6 @@ export default function LoginForm() {
           </div>
         </form>
       </motion.div>
-      
-      {/* Footer entfernt */}
-
     </div>
   );
 }
