@@ -201,29 +201,24 @@ export async function POST(req: NextRequest) {
            </ul...>
       `;
     } else {
+
       // === KUNDEN MODUS ===
       systemPrompt += `
-        ZIELGRUPPE: Kunde. Ton: Höflich, Erklärend, Positiv.
+        ZIELGRUPPE: Kunde. Ton: Höflich, Positiv.
         
         SPALTE 1 (Status & Zahlen):
-        1. <h4...>Projekt-Laufzeit:</h4>
-           <ul...>Listenpunkte zu Start, Ende, Monat.</ul...>
+        1. <h4...>Projekt-Laufzeit:</h4> Start, Ende, Monat.
         2. <h4...>Aktuelle Leistung:</h4>
            <ul...>
-             <li...>Nutzer gesamt & Klassische Besucher.</li>
-             <li...>KI-Sichtbarkeit: Füge <br><span class="text-xs text-indigo-500">Erklärung: Ihre Inhalte werden von modernen KI-Systemen gefunden.</span> hinzu.</li>
-             <li...>Impressionen: Färbe positive Trends GRÜN (<span class="text-emerald-600 font-bold">).</li>
+             <li...>Nutzer & Klassische Besucher.
+             <li...>KI-Sichtbarkeit: Füge hinzu: <br><span class="text-xs text-emerald-600 block mt-0.5">✔ Ihre Inhalte werden von KI (ChatGPT, Gemini) gefunden.</span>
            </ul...>
-        3. VISUAL ENDING: ${visualSuccessTemplate} (Fülle ERFOLG_TEXT_PLATZHALTER mit einer motivierenden Nachricht).
+        3. VISUAL ENDING: ${visualSuccessTemplate}
         
         SPALTE 2 (Performance Analyse):
-        1. Beginne mit: <p class="mb-4 font-medium">Sehr geehrte Kundin, sehr geehrter Kunde,</p>
-        2. <h4...>Zusammenfassung:</h4>
-           <p...>Beschreibe die Erfolge im Fließtext. Hebe wichtige Zahlen <span class="text-emerald-600 font-bold">grün</span> hervor.</p>
-        3. <h4...>Top Keywords & Relevanz:</h4>
-           <ul...>
-             <li...>Liste die Top 3 Keywords und warum sie gut für das Geschäft sind.</li>
-           </ul...>
+        1. Anrede: <p class="mb-4 font-medium">Sehr geehrte Kundin, sehr geehrter Kunde,</p>
+        2. <h4...>Zusammenfassung:</h4> Fließtext über Erfolge.
+        3. <h4...>Top Keywords & Relevanz:</h4> Analyse der Keywords.
       `;
     }
 
