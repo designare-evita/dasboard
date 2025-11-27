@@ -17,8 +17,7 @@ import {
   CalendarRange,
   CheckCircleFill,
   Circle,
-  Link45deg,
-  BarChartFill
+  Link45deg
 } from 'react-bootstrap-icons'; 
 import { toast } from 'sonner';
 
@@ -34,7 +33,7 @@ export default function AdminPage() {
   const [selectedRole, setSelectedRole] = useState<'BENUTZER' | 'ADMIN'>('BENUTZER');
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // State für das "Grüne Häkchen" (Timeline Aktiv) im Formular
+  // State für das "Grüne Häkchen" (Timeline Aktiv)
   const [isTimelineActive, setIsTimelineActive] = useState(false);
 
   const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
@@ -81,24 +80,18 @@ export default function AdminPage() {
 
     const formData = new FormData(e.currentTarget);
     
-    // Checkbox manuell hinzufügen (da HTML Checkboxen "on" senden oder gar nichts)
+    // Checkbox manuell hinzufügen
     formData.set('project_timeline_active', isTimelineActive ? 'true' : 'false');
 
     const rawData = Object.fromEntries(formData) as Record<string, unknown>;
 
-    // Timeline Boolean konvertieren
-    const payloadRaw = {
-        ...rawData,
-        project_timeline_active: isTimelineActive
-    };
-
-    const permissionsString = (rawData.permissions as string) || '';
-    const permissionsArray = permissionsString.split(',').map(p => p.trim()).filter(p => p.length > 0);
-
     const payload = { 
-      ...payloadRaw, 
+      ...rawData, 
       role: selectedRole,
-      permissions: (isSuperAdmin && selectedRole === 'ADMIN') ? permissionsArray : [] 
+      project_timeline_active: isTimelineActive, // Explizit setzen
+      permissions: (isSuperAdmin && selectedRole === 'ADMIN') 
+        ? (rawData.permissions as string || '').split(',').map(p => p.trim()).filter(p => p.length > 0) 
+        : [] 
     };
 
     try {
@@ -118,7 +111,7 @@ export default function AdminPage() {
       });
 
       (e.target as HTMLFormElement).reset();
-      setIsTimelineActive(false); // Reset Toggle
+      setIsTimelineActive(false); 
       setSelectedRole('BENUTZER');
       await fetchUsers();
     } catch (error) {
@@ -224,14 +217,13 @@ export default function AdminPage() {
 
             {selectedRole === 'BENUTZER' && (
               <>
-                {/* PROJEKT ZEITPLAN (Das "Grüne Häkchen" ist hier) */}
+                {/* PROJEKT ZEITPLAN */}
                 <div className="pt-2">
                     <div className="flex items-center justify-between mb-2">
                         <label className="text-sm font-bold text-gray-900 flex items-center gap-2">
                             <CalendarRange size={14} className="text-indigo-600"/>
                             Projekt-Zeitplan
                         </label>
-                        {/* Custom Toggle Switch für "Aktiviert" */}
                         <button
                             type="button"
                             onClick={() => setIsTimelineActive(!isTimelineActive)}
@@ -242,7 +234,6 @@ export default function AdminPage() {
                                 aria-hidden="true"
                                 className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${isTimelineActive ? 'translate-x-5' : 'translate-x-0'}`}
                             >
-                                {/* Das grüne Häkchen im Toggle */}
                                 {isTimelineActive && (
                                     <CheckCircleFill className="text-green-500 w-3 h-3 absolute top-1 left-1" />
                                 )}
@@ -308,6 +299,18 @@ export default function AdminPage() {
                             <div>
                                 <label className="block text-xs font-medium text-gray-700">Semrush Project ID</label>
                                 <input name="semrush_project_id" type="text" placeholder="123456" className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm placeholder:text-gray-400" disabled={isSubmitting} />
+                            </div>
+                        </div>
+
+                        {/* NEU: Tracking IDs für Kampagnen */}
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-xs font-medium text-gray-700">Semrush Tracking-ID (Kampagne 1)</label>
+                                <input name="semrush_tracking_id" type="text" placeholder="Tracking ID 1" className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm placeholder:text-gray-400" disabled={isSubmitting} />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-gray-700">Semrush Tracking-ID (Kampagne 2)</label>
+                                <input name="semrush_tracking_id_02" type="text" placeholder="Tracking ID 2" className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm placeholder:text-gray-400" disabled={isSubmitting} />
                             </div>
                         </div>
                     </div>
