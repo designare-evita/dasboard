@@ -12,9 +12,15 @@ import {
   ArrowRepeat,
   People,
   PersonVideo,
-  Briefcase
+  Briefcase,
+  Globe,
+  CalendarRange,
+  CheckCircleFill,
+  Circle,
+  Link45deg,
+  BarChartFill
 } from 'react-bootstrap-icons'; 
-import { toast } from 'sonner'; // ✅ Toast Import
+import { toast } from 'sonner';
 
 import LogoManager from './LogoManager';
 import LoginLogbook from './LoginLogbook'; 
@@ -23,11 +29,13 @@ export default function AdminPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
 
-  // "message" State entfernt -> wird durch Toast ersetzt
   const [users, setUsers] = useState<User[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState<boolean>(true);
   const [selectedRole, setSelectedRole] = useState<'BENUTZER' | 'ADMIN'>('BENUTZER');
-  const [isSubmitting, setIsSubmitting] = useState(false); 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // State für das "Grüne Häkchen" (Timeline Aktiv) im Formular
+  const [isTimelineActive, setIsTimelineActive] = useState(false);
 
   const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
 
@@ -68,17 +76,27 @@ export default function AdminPage() {
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
-    const loadingToast = toast.loading('Erstelle Benutzer...'); // ✅ Lade-Toast starten
+    const loadingToast = toast.loading('Erstelle Benutzer...');
     setIsSubmitting(true); 
 
     const formData = new FormData(e.currentTarget);
+    
+    // Checkbox manuell hinzufügen (da HTML Checkboxen "on" senden oder gar nichts)
+    formData.set('project_timeline_active', isTimelineActive ? 'true' : 'false');
+
     const rawData = Object.fromEntries(formData) as Record<string, unknown>;
+
+    // Timeline Boolean konvertieren
+    const payloadRaw = {
+        ...rawData,
+        project_timeline_active: isTimelineActive
+    };
 
     const permissionsString = (rawData.permissions as string) || '';
     const permissionsArray = permissionsString.split(',').map(p => p.trim()).filter(p => p.length > 0);
 
     const payload = { 
-      ...rawData, 
+      ...payloadRaw, 
       role: selectedRole,
       permissions: (isSuperAdmin && selectedRole === 'ADMIN') ? permissionsArray : [] 
     };
@@ -94,13 +112,13 @@ export default function AdminPage() {
 
       if (!response.ok) throw new Error(result.message || 'Ein unbekannter Fehler ist aufgetreten.');
 
-      // ✅ Erfolg melden
-      toast.dismiss(loadingToast); // Lade-Toast weg
+      toast.dismiss(loadingToast);
       toast.success(`Benutzer "${result.email}" erstellt!`, {
         description: 'Der Account ist jetzt aktiv.'
       });
 
       (e.target as HTMLFormElement).reset();
+      setIsTimelineActive(false); // Reset Toggle
       setSelectedRole('BENUTZER');
       await fetchUsers();
     } catch (error) {
@@ -114,12 +132,8 @@ export default function AdminPage() {
   };
 
   const handleDelete = async (userId: string): Promise<void> => {
-    // Hier nutzen wir window.confirm, das ist für kritische Aktionen okay.
-    // Alternativ könnte man einen Custom Dialog bauen.
     if (!window.confirm('Nutzer wirklich löschen?')) return;
-    
     const loadingToast = toast.loading('Lösche Benutzer...');
-
     try {
       const response = await fetch(`/api/users/${userId}`, { method: 'DELETE' });
       const result = await response.json();
@@ -159,8 +173,6 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* ❌ ALTE MESSAGE BOX ENTFERNT */}
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-6">
         
         {/* CREATE FORMULAR */}
@@ -169,65 +181,144 @@ export default function AdminPage() {
             <PersonPlus size={22} /> Neuen Nutzer anlegen
           </h2>
           <form onSubmit={handleSubmit} className="space-y-4">
-             {/* ... Formular Felder bleiben identisch ... */}
-             {/* Um Platz zu sparen hier gekürzt, der Inhalt der Inputs bleibt exakt gleich wie vorher */}
-             <div>
-              <label className="block text-sm font-medium text-gray-700">Rolle</label>
-              <select
-                name="role"
-                value={selectedRole}
-                onChange={(e) => setSelectedRole(e.target.value as 'BENUTZER' | 'ADMIN')}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                disabled={isSubmitting}
-              >
-                <option value="BENUTZER">Kunde (Benutzer)</option>
-                {isSuperAdmin && <option value="ADMIN">Admin</option>}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">E-Mail</label>
-              <input name="email" type="email" required className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" disabled={isSubmitting} />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Initial-Passwort</label>
-              <input name="password" type="text" required className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" disabled={isSubmitting} />
-            </div>
             
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Mandant-ID (Label)</label>
-              <input name="mandant_id" type="text" required readOnly={!isSuperAdmin} defaultValue={!isSuperAdmin ? session?.user?.mandant_id || '' : undefined} placeholder={isSuperAdmin ? "z.B. max-online" : "Wird geerbt"} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100" disabled={isSubmitting || !isSuperAdmin} />
+            {/* BASIS DATEN */}
+            <div className="p-3 bg-gray-50 rounded-lg border border-gray-100 space-y-3">
+                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Zugangsdaten</h3>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Rolle</label>
+                  <select
+                    name="role"
+                    value={selectedRole}
+                    onChange={(e) => setSelectedRole(e.target.value as 'BENUTZER' | 'ADMIN')}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                    disabled={isSubmitting}
+                  >
+                    <option value="BENUTZER">Kunde (Benutzer)</option>
+                    {isSuperAdmin && <option value="ADMIN">Admin</option>}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">E-Mail</label>
+                  <input name="email" type="email" required placeholder="kunde@firma.at" className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm placeholder:text-gray-400" disabled={isSubmitting} />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Initial-Passwort</label>
+                  <input name="password" type="text" required placeholder="Sicheres Passwort" className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm placeholder:text-gray-400" disabled={isSubmitting} />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Mandant-ID (Label)</label>
+                  <input name="mandant_id" type="text" required readOnly={!isSuperAdmin} defaultValue={!isSuperAdmin ? session?.user?.mandant_id || '' : undefined} placeholder={isSuperAdmin ? "z.B. max-online" : "Wird geerbt"} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 text-sm placeholder:text-gray-400" disabled={isSubmitting || !isSuperAdmin} />
+                </div>
             </div>
 
             {isSuperAdmin && selectedRole === 'ADMIN' && (
               <div>
                 <label className="block text-sm font-medium text-gray-700">Berechtigungen</label>
-                <input name="permissions" type="text" placeholder="z.B. label1, label2" className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" disabled={isSubmitting} />
+                <input name="permissions" type="text" placeholder="z.B. label1, label2" className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm" disabled={isSubmitting} />
               </div>
             )}
 
             {selectedRole === 'BENUTZER' && (
               <>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Domain</label>
-                  <input name="domain" type="text" required className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" disabled={isSubmitting} />
+                {/* PROJEKT ZEITPLAN (Das "Grüne Häkchen" ist hier) */}
+                <div className="pt-2">
+                    <div className="flex items-center justify-between mb-2">
+                        <label className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                            <CalendarRange size={14} className="text-indigo-600"/>
+                            Projekt-Zeitplan
+                        </label>
+                        {/* Custom Toggle Switch für "Aktiviert" */}
+                        <button
+                            type="button"
+                            onClick={() => setIsTimelineActive(!isTimelineActive)}
+                            className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${isTimelineActive ? 'bg-green-500' : 'bg-gray-200'}`}
+                        >
+                            <span className="sr-only">Zeitplan aktivieren</span>
+                            <span
+                                aria-hidden="true"
+                                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${isTimelineActive ? 'translate-x-5' : 'translate-x-0'}`}
+                            >
+                                {/* Das grüne Häkchen im Toggle */}
+                                {isTimelineActive && (
+                                    <CheckCircleFill className="text-green-500 w-3 h-3 absolute top-1 left-1" />
+                                )}
+                            </span>
+                        </button>
+                    </div>
+
+                    {isTimelineActive ? (
+                        <div className="p-3 bg-green-50 rounded-lg border border-green-100 space-y-3 animate-in fade-in slide-in-from-top-2">
+                            <div className="flex items-center gap-2 text-xs text-green-700 font-medium mb-1">
+                                <CheckCircleFill /> Timeline aktiv
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">Startdatum</label>
+                                <input name="project_start_date" type="date" className="block w-full px-2 py-1.5 border border-green-200 rounded text-sm focus:border-green-500 focus:ring-green-500" />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">Laufzeit (Monate)</label>
+                                <input name="project_duration_months" type="number" defaultValue={6} min={1} className="block w-full px-2 py-1.5 border border-green-200 rounded text-sm focus:border-green-500 focus:ring-green-500" />
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 text-center">
+                            <span className="text-xs text-gray-400 flex items-center justify-center gap-1">
+                                <Circle size={10} /> Zeitplan inaktiv (Standard)
+                            </span>
+                        </div>
+                    )}
                 </div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-700">Favicon URL</label>
-                    <input name="favicon_url" type="text" className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" disabled={isSubmitting} />
+
+                {/* WEB DATEN / APIs */}
+                <div className="pt-2 border-t border-gray-100">
+                    <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
+                        <Globe size={14} className="text-indigo-600" /> Web-Daten & APIs
+                    </h3>
+                    
+                    <div className="space-y-3">
+                        <div>
+                            <label className="block text-xs font-medium text-gray-700">Domain</label>
+                            <div className="relative mt-1 rounded-md shadow-sm">
+                                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                                    <Link45deg className="text-gray-400" size={14} />
+                                </div>
+                                <input name="domain" type="text" required placeholder="z.B. kundendomain.at" className="block w-full rounded-md border-gray-300 pl-9 focus:border-indigo-500 focus:ring-indigo-500 text-sm py-2" disabled={isSubmitting} />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-medium text-gray-700">Favicon URL (Optional)</label>
+                            <input name="favicon_url" type="text" placeholder="https://example.com/icon.png" className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm placeholder:text-gray-400" disabled={isSubmitting} />
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-medium text-gray-700">GSC Site URL</label>
+                            <input name="gsc_site_url" type="text" placeholder="sc-domain:example.com" className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm placeholder:text-gray-400" disabled={isSubmitting} />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-xs font-medium text-gray-700">GA4 ID</label>
+                                <input name="ga4_property_id" type="text" placeholder="12345678" className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm placeholder:text-gray-400" disabled={isSubmitting} />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-gray-700">Semrush Project ID</label>
+                                <input name="semrush_project_id" type="text" placeholder="123456" className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm placeholder:text-gray-400" disabled={isSubmitting} />
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                {/* Weitere optionale Felder ... */}
-                 <div><label className="block text-sm font-medium text-gray-700">GSC Site URL</label><input name="gsc_site_url" type="text" className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md" disabled={isSubmitting} /></div>
-                 <div><label className="block text-sm font-medium text-gray-700">GA4 ID</label><input name="ga4_property_id" type="text" className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md" disabled={isSubmitting} /></div>
-                 <div><label className="block text-sm font-medium text-gray-700">Semrush Project ID</label><input name="semrush_project_id" type="text" className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md" disabled={isSubmitting} /></div>
               </>
             )}
 
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full px-4 py-2 font-normal text-white bg-[#188bdb] border-[3px] border-[#188bdb] rounded-[3px] hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50"
+              className="w-full px-4 py-2 font-normal text-white bg-[#188bdb] border-[3px] border-[#188bdb] rounded-[3px] hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 mt-4"
             >
               {isSubmitting ? <ArrowRepeat className="animate-spin" size={18} /> : <PersonPlus size={18} />}
               {isSubmitting ? 'Speichere...' : (selectedRole === 'BENUTZER' ? 'Kunden erstellen' : 'Admin erstellen')}
@@ -235,7 +326,7 @@ export default function AdminPage() {
           </form>
         </div>
 
-        {/* LISTE */}
+        {/* LISTE (Rechts) */}
         <div className="lg:col-span-2 bg-white p-6 rounded-lg shadow-md border border-gray-200">
           <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
             <People size={22} /> Vorhandene Nutzer
