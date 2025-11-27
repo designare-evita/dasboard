@@ -33,6 +33,20 @@ export default function AdminPage() {
 
   const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
 
+  // ✅ NEU: Hilfsfunktion für Rollen-Styling (Konsistent mit LoginLogbook)
+  const getRoleStyle = (role: string) => {
+    switch (role) {
+      case 'ADMIN':
+        return 'bg-blue-100 text-blue-800'; // Blau für Admins
+      case 'BENUTZER':
+        return 'bg-green-100 text-green-800'; // Grün für Benutzer (Kunden)
+      case 'SUPERADMIN':
+        return 'bg-red-100 text-red-800'; // Rot für Superadmins
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
   const fetchUsers = async (): Promise<void> => {
     setIsLoadingUsers(true);
     try {
@@ -340,7 +354,8 @@ export default function AdminPage() {
                     <div className="flex-1 overflow-hidden">
                       <div className="flex justify-between items-start">
                         <p className="font-semibold text-gray-900 truncate" title={user.email}>{user.email}</p>
-                        <span className={`px-2 py-0.5 rounded text-xs font-medium uppercase ${user.role === 'ADMIN' || user.role === 'SUPERADMIN' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}`}>
+                        {/* ✅ KORREKTUR: Konsistente Badges mit getRoleStyle */}
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium uppercase ${getRoleStyle(user.role)}`}>
                           {user.role}
                         </span>
                       </div>
