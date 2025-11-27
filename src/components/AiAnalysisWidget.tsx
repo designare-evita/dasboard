@@ -2,11 +2,12 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Lightbulb, ArrowRepeat, Robot, Cpu, ExclamationTriangle, InfoCircle, GraphUpArrow } from 'react-bootstrap-icons';
-import { getRangeLabel, type DateRangeOption } from '@/components/DateRangeSelector'; // Import für Labels
+// Entferne 'type' beim Import, um Kompatibilitätsprobleme auszuschließen
+import { getRangeLabel, DateRangeOption } from '@/components/DateRangeSelector';
 
 interface Props {
   projectId: string;
-  dateRange: string; // Kommt als string rein, ist aber kompatibel mit DateRangeOption
+  dateRange: string;
 }
 
 export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
@@ -26,7 +27,6 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
   // --- PRE-FETCHING & RESET LOGIK ---
   useEffect(() => {
     // 1. RESET: Wenn sich das Datum ändert, löschen wir die alte Analyse
-    // Damit der User sieht, dass er für den neuen Zeitraum neu starten muss.
     setStatusContent('');
     setAnalysisContent('');
     setError(null);
@@ -50,8 +50,7 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
     };
 
     prefetchData();
-  }, [projectId, dateRange]); // Feuert bei Änderung von dateRange
-  // ---------------------------
+  }, [projectId, dateRange]);
 
   const handleAnalyze = async () => {
     setIsLoading(true);
@@ -69,7 +68,7 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
       const response = await fetch('/api/ai/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId, dateRange }), // Hier wird der aktuelle Zeitraum gesendet
+        body: JSON.stringify({ projectId, dateRange }),
         signal: abortControllerRef.current.signal
       });
 
@@ -122,6 +121,7 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
   };
 
   // Helfer für den Anzeigetext
+  // Cast zu DateRangeOption für Typsicherheit
   const rangeLabel = getRangeLabel(dateRange as DateRangeOption).toLowerCase();
 
   // Start-Ansicht (Leerzustand)
@@ -161,10 +161,10 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
             Status ({rangeLabel})
           </h3>
         </div>
-      <div className="p-5 text-sm text-indigo-900 leading-relaxed flex-grow">
+        <div className="p-5 text-sm text-indigo-900 leading-relaxed flex-grow">
            <div dangerouslySetInnerHTML={{ __html: statusContent }} />
            
-           {/* NEUER CURSOR SPALTE 1 */}
+           {/* GRÜNE ANIMATION SPALTE 1 */}
            {isLoading && !analysisContent && (
              <div className="inline-flex items-center gap-2 mt-2 text-emerald-600 font-medium animate-pulse">
                <span className="relative flex h-3 w-3">
@@ -175,6 +175,7 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
              </div>
            )}
         </div>
+      </div>
 
       {/* SPALTE 2: Analyse */}
       <div className="bg-white rounded-2xl border border-gray-200 flex flex-col h-full shadow-sm">
@@ -188,11 +189,11 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
            {analysisContent ? (
              <div dangerouslySetInnerHTML={{ __html: analysisContent }} />
            ) : (
-             /* Platzhalter wird durch Animation ersetzt */
+             /* Platzhalter, solange Spalte 1 noch lädt */
              isLoading && !statusContent ? <p className="text-gray-400 italic">Warte auf Datenverarbeitung...</p> : null
            )}
 
-           {/* NEUER CURSOR SPALTE 2 */}
+           {/* GRÜNE ANIMATION SPALTE 2 */}
            {isLoading && analysisContent && (
              <div className="inline-flex items-center gap-2 mt-2 text-emerald-600 font-medium animate-pulse">
                <span className="w-2 h-4 bg-emerald-500 rounded-sm shadow-[0_0_10px_rgba(16,185,129,0.6)]"></span>
