@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Lightbulb, ArrowRepeat, Robot, Cpu, ExclamationTriangle, InfoCircle, GraphUpArrow } from 'react-bootstrap-icons';
 
 interface Props {
@@ -9,16 +9,43 @@ interface Props {
 }
 
 export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
-  // Wir speichern den Text für beide Spalten separat
+  // Content States
   const [statusContent, setStatusContent] = useState('');
   const [analysisContent, setAnalysisContent] = useState('');
   
+  // UI States
   const [isLoading, setIsLoading] = useState(false);
-  const [isStreamComplete, setIsStreamComplete] = useState(false); // Neu: Um Cursors zu steuern
+  const [isStreamComplete, setIsStreamComplete] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const [isPrefetched, setIsPrefetched] = useState(false); // Neuer State für Debug-Zwecke (optional)
 
-  // Ref, um Re-Renders beim Streamen nicht zu blockieren
+  // Ref für AbortController
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // --- PRE-FETCHING LOGIK ---
+  // Sobald die Komponente gemountet wird (User betritt Seite),
+  // stoßen wir den Daten-Abruf an. Die Daten landen im serverseitigen Cache.
+  useEffect(() => {
+    const prefetchData = async () => {
+      if (!projectId) return;
+      
+      console.log('[AI Widget] 🚀 Starte Pre-Fetching im Hintergrund...');
+      try {
+        // Wir rufen die Standard-Daten-Route auf.
+        // Diese führt intern getOrFetchGoogleData aus und füllt den Cache.
+        await fetch(`/api/projects/${projectId}?dateRange=${dateRange}`, {
+          priority: 'low' // Browser-Hint: Nicht kritisch für initiales Rendering
+        });
+        setIsPrefetched(true);
+        console.log('[AI Widget] ✅ Pre-Fetching abgeschlossen. Daten sind im Cache.');
+      } catch (e) {
+        console.warn('[AI Widget] Pre-Fetching fehlgeschlagen (nicht kritisch):', e);
+      }
+    };
+
+    prefetchData();
+  }, [projectId, dateRange]);
+  // ---------------------------
 
   const handleAnalyze = async () => {
     setIsLoading(true);
@@ -27,7 +54,6 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
     setStatusContent('');
     setAnalysisContent('');
 
-    // Alten Request abbrechen falls vorhanden
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
@@ -48,9 +74,8 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
       const decoder = new TextDecoder();
       let fullText = '';
       
-      // Throttling Variablen
       let lastUpdateTime = 0;
-      const UPDATE_INTERVAL = 50; // Sehr flüssig (20fps)
+      const UPDATE_INTERVAL = 50; // 20fps für flüssigen Text
 
       while (true) {
         const { done, value } = await reader.read();
@@ -66,7 +91,6 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
         }
       }
       
-      // Finales Update
       parseAndSetContent(fullText);
       setIsStreamComplete(true);
 
@@ -80,7 +104,6 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
     }
   };
 
-  // Logik zum Trennen des Streams am Marker
   const parseAndSetContent = (text: string) => {
     const marker = '[[SPLIT]]';
     if (text.includes(marker)) {
@@ -88,7 +111,6 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
       setStatusContent(part1);
       setAnalysisContent(part2);
     } else {
-      // Solange der Marker noch nicht da ist, landet alles in Spalte 1
       setStatusContent(text);
     }
   };
@@ -96,17 +118,21 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
   // Start-Ansicht (Leerzustand)
   if (!statusContent && !isLoading && !error) {
     return (
-      <div className="card-glass p-6 mb-6 flex items-center gap-4">
-        <div className="p-3 bg-indigo-50 rounded-xl text-indigo-600">
-          <Robot size={24} />
+      <div className="card-glass p-6 mb-6 flex items-center gap-4 transition-all hover:shadow-md">
+        <div className={`p-3 rounded-xl text-indigo-600 transition-colors ${isPrefetched ? 'bg-green-50 text-green-600' : 'bg-indigo-50'}`}>
+          {isPrefetched ? <Cpu size={24} /> : <Robot size={24} />}
         </div>
         <div className="flex-1">
           <h3 className="text-lg font-bold text-gray-900">Data Max Analyse</h3>
-          <p className="text-sm text-gray-500">Soll ich die aktuellen Projektdaten für Sie auswerten?</p>
+          <p className="text-sm text-gray-500">
+            {isPrefetched 
+              ? "Daten sind vorbereitet und liegen bereit." 
+              : "Soll ich die aktuellen Projektdaten für Sie auswerten?"}
+          </p>
         </div>
         <button
           onClick={handleAnalyze}
-          className="px-4 py-2 bg-[#188BDB] text-white rounded-lg text-sm font-medium hover:bg-[#1479BF] transition-colors flex items-center gap-2"
+          className="px-4 py-2 bg-[#188BDB] text-white rounded-lg text-sm font-medium hover:bg-[#1479BF] transition-colors flex items-center gap-2 shadow-sm"
         >
           <Lightbulb size={14} />
           Jetzt analysieren
@@ -118,7 +144,7 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6 items-stretch animate-in fade-in slide-in-from-bottom-4 duration-500">
       
-      {/* SPALTE 1: Status (Blaues Theme) */}
+      {/* SPALTE 1: Status */}
       <div className="bg-indigo-50/50 rounded-2xl border border-indigo-100 flex flex-col h-full shadow-sm">
         <div className="p-5 border-b border-indigo-100 bg-white/40 rounded-t-2xl backdrop-blur-sm">
           <h3 className="font-bold text-indigo-900 flex items-center gap-2">
@@ -127,17 +153,14 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
           </h3>
         </div>
         <div className="p-5 text-sm text-indigo-900 leading-relaxed flex-grow">
-           {/* Inhalt rendern */}
            <div dangerouslySetInnerHTML={{ __html: statusContent }} />
-           
-           {/* Cursor Effekt während Stream läuft und wir in Spalte 1 sind */}
            {isLoading && !analysisContent && (
              <span className="inline-block w-2 h-4 bg-indigo-400 ml-1 animate-pulse align-middle"/>
            )}
         </div>
       </div>
 
-      {/* SPALTE 2: Analyse (Weißes Theme) */}
+      {/* SPALTE 2: Analyse */}
       <div className="bg-white rounded-2xl border border-gray-200 flex flex-col h-full shadow-sm">
         <div className="p-5 border-b border-gray-100">
           <h3 className="font-bold text-gray-900 flex items-center gap-2">
@@ -146,20 +169,16 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
           </h3>
         </div>
         <div className="p-5 text-sm text-gray-700 leading-relaxed flex-grow">
-           {/* Inhalt rendern */}
            {analysisContent ? (
              <div dangerouslySetInnerHTML={{ __html: analysisContent }} />
            ) : (
-             /* Platzhalter solange Spalte 1 noch lädt */
              isLoading && <p className="text-gray-400 italic">Warte auf Datenverarbeitung...</p>
            )}
 
-           {/* Cursor Effekt während Stream läuft und wir in Spalte 2 sind */}
            {isLoading && analysisContent && (
              <span className="inline-block w-2 h-4 bg-gray-400 ml-1 animate-pulse align-middle"/>
            )}
            
-           {/* Fehleranzeige */}
            {error && (
              <div className="mt-4 p-3 bg-red-50 text-red-700 text-xs rounded border border-red-200 flex gap-2">
                <ExclamationTriangle className="shrink-0 mt-0.5"/>
