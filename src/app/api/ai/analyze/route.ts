@@ -114,7 +114,7 @@ export async function POST(req: NextRequest) {
     `;
 
     // --- CACHE LOGIK (48 Stunden) ---
-    const cacheInputString = `${summaryData}|ROLE:${userRole}|V2_DETAIL`; // V2_DETAIL hinzugefügt um alten Cache ungültig zu machen
+    const cacheInputString = `${summaryData}|ROLE:${userRole}|V3_HTML_FIX`; // Hash Key geändert um Cache zu invalidieren
     const inputHash = createHash(cacheInputString);
 
     const { rows: cacheRows } = await sql`
@@ -142,7 +142,7 @@ export async function POST(req: NextRequest) {
     // --- ENDE CACHE ---
 
 
-    // 2. PROMPT SETUP (Detail-Modus)
+    // 2. PROMPT SETUP (Strikes HTML Enforcement)
     
     const visualSuccessTemplate = `
       <div class="mt-6 p-4 bg-emerald-50 rounded-xl border border-emerald-100 flex items-start gap-4 shadow-sm">
@@ -153,68 +153,77 @@ export async function POST(req: NextRequest) {
     `;
 
     let systemPrompt = `
-      Du bist "Data Max", ein hochspezialisierter Performance-Analyst für SEO & Web-Daten.
+      Du bist "Data Max", ein Performance-Analyst.
+
+      REGELN FÜR FORMATIERUNG (STRIKT BEFOLGEN):
+      1. VERWENDE KEIN MARKDOWN. Keine Sternchen (*), keine Rauten (#), keine Bindestriche (-) für Listen.
+      2. Nutze AUSSCHLIESSLICH HTML-Tags für die Struktur.
       
-      TECHNISCHE ANWEISUNGEN:
-      1. Antworte NUR mit dem Inhalt.
-      2. Trenne Spalte 1 und Spalte 2 exakt mit dem Marker "[[SPLIT]]".
-      3. Nutze HTML-Tags für Struktur und Tailwind-Klassen für Styling.
-      
-      STYLING REGELN (WICHTIG):
-      - Überschriften: <h4 class="font-bold text-indigo-900 mt-4 mb-2 text-base">
-      - Listen: <ul class="space-y-1.5 mb-4 text-sm text-indigo-900/80">
-      - Fettgedruckte Werte: <span class="font-semibold text-indigo-950">
-      
-      OUTPUT STRUKTUR:
-      [Inhalt für Spalte 1: Status & Zahlen]
+      ERLAUBTE HTML-STRUKTUR:
+      - Absätze: <p class="mb-4 leading-relaxed text-gray-700">Dein Text...</p>
+      - Überschriften: <h4 class="font-bold text-indigo-900 mt-6 mb-3 text-base flex items-center gap-2">Dein Titel</h4>
+      - Listen: <ul class="space-y-2 mb-4 text-sm text-gray-600 list-none pl-1"> 
+                  <li class="flex gap-2"><span class="text-indigo-400 mt-1">•</span> <span>Dein Punkt</span></li> 
+                </ul>
+      - Hervorhebungen (Positiv): <span class="text-emerald-600 font-bold">
+      - Hervorhebungen (Negativ/Kritisch): <span class="text-red-600 font-bold">
+      - Hervorhebungen (Neutral/Wichtig): <span class="font-semibold text-gray-900">
+
+      OUTPUT AUFBAU:
+      [Inhalt Spalte 1]
       [[SPLIT]]
-      [Inhalt für Spalte 2: Performance Analyse]
+      [Inhalt Spalte 2]
     `;
 
     if (userRole === 'ADMIN' || userRole === 'SUPERADMIN') {
-      // === ADMIN MODUS (Detailliert & Kritisch) ===
+      // === ADMIN MODUS ===
       systemPrompt += `
-        ZIELGRUPPE: Admin/Experte.
-        TON: Analytisch, Kritisch, "Du"-Stil. Warne bei negativen Trends deutlich.
+        ZIELGRUPPE: Admin/Experte. Ton: Analytisch, Kritisch.
         
-        INHALT SPALTE 1 (Status):
-        1. Überschrift "Zeitplan:". Liste Status, aktueller Monat, Start, Ende.
-        2. Überschrift "Aktuelle Performance Kennzahlen:". 
-           - Liste ALLE KPIs auf.
-           - WICHTIG: Wenn ein Trend negativ ist (z.B. -20%), färbe ihn ROT und FETT: <span class="text-red-600 font-bold">(-20%)</span>.
-           - Wenn positiv, neutral lassen oder grün.
-        3. Überschrift "Top Kanäle:". Liste die Kanäle auf.
-        4. VISUAL ENDING: ${visualSuccessTemplate} (Fülle mit dem technisch stärksten Keyword oder Wachstum).
+        SPALTE 1 (Status & Zahlen):
+        1. <h4...>Zeitplan:</h4>
+           <ul...>
+             <li...>Status: ...</li>
+             <li...>Aktueller Monat: ...</li>
+           </ul...>
+        2. <h4...>Performance Kennzahlen:</h4> 
+           <ul...>
+             <li...>Liste alle KPIs. Färbe negative Trends (<0%) ROT (<span class="text-red-600 font-bold">). Positive neutral oder grün.</li>
+           </ul...>
+        3. VISUAL ENDING: ${visualSuccessTemplate} (Fülle ERFOLG_TEXT_PLATZHALTER mit dem stärksten technischen Wert).
         
-        INHALT SPALTE 2 (Analyse):
-        1. Überschrift "Status-Analyse:".
-        2. Fließtext: Analysiere den aktuellen Projektfortschritt.
-        3. Nutze fette rote Markierungen im Text für Probleme (<span class="text-red-600 font-bold">...</span>) und grüne für Erfolge (<span class="text-green-600 font-bold">...</span>).
-        4. Erwähne explizit Bot-Traffic vs. echte Nutzer.
-        5. Gebe konkrete Handlungsanweisungen basierend auf den Keywords.
+        SPALTE 2 (Analyse):
+        1. <h4...>Status-Analyse:</h4>
+           <p...>Analysiere den Projektfortschritt kritisch. Nutze <b>fette rote Schrift</b> für Probleme.</p>
+        2. <h4...>Handlungsempfehlung:</h4>
+           <ul...>
+             <li...>Konkrete technische Schritte (z.B. "Prüfe GSC Snippet für Keyword X").</li>
+           </ul...>
       `;
     } else {
-      // === KUNDEN MODUS (Erklärend & Positiv) ===
+      // === KUNDEN MODUS ===
       systemPrompt += `
-        ZIELGRUPPE: Kunde / Geschäftsführer.
-        TON: Höflich ("Sie"), Erklärend, Positiv, Zukunftsorientiert.
+        ZIELGRUPPE: Kunde. Ton: Höflich, Erklärend, Positiv.
         
-        INHALT SPALTE 1 (Status):
-        1. Überschrift "Projekt-Laufzeit:". Liste Status, Monat, Start, Ende.
-        2. Überschrift "Aktuelle Leistung:".
-           - Liste "Nutzer (Gesamt)", "Klassische Besucher" und "KI-Sichtbarkeit".
-           - Füge unter KI-Sichtbarkeit einen kurzen Satz in <span class="text-xs text-indigo-600 block mt-0.5"> ein: "Ihre Inhalte werden von modernen KI-Systemen gefunden."
-           - Liste Impressionen und Trend. Färbe positive Trends GRÜN: <span class="text-green-600 font-bold">...</span>.
-        3. VISUAL ENDING: ${visualSuccessTemplate} (Fülle mit einer motivierenden Erfolgsmeldung, z.B. hohe Reichweite).
+        SPALTE 1 (Status & Zahlen):
+        1. <h4...>Projekt-Laufzeit:</h4>
+           <ul...>Listenpunkte zu Start, Ende, Monat.</ul...>
+        2. <h4...>Aktuelle Leistung:</h4>
+           <ul...>
+             <li...>Nutzer gesamt & Klassische Besucher.</li>
+             <li...>KI-Sichtbarkeit: Füge <br><span class="text-xs text-indigo-500">Erklärung: Ihre Inhalte werden von modernen KI-Systemen gefunden.</span> hinzu.</li>
+             <li...>Impressionen: Färbe positive Trends GRÜN (<span class="text-emerald-600 font-bold">).</li>
+           </ul...>
+        3. VISUAL ENDING: ${visualSuccessTemplate} (Fülle ERFOLG_TEXT_PLATZHALTER mit einer motivierenden Nachricht).
         
-        INHALT SPALTE 2 (Analyse):
-        1. Beginne mit einer persönlichen Anrede (Sehr geehrte Kundin/Kunde).
-        2. Überschrift "Erfolgreiche Kanäle & Sichtbarkeit:".
-           - Beschreibe die Traffic-Quellen im Fließtext.
-           - Hebe positive Zahlen grün und fett hervor (<span class="text-green-600 font-bold">...</span>).
-           - Erkläre den Vorteil der KI-Sichtbarkeit (Zukunftssicherheit).
-        3. Überschrift "Top Keywords – Fokus auf Relevanz:".
-           - Liste die besten 3-4 Keywords auf und kommentiere deren Position kurz.
+        SPALTE 2 (Performance Analyse):
+        1. Beginne mit: <p class="mb-4 font-medium">Sehr geehrte Kundin, sehr geehrter Kunde,</p>
+        2. <h4...>Zusammenfassung:</h4>
+           <p...>Beschreibe die Erfolge im Fließtext. Hebe wichtige Zahlen <span class="text-emerald-600 font-bold">grün</span> hervor.</p>
+        3. <h4...>Top Keywords & Relevanz:</h4>
+           <ul...>
+             <li...>Liste die Top 3 Keywords und warum sie gut für das Geschäft sind.</li>
+           </ul...>
       `;
     }
 
@@ -222,7 +231,7 @@ export async function POST(req: NextRequest) {
       model: google('gemini-2.5-flash'),
       system: systemPrompt,
       prompt: `Analysiere diese Daten für den Zeitraum ${dateRange}:\n${summaryData}`,
-      temperature: 0.4, // Etwas kreativer für bessere Texte, aber strukturiert
+      temperature: 0.4, 
       onFinish: async ({ text }) => {
         if (text && text.length > 50) {
           try {
