@@ -1,8 +1,7 @@
-// src/components/AiAnalysisWidget.tsx
 'use client';
 
-import { useState } from 'react';
-import { Lightbulb, ArrowRepeat, Robot, Cpu, ExclamationTriangle } from 'react-bootstrap-icons';
+import { useState, useRef } from 'react';
+import { Lightbulb, ArrowRepeat, Robot, Cpu, ExclamationTriangle, InfoCircle, GraphUpArrow } from 'react-bootstrap-icons';
 
 interface Props {
   projectId: string;
@@ -10,179 +9,169 @@ interface Props {
 }
 
 export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
-  const [completion, setCompletion] = useState('');
+  // Wir speichern den Text für beide Spalten separat
+  const [statusContent, setStatusContent] = useState('');
+  const [analysisContent, setAnalysisContent] = useState('');
+  
   const [isLoading, setIsLoading] = useState(false);
+  const [isStreamComplete, setIsStreamComplete] = useState(false); // Neu: Um Cursors zu steuern
   const [error, setError] = useState<Error | null>(null);
 
-  const handleAnalyze = async (useTestStream = false) => {
-    const endpoint = useTestStream ? '/api/ai/test-stream' : '/api/ai/analyze';
-    console.log("[AI Widget] Starting analysis with:", { projectId, dateRange, endpoint });
+  // Ref, um Re-Renders beim Streamen nicht zu blockieren
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const handleAnalyze = async () => {
     setIsLoading(true);
+    setIsStreamComplete(false);
     setError(null);
-    setCompletion('');
+    setStatusContent('');
+    setAnalysisContent('');
+
+    // Alten Request abbrechen falls vorhanden
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await fetch('/api/ai/analyze', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ projectId, dateRange }),
+        signal: abortControllerRef.current.signal
       });
 
-      console.log("[AI Widget] Response status:", response.status);
-      console.log("[AI Widget] Response headers:", Object.fromEntries(response.headers.entries()));
+      if (!response.ok) throw new Error('Verbindung fehlgeschlagen');
+      if (!response.body) throw new Error('Kein Stream');
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || `HTTP ${response.status}`);
-      }
-
-      if (!response.body) {
-        throw new Error('Response body is null');
-      }
-
-      // Stream verarbeiten mit Throttling für flüssigeres Rendering
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
-      let accumulatedText = '';
-      let lastUpdateTime = Date.now();
-      const UPDATE_INTERVAL = 100; // Update UI alle 100ms
-
-      console.log("[AI Widget] Starting to read stream...");
+      let fullText = '';
+      
+      // Throttling Variablen
+      let lastUpdateTime = 0;
+      const UPDATE_INTERVAL = 50; // Sehr flüssig (20fps)
 
       while (true) {
         const { done, value } = await reader.read();
-
-        if (done) {
-          // Finales Update mit komplettem Text
-          setCompletion(accumulatedText);
-          console.log("[AI Widget] Stream completed. Total length:", accumulatedText.length);
-          break;
-        }
+        if (done) break;
 
         const chunk = decoder.decode(value, { stream: true });
-        console.log("[AI Widget] Received chunk:", chunk.substring(0, 100));
-        accumulatedText += chunk;
+        fullText += chunk;
 
-        // Throttle UI updates: Nur alle 100ms updaten
         const now = Date.now();
-        if (now - lastUpdateTime >= UPDATE_INTERVAL) {
-          setCompletion(accumulatedText);
+        if (now - lastUpdateTime > UPDATE_INTERVAL) {
+          parseAndSetContent(fullText);
           lastUpdateTime = now;
         }
       }
+      
+      // Finales Update
+      parseAndSetContent(fullText);
+      setIsStreamComplete(true);
 
-      setIsLoading(false);
-      console.log("[AI Widget] Analysis finished successfully");
-
-    } catch (err) {
-      console.error("[AI Widget] Error:", err);
-      setError(err instanceof Error ? err : new Error(String(err)));
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
+        console.error(err);
+        setError(err);
+      }
+    } finally {
       setIsLoading(false);
     }
   };
 
-  // Benutzerfreundliche Fehlermeldung
-  const displayError = error
-    ? `Meine Verbindung zu den neuralen Netzwerken ist unterbrochen. ${error.message || 'Unbekannter Fehler'}`
-    : null;
+  // Logik zum Trennen des Streams am Marker
+  const parseAndSetContent = (text: string) => {
+    const marker = '[[SPLIT]]';
+    if (text.includes(marker)) {
+      const [part1, part2] = text.split(marker);
+      setStatusContent(part1);
+      setAnalysisContent(part2);
+    } else {
+      // Solange der Marker noch nicht da ist, landet alles in Spalte 1
+      setStatusContent(text);
+    }
+  };
+
+  // Start-Ansicht (Leerzustand)
+  if (!statusContent && !isLoading && !error) {
+    return (
+      <div className="card-glass p-6 mb-6 flex items-center gap-4">
+        <div className="p-3 bg-indigo-50 rounded-xl text-indigo-600">
+          <Robot size={24} />
+        </div>
+        <div className="flex-1">
+          <h3 className="text-lg font-bold text-gray-900">Data Max Analyse</h3>
+          <p className="text-sm text-gray-500">Soll ich die aktuellen Projektdaten für Sie auswerten?</p>
+        </div>
+        <button
+          onClick={handleAnalyze}
+          className="px-4 py-2 bg-[#188BDB] text-white rounded-lg text-sm font-medium hover:bg-[#1479BF] transition-colors flex items-center gap-2"
+        >
+          <Lightbulb size={14} />
+          Jetzt analysieren
+        </button>
+      </div>
+    );
+  }
 
   return (
-    <div className="card-glass p-6 mb-6 relative overflow-hidden transition-all border-l-4 border-l-indigo-500">
-      <div className="flex items-start gap-4">
-        <div className={`p-3 rounded-xl transition-colors duration-500 ${
-          isLoading ? 'bg-indigo-100 text-indigo-600' : 
-          completion ? 'bg-indigo-50 text-indigo-600' : 'bg-gray-100 text-gray-500'
-        }`}>
-          {isLoading ? <Cpu size={24} className="animate-spin" /> : <Robot size={24} />}
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6 items-stretch animate-in fade-in slide-in-from-bottom-4 duration-500">
+      
+      {/* SPALTE 1: Status (Blaues Theme) */}
+      <div className="bg-indigo-50/50 rounded-2xl border border-indigo-100 flex flex-col h-full shadow-sm">
+        <div className="p-5 border-b border-indigo-100 bg-white/40 rounded-t-2xl backdrop-blur-sm">
+          <h3 className="font-bold text-indigo-900 flex items-center gap-2">
+            {isLoading ? <ArrowRepeat className="animate-spin" /> : <InfoCircle />}
+            Projekt Status & Zahlen
+          </h3>
         </div>
-        
-        <div className="flex-1">
-          <div className="flex justify-between items-center mb-2">
-            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-              Data Max 
-              <span className="text-[10px] font-normal bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full border border-gray-200">
-                Performance Android v1.0
-              </span>
-            </h3>
-          </div>
-          
-          {/* Initialzustand: Weder am Laden, noch Text vorhanden, noch Fehler */}
-          {!completion && !isLoading && !displayError && (
-            <div className="mt-2">
-              <p className="text-sm text-gray-500 mb-3 italic">
-                &quot;Hallo. Mein Name ist Data Max. Ich bin spezialisiert auf die Auswertung komplexer Suchdaten. Darf ich die Analyse starten?&quot;
-              </p>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => handleAnalyze(false)}
-                  className="text-sm bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300 px-4 py-2 rounded-md transition-all flex items-center gap-2 shadow-sm group"
-                >
-                  <Lightbulb size={14} className="group-hover:text-yellow-500 transition-colors"/>
-                  Analyse starten
-                </button>
-                <button
-                  onClick={() => handleAnalyze(true)}
-                  className="text-sm bg-green-50 border border-green-200 text-green-700 hover:bg-green-100 hover:border-green-300 px-4 py-2 rounded-md transition-all flex items-center gap-2 shadow-sm"
-                  title="Test-Stream ohne externe APIs (schnell)"
-                >
-                  Test Stream
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Ladebalken, während die Daten verarbeitet werden (optional, falls der Stream etwas braucht um zu starten) */}
-          {isLoading && !completion && (
-            <div className="mt-3 space-y-2">
-               <p className="text-sm text-indigo-600 font-medium animate-pulse">Verarbeite Datenströme...</p>
-               <div className="h-2 bg-indigo-100 rounded overflow-hidden max-w-[200px]">
-                 <div className="h-full bg-indigo-500 animate-progress origin-left"></div>
-               </div>
-            </div>
-          )}
-
-          {/* Hier wird das gestreamte HTML gerendert */}
-          {completion && (
-            <div className="mt-2 animate-in fade-in slide-in-from-bottom-2">
-              <div 
-                className="text-gray-700 text-sm leading-relaxed prose prose-sm max-w-none prose-p:my-2 prose-ul:my-2 prose-li:my-0.5 prose-h4:text-indigo-900 prose-h4:font-bold prose-h4:mb-1 prose-h4:mt-3"
-                // Das HTML baut sich hier live auf
-                dangerouslySetInnerHTML={{ __html: completion }}
-              />
-              
-              {!isLoading && (
-                <button
-                  onClick={() => handleAnalyze(false)}
-                  className="text-xs text-gray-400 hover:text-indigo-600 mt-4 flex items-center gap-1 transition-colors"
-                >
-                  <ArrowRepeat size={10} /> Re-Kalkulation anfordern
-                </button>
-              )}
-            </div>
-          )}
-          
-          {displayError && (
-             <div className="mt-2 text-xs text-red-600 bg-red-50 p-3 rounded border border-red-100 flex items-center gap-2">
-               <ExclamationTriangle size={16} className="shrink-0" />
-               {displayError}
-               <button onClick={() => handleAnalyze(false)} className="ml-auto text-red-700 underline font-semibold">Wiederholen</button>
-             </div>
-          )}
+        <div className="p-5 text-sm text-indigo-900 leading-relaxed flex-grow">
+           {/* Inhalt rendern */}
+           <div dangerouslySetInnerHTML={{ __html: statusContent }} />
+           
+           {/* Cursor Effekt während Stream läuft und wir in Spalte 1 sind */}
+           {isLoading && !analysisContent && (
+             <span className="inline-block w-2 h-4 bg-indigo-400 ml-1 animate-pulse align-middle"/>
+           )}
         </div>
       </div>
 
-      <style jsx>{`
-        @keyframes progress {
-          0% { width: 0%; }
-          50% { width: 70%; }
-          100% { width: 95%; }
-        }
-        .animate-progress {
-          animation: progress 3s ease-out forwards;
-        }
-      `}</style>
+      {/* SPALTE 2: Analyse (Weißes Theme) */}
+      <div className="bg-white rounded-2xl border border-gray-200 flex flex-col h-full shadow-sm">
+        <div className="p-5 border-b border-gray-100">
+          <h3 className="font-bold text-gray-900 flex items-center gap-2">
+            <GraphUpArrow className="text-emerald-600" />
+            Performance Analyse
+          </h3>
+        </div>
+        <div className="p-5 text-sm text-gray-700 leading-relaxed flex-grow">
+           {/* Inhalt rendern */}
+           {analysisContent ? (
+             <div dangerouslySetInnerHTML={{ __html: analysisContent }} />
+           ) : (
+             /* Platzhalter solange Spalte 1 noch lädt */
+             isLoading && <p className="text-gray-400 italic">Warte auf Datenverarbeitung...</p>
+           )}
+
+           {/* Cursor Effekt während Stream läuft und wir in Spalte 2 sind */}
+           {isLoading && analysisContent && (
+             <span className="inline-block w-2 h-4 bg-gray-400 ml-1 animate-pulse align-middle"/>
+           )}
+           
+           {/* Fehleranzeige */}
+           {error && (
+             <div className="mt-4 p-3 bg-red-50 text-red-700 text-xs rounded border border-red-200 flex gap-2">
+               <ExclamationTriangle className="shrink-0 mt-0.5"/>
+               <div>
+                 <strong>Fehler:</strong> {error.message}
+                 <button onClick={handleAnalyze} className="underline ml-2">Wiederholen</button>
+               </div>
+             </div>
+           )}
+        </div>
+      </div>
+
     </div>
   );
 }
