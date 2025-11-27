@@ -2,10 +2,11 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Lightbulb, ArrowRepeat, Robot, Cpu, ExclamationTriangle, InfoCircle, GraphUpArrow } from 'react-bootstrap-icons';
+import { getRangeLabel, type DateRangeOption } from '@/components/DateRangeSelector'; // Import für Labels
 
 interface Props {
   projectId: string;
-  dateRange: string;
+  dateRange: string; // Kommt als string rein, ist aber kompatibel mit DateRangeOption
 }
 
 export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
@@ -17,34 +18,39 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
   const [isLoading, setIsLoading] = useState(false);
   const [isStreamComplete, setIsStreamComplete] = useState(false);
   const [error, setError] = useState<Error | null>(null);
-  const [isPrefetched, setIsPrefetched] = useState(false); // Neuer State für Debug-Zwecke (optional)
+  const [isPrefetched, setIsPrefetched] = useState(false);
 
   // Ref für AbortController
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // --- PRE-FETCHING LOGIK ---
-  // Sobald die Komponente gemountet wird (User betritt Seite),
-  // stoßen wir den Daten-Abruf an. Die Daten landen im serverseitigen Cache.
+  // --- PRE-FETCHING & RESET LOGIK ---
   useEffect(() => {
+    // 1. RESET: Wenn sich das Datum ändert, löschen wir die alte Analyse
+    // Damit der User sieht, dass er für den neuen Zeitraum neu starten muss.
+    setStatusContent('');
+    setAnalysisContent('');
+    setError(null);
+    setIsStreamComplete(false);
+    setIsPrefetched(false);
+
     const prefetchData = async () => {
       if (!projectId) return;
       
-      console.log('[AI Widget] 🚀 Starte Pre-Fetching im Hintergrund...');
+      console.log(`[AI Widget] 🚀 Starte Pre-Fetching für Zeitraum: ${dateRange}`);
       try {
-        // Wir rufen die Standard-Daten-Route auf.
-        // Diese führt intern getOrFetchGoogleData aus und füllt den Cache.
+        // Cache aufwärmen für den neuen Zeitraum
         await fetch(`/api/projects/${projectId}?dateRange=${dateRange}`, {
-          priority: 'low' // Browser-Hint: Nicht kritisch für initiales Rendering
+          priority: 'low'
         });
         setIsPrefetched(true);
-        console.log('[AI Widget] ✅ Pre-Fetching abgeschlossen. Daten sind im Cache.');
+        console.log('[AI Widget] ✅ Pre-Fetching abgeschlossen.');
       } catch (e) {
         console.warn('[AI Widget] Pre-Fetching fehlgeschlagen (nicht kritisch):', e);
       }
     };
 
     prefetchData();
-  }, [projectId, dateRange]);
+  }, [projectId, dateRange]); // Feuert bei Änderung von dateRange
   // ---------------------------
 
   const handleAnalyze = async () => {
@@ -63,7 +69,7 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
       const response = await fetch('/api/ai/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId, dateRange }),
+        body: JSON.stringify({ projectId, dateRange }), // Hier wird der aktuelle Zeitraum gesendet
         signal: abortControllerRef.current.signal
       });
 
@@ -75,7 +81,7 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
       let fullText = '';
       
       let lastUpdateTime = 0;
-      const UPDATE_INTERVAL = 50; // 20fps für flüssigen Text
+      const UPDATE_INTERVAL = 50;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -115,6 +121,9 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
     }
   };
 
+  // Helfer für den Anzeigetext
+  const rangeLabel = getRangeLabel(dateRange as DateRangeOption).toLowerCase();
+
   // Start-Ansicht (Leerzustand)
   if (!statusContent && !isLoading && !error) {
     return (
@@ -126,8 +135,8 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
           <h3 className="text-lg font-bold text-gray-900">Data Max Analyse</h3>
           <p className="text-sm text-gray-500">
             {isPrefetched 
-              ? "Daten sind vorbereitet und liegen bereit." 
-              : "Soll ich die aktuellen Projektdaten für Sie auswerten?"}
+              ? `Daten für "${rangeLabel}" liegen bereit.` 
+              : `Soll ich die Daten für "${rangeLabel}" auswerten?`}
           </p>
         </div>
         <button
@@ -146,10 +155,10 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
       
       {/* SPALTE 1: Status */}
       <div className="bg-indigo-50/50 rounded-2xl border border-indigo-100 flex flex-col h-full shadow-sm">
-        <div className="p-5 border-b border-indigo-100 bg-white/40 rounded-t-2xl backdrop-blur-sm">
+        <div className="p-5 border-b border-indigo-100 bg-white/40 rounded-t-2xl backdrop-blur-sm flex justify-between items-center">
           <h3 className="font-bold text-indigo-900 flex items-center gap-2">
             {isLoading ? <ArrowRepeat className="animate-spin" /> : <InfoCircle />}
-            Projekt Status & Zahlen
+            Status ({rangeLabel})
           </h3>
         </div>
         <div className="p-5 text-sm text-indigo-900 leading-relaxed flex-grow">
@@ -165,7 +174,7 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
         <div className="p-5 border-b border-gray-100">
           <h3 className="font-bold text-gray-900 flex items-center gap-2">
             <GraphUpArrow className="text-emerald-600" />
-            Performance Analyse
+            Analyse & Fazit
           </h3>
         </div>
         <div className="p-5 text-sm text-gray-700 leading-relaxed flex-grow">
