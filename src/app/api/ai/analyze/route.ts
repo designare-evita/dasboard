@@ -39,7 +39,6 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { projectId, dateRange } = body;
     const userRole = session.user.role;
-    const userId = session.user.id; // Der User, der die Anfrage stellt
 
     if (!projectId || !dateRange) {
       return NextResponse.json({ message: 'Fehlende Parameter' }, { status: 400 });
@@ -91,24 +90,22 @@ export async function POST(req: NextRequest) {
       ${topKeywords}
     `;
 
-    // --- CACHE LOGIK START ---
+    // --- CACHE LOGIK START (48 Stunden) ---
     
-    // Wir hashen die Daten UND die Rolle (da Admins andere Texte bekommen als Kunden)
-    // Das stellt sicher, dass wir bei Datenänderungen neu generieren.
     const cacheInputString = `${summaryData}|ROLE:${userRole}`;
     const inputHash = createHash(cacheInputString);
 
     console.log('[AI Cache] Checking Hash:', inputHash);
 
-    // Prüfen, ob wir einen aktuellen Eintrag in der DB haben (jünger als 24h)
+    // Prüfen, ob wir einen aktuellen Eintrag in der DB haben (jünger als 48h)
     const { rows: cacheRows } = await sql`
       SELECT response 
       FROM ai_analysis_cache
       WHERE 
-        user_id = ${projectId}::uuid -- Wir cachen pro Projekt-ID
+        user_id = ${projectId}::uuid 
         AND date_range = ${dateRange}
         AND input_hash = ${inputHash}
-        AND created_at > NOW() - INTERVAL '24 hours'
+        AND created_at > NOW() - INTERVAL '48 hours' -- HIER AUF 48 STUNDEN GESETZT
       ORDER BY created_at DESC
       LIMIT 1
     `;
@@ -117,8 +114,6 @@ export async function POST(req: NextRequest) {
       console.log('[AI Cache] ✅ HIT! Liefere gespeicherte Antwort.');
       const cachedResponse = cacheRows[0].response;
 
-      // Wir müssen einen Stream zurückgeben, damit das Frontend nicht bricht.
-      // Wir erstellen einen "künstlichen" Stream, der den fertigen Text sofort sendet.
       const stream = new ReadableStream({
         start(controller) {
           controller.enqueue(new TextEncoder().encode(cachedResponse));
@@ -135,7 +130,7 @@ export async function POST(req: NextRequest) {
     // --- CACHE LOGIK ENDE ---
 
 
-    // 2. Prompting (wie zuvor besprochen)
+    // 2. Prompting
     const visualSuccessTemplate = `
       <div class="mt-4 p-3 bg-emerald-50 rounded-lg border border-emerald-100 flex items-center gap-3">
          <div class="bg-white p-2 rounded-full text-emerald-600 shadow-sm">🏆</div>
@@ -184,8 +179,7 @@ export async function POST(req: NextRequest) {
       prompt: `Analysiere diese Daten:\n${summaryData}`,
       temperature: 0.5,
       onFinish: async ({ text }) => {
-        // Wenn der Stream fertig ist, speichern wir das Ergebnis in der DB
-        if (text && text.length > 50) { // Nur speichern wenn sinnvoll lang
+        if (text && text.length > 50) {
           try {
             console.log('[AI Cache] Speichere neue Antwort...');
             await sql`
