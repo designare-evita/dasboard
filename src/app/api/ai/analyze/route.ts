@@ -78,9 +78,7 @@ export async function POST(req: NextRequest) {
       ${topKeywords}
     `;
 
-    // 2. Der NEUE, optimierte Prompt (Hybrid Rendering)
-    // Wir entfernen das Grid-HTML und fordern nur Content-Blöcke an.
-    
+    // 2. Optimierter Prompt mit Rollen-Unterscheidung
     const visualSuccessTemplate = `
       <div class="mt-4 p-3 bg-emerald-50 rounded-lg border border-emerald-100 flex items-center gap-3">
          <div class="bg-white p-2 rounded-full text-emerald-600 shadow-sm">🏆</div>
@@ -89,38 +87,66 @@ export async function POST(req: NextRequest) {
       </div>
     `;
 
+    // Basis-Regeln für BEIDE (Layout-Verbot für Speed)
     let systemPrompt = `
       Du bist "Data Max", ein Performance-Analyst.
       
-      REGELN:
-      1. Antworte NUR mit dem Inhalt für zwei Bereiche.
-      2. Trenne die Bereiche exakt mit dem Marker "[[SPLIT]]".
-      3. Nutze HTML für Formatierung (<b>, <ul>, <li>, <span class="text-green-600">), aber KEINE Layout-Container (kein <div> Grid).
+      TECHNISCHE REGELN (WICHTIG):
+      1. Antworte NUR mit dem Inhalt.
+      2. Trenne Spalte 1 und Spalte 2 exakt mit dem Marker "[[SPLIT]]".
+      3. Nutze HTML für Text-Formatierung (<b>, <ul>, <li>, <span class="text-green-600">), aber KEINE Layout-Container (kein <div> Grid, keine Spalten).
       4. Fasse dich kurz.
       
-      STRUKTUR:
-      Bereich 1: Status & Zahlen (Fakten, Bullet Points)
+      OUTPUT STRUKTUR:
+      [Inhalt für Spalte 1: Status]
       [[SPLIT]]
-      Bereich 2: Analyse & Fazit (Text, Empfehlung)
+      [Inhalt für Spalte 2: Analyse]
     `;
 
-    if (userRole !== 'ADMIN' && userRole !== 'SUPERADMIN') {
-      // Kunden-Prompt
+    // Spezifische Anweisungen je nach Rolle
+    if (userRole === 'ADMIN' || userRole === 'SUPERADMIN') {
+      // === ADMIN MODUS ===
       systemPrompt += `
-        Ton: Professionell, ruhig für Kunden.
-        In Bereich 1: Füge am Ende diesen Code ein und ersetze den Platzhalter mit dem größten Erfolg:
+        ZIELGRUPPE: Admin/Experte.
+        TON: Präzise, Analytisch, Direkter "Du"-Stil unter Kollegen.
+        
+        INHALT SPALTE 1 (Status):
+        - Fokus auf harte KPIs und Abweichungen.
+        - Interpretiere "KI-Sichtbarkeit" als technischen Indikator.
+        - VISUAL ENDING: Füge am Ende den "Top Erfolg" Kasten ein (Wähle den stärksten technischen Wert):
         ${visualSuccessTemplate}
+        
+        INHALT SPALTE 2 (Analyse):
+        - Kurz & bündig.
+        - Technische SEO-Empfehlungen.
+      `;
+    } else {
+      // === KUNDEN MODUS ===
+      systemPrompt += `
+        ZIELGRUPPE: Kunde / Laie.
+        TON: Professionell, ruhig, erklärend, "Sie"-Stil (oder dein gewählter Kunden-Stil).
+        
+        INHALT SPALTE 1 (Status):
+        - Erkläre die Zahlen verständlich.
+        - Erkläre "KI-Sichtbarkeit" positiv ("Sie werden von moderner KI gefunden").
+        - VISUAL ENDING: Füge am Ende den "Top Erfolg" Kasten ein (Wähle den motivierendsten Wert):
+        ${visualSuccessTemplate}
+        
+        INHALT SPALTE 2 (Analyse):
+        - Fokus auf Business-Impact.
+        - Konstruktives Fazit ohne Fachjargon.
       `;
     }
 
     const result = streamText({
-      model: google('gemini-2.5-flash'), // Das schnellste Modell nutzen
+      model: google('gemini-2.5-flash'),
       system: systemPrompt,
       prompt: `Analysiere diese Daten:\n${summaryData}`,
-      temperature: 0.5, // Etwas niedriger für schnellere, präzisere Antworten
+      temperature: 0.5, 
     });
 
     return result.toTextStreamResponse();
+    
 
   } catch (error) {
     console.error('[AI Analyze] Fehler:', error);
