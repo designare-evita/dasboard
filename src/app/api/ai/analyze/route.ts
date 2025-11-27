@@ -5,6 +5,7 @@ import { sql } from '@vercel/postgres';
 import { getOrFetchGoogleData } from '@/lib/google-data-loader';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { streamText } from 'ai';
+import crypto from 'node:crypto'; // Für den Hash
 
 const google = createGoogleGenerativeAI({
   apiKey: process.env.GEMINI_API_KEY || '',
@@ -12,12 +13,21 @@ const google = createGoogleGenerativeAI({
 
 export const runtime = 'nodejs';
 
+// Hilfsfunktionen
 const fmt = (val?: number) => (val ? val.toLocaleString('de-DE') : '0');
 const change = (val?: number) => {
   if (val === undefined || val === null) return '0';
   const prefix = val > 0 ? '+' : '';
   return `${prefix}${val.toFixed(1)}`;
 };
+
+/**
+ * Erstellt einen SHA-256 Hash aus einem String.
+ * Dient als Fingerabdruck für die Eingabedaten.
+ */
+function createHash(data: string): string {
+  return crypto.createHash('sha256').update(data).digest('hex');
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -29,12 +39,13 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { projectId, dateRange } = body;
     const userRole = session.user.role;
+    const userId = session.user.id; // Der User, der die Anfrage stellt
 
     if (!projectId || !dateRange) {
       return NextResponse.json({ message: 'Fehlende Parameter' }, { status: 400 });
     }
 
-    // 1. Daten laden (wie zuvor)
+    // 1. Daten laden
     const { rows } = await sql`
       SELECT id, email, domain, project_timeline_active, project_start_date, project_duration_months, "createdAt"
       FROM users WHERE id::text = ${projectId}
@@ -48,7 +59,7 @@ export async function POST(req: NextRequest) {
 
     const kpis = data.kpis;
 
-    // Timeline Logik (wie zuvor)
+    // Timeline Logik
     let timelineInfo = "Standard Betreuung";
     if (project.project_timeline_active) {
         const start = new Date(project.project_start_date || project.createdAt);
@@ -59,7 +70,7 @@ export async function POST(req: NextRequest) {
         timelineInfo = `Aktiver Monat: ${currentMonth} von ${duration}`;
     }
 
-    // Datenaufbereitung (wie zuvor)
+    // Datenaufbereitung
     const aiShare = data.aiTraffic && kpis.sessions?.value
       ? (data.aiTraffic.totalSessions / kpis.sessions.value * 100).toFixed(1)
       : '0';
@@ -68,7 +79,9 @@ export async function POST(req: NextRequest) {
       .map((q: any) => `- "${q.query}" (Pos: ${q.position.toFixed(1)})`)
       .join('\n') || 'Keine Keywords';
 
+    // Dieser String enthält ALLE Fakten, die die KI sieht.
     const summaryData = `
+      DOMAIN: ${project.domain}
       ZEITPLAN: ${timelineInfo}
       KPIs:
       - Klicks: ${fmt(kpis.clicks?.value)} (${change(kpis.clicks?.change)}%)
@@ -78,7 +91,51 @@ export async function POST(req: NextRequest) {
       ${topKeywords}
     `;
 
-    // 2. Optimierter Prompt mit Rollen-Unterscheidung
+    // --- CACHE LOGIK START ---
+    
+    // Wir hashen die Daten UND die Rolle (da Admins andere Texte bekommen als Kunden)
+    // Das stellt sicher, dass wir bei Datenänderungen neu generieren.
+    const cacheInputString = `${summaryData}|ROLE:${userRole}`;
+    const inputHash = createHash(cacheInputString);
+
+    console.log('[AI Cache] Checking Hash:', inputHash);
+
+    // Prüfen, ob wir einen aktuellen Eintrag in der DB haben (jünger als 24h)
+    const { rows: cacheRows } = await sql`
+      SELECT response 
+      FROM ai_analysis_cache
+      WHERE 
+        user_id = ${projectId}::uuid -- Wir cachen pro Projekt-ID
+        AND date_range = ${dateRange}
+        AND input_hash = ${inputHash}
+        AND created_at > NOW() - INTERVAL '24 hours'
+      ORDER BY created_at DESC
+      LIMIT 1
+    `;
+
+    if (cacheRows.length > 0) {
+      console.log('[AI Cache] ✅ HIT! Liefere gespeicherte Antwort.');
+      const cachedResponse = cacheRows[0].response;
+
+      // Wir müssen einen Stream zurückgeben, damit das Frontend nicht bricht.
+      // Wir erstellen einen "künstlichen" Stream, der den fertigen Text sofort sendet.
+      const stream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode(cachedResponse));
+          controller.close();
+        },
+      });
+
+      return new Response(stream, {
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      });
+    }
+
+    console.log('[AI Cache] ❌ MISS. Generiere neu...');
+    // --- CACHE LOGIK ENDE ---
+
+
+    // 2. Prompting (wie zuvor besprochen)
     const visualSuccessTemplate = `
       <div class="mt-4 p-3 bg-emerald-50 rounded-lg border border-emerald-100 flex items-center gap-3">
          <div class="bg-white p-2 rounded-full text-emerald-600 shadow-sm">🏆</div>
@@ -87,14 +144,13 @@ export async function POST(req: NextRequest) {
       </div>
     `;
 
-    // Basis-Regeln für BEIDE (Layout-Verbot für Speed)
     let systemPrompt = `
       Du bist "Data Max", ein Performance-Analyst.
       
-      TECHNISCHE REGELN (WICHTIG):
+      TECHNISCHE REGELN:
       1. Antworte NUR mit dem Inhalt.
       2. Trenne Spalte 1 und Spalte 2 exakt mit dem Marker "[[SPLIT]]".
-      3. Nutze HTML für Text-Formatierung (<b>, <ul>, <li>, <span class="text-green-600">), aber KEINE Layout-Container (kein <div> Grid, keine Spalten).
+      3. Nutze HTML für Text-Formatierung (<b>, <ul>, <li>, <span class="text-green-600">), aber KEINE Layout-Container.
       4. Fasse dich kurz.
       
       OUTPUT STRUKTUR:
@@ -103,50 +159,47 @@ export async function POST(req: NextRequest) {
       [Inhalt für Spalte 2: Analyse]
     `;
 
-    // Spezifische Anweisungen je nach Rolle
     if (userRole === 'ADMIN' || userRole === 'SUPERADMIN') {
-      // === ADMIN MODUS ===
       systemPrompt += `
         ZIELGRUPPE: Admin/Experte.
-        TON: Präzise, Analytisch, Direkter "Du"-Stil unter Kollegen.
-        
-        INHALT SPALTE 1 (Status):
-        - Fokus auf harte KPIs und Abweichungen.
-        - Interpretiere "KI-Sichtbarkeit" als technischen Indikator.
-        - VISUAL ENDING: Füge am Ende den "Top Erfolg" Kasten ein (Wähle den stärksten technischen Wert):
+        TON: Präzise, Analytisch, "Du"-Stil.
+        INHALT SPALTE 1: Fokus auf harte KPIs. Interpretiere "KI-Sichtbarkeit" technisch.
+        VISUAL ENDING SPALTE 1: Füge am Ende den "Top Erfolg" Kasten ein (Wähle den stärksten technischen Wert):
         ${visualSuccessTemplate}
-        
-        INHALT SPALTE 2 (Analyse):
-        - Kurz & bündig.
-        - Technische SEO-Empfehlungen.
       `;
     } else {
-      // === KUNDEN MODUS ===
       systemPrompt += `
-        ZIELGRUPPE: Kunde / Laie.
-        TON: Professionell, ruhig, erklärend, "Sie"-Stil (oder dein gewählter Kunden-Stil).
-        
-        INHALT SPALTE 1 (Status):
-        - Erkläre die Zahlen verständlich.
-        - Erkläre "KI-Sichtbarkeit" positiv ("Sie werden von moderner KI gefunden").
-        - VISUAL ENDING: Füge am Ende den "Top Erfolg" Kasten ein (Wähle den motivierendsten Wert):
+        ZIELGRUPPE: Kunde.
+        TON: Professionell, ruhig, "Sie"-Stil.
+        INHALT SPALTE 1: Erkläre Zahlen verständlich. Verkaufe "KI-Sichtbarkeit" positiv.
+        VISUAL ENDING SPALTE 1: Füge am Ende den "Top Erfolg" Kasten ein (Wähle den motivierendsten Wert):
         ${visualSuccessTemplate}
-        
-        INHALT SPALTE 2 (Analyse):
-        - Fokus auf Business-Impact.
-        - Konstruktives Fazit ohne Fachjargon.
       `;
     }
 
+    // 3. Streaming mit onFinish Callback zum Speichern
     const result = streamText({
       model: google('gemini-2.5-flash'),
       system: systemPrompt,
       prompt: `Analysiere diese Daten:\n${summaryData}`,
-      temperature: 0.5, 
+      temperature: 0.5,
+      onFinish: async ({ text }) => {
+        // Wenn der Stream fertig ist, speichern wir das Ergebnis in der DB
+        if (text && text.length > 50) { // Nur speichern wenn sinnvoll lang
+          try {
+            console.log('[AI Cache] Speichere neue Antwort...');
+            await sql`
+              INSERT INTO ai_analysis_cache (user_id, date_range, input_hash, response)
+              VALUES (${projectId}::uuid, ${dateRange}, ${inputHash}, ${text})
+            `;
+          } catch (e) {
+            console.error('[AI Cache] Fehler beim Speichern:', e);
+          }
+        }
+      }
     });
 
     return result.toTextStreamResponse();
-    
 
   } catch (error) {
     console.error('[AI Analyze] Fehler:', error);
