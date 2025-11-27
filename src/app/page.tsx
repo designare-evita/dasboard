@@ -15,15 +15,13 @@ import {
   BoxArrowInRight,
   Globe,
   CalendarRange,
-  // ✅ NEU: Pfeil-Icons importieren
+  // Pfeil-Icons für das Badge
   ArrowUp,
   ArrowDown,
   ArrowRight
 } from 'react-bootstrap-icons';
 import type { User } from '@/types';
 import { addMonths, format } from 'date-fns';
-
-// ... (Rest der Imports)
 
 export default function ProjectsPage() {
   const { data: session, status } = useSession();
@@ -66,6 +64,41 @@ export default function ProjectsPage() {
     (user.domain && user.domain.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
+  // ✅ NEU: Helper-Funktion für das Trend-Badge
+  const renderTrendBadge = (change: number | undefined) => {
+    // Standard: Blau (Gleichbleibend/Keine Daten/0)
+    let badgeClass = "bg-blue-50 text-blue-700 border-blue-200";
+    let Icon = ArrowRight;
+    let label = "0%";
+
+    if (change !== undefined && change !== null) {
+      if (change > 0) {
+        // Steigend: Grün
+        badgeClass = "bg-green-50 text-green-700 border-green-200";
+        Icon = ArrowUp;
+        label = `+${change.toFixed(1)}%`;
+      } else if (change < 0) {
+        // Sinkend: Rot
+        badgeClass = "bg-red-50 text-red-700 border-red-200";
+        Icon = ArrowDown;
+        label = `${change.toFixed(1)}%`;
+      } else {
+        // Gleichbleibend (exakt 0): Blau
+        label = "0%";
+      }
+    } else {
+        // Keine Daten: Blau/Neutral
+        label = "-";
+    }
+
+    return (
+      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-bold border ${badgeClass}`} title="Reichweiten-Trend (GSC)">
+        <Icon size={12} />
+        {label}
+      </span>
+    );
+  };
+
   if (status === 'loading' || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -79,22 +112,6 @@ export default function ProjectsPage() {
   if (session?.user?.role === 'BENUTZER') {
      return null; 
   }
-
-  // ✅ Helper für Trend-Pfeil
-  const renderTrendArrow = (change: number | undefined) => {
-    if (change === undefined || change === null) {
-      // Keine Daten -> Blauer Pfeil nach rechts (neutral/standard)
-      return <ArrowRight size={18} className="text-blue-500" title="Keine Trenddaten" />;
-    }
-
-    if (change > 0) {
-      return <ArrowUp size={18} className="text-green-600" title={`Reichweite steigend (+${change})`} />;
-    } else if (change < 0) {
-      return <ArrowDown size={18} className="text-red-600" title={`Reichweite sinkend (${change})`} />;
-    } else {
-      return <ArrowRight size={18} className="text-blue-500" title="Reichweite gleichbleibend" />;
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
@@ -143,16 +160,14 @@ export default function ProjectsPage() {
                 
                 <div className="flex justify-between items-start mb-4">
                   <div>
-                    {/* ✅ UPDATE: Hier wird der Pfeil eingebaut */}
-                    <div className="flex items-center gap-2">
+                    {/* Domain und Trend-Badge */}
+                    <div className="flex items-center gap-3">
                       <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                         <Globe size={18} className="text-gray-400" />
                         {user.domain || 'Keine Domain'}
                       </h3>
-                      {/* Pfeil-Anzeige */}
-                      <div className="bg-gray-50 rounded-full p-1 shadow-sm border border-gray-100">
-                        {renderTrendArrow(user.total_impression_change)}
-                      </div>
+                      {/* Hier das neue Badge */}
+                      {renderTrendBadge(user.total_impression_change)}
                     </div>
                     <div className="text-sm text-gray-500 mt-1">{user.email}</div>
                   </div>
@@ -166,7 +181,6 @@ export default function ProjectsPage() {
 
                 <hr className="border-gray-100 mb-4" />
 
-                {/* ... (Rest der Karte bleibt unverändert) ... */}
                 <div className="grid grid-cols-2 gap-4 mb-5">
                   <div className="flex flex-col">
                     <span className="text-xs text-gray-400 uppercase font-bold tracking-wider block mb-1">Projekt-Timeline</span>
