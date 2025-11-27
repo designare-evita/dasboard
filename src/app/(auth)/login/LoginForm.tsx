@@ -84,12 +84,8 @@ export default function LoginForm() {
                 fill
                 className="object-contain"
                 priority
-                sizes="200px"
+                sizes="300px"
              />
-          </div>
-          <h2 className="text-2xl font-bold text-gray-900">Willkommen zurück</h2>
-          <p className="text-sm text-gray-500 mt-2">Bitte melden Sie sich an, um fortzufahren.</p>
-        </div>
         
         <form className="space-y-6" onSubmit={handleSubmit}>
           
