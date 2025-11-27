@@ -161,13 +161,20 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
             Status ({rangeLabel})
           </h3>
         </div>
-        <div className="p-5 text-sm text-indigo-900 leading-relaxed flex-grow">
+      <div className="p-5 text-sm text-indigo-900 leading-relaxed flex-grow">
            <div dangerouslySetInnerHTML={{ __html: statusContent }} />
+           
+           {/* NEUER CURSOR SPALTE 1 */}
            {isLoading && !analysisContent && (
-             <span className="inline-block w-2 h-4 bg-indigo-400 ml-1 animate-pulse align-middle"/>
+             <div className="inline-flex items-center gap-2 mt-2 text-emerald-600 font-medium animate-pulse">
+               <span className="relative flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+               </span>
+               <span className="text-xs uppercase tracking-wider">Data Max analysiert...</span>
+             </div>
            )}
         </div>
-      </div>
 
       {/* SPALTE 2: Analyse */}
       <div className="bg-white rounded-2xl border border-gray-200 flex flex-col h-full shadow-sm">
@@ -181,11 +188,16 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
            {analysisContent ? (
              <div dangerouslySetInnerHTML={{ __html: analysisContent }} />
            ) : (
-             isLoading && <p className="text-gray-400 italic">Warte auf Datenverarbeitung...</p>
+             /* Platzhalter wird durch Animation ersetzt */
+             isLoading && !statusContent ? <p className="text-gray-400 italic">Warte auf Datenverarbeitung...</p> : null
            )}
 
+           {/* NEUER CURSOR SPALTE 2 */}
            {isLoading && analysisContent && (
-             <span className="inline-block w-2 h-4 bg-gray-400 ml-1 animate-pulse align-middle"/>
+             <div className="inline-flex items-center gap-2 mt-2 text-emerald-600 font-medium animate-pulse">
+               <span className="w-2 h-4 bg-emerald-500 rounded-sm shadow-[0_0_10px_rgba(16,185,129,0.6)]"></span>
+               <span className="text-xs uppercase tracking-wider">Schreibt...</span>
+             </div>
            )}
            
            {error && (
