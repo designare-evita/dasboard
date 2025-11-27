@@ -1,4 +1,3 @@
-// src/app/page.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -64,7 +63,7 @@ export default function ProjectsPage() {
     (user.domain && user.domain.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  // ✅ NEU: Helper-Funktion für das Trend-Badge
+  // ✅ Helper-Funktion für das Trend-Badge
   const renderTrendBadge = (change: number | undefined) => {
     // Standard: Blau (Gleichbleibend/Keine Daten/0)
     let badgeClass = "bg-blue-50 text-blue-700 border-blue-200";
@@ -166,7 +165,7 @@ export default function ProjectsPage() {
                         <Globe size={18} className="text-gray-400" />
                         {user.domain || 'Keine Domain'}
                       </h3>
-                      {/* Hier das neue Badge */}
+                      {/* Trend-Badge */}
                       {renderTrendBadge(user.total_impression_change)}
                     </div>
                     <div className="text-sm text-gray-500 mt-1">{user.email}</div>
@@ -204,7 +203,8 @@ export default function ProjectsPage() {
                     </div>
                   </div>
 
-                  <div className="flex flex-col">
+                  {/* HIER GEÄNDERT: items-end für Rechtsausrichtung */}
+                  <div className="flex flex-col items-end">
                     <span className="text-xs text-gray-400 uppercase font-bold tracking-wider block mb-1">Redaktionsplan</span>
                     {hasRedaktionsplan ? (
                       <Link href={`/admin/redaktionsplan?id=${user.id}`}>
