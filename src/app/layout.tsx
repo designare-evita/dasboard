@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-// ✅ KORREKTUR: Wir importieren Poppins, wie von dir gewünscht.
 import { Poppins } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
-// ✅ KORREKTUR: Wir importieren die neue MainLayout-Komponente.
 import MainLayout from '@/components/MainLayout';
+// ✅ NEU: Toaster Import
+import { Toaster } from 'sonner';
 
 // Konfiguriert den Poppins-Font
 const poppins = Poppins({ 
@@ -21,7 +21,6 @@ export const metadata: Metadata = {
   },
 };
 
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -29,12 +28,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="de">
-      {/* Wir wenden die Poppins-Font-Klasse an */}
       <body className={`${poppins.className} bg-gray-50`}>
         <Providers>
-          {/* MainLayout kümmert sich jetzt um die Anzeige von Header/Footer
-            und erhält die Kinder (die eigentlichen Seiteninhalte).
-          */}
+          {/* ✅ NEU: Toaster für Benachrichtigungen */}
+          <Toaster position="top-right" richColors closeButton />
+          
           <MainLayout>
             {children}
           </MainLayout>
