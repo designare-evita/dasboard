@@ -316,9 +316,23 @@ export async function getOrFetchGoogleData(
       aiTraffic = await getAiTrafficData(user.ga4_property_id, startDateStr, endDateStr);
 
       // Pie Charts (Länder, Kanäle, Geräte)
-      countryData = await getGa4DimensionReport(user.ga4_property_id, startDateStr, endDateStr, 'country');
-      channelData = await getGa4DimensionReport(user.ga4_property_id, startDateStr, endDateStr, 'sessionDefaultChannelGroup');
-      deviceData = await getGa4DimensionReport(user.ga4_property_id, startDateStr, endDateStr, 'deviceCategory');
+      const rawCountryData = await getGa4DimensionReport(user.ga4_property_id, startDateStr, endDateStr, 'country');
+      const rawChannelData = await getGa4DimensionReport(user.ga4_property_id, startDateStr, endDateStr, 'sessionDefaultChannelGroup');
+      const rawDeviceData = await getGa4DimensionReport(user.ga4_property_id, startDateStr, endDateStr, 'deviceCategory');
+      
+      // ChartEntry-Objekte mit 'fill'-Property erstellen
+      countryData = rawCountryData.map((item, index) => ({
+        ...item,
+        fill: `hsl(var(--chart-${(index % 5) + 1}))`
+      }));
+      channelData = rawChannelData.map((item, index) => ({
+        ...item,
+        fill: `hsl(var(--chart-${(index % 5) + 1}))`
+      }));
+      deviceData = rawDeviceData.map((item, index) => ({
+        ...item,
+        fill: `hsl(var(--chart-${(index % 5) + 1}))`
+      }));
 
     } catch (e: any) {
       console.error('[GA4 Fetch Error]', e);
