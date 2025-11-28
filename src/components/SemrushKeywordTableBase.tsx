@@ -2,7 +2,8 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { ArrowUp, ArrowDown, Search, FunnelFill } from 'react-bootstrap-icons';
+// ✅ NEU: Icons importieren
+import { ArrowUp, ArrowDown, Search, FunnelFill, Trophy, Award, CheckCircleFill } from 'react-bootstrap-icons';
 import { cn } from '@/lib/utils';
 
 // --- TYPEN ---
@@ -15,21 +16,18 @@ interface KeywordData {
   url: string;
 }
 
-// Definiert das Farbschema, das übergeben wird
 export interface SemrushTheme {
   headerGradient: string;
   headerText: string;
   headerTextMuted: string;
-  tableHeaderBg: string; // Wird jetzt als Tailwind-Klasse verwendet
+  tableHeaderBg: string; 
   tableHeaderBorder: string;
   tableHeaderHover: string;
   tableRowHover: string;
-  // NEU: Hex-Farben für inline-styles
   tableHeaderBgColor: string;
   tableHeaderHoverColor: string;
 }
 
-// Props für die Basis-Komponente
 interface SemrushKeywordTableBaseProps {
   projectId?: string | null;
   campaign: 'kampagne_1' | 'kampagne_2';
@@ -55,7 +53,6 @@ export default function SemrushKeywordTableBase({
   debugInfo,
 }: SemrushKeywordTableBaseProps) {
   
-  // --- STATE & LOGIK ---
   const [keywords, setKeywords] = useState<KeywordData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -105,7 +102,6 @@ export default function SemrushKeywordTableBase({
     });
   }, [keywords, sortField, sortDirection]);
 
-  // --- DATENABRUF ---
   useEffect(() => {
     const fetchKeywords = async () => {
       setIsLoading(true);
@@ -117,24 +113,11 @@ export default function SemrushKeywordTableBase({
       try {
         const urlParams = new URLSearchParams();
         urlParams.set('campaign', campaign);
-        
-        if (projectId) {
-          urlParams.set('projectId', projectId);
-        }
+        if (projectId) urlParams.set('projectId', projectId);
         
         const url = `/api/semrush/keywords?${urlParams.toString()}`;
-        
-        console.log(`[${logContext}] Fetching keywords (${campaign}), URL:`, url);
-        
         const response = await fetch(url);
         const data = await response.json();
-
-        console.log(`[${logContext}] Received data:`, {
-          keywordsCount: data.keywords?.length || 0,
-          projectId: projectId,
-          fromCache: data.fromCache,
-          error: data.error
-        });
 
         if (data.error && !data.keywords?.length) {
           setError(data.error);
@@ -165,9 +148,43 @@ export default function SemrushKeywordTableBase({
     return previous - current;
   };
 
-  // --- RENDER-LOGIK ---
+  // ✅ NEU: Helper für Ranking Badges
+  const renderRankingBadge = (position: number) => {
+    const rounded = Math.round(position);
+    
+    if (rounded === 1) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-yellow-50 text-yellow-700 border border-yellow-200 shadow-sm">
+          <Trophy size={10} className="text-yellow-600" />
+          {position}
+        </span>
+      );
+    }
+    if (rounded <= 3) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-gray-100 text-gray-700 border border-gray-200 shadow-sm">
+          <Award size={10} className="text-gray-500" />
+          {position}
+        </span>
+      );
+    }
+    if (rounded <= 10) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-100">
+          <CheckCircleFill size={10} className="text-emerald-500 opacity-60" />
+          {position}
+        </span>
+      );
+    }
+    
+    // Default > 10
+    return (
+      <span className="text-gray-500 font-medium text-xs">
+        {position}
+      </span>
+    );
+  };
 
-  // Ladezustand
   if (isLoading) {
     return (
       <div className="bg-white rounded-lg shadow-md border border-gray-200">
@@ -178,15 +195,12 @@ export default function SemrushKeywordTableBase({
           </div>
         </div>
         <div className="p-6 animate-pulse space-y-3">
-          {[...Array(5)].map((_, i) => (
-            <div key={i} className="h-16 bg-gray-100 rounded"></div>
-          ))}
+          {[...Array(5)].map((_, i) => <div key={i} className="h-16 bg-gray-100 rounded"></div>)}
         </div>
       </div>
     );
   }
 
-  // Fehler oder keine Keywords
   if (error || keywords.length === 0) {
     const defaultError = projectId 
       ? 'Keine Keywords verfügbar. Bitte warten Sie auf den ersten Datenabruf.'
@@ -205,9 +219,7 @@ export default function SemrushKeywordTableBase({
           {lastFetched && !isLoading && (
             <div className="mt-4 pt-4 border-t border-gray-100 text-xs text-gray-500 flex flex-col items-start gap-1">
               Letzter Versuch: {formatLastFetched(lastFetched)}
-              <span className="text-[10px] text-gray-400">
-                ({new Date(lastFetched).toLocaleString('de-DE')})
-              </span>
+              <span className="text-[10px] text-gray-400">({new Date(lastFetched).toLocaleString('de-DE')})</span>
             </div>
           )}
         </div>
@@ -215,7 +227,6 @@ export default function SemrushKeywordTableBase({
     );
   }
 
-  // Hauptansicht mit Tabelle
   return (
     <div className="bg-white rounded-lg shadow-md border border-gray-200 flex flex-col">
       {/* Header */}
@@ -229,17 +240,12 @@ export default function SemrushKeywordTableBase({
             {lastFetched && (
               <div className={cn("text-xs flex flex-col items-end gap-1", theme.headerText)}>
                 <div className="flex items-center gap-2">
-                  <span className={cn(
-                    "px-2 py-0.5 rounded text-xs font-medium",
-                    fromCache ? 'bg-white/20 text-white' : 'bg-green-500 text-white'
-                  )}>
+                  <span className={cn("px-2 py-0.5 rounded text-xs font-medium", fromCache ? 'bg-white/20 text-white' : 'bg-green-500 text-white')}>
                     {fromCache ? 'Cache' : 'Live'}
                   </span>
                   <span className="whitespace-nowrap">{formatLastFetched(lastFetched)}</span>
                 </div>
-                <span className={cn("text-[10px]", theme.headerTextMuted)} title={lastFetched}>
-                  {new Date(lastFetched).toLocaleString('de-DE')}
-                </span>
+                <span className={cn("text-[10px]", theme.headerTextMuted)} title={lastFetched}>{new Date(lastFetched).toLocaleString('de-DE')}</span>
               </div>
             )}
             <div className={cn("text-xs whitespace-nowrap", theme.headerText)}>
@@ -249,13 +255,9 @@ export default function SemrushKeywordTableBase({
         </div>
       </div>
 
-      {/* DEBUG INFO */}
       {process.env.NODE_ENV === 'development' && (
         <div className={cn("mx-4 mt-4 p-2 border rounded text-xs", debugInfo.classes)}>
-          <strong>{debugInfo.title}:</strong> 
-          <br />ProjectId: {projectId || 'none (User)'}, 
-          <br />Keywords: {keywords.length},
-          <br />Campaign: {campaign}
+          <strong>{debugInfo.title}:</strong> <br />ProjectId: {projectId || 'none (User)'}, <br />Keywords: {keywords.length}, <br />Campaign: {campaign}
         </div>
       )}
 
@@ -264,153 +266,51 @@ export default function SemrushKeywordTableBase({
         <div className="max-h-[600px] overflow-y-auto">
           <table className="w-full border-collapse">
             <thead className="sticky top-0 z-10">
-              <tr 
-                className="text-white"
-                style={{ backgroundColor: theme.tableHeaderBgColor }}
-              >
-                <th 
-                  onClick={() => handleSort('keyword')}
-                  className="px-4 py-3 text-left text-sm font-semibold cursor-pointer transition-colors border-r border-white/20"
-                  style={{ 
-                    backgroundColor: theme.tableHeaderBgColor,
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = theme.tableHeaderHoverColor}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = theme.tableHeaderBgColor}
-                >
-                  <div className="flex items-center gap-2">
-                    Keyword
-                    <FunnelFill size={12} className="opacity-60" />
-                  </div>
+              <tr className="text-white" style={{ backgroundColor: theme.tableHeaderBgColor }}>
+                <th onClick={() => handleSort('keyword')} className="px-4 py-3 text-left text-sm font-semibold cursor-pointer transition-colors border-r border-white/20" style={{ backgroundColor: theme.tableHeaderBgColor }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = theme.tableHeaderHoverColor} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = theme.tableHeaderBgColor}>
+                  <div className="flex items-center gap-2">Keyword <FunnelFill size={12} className="opacity-60" /></div>
                 </th>
-                <th 
-                  onClick={() => handleSort('position')}
-                  className="px-4 py-3 text-right text-sm font-semibold cursor-pointer transition-colors whitespace-nowrap border-r border-white/20"
-                  style={{ 
-                    backgroundColor: theme.tableHeaderBgColor,
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = theme.tableHeaderHoverColor}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = theme.tableHeaderBgColor}
-                >
-                  <div className="flex items-center justify-end gap-2">
-                    Position
-                    <FunnelFill size={12} className="opacity-60" />
-                  </div>
+                <th onClick={() => handleSort('position')} className="px-4 py-3 text-right text-sm font-semibold cursor-pointer transition-colors whitespace-nowrap border-r border-white/20" style={{ backgroundColor: theme.tableHeaderBgColor }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = theme.tableHeaderHoverColor} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = theme.tableHeaderBgColor}>
+                  <div className="flex items-center justify-end gap-2">Position <FunnelFill size={12} className="opacity-60" /></div>
                 </th>
-                <th 
-                  className="px-4 py-3 text-center text-sm font-semibold whitespace-nowrap border-r border-white/20"
-                  style={{ backgroundColor: theme.tableHeaderBgColor }}
-                >
-                  Änderung
+                <th className="px-4 py-3 text-center text-sm font-semibold whitespace-nowrap border-r border-white/20" style={{ backgroundColor: theme.tableHeaderBgColor }}>Änderung</th>
+                <th onClick={() => handleSort('searchVolume')} className="px-4 py-3 text-right text-sm font-semibold cursor-pointer transition-colors whitespace-nowrap border-r border-white/20" style={{ backgroundColor: theme.tableHeaderBgColor }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = theme.tableHeaderHoverColor} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = theme.tableHeaderBgColor}>
+                  <div className="flex items-center justify-end gap-2">Suchvolumen <FunnelFill size={12} className="opacity-60" /></div>
                 </th>
-                <th 
-                  onClick={() => handleSort('searchVolume')}
-                  className="px-4 py-3 text-right text-sm font-semibold cursor-pointer transition-colors whitespace-nowrap border-r border-white/20"
-                  style={{ 
-                    backgroundColor: theme.tableHeaderBgColor,
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = theme.tableHeaderHoverColor}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = theme.tableHeaderBgColor}
-                >
-                  <div className="flex items-center justify-end gap-2">
-                    Suchvolumen
-                    <FunnelFill size={12} className="opacity-60" />
-                  </div>
+                <th onClick={() => handleSort('trafficPercent')} className="px-4 py-3 text-right text-sm font-semibold cursor-pointer transition-colors whitespace-nowrap border-r border-white/20" style={{ backgroundColor: theme.tableHeaderBgColor }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = theme.tableHeaderHoverColor} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = theme.tableHeaderBgColor}>
+                  <div className="flex items-center justify-end gap-2">Traffic % <FunnelFill size={12} className="opacity-60" /></div>
                 </th>
-                <th 
-                  onClick={() => handleSort('trafficPercent')}
-                  className="px-4 py-3 text-right text-sm font-semibold cursor-pointer transition-colors whitespace-nowrap border-r border-white/20"
-                  style={{ 
-                    backgroundColor: theme.tableHeaderBgColor,
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = theme.tableHeaderHoverColor}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = theme.tableHeaderBgColor}
-                >
-                  <div className="flex items-center justify-end gap-2">
-                    Traffic %
-                    <FunnelFill size={12} className="opacity-60" />
-                  </div>
-                </th>
-                <th 
-                  className="px-4 py-3 text-left text-sm font-semibold whitespace-nowrap"
-                  style={{ backgroundColor: theme.tableHeaderBgColor }}
-                >
-                  URL
-                </th>
+                <th className="px-4 py-3 text-left text-sm font-semibold whitespace-nowrap" style={{ backgroundColor: theme.tableHeaderBgColor }}>URL</th>
               </tr>
             </thead>
             <tbody>
               {sortedKeywords.map((kw, index) => {
                 const positionChange = getPositionChange(kw.position, kw.previousPosition);
-                
                 return (
-                  <tr 
-                    key={`${keyPrefix}-${projectId || 'user'}-${kw.keyword}-${index}`}
-                    className={cn(
-                      "border-b border-gray-200 transition-colors",
-                      index % 2 === 0 ? "bg-white" : "bg-gray-50",
-                      theme.tableRowHover
-                    )}
-                  >
-                    {/* Keyword */}
-                    <td className="px-4 py-3 text-sm text-gray-900 font-medium border-r border-gray-200">
-                      <div className="break-words max-w-xs">
-                        {kw.keyword}
+                  <tr key={`${keyPrefix}-${projectId || 'user'}-${kw.keyword}-${index}`} className={cn("border-b border-gray-200 transition-colors", index % 2 === 0 ? "bg-white" : "bg-gray-50", theme.tableRowHover)}>
+                    <td className="px-4 py-3 text-sm text-gray-900 font-medium border-r border-gray-200"><div className="break-words max-w-xs">{kw.keyword}</div></td>
+                    
+                    {/* ✅ KORREKTUR: Neue Badges */}
+                    <td className="px-4 py-3 text-sm text-right border-r border-gray-200 whitespace-nowrap">
+                      <div className="flex justify-end">
+                        {renderRankingBadge(kw.position)}
                       </div>
                     </td>
                     
-                    {/* Position */}
-                    <td className="px-4 py-3 text-sm text-right border-r border-gray-200 whitespace-nowrap">
-                      <span className={cn(
-                        "inline-flex items-center px-2 py-0.5 rounded text-xs font-bold",
-                        kw.position <= 3 ? "bg-green-100 text-green-800" :
-                        kw.position <= 10 ? "bg-blue-100 text-blue-800" :
-                        kw.position <= 20 ? "bg-orange-100 text-orange-800" :
-                        "bg-gray-100 text-gray-800"
-                      )}>
-                        #{Math.round(kw.position)}
-                      </span>
-                    </td>
-                    
-                    {/* Änderung */}
                     <td className="px-4 py-3 text-sm text-center border-r border-gray-200 whitespace-nowrap">
                       {positionChange !== null && positionChange !== 0 ? (
-                        <span className={cn(
-                          "inline-flex items-center gap-0.5 px-2 py-0.5 rounded text-xs font-semibold",
-                          positionChange > 0 ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
-                        )}>
+                        <span className={cn("inline-flex items-center gap-0.5 px-2 py-0.5 rounded text-xs font-semibold", positionChange > 0 ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700")}>
                           {positionChange > 0 ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
                           {Math.abs(positionChange)}
                         </span>
-                      ) : (
-                        <span className="text-gray-400 text-xs">-</span>
-                      )}
+                      ) : (<span className="text-gray-400 text-xs">-</span>)}
                     </td>
-                    
-                    {/* Suchvolumen */}
-                    <td className="px-4 py-3 text-sm text-gray-900 text-right font-medium border-r border-gray-200 whitespace-nowrap">
-                      {kw.searchVolume.toLocaleString('de-DE')}
-                    </td>
-                    
-                    {/* Traffic % */}
-                    <td className="px-4 py-3 text-sm text-gray-900 text-right font-medium border-r border-gray-200 whitespace-nowrap">
-                      {kw.trafficPercent.toFixed(1)}%
-                    </td>
-                    
-                    {/* URL */}
+                    <td className="px-4 py-3 text-sm text-gray-900 text-right font-medium border-r border-gray-200 whitespace-nowrap">{kw.searchVolume.toLocaleString('de-DE')}</td>
+                    <td className="px-4 py-3 text-sm text-gray-900 text-right font-medium border-r border-gray-200 whitespace-nowrap">{kw.trafficPercent.toFixed(1)}%</td>
                     <td className="px-4 py-3 text-sm border-r-0">
                       {kw.url ? (
-                        <a 
-                          href={kw.url} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:underline truncate block max-w-xs text-xs"
-                          title={kw.url}
-                        >
-                          {kw.url.length > 40 ? kw.url.substring(0, 40) + '...' : kw.url}
-                        </a>
-                      ) : (
-                        <span className="text-gray-400 text-xs">-</span>
-                      )}
+                        <a href={kw.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate block max-w-xs text-xs" title={kw.url}>{kw.url.length > 40 ? kw.url.substring(0, 40) + '...' : kw.url}</a>
+                      ) : (<span className="text-gray-400 text-xs">-</span>)}
                     </td>
                   </tr>
                 );
@@ -420,24 +320,13 @@ export default function SemrushKeywordTableBase({
         </div>
       </div>
 
-      {/* Footer */}
       <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 rounded-b-lg">
         <div className="flex flex-wrap items-center justify-between gap-4 text-xs text-gray-600">
           <div className="flex items-center gap-4">
-            <span>
-              Ø Position: <span className="font-semibold text-gray-900">
-                {(sortedKeywords.reduce((sum, k) => sum + k.position, 0) / (sortedKeywords.length || 1)).toFixed(1)}
-              </span>
-            </span>
-            <span>
-              Gesamt Traffic: <span className="font-semibold text-gray-900">
-                {sortedKeywords.reduce((sum, k) => sum + k.trafficPercent, 0).toFixed(1)}%
-              </span>
-            </span>
+            <span>Ø Position: <span className="font-semibold text-gray-900">{(sortedKeywords.reduce((sum, k) => sum + k.position, 0) / (sortedKeywords.length || 1)).toFixed(1)}</span></span>
+            <span>Gesamt Traffic: <span className="font-semibold text-gray-900">{sortedKeywords.reduce((sum, k) => sum + k.trafficPercent, 0).toFixed(1)}%</span></span>
           </div>
-          <div className="text-gray-500">
-            💡 Datenaktualisierung alle 14 Tage | Klicken Sie auf die Spaltenüberschriften zum Sortieren
-          </div>
+          <div className="text-gray-500">💡 Datenaktualisierung alle 14 Tage | Klicken Sie auf die Spaltenüberschriften zum Sortieren</div>
         </div>
       </div>
     </div>
