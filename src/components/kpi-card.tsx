@@ -1,96 +1,109 @@
-// src/components/KpiCardsGrid.tsx
-'use client';
+// src/components/kpi-card.tsx
+import React from 'react';
+// +++ NEU: ExclamationTriangleFill importiert +++
+import { ArrowUp, ArrowDown, ExclamationTriangleFill } from 'react-bootstrap-icons';
+import { ResponsiveContainer, AreaChart, Area } from 'recharts';
+import { ChartPoint } from '@/types/dashboard'; 
 
-import React, { useState } from 'react';
-import KpiCard from './kpi-card';
-import { 
-  KpiDatum, 
-  ProjectDashboardData, 
-  ApiErrorStatus,
-  KPI_TAB_META
-} from '@/lib/dashboard-shared';
-import { InfoCircle } from 'react-bootstrap-icons';
-
-function InfoTooltip({ title, description }: { title: string; description: string }) {
-  const [isVisible, setIsVisible] = useState(false);
-
-  return (
-    <div className="absolute top-3 right-3 z-10 print:hidden">
-      <div
-        className="relative"
-        onMouseEnter={() => setIsVisible(true)}
-        onMouseLeave={() => setIsVisible(false)}
-      >
-        <button type="button" className="p-1 rounded-full hover:bg-black/5 transition-colors cursor-help">
-          <InfoCircle size={14} className="text-gray-400 hover:text-indigo-600 transition-colors" />
-        </button>
-        {isVisible && (
-          <div className="absolute right-0 top-6 w-56 bg-white/95 backdrop-blur-sm rounded-lg shadow-xl border border-gray-100 p-3 z-20 text-xs text-gray-600 leading-relaxed animate-in fade-in zoom-in-95 duration-200">
-            <strong className="block text-gray-900 mb-1">{title}</strong>
-            {description}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-type NormalizedKpis = {
-  clicks: KpiDatum;
-  impressions: KpiDatum;
-  sessions: KpiDatum;
-  totalUsers: KpiDatum;
-};
-
-interface KpiCardsGridProps {
-  kpis: NormalizedKpis;
+interface KpiCardProps {
+  title: string;
+  value: number;
+  change?: number; 
   isLoading?: boolean;
-  allChartData?: ProjectDashboardData['charts'];
-  apiErrors?: ApiErrorStatus;
+  data?: ChartPoint[];
+  color?: string;
+  error?: string | null; // +++ NEU: Prop für Fehlermeldungen +++
 }
 
-export default function KpiCardsGrid({
-  kpis,
-  isLoading = false,
-  allChartData,
-  apiErrors,
-}: KpiCardsGridProps) {
+export default function KpiCard({ 
+  title, 
+  value, 
+  change, 
+  isLoading = false, 
+  data,
+  color = '#3b82f6',
+  error = null // +++ NEU: Prop entgegennehmen +++
+}: KpiCardProps) {
   
-  if (!kpis) return null;
-  
-  const kpiInfo = {
-    clicks: { title: 'Klicks (GSC)', description: 'Wie oft Nutzer in der Google-Suche auf Ihre Website geklickt haben.' },
-    impressions: { title: 'Impressionen (GSC)', description: 'Wie oft ein Link zu Ihrer Website in der Google-Suche gesehen wurde.' },
-    sessions: { title: 'Sitzungen (GA4)', description: 'Anzahl der Besuche mit aktiver Interaktion.' },
-    totalUsers: { title: 'Nutzer (GA4)', description: 'Anzahl der eindeutigen Personen, die die Website besucht haben.' },
-  };
+  const isPositive = change !== undefined && change >= 0;
 
-  const renderCard = (key: keyof NormalizedKpis, title: string, error?: string, info?: {title: string, description: string}) => (
-    <div className="card-glass hover:shadow-lg transition-all duration-300 relative group h-full">
-      <KpiCard
-        title={title}
-        isLoading={isLoading}
-        value={kpis[key].value}
-        change={kpis[key].change}
-        data={allChartData?.[key]}
-        color={KPI_TAB_META[key].color}
-        error={error || null}
-        // WICHTIG: Transparent setzen, damit der card-glass Effekt wirkt
-        className="bg-transparent shadow-none border-none h-full"
-      />
-      
-      {!isLoading && !error && info && (
-        <InfoTooltip title={info.title} description={info.description} />
-      )}
-    </div>
-  );
+  if (isLoading) {
+    return (
+      <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
+        <div className="animate-pulse">
+          <div className="h-4 bg-gray-200 rounded w-1/2 mb-4"></div>
+          <div className="h-8 bg-gray-200 rounded w-3/4 mb-2"></div>
+          {change !== undefined && <div className="h-3 bg-gray-200 rounded w-1/3"></div>}
+          {data !== undefined && <div className="h-[60px] bg-gray-200 rounded mt-4"></div>}
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-      {renderCard('clicks', 'Klicks', apiErrors?.gsc, kpiInfo.clicks)}
-      {renderCard('impressions', 'Impressionen', apiErrors?.gsc, kpiInfo.impressions)}
-      {renderCard('sessions', 'Sitzungen', apiErrors?.ga4, kpiInfo.sessions)}
-      {renderCard('totalUsers', 'Nutzer', apiErrors?.ga4, kpiInfo.totalUsers)}
+    <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200 hover:shadow-lg transition-shadow">
+      <h3 className="text-sm font-medium text-gray-500 mb-2">{title}</h3>
+
+      {/* +++ START: MODIFIZIERTE RENDER-LOGIK +++ */}
+      {error ? (
+        // Wenn ein Fehler vorhanden ist, zeige die Fehlermeldung
+        <div className="mt-2" style={{ minHeight: '60px' }}> {/* Höhe beibehalten für Layout-Konsistenz */}
+          <ExclamationTriangleFill className="text-red-500 w-5 h-5 mb-2" />
+          <p className="text-xs text-red-700 font-semibold">Fehler bei der Datenquelle</p>
+          <p className="text-xs text-gray-500 mt-1" title={error}>
+            Verbindung fehlgeschlagen. Bitte kontaktieren Sie Ihren Ansprechpartner.
+          </p>
+        </div>
+      ) : (
+        // Andernfalls zeige die normalen KPI-Daten
+        <>
+          <p className="text-3xl font-bold text-gray-900 mb-2">
+            {value.toLocaleString('de-DE')}
+          </p>
+          
+          {change !== undefined && (
+            <div className={`flex items-center text-sm font-medium ${
+              isPositive ? 'text-green-600' : 'text-red-600'
+            }`}>
+              {isPositive ? (
+                <ArrowUp className="mr-1" size={16} />
+              ) : (
+                <ArrowDown className="mr-1" size={16} />
+              )}
+              <span>{Math.abs(change).toFixed(1)}%</span>
+            </div>
+          )}
+
+          {/* Sparkline Chart Bereich */}
+          {data && data.length > 0 && (
+            <div className="mt-4 h-[60px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart 
+                  data={data}
+                  margin={{ top: 5, right: 0, left: 0, bottom: 0 }}
+                >
+                  <defs>
+                    <linearGradient id={`gradient-${title.replace(/\s+/g, '-')}`} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={color} stopOpacity={0.4}/>
+                      <stop offset="95%" stopColor={color} stopOpacity={0.05}/>
+                    </linearGradient>
+                  </defs>
+                  <Area
+                    type="monotone"
+                    dataKey="value"
+                    stroke={color}
+                    strokeWidth={2}
+                    fillOpacity={1}
+                    fill={`url(#gradient-${title.replace(/\s+/g, '-')})`}
+                    dot={false}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </>
+      )}
+      {/* +++ ENDE: MODIFIZIERTE RENDER-LOGIK +++ */}
     </div>
   );
 }
