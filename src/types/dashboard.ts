@@ -16,7 +16,7 @@ export type KpiDatum = KPI & {
 
 // ChartPoint als eigenen Typ exportieren
 export type ChartPoint = {
-  date: string;
+  date: number; // ✅ KORRIGIERT: Timestamp (number) statt string
   value: number;
 };
 
@@ -31,7 +31,7 @@ export type TopQueryData = {
   position: number;
 };
 
-export type ActiveKpi = 'clicks' | 'impressions' | 'sessions' | 'totalUsers';
+export type ActiveKpi = 'clicks' | 'impressions' | 'sessions' | 'totalUsers' | 'conversions' | 'engagementRate';
 
 export type KpiMetadata = {
   title: string;
@@ -43,4 +43,6 @@ export const KPI_TAB_META: Record<ActiveKpi, KpiMetadata> = {
   impressions: { title: 'Impressionen', color: '#8b5cf6' },
   sessions: { title: 'Sitzungen', color: '#10b981' },
   totalUsers: { title: 'Nutzer', color: '#f59e0b' },
+  conversions: { title: 'Conversions', color: '#f59e0b' },
+  engagementRate: { title: 'Engagement Rate', color: '#ec4899' },
 };
