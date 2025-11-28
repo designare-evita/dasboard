@@ -440,11 +440,11 @@ export async function getOrFetchGoogleData(
 
   // Debug Log: Zusammenfassung der geholten Daten
   console.log(`[Google Data] Zusammenfassung für ${user.email}:`);
-  console.log(`  - GSC Clicks: ${freshData.kpis.clicks.value}`);
-  console.log(`  - GSC Impressions: ${freshData.kpis.impressions.value}`);
-  console.log(`  - GA4 Sessions: ${freshData.kpis.sessions.value}`);
-  console.log(`  - GA4 Users: ${freshData.kpis.totalUsers.value}`);
-  console.log(`  - GA4 Conversions: ${freshData.kpis.conversions.value}`);
+  console.log(`  - GSC Clicks: ${freshData.kpis?.clicks?.value ?? 0}`);
+  console.log(`  - GSC Impressions: ${freshData.kpis?.impressions?.value ?? 0}`);
+  console.log(`  - GA4 Sessions: ${freshData.kpis?.sessions?.value ?? 0}`);
+  console.log(`  - GA4 Users: ${freshData.kpis?.totalUsers?.value ?? 0}`);
+  console.log(`  - GA4 Conversions: ${freshData.kpis?.conversions?.value ?? 0}`);
   console.log(`  - Top Queries: ${topQueries.length}`);
   console.log(`  - API Errors: ${Object.keys(apiErrors).join(', ') || 'Keine'}`);
   console.log(`  - Country Data: ${countryData.length} Einträge`);
