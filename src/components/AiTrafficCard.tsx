@@ -41,7 +41,7 @@ export default function AiTrafficCard({
   isLoading = false,
   dateRange = '30d',
   className,
-  error = null // Fehler-Prop (aus vorheriger Korrektur)
+  error // Fehler-Prop - kein Default nötig, da optional
 }: AiTrafficCardProps) { // <-- Verwendet jetzt den importierten Typ
 
   // (Rest der Logik bleibt 1:1 gleich)
