@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Lightbulb, ArrowRepeat, Robot, Cpu, ExclamationTriangle, InfoCircle, GraphUpArrow } from 'react-bootstrap-icons';
+import { Lightbulb, ArrowRepeat, Robot, ExclamationTriangle, InfoCircle, GraphUpArrow } from 'react-bootstrap-icons';
 import { getRangeLabel, DateRangeOption } from '@/components/DateRangeSelector';
 
 interface Props {
@@ -19,9 +19,26 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
   const [isStreamComplete, setIsStreamComplete] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [isPrefetched, setIsPrefetched] = useState(false);
+  
+  // NEU: Dynamischer Teaser Text
+  const [teaserText, setTeaserText] = useState('');
 
   // Ref für AbortController
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Helfer: Zufälligen "Anfütter"-Text generieren
+  const generateTeaser = (range: string) => {
+    const teasers = [
+      `Ich habe spannende Muster in den letzten ${range} entdeckt.`,
+      `Ihre Performance-Daten für ${range} halten Überraschungen bereit.`,
+      `Analyse vorbereitet: Es gibt Neuigkeiten zu Ihrem Traffic.`,
+      `Wollen Sie wissen, wie Ihre Keywords in ${range} performt haben?`,
+      `Die Daten sind komplett. Zeit für neue Insights?`
+    ];
+    return teasers[Math.floor(Math.random() * teasers.length)];
+  };
+
+  const rangeLabel = getRangeLabel(dateRange as DateRangeOption).toLowerCase();
 
   // --- PRE-FETCHING & RESET LOGIK ---
   useEffect(() => {
@@ -30,6 +47,7 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
     setError(null);
     setIsStreamComplete(false);
     setIsPrefetched(false);
+    setTeaserText(''); // Reset Teaser
 
     const prefetchData = async () => {
       if (!projectId) return;
@@ -39,7 +57,11 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
         await fetch(`/api/projects/${projectId}?dateRange=${dateRange}`, {
           priority: 'low'
         });
+        
+        // Wenn fertig: Status setzen und Teaser generieren
         setIsPrefetched(true);
+        setTeaserText(generateTeaser(rangeLabel));
+        
         console.log('[AI Widget] ✅ Pre-Fetching abgeschlossen.');
       } catch (e) {
         console.warn('[AI Widget] Pre-Fetching fehlgeschlagen (nicht kritisch):', e);
@@ -47,7 +69,7 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
     };
 
     prefetchData();
-  }, [projectId, dateRange]);
+  }, [projectId, dateRange, rangeLabel]);
 
   const handleAnalyze = async () => {
     setIsLoading(true);
@@ -117,29 +139,25 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
     }
   };
 
-  // Helfer für den Anzeigetext
-  const rangeLabel = getRangeLabel(dateRange as DateRangeOption).toLowerCase();
-
   // 1. Start-Ansicht (Leerzustand - DEZENTES DESIGN)
   if (!statusContent && !isLoading && !error) {
     return (
       <div className="relative group mb-6">
-        {/* Dekorativer Hintergrund-Glow (SEHR DEZENT) */}
-        {/* Opacity auf 5% reduziert, Hover auf 15%. Blur erhöht. */}
+        {/* Dekorativer Hintergrund-Glow */}
         <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 to-blue-500 rounded-2xl opacity-5 group-hover:opacity-15 transition duration-700 blur-sm"></div>
         
         <div className="relative bg-white rounded-xl p-6 flex flex-col sm:flex-row items-center gap-5 shadow-sm border border-gray-100/80">
           
-          {/* Icon mit Puls-Effekt (BERUHIGT) */}
+          {/* Icon mit Puls-Effekt */}
           <div className="relative shrink-0">
-            {/* Pulsierender Ring hinter dem Icon - Deckkraft massiv reduziert (10%) und immer 'pulse' statt 'ping' */}
             <div className={`absolute inset-0 rounded-xl opacity-10 animate-pulse ${isPrefetched ? 'bg-emerald-500' : 'bg-indigo-500'}`}></div>
             
             <div className={`relative p-4 rounded-xl border ${isPrefetched ? 'bg-emerald-50/50 border-emerald-100/50 text-emerald-600' : 'bg-indigo-50/50 border-indigo-100/50 text-indigo-600'}`}>
-              {isPrefetched ? <Cpu size={28} /> : <Robot size={28} />}
+              {/* Immer Roboter, aber Farbe ändert sich */}
+              <Robot size={28} />
             </div>
             
-            {/* Status Dot (Online Indikator) - Kleiner und feiner */}
+            {/* Status Dot */}
             <span className={`absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5`}>
               <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-50 ${isPrefetched ? 'bg-emerald-400' : 'bg-indigo-400'}`}></span>
               <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${isPrefetched ? 'bg-emerald-500' : 'bg-indigo-500'}`}></span>
@@ -150,14 +168,13 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
           <div className="flex-1 text-center sm:text-left">
             <div className="flex items-center justify-center sm:justify-start gap-2 mb-1">
               <h3 className="text-lg font-bold text-gray-900">Data Max</h3>
-              {/* Badge dezenter gestaltet */}
               <span className="px-2 py-0.5 rounded text-indigo-600/80 bg-indigo-50 text-[10px] font-bold uppercase tracking-wider border border-indigo-100/50">
                 AI Analyst
               </span>
             </div>
-            <p className="text-sm text-gray-500 leading-relaxed">
-              {isPrefetched 
-                ? <span>Daten für <span className="font-medium text-gray-700">{rangeLabel}</span> liegen bereit.</span>
+            <p className="text-sm text-gray-600 leading-relaxed">
+              {isPrefetched && teaserText 
+                ? <span className="font-medium text-gray-800 animate-in fade-in duration-500">{teaserText}</span>
                 : <span>Soll ich die Performance der letzten <span className="font-medium text-gray-700">{rangeLabel}</span> analysieren?</span>}
             </p>
           </div>
