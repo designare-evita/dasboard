@@ -1,6 +1,6 @@
 // src/lib/google-data-loader.ts
 import { sql } from '@vercel/postgres';
-import { User } from '@/types';
+import { type User } from '@/lib/schemas';
 import {
   getSearchConsoleData,
   getAnalyticsData,
