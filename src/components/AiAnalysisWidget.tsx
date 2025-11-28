@@ -1,8 +1,7 @@
-// src/components/AiAnalysisWidget.tsx
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import Image from 'next/image'; // ✅ NEU: Image Import
+import Image from 'next/image';
 import { Lightbulb, ArrowRepeat, ExclamationTriangle, InfoCircle, GraphUpArrow } from 'react-bootstrap-icons';
 import { getRangeLabel, DateRangeOption } from '@/components/DateRangeSelector';
 
@@ -147,42 +146,43 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
         {/* Dekorativer Hintergrund-Glow */}
         <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 to-blue-500 rounded-2xl opacity-5 group-hover:opacity-15 transition duration-700 blur-sm"></div>
         
-        <div className="relative bg-white rounded-xl p-6 flex flex-col sm:flex-row items-center gap-5 shadow-sm border border-gray-100/80">
+        <div className="relative bg-white rounded-xl p-6 flex flex-col sm:flex-row items-center gap-6 shadow-sm border border-gray-100/80">
           
           {/* Avatar Bereich */}
           <div className="relative shrink-0">
             {/* Pulsierender Ring hinter dem Icon */}
-            <div className={`absolute inset-0 rounded-xl opacity-10 animate-pulse ${isPrefetched ? 'bg-emerald-500' : 'bg-indigo-500'}`}></div>
+            <div className={`absolute inset-0 rounded-2xl opacity-10 animate-pulse ${isPrefetched ? 'bg-emerald-500' : 'bg-indigo-500'}`}></div>
             
-            {/* ✅ BILD STATT ICON: Data Max Illustration */}
-            <div className={`relative p-3 rounded-xl border ${isPrefetched ? 'bg-emerald-50/50 border-emerald-100/50' : 'bg-indigo-50/50 border-indigo-100/50'}`}>
-              <div className="relative w-9 h-9">
+            {/* ✅ BILD GROSS: Padding minimiert (p-1) und Größe auf w-20 h-20 (80px) erhöht */}
+            <div className={`relative p-1 rounded-2xl border-2 ${isPrefetched ? 'bg-emerald-50/30 border-emerald-100/50' : 'bg-indigo-50/30 border-indigo-100/50'}`}>
+              <div className="relative w-20 h-20">
                 <Image 
                   src="/data-max.webp" 
                   alt="Data Max AI Analyst" 
                   fill
-                  className="object-contain"
-                  sizes="36px"
+                  className="object-contain drop-shadow-sm"
+                  sizes="80px"
+                  priority
                 />
               </div>
             </div>
             
             {/* Status Dot */}
-            <span className={`absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5`}>
+            <span className={`absolute -top-1 -right-1 flex h-3 w-3`}>
               <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-50 ${isPrefetched ? 'bg-emerald-400' : 'bg-indigo-400'}`}></span>
-              <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${isPrefetched ? 'bg-emerald-500' : 'bg-indigo-500'}`}></span>
+              <span className={`relative inline-flex rounded-full h-3 w-3 ${isPrefetched ? 'bg-emerald-500' : 'bg-indigo-500'}`}></span>
             </span>
           </div>
 
           {/* Text Inhalt */}
           <div className="flex-1 text-center sm:text-left">
-            <div className="flex items-center justify-center sm:justify-start gap-2 mb-1">
-              <h3 className="text-lg font-bold text-gray-900">Data Max</h3>
-              <span className="px-2 py-0.5 rounded text-indigo-600/80 bg-indigo-50 text-[10px] font-bold uppercase tracking-wider border border-indigo-100/50">
+            <div className="flex items-center justify-center sm:justify-start gap-3 mb-2">
+              <h3 className="text-xl font-bold text-gray-900">Data Max</h3>
+              <span className="px-2.5 py-0.5 rounded-full text-indigo-600/90 bg-indigo-50 text-[10px] font-bold uppercase tracking-wider border border-indigo-100/50">
                 AI Analyst
               </span>
             </div>
-            <p className="text-sm text-gray-600 leading-relaxed">
+            <p className="text-base text-gray-600 leading-relaxed max-w-xl">
               {isPrefetched && teaserText 
                 ? <span className="text-gray-600 animate-in fade-in duration-500">{teaserText}</span>
                 : <span>Soll ich die Performance der letzten <span className="font-medium text-gray-700">{rangeLabel}</span> analysieren?</span>}
@@ -192,9 +192,9 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
           {/* Action Button */}
           <button
             onClick={handleAnalyze}
-            className="shrink-0 px-5 py-2.5 bg-[#188BDB] hover:bg-[#1479BF] text-white rounded-lg text-sm font-medium shadow-sm hover:shadow transition-all duration-200 flex items-center gap-2"
+            className="shrink-0 px-6 py-3 bg-[#188BDB] hover:bg-[#1479BF] text-white rounded-lg text-sm font-medium shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2 group"
           >
-            <Lightbulb size={16} className="text-white/90" />
+            <Lightbulb size={18} className="text-white/90 group-hover:text-yellow-200 transition-colors" />
             <span>Jetzt analysieren</span>
           </button>
         </div>
