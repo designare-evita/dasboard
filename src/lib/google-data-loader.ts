@@ -15,19 +15,19 @@ import {
   ApiErrorStatus,
   ZERO_KPI
 } from '@/lib/dashboard-shared';
-import type { TopQueryData, ChartPoint as DailyDataPoint } from '@/types/dashboard';
+import type { TopQueryData, ChartPoint } from '@/types/dashboard';
 import { BetaAnalyticsDataClient } from '@google-analytics/data';
 
 // ========== KONSTANTEN ==========
 const CACHE_DURATION_HOURS = 48; 
 
 // Typ-Aliase
-type GscData = { clicks: { total: number, daily: DailyDataPoint[] }, impressions: { total: number, daily: DailyDataPoint[] } };
+type GscData = { clicks: { total: number, daily: ChartPoint[] }, impressions: { total: number, daily: ChartPoint[] } };
 type GaData = { 
-  sessions: { total: number, daily: DailyDataPoint[] }, 
-  totalUsers: { total: number, daily: DailyDataPoint[] },
-  conversions: { total: number, daily: DailyDataPoint[] },
-  engagementRate: { total: number, daily: DailyDataPoint[] }
+  sessions: { total: number, daily: ChartPoint[] }, 
+  totalUsers: { total: number, daily: ChartPoint[] },
+  conversions: { total: number, daily: ChartPoint[] },
+  engagementRate: { total: number, daily: ChartPoint[] }
 };
 
 const DEFAULT_GSC_DATA: GscData = { clicks: { total: 0, daily: [] }, impressions: { total: 0, daily: [] } };
@@ -104,10 +104,10 @@ async function fetchEnhancedGa4Data(
   let curSessions = 0, curUsers = 0, curConversions = 0, curWeightedEngagement = 0;
   let prevSessions = 0, prevUsers = 0, prevConversions = 0, prevWeightedEngagement = 0;
 
-  const chartSessions: DailyDataPoint[] = [];
-  const chartUsers: DailyDataPoint[] = [];
-  const chartConversions: DailyDataPoint[] = [];
-  const chartEngagement: DailyDataPoint[] = [];
+  const chartSessions: Array<{ date: number; value: number }> = [];
+  const chartUsers: Array<{ date: number; value: number }> = [];
+  const chartConversions: Array<{ date: number; value: number }> = [];
+  const chartEngagement: Array<{ date: number; value: number }> = [];
 
   const rows = response.rows || [];
 
