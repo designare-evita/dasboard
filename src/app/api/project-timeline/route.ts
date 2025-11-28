@@ -60,8 +60,8 @@ export async function GET(request: NextRequest) {
     const percentage = counts.Total > 0 ? Math.round((counts.Freigegeben / counts.Total) * 100) : 0;
 
     // 3. Zeiträume & Daten-Abruf (GSC + AI)
-    let gscImpressionTrend: Array<{ date: string; value: number }> = [];
-    let aiTrafficTrend: Array<{ date: string; value: number }> = [];
+    let gscImpressionTrend: Array<{ date: number; value: number }> = []; // ✅ Timestamp
+    let aiTrafficTrend: Array<{ date: number; value: number }> = []; // ✅ Timestamp
 
     // Zeitraum bestimmen: Vom Projektstart bis heute
     const today = new Date();
