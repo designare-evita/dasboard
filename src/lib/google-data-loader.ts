@@ -61,19 +61,6 @@ function getCredentials(user: User) {
   };
 }
 
-// Helper: Füge fill-Farben zu Chart-Daten hinzu
-function addFillColors(data: Array<{ name: string; value: number }>): ChartEntry[] {
-  const colors = [
-    '#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981',
-    '#06b6d4', '#6366f1', '#a855f7', '#f43f5e', '#84cc16'
-  ];
-  
-  return data.map((item, index) => ({
-    ...item,
-    fill: colors[index % colors.length]
-  }));
-}
-
 /**
  * Erweiterte GA4 Funktion für Conversions & Engagement
  */
@@ -328,14 +315,10 @@ export async function getOrFetchGoogleData(
       // AI Traffic
       aiTraffic = await getAiTrafficData(user.ga4_property_id, startDateStr, endDateStr);
 
-      // Pie Charts (Länder, Kanäle, Geräte) - mit Farben
-      const rawCountryData = await getGa4DimensionReport(user.ga4_property_id, startDateStr, endDateStr, 'country');
-      const rawChannelData = await getGa4DimensionReport(user.ga4_property_id, startDateStr, endDateStr, 'sessionDefaultChannelGroup');
-      const rawDeviceData = await getGa4DimensionReport(user.ga4_property_id, startDateStr, endDateStr, 'deviceCategory');
-      
-      countryData = addFillColors(rawCountryData);
-      channelData = addFillColors(rawChannelData);
-      deviceData = addFillColors(rawDeviceData);
+      // Pie Charts (Länder, Kanäle, Geräte)
+      countryData = await getGa4DimensionReport(user.ga4_property_id, startDateStr, endDateStr, 'country');
+      channelData = await getGa4DimensionReport(user.ga4_property_id, startDateStr, endDateStr, 'sessionDefaultChannelGroup');
+      deviceData = await getGa4DimensionReport(user.ga4_property_id, startDateStr, endDateStr, 'deviceCategory');
 
     } catch (e: any) {
       console.error('[GA4 Fetch Error]', e);
