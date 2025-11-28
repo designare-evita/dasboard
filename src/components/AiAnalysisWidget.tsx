@@ -17,7 +17,7 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
   // UI States
   const [isLoading, setIsLoading] = useState(false);
   const [isStreamComplete, setIsStreamComplete] = useState(false);
-  const [error, setError] = useState<Error | null>(null);ly
+  const [error, setError] = useState<Error | null>(null);
   const [isPrefetched, setIsPrefetched] = useState(false);
   
   // NEU: Dynamischer Teaser Text
