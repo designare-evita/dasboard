@@ -1,4 +1,3 @@
-// src/components/ProjectTimelineWidget.tsx
 'use client';
 
 import useSWR from 'swr';
@@ -17,11 +16,11 @@ import {
   ClockHistory, 
   GraphUpArrow, 
   GraphDownArrow, 
-  HourglassSplit,
-  ListCheck,
-  BoxSeam,
-  Trophy,
-  ArrowUp,
+  HourglassSplit, 
+  ListCheck, 
+  BoxSeam, 
+  Trophy, 
+  ArrowUp, 
   ArrowDown, 
   Dash,
   Search,
@@ -29,6 +28,7 @@ import {
 } from 'react-bootstrap-icons';
 import { addMonths, format, differenceInCalendarDays } from 'date-fns';
 import { de } from 'date-fns/locale';
+import { motion } from 'framer-motion'; // ✅ Animation Import
 
 interface StatusCounts {
   'Offen': number;
@@ -61,369 +61,258 @@ interface TimelineData {
   topMovers?: TopMover[];
 }
 
-const fetcher = (url: string) => fetch(url).then((res) => {
-  if (!res.ok) {
-    return res.json().then(errorData => {
-      throw new Error(errorData.message || 'Fehler beim Laden der Timeline-Daten.');
-    });
-  }
-  return res.json();
-});
+const fetcher = (url: string) => fetch(url).then(r => r.json());
 
-// Berechnet den Trend über den GESAMTEN Zeitraum mittels linearer Regression
-function calculateTrendDirection(data: TrendPoint[]): 'up' | 'down' | 'neutral' {
-  if (!data || data.length < 2) return 'neutral';
+export default function ProjectTimelineWidget({ projectId }: { projectId: string }) {
+  const { data, error, isLoading } = useSWR<TimelineData>(`/api/project-timeline?projectId=${projectId}`, fetcher);
 
-  let sumX = 0;
-  let sumY = 0;
-  let sumXY = 0;
-  let sumXX = 0;
-  const n = data.length;
-
-  for (let i = 0; i < n; i++) {
-    const x = i;
-    const y = data[i].value;
-    
-    sumX += x;
-    sumY += y;
-    sumXY += x * y;
-    sumXX += x * x;
-  }
-
-  const denominator = (n * sumXX - sumX * sumX);
-  if (denominator === 0) return 'neutral';
-
-  const slope = (n * sumXY - sumX * sumY) / denominator;
-
-  if (slope > 0.01) return 'up';
-  if (slope < -0.01) return 'down';
-  
-  return 'neutral';
-}
-
-// Berechnet die prozentuale Veränderung (Erster vs. Letzter Wert)
-function calculatePercentageChange(data: TrendPoint[] | undefined): number {
-  if (!data || data.length < 2) return 0;
-  const first = data[0].value;
-  const last = data[data.length - 1].value;
-  
-  if (first === 0) return last > 0 ? 100 : 0; // Verhinderung von Division durch Null
-  return ((last - first) / first) * 100;
-}
-
-interface ProjectTimelineWidgetProps {
-  projectId?: string;
-  domain?: string | null;
-}
-
-export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidgetProps) {
-  const apiUrl = projectId 
-    ? `/api/project-timeline?projectId=${projectId}` 
-    : '/api/project-timeline';
-  
-  const { data, error, isLoading } = useSWR<TimelineData>(apiUrl, fetcher);
-
-  if (isLoading) {
-    return (
-      <div className="card-glass p-8 min-h-[300px] flex items-center justify-center animate-pulse">
-        <HourglassSplit size={32} className="text-indigo-300 mb-3" />
-      </div>
-    );
-  }
-
-  if (error || !data || !data.project) return null;
+  if (isLoading) return <div className="h-64 bg-gray-50 rounded-xl animate-pulse" />;
+  if (error || !data) return <div className="h-64 bg-gray-50 rounded-xl flex items-center justify-center text-gray-400">Keine Daten verfügbar</div>;
 
   const { project, progress, gscImpressionTrend, aiTrafficTrend, topMovers } = data;
-  const { counts, percentage } = progress;
-  
-  // Projekt-Zeitraum
-  const startDate = project?.startDate ? new Date(project.startDate) : new Date();
-  const duration = project?.durationMonths || 6;
-  const endDate = addMonths(startDate, duration);
   const today = new Date();
   
-  // Fortschritt
-  const totalProjectDays = Math.max(1, differenceInCalendarDays(endDate, startDate)); 
-  const elapsedProjectDays = differenceInCalendarDays(today, startDate);
-  const timeElapsedPercentage = Math.max(0, Math.min(100, (elapsedProjectDays / totalProjectDays) * 100));
+  // Datumsberechnungen
+  const startDate = new Date(project.startDate);
+  const endDate = addMonths(startDate, project.durationMonths);
+  const totalDays = differenceInCalendarDays(endDate, startDate);
+  const daysPassed = differenceInCalendarDays(today, startDate);
+  const progressPercent = Math.min(100, Math.max(0, (daysPassed / totalDays) * 100));
   
-  // Daten zusammenführen (null für fehlende GSC Daten, damit Chart nicht auf 0 fällt)
-  const chartDataMap = new Map<string, { date: number; impressions: number | null; aiTraffic: number }>();
-  
-  gscImpressionTrend.forEach(d => {
-    const timestamp = new Date(d.date).getTime();
-    chartDataMap.set(d.date, { date: timestamp, impressions: d.value, aiTraffic: 0 });
-  });
-
-  if (aiTrafficTrend) {
-    aiTrafficTrend.forEach(d => {
-      const entry = chartDataMap.get(d.date);
-      if (entry) {
-        entry.aiTraffic = d.value;
-      } else {
-        chartDataMap.set(d.date, { 
-          date: new Date(d.date).getTime(), 
-          impressions: null, 
-          aiTraffic: d.value 
-        });
-      }
-    });
-  }
-
-  const chartData = Array.from(chartDataMap.values()).sort((a, b) => a.date - b.date);
-
-  // Trends berechnen
-  const gscTrend = calculateTrendDirection(gscImpressionTrend);
-  const aiTrend = calculateTrendDirection(aiTrafficTrend || []);
-  
-  // Summen & Prozentuale Änderung berechnen
-  const totalGscImpressions = gscImpressionTrend.reduce((acc, curr) => acc + curr.value, 0);
-  const totalAiSessions = aiTrafficTrend?.reduce((acc, curr) => acc + curr.value, 0) || 0;
-  
-  const gscChangePercent = calculatePercentageChange(gscImpressionTrend);
-  const aiChangePercent = calculatePercentageChange(aiTrafficTrend);
-
-  // Helper Components
-  const TrendIcon = ({ direction, colorClass }: { direction: 'up' | 'down' | 'neutral', colorClass: string }) => {
-    if (direction === 'up') return <GraphUpArrow className={colorClass} size={16} />; // Etwas größer für die neue Position
-    if (direction === 'down') return <GraphDownArrow className={colorClass} size={16} />;
-    return <Dash className="text-gray-400" size={16} />;
-  };
-
-  // Das neue Badge-Element (Grün/Rot mit Pfeil, Style wie Top-Performer)
-  const ChangeBadge = ({ change }: { change: number }) => {
-    if (change === 0) return null;
-    const isPositive = change > 0;
-    
-    const colorClass = isPositive 
-      ? 'text-green-600 border-green-100' 
-      : 'text-red-600 border-red-100';
-    
-    const Icon = isPositive ? ArrowUp : ArrowDown;
-
-    return (
-      <div className={`flex items-center gap-1 font-bold text-[10px] bg-white px-1.5 py-0.5 rounded border shadow-sm ${colorClass} mb-1`}>
-        <Icon size={9} />
-        {Math.abs(change).toFixed(0)}%
-      </div>
-    );
-  };
+  const currentMonth = Math.ceil((daysPassed / totalDays) * project.durationMonths);
+  const displayMonth = Math.min(Math.max(1, currentMonth), project.durationMonths);
 
   return (
-    <div className="card-glass p-6 lg:p-8 print-timeline">
+    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
       
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 border-b border-gray-200/50 pb-4">
+      <div className="flex justify-between items-start mb-8">
         <div>
-          <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-            <ClockHistory className="text-indigo-600" size={22} />
-            Projekt-Status
+          <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+            <CalendarWeek className="text-indigo-600" />
+            Projekt-Zeitplan & Fortschritt
           </h2>
+          <p className="text-sm text-gray-500 mt-1">
+            Laufzeit: {format(startDate, 'dd.MM.yyyy')} - {format(endDate, 'dd.MM.yyyy')}
+          </p>
         </div>
-        <div className="mt-2 sm:mt-0">
-           <div className="px-3 py-1 bg-indigo-50/80 text-indigo-700 rounded-full text-xs font-semibold border border-indigo-100/50 backdrop-blur-sm">
-             Laufzeit: {duration} Monate
-           </div>
+        <div className="bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full text-xs font-bold border border-indigo-100">
+          Monat {displayMonth} von {project.durationMonths}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-full">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
-        {/* SPALTE 1: Zeit & Status & KPIs */}
-        <div className="flex flex-col gap-8 border-b lg:border-b-0 lg:border-r border-gray-100 pb-6 lg:pb-0 lg:pr-6">
-          {/* Zeitachse */}
-          <div className="space-y-3">
-            <div className="flex justify-between items-end mb-2">
-              <div className="flex items-center gap-2 text-lg font-semibold text-gray-900">
-                <CalendarWeek className="text-indigo-500" size={20} />
-                <h3>Zeitachse</h3>
-              </div>
-              <span className="text-sm font-medium text-gray-500">{Math.round(timeElapsedPercentage)}% vergangen</span>
+        {/* SPALTE 1: Timeline & Status (Links) */}
+        <div className="lg:col-span-1 space-y-8">
+          
+          {/* 1. Projektfortschritt (Zeitachse) */}
+          <div>
+            <div className="flex justify-between text-sm mb-2">
+              <span className="font-medium text-gray-700 flex items-center gap-2">
+                <ClockHistory /> Zeitlicher Fortschritt
+              </span>
+              <span className="font-bold text-indigo-600">{Math.round(progressPercent)}%</span>
             </div>
-            <div className="relative h-10 w-full bg-gray-100/80 rounded-lg border border-gray-200/60 overflow-hidden">
-              <div className="absolute top-0 left-0 h-full bg-indigo-200 border-r-2 border-indigo-500 transition-all duration-1000" style={{ width: `${timeElapsedPercentage}%` }} />
-              <div className="absolute inset-0 flex justify-between items-center px-4 text-xs font-medium text-gray-500 pointer-events-none">
-                <div className="flex flex-col items-start z-10"><span className="text-[10px] uppercase tracking-wider text-gray-500">Start</span><span className="text-gray-800">{format(startDate, 'dd.MM.yyyy')}</span></div>
-                <div className="flex flex-col items-end z-10"><span className="text-[10px] uppercase tracking-wider text-gray-400">Ende</span><span className="text-gray-500">{format(endDate, 'dd.MM.yyyy')}</span></div>
-              </div>
+            <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+              {/* ✅ ANIMATION: Zeit-Balken */}
+              <motion.div 
+                className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full shadow-sm"
+                initial={{ width: 0 }}
+                animate={{ width: `${progressPercent}%` }}
+                transition={{ duration: 1.2, ease: "easeOut" }}
+              />
+            </div>
+            <p className="text-xs text-gray-400 mt-2 text-center">
+              Noch {Math.max(0, totalDays - daysPassed)} Tage bis Projektende
+            </p>
+          </div>
+
+          {/* 2. Landingpage Status (Verteilung) */}
+          <div>
+            <div className="flex justify-between text-sm mb-3">
+              <span className="font-medium text-gray-700 flex items-center gap-2">
+                <BoxSeam /> Landingpages
+              </span>
+              <span className="text-xs bg-gray-100 px-2 py-0.5 rounded text-gray-600">
+                Gesamt: {progress.counts.Total}
+              </span>
+            </div>
+            
+            {/* Multi-Color Progress Bar */}
+            <div className="flex h-4 rounded-full overflow-hidden bg-gray-100">
+              {/* Offen */}
+              {progress.counts['Offen'] > 0 && (
+                <motion.div 
+                  className="bg-blue-400 h-full"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${(progress.counts['Offen'] / progress.counts.Total) * 100}%` }}
+                  transition={{ duration: 0.8, delay: 0.1 }}
+                  title={`Offen: ${progress.counts['Offen']}`}
+                />
+              )}
+              {/* In Prüfung */}
+              {progress.counts['In Prüfung'] > 0 && (
+                <motion.div 
+                  className="bg-amber-400 h-full"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${(progress.counts['In Prüfung'] / progress.counts.Total) * 100}%` }}
+                  transition={{ duration: 0.8, delay: 0.2 }}
+                  title={`In Prüfung: ${progress.counts['In Prüfung']}`}
+                />
+              )}
+              {/* Freigegeben */}
+              {progress.counts['Freigegeben'] > 0 && (
+                <motion.div 
+                  className="bg-emerald-500 h-full"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${(progress.counts['Freigegeben'] / progress.counts.Total) * 100}%` }}
+                  transition={{ duration: 0.8, delay: 0.3 }}
+                  title={`Freigegeben: ${progress.counts['Freigegeben']}`}
+                />
+              )}
+              {/* Gesperrt */}
+              {progress.counts['Gesperrt'] > 0 && (
+                <motion.div 
+                  className="bg-red-400 h-full"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${(progress.counts['Gesperrt'] / progress.counts.Total) * 100}%` }}
+                  transition={{ duration: 0.8, delay: 0.4 }}
+                  title={`Gesperrt: ${progress.counts['Gesperrt']}`}
+                />
+              )}
+            </div>
+
+            {/* Legende */}
+            <div className="grid grid-cols-2 gap-2 mt-3">
+               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }} className="flex items-center gap-1.5 text-xs text-gray-600">
+                 <div className="w-2 h-2 rounded-full bg-blue-400" /> Offen ({progress.counts['Offen']})
+               </motion.div>
+               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }} className="flex items-center gap-1.5 text-xs text-gray-600">
+                 <div className="w-2 h-2 rounded-full bg-amber-400" /> Prüfung ({progress.counts['In Prüfung']})
+               </motion.div>
+               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.7 }} className="flex items-center gap-1.5 text-xs text-gray-600">
+                 <div className="w-2 h-2 rounded-full bg-emerald-500" /> Fertig ({progress.counts['Freigegeben']})
+               </motion.div>
+               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }} className="flex items-center gap-1.5 text-xs text-gray-600">
+                 <div className="w-2 h-2 rounded-full bg-red-400" /> Gesperrt ({progress.counts['Gesperrt']})
+               </motion.div>
             </div>
           </div>
 
-          {/* Status */}
-          <div className="space-y-3">
-            <div className="flex justify-between items-end mb-2">
-              <div className="flex items-center gap-2 text-lg font-semibold text-gray-900">
-                <ListCheck className="text-green-600" size={22} />
-                <h3>Landingpages Status</h3>
-              </div>
-              <div className="flex items-baseline gap-1"><span className="text-2xl font-bold text-gray-900">{Math.round(percentage)}%</span><span className="text-sm text-gray-500 font-medium">fertig</span></div>
-            </div>
-            <div className="h-6 w-full bg-gray-100/80 rounded-full overflow-hidden flex shadow-inner border border-gray-200/60">
-              {counts.Total > 0 ? (
-                <>
-                  <div className="bg-green-500 h-full" style={{ width: `${(counts.Freigegeben / counts.Total) * 100}%` }} />
-                  <div className="bg-amber-400 h-full" style={{ width: `${(counts['In Prüfung'] / counts.Total) * 100}%` }} />
-                  <div className="bg-red-400 h-full" style={{ width: `${(counts.Gesperrt / counts.Total) * 100}%` }} />
-                </>
-              ) : (<div className="w-full h-full flex items-center justify-center text-xs text-gray-400">Keine Daten</div>)}
-            </div>
-            <div className="flex flex-wrap gap-3 mt-2 text-[11px] text-gray-500 justify-between">
-              <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500"></span>Freig.: {counts.Freigegeben}</div>
-              <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400"></span>Prüf.: {counts['In Prüfung']}</div>
-              <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-400"></span>Gesp.: {counts.Gesperrt}</div>
-              <div className="flex items-center gap-1 font-medium text-gray-700"><BoxSeam size={10} />Ges: {counts.Total}</div>
-            </div>
-          </div>
-
-          {/* NEU: KI Trend & GSC Trend Icons mit Zahlen und Change Badge */}
-          <div className="grid grid-cols-2 gap-3 pt-2">
-            {/* GSC Summary */}
-            <div className="bg-blue-50/50 rounded-xl p-3 border border-blue-100 shadow-sm">
-               <div className="flex items-center gap-2 mb-2 text-blue-600">
-                  <Search size={14} />
-                  <span className="text-xs font-bold uppercase tracking-wide opacity-80">GSC Impr.</span>
-               </div>
-               <div className="flex items-end gap-2">
-                  <div className="mb-1"><TrendIcon direction={gscTrend} colorClass="text-blue-600" /></div>
-                  <span className="text-xl font-bold text-gray-900 leading-none">
-                    {new Intl.NumberFormat('de-DE', { notation: 'compact', maximumFractionDigits: 1 }).format(totalGscImpressions)}
-                  </span>
-                  <ChangeBadge change={gscChangePercent} />
-               </div>
-            </div>
-
-            {/* KI Summary */}
-            <div className="bg-purple-50/50 rounded-xl p-3 border border-purple-100 shadow-sm">
-               <div className="flex items-center gap-2 mb-2 text-purple-600">
-                  <Cpu size={14} />
-                  <span className="text-xs font-bold uppercase tracking-wide opacity-80">KI Traffic</span>
-               </div>
-               <div className="flex items-end gap-2">
-                  <div className="mb-1"><TrendIcon direction={aiTrend} colorClass="text-purple-600" /></div>
-                  <span className="text-xl font-bold text-gray-900 leading-none">
-                    {new Intl.NumberFormat('de-DE', { notation: 'compact', maximumFractionDigits: 1 }).format(totalAiSessions)}
-                  </span>
-                  <ChangeBadge change={aiChangePercent} />
-               </div>
-            </div>
-          </div>
-
-        </div>
-
-        {/* SPALTE 2: Top Movers */}
-        <div className="flex flex-col h-full border-b lg:border-b-0 lg:border-r border-gray-100 pb-6 lg:pb-0 lg:px-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2 text-lg font-semibold text-gray-900">
-              <Trophy className="text-amber-500" size={20} />
-              <h3>Top-Performer (GSC)</h3>
-            </div>
-            <span className="text-[10px] px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full">Trend (90T)</span>
-          </div>
-          {topMovers && topMovers.length > 0 ? (
-            <div className="flex-grow overflow-hidden space-y-2">
-              {topMovers.map((page, index) => (
-                <div key={index} className="bg-gray-50/50 rounded-lg border border-gray-100 p-3 hover:shadow-sm transition-all flex items-center justify-between">
-                  <div className="min-w-0 flex-1 pr-3">
-                    <div className="font-medium text-sm text-gray-900 truncate" title={page.haupt_keyword || page.url}>
-                      {page.haupt_keyword || <span className="text-gray-400 italic">Kein Keyword</span>}
+          {/* 3. Top Mover (Mini Liste) */}
+          {topMovers && topMovers.length > 0 && (
+            <motion.div 
+              className="bg-gray-50 rounded-xl p-4 border border-gray-100"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.9 }}
+            >
+              <h3 className="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center gap-2">
+                <Trophy className="text-amber-500" /> Top Performer (30 Tage)
+              </h3>
+              <div className="space-y-3">
+                {topMovers.map((page, i) => (
+                  <div key={i} className="flex justify-between items-center text-sm">
+                    <div className="truncate pr-2">
+                      <div className="font-medium text-gray-900 truncate max-w-[140px]" title={page.haupt_keyword || 'Kein Keyword'}>
+                        {page.haupt_keyword || page.url}
+                      </div>
                     </div>
-                    <div className="text-[10px] text-gray-400 truncate mt-0.5">{new URL(page.url).pathname}</div>
+                    <div className={`text-xs font-bold flex items-center gap-1 ${page.gsc_impressionen_change >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                      {page.gsc_impressionen_change >= 0 ? <ArrowUp/> : <ArrowDown/>}
+                      {Math.abs(page.gsc_impressionen_change).toLocaleString()} Impr.
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1 text-green-600 font-bold text-xs bg-white px-1.5 py-0.5 rounded border border-green-100 shadow-sm">
-                    <ArrowUp size={10} />
-                    {page.gsc_impressionen_change > 1000 ? (page.gsc_impressionen_change / 1000).toFixed(1) + 'k' : page.gsc_impressionen_change}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="flex-grow flex items-center justify-center text-gray-400 text-xs italic border border-dashed border-gray-200 rounded-lg bg-gray-50">Keine Daten</div>
+                ))}
+              </div>
+            </motion.div>
           )}
         </div>
 
-        {/* SPALTE 3: Reichweite Chart */}
-        <div className="flex flex-col h-full">
-          <div className="mb-4 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-               {/* Titel */}
-               <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                  <GraphUpArrow className="text-blue-500" size={18} />
-                  Reichweite
-               </h3>
-            </div>
-            
-            {/* Legende */}
-            <div className="flex gap-3 text-[10px]">
-               <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500"></span> GSC</div>
-               <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-purple-500"></span> KI</div>
+        {/* SPALTE 2 & 3: Großer Chart (Rechts) */}
+        <div className="lg:col-span-2 flex flex-col">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="font-bold text-gray-700 flex items-center gap-2">
+              <GraphUpArrow /> Performance Trend
+            </h3>
+            <div className="flex gap-4 text-xs">
+               <span className="flex items-center gap-1 text-blue-600 font-medium">
+                 <span className="w-2 h-2 rounded-full bg-blue-500"></span> GSC Impressionen
+               </span>
+               <span className="flex items-center gap-1 text-purple-600 font-medium">
+                 <span className="w-2 h-2 rounded-full bg-purple-500"></span> AI Traffic
+               </span>
             </div>
           </div>
-
-          <div className="bg-gray-50/50 rounded-xl border border-gray-200/60 p-4 h-full min-h-[200px] flex flex-col shadow-inner backdrop-blur-sm">
-            <div className="flex-grow w-full relative">
-              {chartData.length > 0 ? (
+          
+          <div className="flex-grow min-h-[300px] relative">
+            <div className="absolute inset-0">
+              {gscImpressionTrend.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                  <AreaChart data={gscImpressionTrend} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <defs>
                       <linearGradient id="colorImpressions" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.1}/>
                         <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
                       </linearGradient>
                       <linearGradient id="colorAi" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
+                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.1}/>
                         <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                    <XAxis
-                      dataKey="date"
-                      tickFormatter={(t) => format(new Date(t), 'd.MM', { locale: de })}
-                      type="number"
-                      domain={[startDate.getTime(), endDate.getTime()]}
-                      tick={{ fontSize: 9, fill: '#6b7280' }}
-                      tickMargin={5}
-                      minTickGap={30}
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                    <XAxis 
+                      dataKey="date" 
+                      tick={{ fontSize: 10, fill: '#9ca3af' }} 
+                      tickLine={false}
+                      axisLine={false}
+                      tickFormatter={(value) => {
+                        const d = new Date(value);
+                        return d.getDate() === 1 ? format(d, 'MMM', { locale: de }) : '';
+                      }}
                     />
                     <YAxis 
-                      tickFormatter={(v) => new Intl.NumberFormat('de-DE', { notation: 'compact' }).format(v)}
-                      tick={{ fontSize: 9, fill: '#6b7280' }}
-                      width={35}
-                      axisLine={false}
+                      tick={{ fontSize: 10, fill: '#9ca3af' }} 
                       tickLine={false}
+                      axisLine={false}
+                      tickFormatter={(val) => val >= 1000 ? `${(val/1000).toFixed(0)}k` : val}
                     />
                     <Tooltip 
-                      contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: '12px', backgroundColor: 'rgba(255,255,255,0.95)' }}
-                      labelFormatter={(v) => format(new Date(v), 'd. MMM yyyy', { locale: de })}
-                      formatter={(value: any, name: string) => {
-                        if (value === null || value === undefined) return ['Keine Daten (verzögert)', name === 'impressions' ? 'GSC Impressionen' : 'KI Sitzungen'];
-                        return [
-                          new Intl.NumberFormat('de-DE').format(value), 
-                          name === 'impressions' ? 'GSC Impressionen' : 'KI Sitzungen'
-                        ];
-                      }}
+                      contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                      labelStyle={{ color: '#6b7280', marginBottom: '4px', fontSize: '12px' }}
+                      itemStyle={{ fontSize: '12px', fontWeight: 600 }}
+                      formatter={(value: number) => [value.toLocaleString(), '']}
+                      labelFormatter={(label) => format(new Date(label), 'dd. MMMM yyyy', { locale: de })}
                     />
                     <Area 
                       type="monotone" 
-                      dataKey="impressions" 
-                      name="impressions" 
+                      dataKey="value" 
+                      name="GSC Impressions" 
                       stroke="#3b82f6" 
                       strokeWidth={2} 
                       fillOpacity={1} 
                       fill="url(#colorImpressions)" 
                       connectNulls={true}
+                      animationDuration={1500} // ✅ Chart Animation
                     />
-                    <Area 
-                      type="monotone" 
-                      dataKey="aiTraffic" 
-                      name="aiTraffic" 
-                      stroke="#8b5cf6" 
-                      strokeWidth={2} 
-                      fillOpacity={1} 
-                      fill="url(#colorAi)" 
-                    />
+                    {aiTrafficTrend && (
+                      <Area 
+                        type="monotone" 
+                        data={aiTrafficTrend}
+                        dataKey="value" 
+                        name="AI Traffic" 
+                        stroke="#8b5cf6" 
+                        strokeWidth={2} 
+                        fillOpacity={1} 
+                        fill="url(#colorAi)"
+                        animationDuration={1500} // ✅ Chart Animation
+                        animationBegin={300}
+                      />
+                    )}
                     {/* Reference Line für HEUTE */}
                     <ReferenceLine 
-                      x={today.getTime()} 
+                      x={today.toISOString().split('T')[0]} 
                       stroke="#f59e0b" 
                       strokeDasharray="3 3" 
                       label={{ 
