@@ -1,5 +1,5 @@
-// src/services/userService.ts
 import { sql } from '@vercel/postgres';
+import { UserSchema, type User } from '@/lib/schemas'; // ✅ Import aus Schema
 
 interface UserSession {
   id: string;
@@ -8,19 +8,15 @@ interface UserSession {
   permissions?: string[];
 }
 
-export async function getUsersForManagement(user: UserSession) {
+export async function getUsersForManagement(user: UserSession): Promise<User[]> {
   try {
+    let rows: any[] = [];
+
     // --- SUPERADMIN ---
     if (user.role === 'SUPERADMIN') {
-      const { rows } = await sql`
+      const result = await sql`
         SELECT 
-          u.id::text as id, 
-          u.email, 
-          u.role, 
-          u.domain, 
-          u.mandant_id, 
-          u.permissions, 
-          u.favicon_url,
+          u.id::text as id, u.email, u.role, u.domain, u.mandant_id, u.permissions, u.favicon_url,
           (
             SELECT STRING_AGG(DISTINCT admins.email, ', ')
             FROM project_assignments pa_sub
@@ -37,11 +33,11 @@ export async function getUsersForManagement(user: UserSession) {
         WHERE u.role != 'SUPERADMIN'
         ORDER BY u.mandant_id ASC, u.role DESC, u.email ASC
       `;
-      return rows;
+      rows = result.rows;
     }
 
     // --- ADMIN ---
-    if (user.role === 'ADMIN') {
+    else if (user.role === 'ADMIN') {
       const adminId = user.id;
       const adminMandantId = user.mandant_id;
       const kannAdminsVerwalten = user.permissions?.includes('kann_admins_verwalten');
@@ -72,8 +68,7 @@ export async function getUsersForManagement(user: UserSession) {
             )
           )
       `;
-      
-      let rows = kundenRes.rows;
+      rows = kundenRes.rows;
 
       if (kannAdminsVerwalten && adminMandantId) {
         const adminsRes = await sql`
@@ -99,13 +94,22 @@ export async function getUsersForManagement(user: UserSession) {
         rows = [...rows, ...adminsRes.rows];
       }
       
-      // Sortierung in JS, da wir zwei Queries gemischt haben könnten
       rows.sort((a, b) => (a.role > b.role) ? -1 : (a.role === b.role) ? a.email.localeCompare(b.email) : 1);
-      
-      return rows;
     }
 
-    return [];
+    // ✅ VALIDIERUNG: Zod parst die Daten und wirft Fehler, wenn das Format falsch ist
+    // .safeParse() verhindert Abstürze, wir filtern ungültige Einträge einfach raus oder loggen sie
+    const parsedUsers = rows.map(row => {
+        const result = UserSchema.safeParse(row);
+        if (!result.success) {
+            console.error("User Validation Error:", result.error, row);
+            return null;
+        }
+        return result.data;
+    }).filter(u => u !== null) as User[];
+
+    return parsedUsers;
+
   } catch (error) {
     console.error('[UserService] Fehler beim Laden der Benutzer:', error);
     return [];
