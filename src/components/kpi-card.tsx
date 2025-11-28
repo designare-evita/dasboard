@@ -1,6 +1,7 @@
 // src/components/kpi-card.tsx
+'use client';
+
 import React from 'react';
-// +++ NEU: ExclamationTriangleFill importiert +++
 import { ArrowUp, ArrowDown, ExclamationTriangleFill } from 'react-bootstrap-icons';
 import { ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { ChartPoint } from '@/types/dashboard'; 
@@ -12,7 +13,8 @@ interface KpiCardProps {
   isLoading?: boolean;
   data?: ChartPoint[];
   color?: string;
-  error?: string | null; // +++ NEU: Prop für Fehlermeldungen +++
+  error?: string | null;
+  className?: string; // NEU: Für Styling-Overrides
 }
 
 export default function KpiCard({ 
@@ -22,70 +24,65 @@ export default function KpiCard({
   isLoading = false, 
   data,
   color = '#3b82f6',
-  error = null // +++ NEU: Prop entgegennehmen +++
+  error = null,
+  className = ''
 }: KpiCardProps) {
   
   const isPositive = change !== undefined && change >= 0;
 
   if (isLoading) {
     return (
-      <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
-        <div className="animate-pulse">
-          <div className="h-4 bg-gray-200 rounded w-1/2 mb-4"></div>
-          <div className="h-8 bg-gray-200 rounded w-3/4 mb-2"></div>
-          {change !== undefined && <div className="h-3 bg-gray-200 rounded w-1/3"></div>}
-          {data !== undefined && <div className="h-[60px] bg-gray-200 rounded mt-4"></div>}
+      <div className={`p-6 rounded-xl border border-gray-100 ${className || 'bg-white shadow-sm'}`}>
+        <div className="animate-pulse space-y-4">
+          <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+          <div className="h-8 bg-gray-200 rounded w-3/4"></div>
+          <div className="h-16 bg-gray-100 rounded-lg w-full mt-2"></div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200 hover:shadow-lg transition-shadow">
-      <h3 className="text-sm font-medium text-gray-500 mb-2">{title}</h3>
+    <div className={`p-6 rounded-xl transition-all duration-300 ${className || 'bg-white shadow-sm border border-gray-200 hover:shadow-md'}`}>
+      <div className="flex justify-between items-start mb-1">
+        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">{title}</h3>
+        
+        {/* Trend Indikator oben rechts */}
+        {!error && change !== undefined && (
+          <span className={`flex items-center text-xs font-bold px-2 py-0.5 rounded-full ${
+            isPositive ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+          }`}>
+            {isPositive ? <ArrowUp className="mr-1" size={10} /> : <ArrowDown className="mr-1" size={10} />}
+            {Math.abs(change).toFixed(1)}%
+          </span>
+        )}
+      </div>
 
-      {/* +++ START: MODIFIZIERTE RENDER-LOGIK +++ */}
       {error ? (
-        // Wenn ein Fehler vorhanden ist, zeige die Fehlermeldung
-        <div className="mt-2" style={{ minHeight: '60px' }}> {/* Höhe beibehalten für Layout-Konsistenz */}
-          <ExclamationTriangleFill className="text-red-500 w-5 h-5 mb-2" />
-          <p className="text-xs text-red-700 font-semibold">Fehler bei der Datenquelle</p>
-          <p className="text-xs text-gray-500 mt-1" title={error}>
-            Verbindung fehlgeschlagen. Bitte kontaktieren Sie Ihren Ansprechpartner.
+        <div className="flex flex-col justify-center h-[80px]">
+          <div className="flex items-center gap-2 text-red-600 mb-1">
+            <ExclamationTriangleFill size={14} />
+            <span className="text-xs font-semibold">Datenfehler</span>
+          </div>
+          <p className="text-[10px] text-gray-400 leading-tight">
+            Quelle nicht erreichbar.
           </p>
         </div>
       ) : (
-        // Andernfalls zeige die normalen KPI-Daten
         <>
-          <p className="text-3xl font-bold text-gray-900 mb-2">
+          <div className="text-2xl font-bold text-gray-900 mb-4 tracking-tight">
             {value.toLocaleString('de-DE')}
-          </p>
-          
-          {change !== undefined && (
-            <div className={`flex items-center text-sm font-medium ${
-              isPositive ? 'text-green-600' : 'text-red-600'
-            }`}>
-              {isPositive ? (
-                <ArrowUp className="mr-1" size={16} />
-              ) : (
-                <ArrowDown className="mr-1" size={16} />
-              )}
-              <span>{Math.abs(change).toFixed(1)}%</span>
-            </div>
-          )}
+          </div>
 
-          {/* Sparkline Chart Bereich */}
-          {data && data.length > 0 && (
-            <div className="mt-4 h-[60px]">
+          {/* ✨ SPARKLINE CHART ✨ */}
+          <div className="h-[50px] -mx-2">
+            {data && data.length > 1 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart 
-                  data={data}
-                  margin={{ top: 5, right: 0, left: 0, bottom: 0 }}
-                >
+                <AreaChart data={data}>
                   <defs>
-                    <linearGradient id={`gradient-${title.replace(/\s+/g, '-')}`} x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={color} stopOpacity={0.4}/>
-                      <stop offset="95%" stopColor={color} stopOpacity={0.05}/>
+                    <linearGradient id={`grad-${title}`} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={color} stopOpacity={0.2} />
+                      <stop offset="100%" stopColor={color} stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <Area
@@ -93,17 +90,22 @@ export default function KpiCard({
                     dataKey="value"
                     stroke={color}
                     strokeWidth={2}
-                    fillOpacity={1}
-                    fill={`url(#gradient-${title.replace(/\s+/g, '-')})`}
-                    dot={false}
+                    fill={`url(#grad-${title})`}
+                    animationDuration={1000}
                   />
                 </AreaChart>
               </ResponsiveContainer>
-            </div>
-          )}
+            ) : (
+              // Fallback, wenn keine Historie da ist
+              <div className="h-full flex items-end pb-1 px-2">
+                <div className="h-1 w-full bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-gray-300 w-1/2 rounded-full"></div>
+                </div>
+              </div>
+            )}
+          </div>
         </>
       )}
-      {/* +++ ENDE: MODIFIZIERTE RENDER-LOGIK +++ */}
     </div>
   );
 }
