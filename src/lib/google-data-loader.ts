@@ -20,7 +20,7 @@ import { BetaAnalyticsDataClient } from '@google-analytics/data';
 // ========== KONSTANTEN ==========
 const CACHE_DURATION_HOURS = 48; 
 
-// Typ-Aliase für interne Datenhaltung
+// Typ-Aliase
 type GscData = { 
   clicks: { total: number, daily: ChartPoint[] }, 
   impressions: { total: number, daily: ChartPoint[] } 
@@ -75,7 +75,6 @@ const PIE_COLORS_DEVICES = ['#3b82f6', '#16a34a', '#f97316', '#6b7280'];
 
 /**
  * Erweiterte GA4 Funktion für Conversions & Engagement
- * Nutzt direkt den BetaAnalyticsDataClient für mehr Kontrolle
  */
 async function fetchEnhancedGa4Data(
   propertyId: string, 
@@ -106,14 +105,13 @@ async function fetchEnhancedGa4Data(
     metrics: [
       { name: 'sessions' },
       { name: 'totalUsers' },
-      { name: 'keyEvents' }, // Oft "conversions", in neueren Properties "keyEvents"
+      { name: 'keyEvents' }, 
       { name: 'engagementRate' }
     ],
     orderBys: [{ dimension: { orderType: 'ALPHANUMERIC', dimensionName: 'date' } }],
     keepEmptyRows: true,
   });
 
-  // Container für aggregierte Daten
   let curSessions = 0, curUsers = 0, curConversions = 0, curWeightedEngagement = 0;
 
   const chartSessions: ChartPoint[] = [];
@@ -124,7 +122,7 @@ async function fetchEnhancedGa4Data(
   const rows = response.rows || [];
 
   rows.forEach((row) => {
-    const dateStr = row.dimensionValues?.[0].value; // YYYYMMDD
+    const dateStr = row.dimensionValues?.[0].value; 
     if (!dateStr) return;
 
     const year = parseInt(dateStr.substring(0, 4), 10);
@@ -135,7 +133,6 @@ async function fetchEnhancedGa4Data(
     const metricValues = row.metricValues || [];
     const sessions = parseInt(metricValues[0].value || '0', 10);
     const users = parseInt(metricValues[1].value || '0', 10);
-    // Fallback: Falls keyEvents 0 ist, versuchen wir conversions (manchmal API abhängig)
     const conversions = parseInt(metricValues[2].value || '0', 10); 
     const engagementRate = parseFloat(metricValues[3].value || '0');
 
@@ -147,12 +144,12 @@ async function fetchEnhancedGa4Data(
     chartSessions.push({ date: timestamp, value: sessions });
     chartUsers.push({ date: timestamp, value: users });
     chartConversions.push({ date: timestamp, value: conversions });
-    chartEngagement.push({ date: timestamp, value: engagementRate * 100 }); // % für Chart
+    chartEngagement.push({ date: timestamp, value: engagementRate * 100 });
   });
 
   const avgEngagement = curSessions > 0 ? (curWeightedEngagement / curSessions) : 0;
 
-  // 2. Vergleichszeitraum holen (Nur Summen, keine Charts)
+  // 2. Vergleichszeitraum holen (Nur Summen)
   const [prevResponse] = await analyticsDataClient.runReport({
     property: `properties/${propertyId}`,
     dateRanges: [{ startDate: prevStartDate, endDate: prevEndDate }],
@@ -171,7 +168,6 @@ async function fetchEnhancedGa4Data(
     prevSessions = parseInt(prevMetrics[0].value || '0', 10);
     prevUsers = parseInt(prevMetrics[1].value || '0', 10);
     prevConversions = parseInt(prevMetrics[2].value || '0', 10);
-    // Bei direkter Abfrage ohne Date-Dimension ist dies der Durchschnitt
     prevWeightedEngagement = parseFloat(prevMetrics[3].value || '0'); 
   }
 
@@ -200,7 +196,6 @@ export async function getOrFetchGoogleData(
   forceRefresh = false
 ): Promise<ProjectDashboardData | null> {
   
-  // ID Check ist wichtig
   if (!user || !user.id) return null;
   const userId = user.id;
 
@@ -221,8 +216,7 @@ export async function getOrFetchGoogleData(
         const now = Date.now();
         const cacheAgeHours = (now - lastFetched) / (1000 * 60 * 60);
 
-        // ✅ WICHTIG: Prüfen, ob die neuen Metriken im Cache existieren
-        // Wenn conversions oder engagementRate fehlen, ist der Cache "alt" (auch wenn Zeitlich noch gültig)
+        // Cache ist nur gültig, wenn neue Metriken vorhanden sind
         const hasNewMetrics = 
           data.kpis?.conversions !== undefined && 
           data.kpis?.engagementRate !== undefined;
@@ -231,7 +225,7 @@ export async function getOrFetchGoogleData(
           console.log(`[Google Cache] ✅ HIT für ${user.email} (${dateRange})`);
           return { ...data, fromCache: true };
         } else {
-          const reason = !hasNewMetrics ? 'Neue Metriken fehlen (Schema-Update)' : `Abgelaufen (${cacheAgeHours.toFixed(1)}h)`;
+          const reason = !hasNewMetrics ? 'Neue Metriken fehlen' : `Abgelaufen (${cacheAgeHours.toFixed(1)}h)`;
           console.log(`[Google Cache] ⏳ Cache invalid: ${reason} -> Refreshing`);
         }
       }
@@ -243,7 +237,6 @@ export async function getOrFetchGoogleData(
   // 2. DATEN FRISCH HOLEN
   console.log(`[Google Cache] 🔄 Fetching fresh data for ${user.email}...`);
 
-  // Zeiträume berechnen
   const end = new Date();
   const start = new Date();
   let days = 30;
@@ -263,7 +256,6 @@ export async function getOrFetchGoogleData(
   const prevStartStr = prevStart.toISOString().split('T')[0];
   const prevEndStr = prevEnd.toISOString().split('T')[0];
 
-  // Initiale leere Daten
   let gscData: GscData = DEFAULT_GSC_DATA;
   let gscPrev = DEFAULT_GSC_PREVIOUS;
   let gaData: GaData = DEFAULT_GA_DATA;
@@ -282,15 +274,18 @@ export async function getOrFetchGoogleData(
   if (user.gsc_site_url) {
     try {
       const gscRaw = await getSearchConsoleData(user.gsc_site_url, startDateStr, endDateStr);
+      // ✅ KORREKTUR: Direkter Zugriff auf die Struktur (ohne .totals/.chartData)
       gscData = {
-        clicks: { total: gscRaw.totals.clicks, daily: gscRaw.chartData.clicks },
-        impressions: { total: gscRaw.totals.impressions, daily: gscRaw.chartData.impressions }
+        clicks: { total: gscRaw.clicks.total, daily: gscRaw.clicks.daily },
+        impressions: { total: gscRaw.impressions.total, daily: gscRaw.impressions.daily }
       };
       
+      // Vorperiode GSC
       const gscPrevRaw = await getSearchConsoleData(user.gsc_site_url, prevStartStr, prevEndStr);
+      // ✅ KORREKTUR: Auch hier direkter Zugriff
       gscPrev = {
-        clicks: { total: gscPrevRaw.totals.clicks },
-        impressions: { total: gscPrevRaw.totals.impressions }
+        clicks: { total: gscPrevRaw.clicks.total },
+        impressions: { total: gscPrevRaw.impressions.total }
       };
 
       topQueries = await getTopQueries(user.gsc_site_url, startDateStr, endDateStr);
@@ -301,10 +296,9 @@ export async function getOrFetchGoogleData(
     }
   }
 
-  // --- FETCH: GA4 (Erweitert) ---
+  // --- FETCH: GA4 ---
   if (user.ga4_property_id) {
     try {
-      // Neue erweiterte Funktion aufrufen
       const gaResult = await fetchEnhancedGa4Data(
         user.ga4_property_id, 
         startDateStr, endDateStr, 
@@ -313,10 +307,8 @@ export async function getOrFetchGoogleData(
       gaData = gaResult.current;
       gaPrev = gaResult.previous;
 
-      // AI Traffic
       aiTraffic = await getAiTrafficData(user.ga4_property_id, startDateStr, endDateStr);
 
-      // Pie Charts mit Farben
       const rawCountry = await getGa4DimensionReport(user.ga4_property_id, startDateStr, endDateStr, 'country');
       const rawChannel = await getGa4DimensionReport(user.ga4_property_id, startDateStr, endDateStr, 'sessionDefaultChannelGroup');
       const rawDevice = await getGa4DimensionReport(user.ga4_property_id, startDateStr, endDateStr, 'deviceCategory');
@@ -327,9 +319,8 @@ export async function getOrFetchGoogleData(
 
     } catch (e: any) {
       console.error('[GA4 Fetch Error]', e);
-      // Falls keyEvents nicht gefunden wird, ist das ein häufiger API-Fehler bei alten Properties
       if (e.message?.includes('keyEvents')) {
-          apiErrors.ga4 = 'GA4 API Fehler: "keyEvents" Metrik nicht verfügbar (evtl. Property zu alt).';
+          apiErrors.ga4 = 'GA4 API Fehler: "keyEvents" Metrik nicht verfügbar.';
       } else {
           apiErrors.ga4 = e.message || 'GA4 Fehler';
       }
@@ -343,7 +334,6 @@ export async function getOrFetchGoogleData(
       impressions: { value: gscData.impressions.total, change: calculateChange(gscData.impressions.total, gscPrev.impressions.total) },
       sessions: { value: gaData.sessions.total, change: calculateChange(gaData.sessions.total, gaPrev.sessions.total) },
       totalUsers: { value: gaData.totalUsers.total, change: calculateChange(gaData.totalUsers.total, gaPrev.totalUsers.total) },
-      // ✅ NEU: Conversions & Engagement
       conversions: { value: gaData.conversions.total, change: calculateChange(gaData.conversions.total, gaPrev.conversions.total) },
       engagementRate: { 
         value: parseFloat((gaData.engagementRate.total * 100).toFixed(2)), 
