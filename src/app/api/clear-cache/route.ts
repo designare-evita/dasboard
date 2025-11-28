@@ -1,46 +1,77 @@
 // src/app/api/clear-cache/route.ts
+// EINFACHE VERSION - funktioniert mit jeder NextAuth Konfiguration
+
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@vercel/postgres';
+import { cookies } from 'next/headers';
 
-// Für NextAuth v4 mit App Router
-// Alternative 1: Prüfe deine aktuelle Auth-Implementierung
-// import { auth } from '@/lib/auth';
-
-// Alternative 2: Falls du getServerSession verwendest
-// import { getServerSession } from 'next-auth/next';
-// import { authOptions } from '@/lib/auth';
+/**
+ * Holt die Session direkt aus den Cookies
+ * Funktioniert mit NextAuth v4 und v5
+ */
+async function getCurrentUser() {
+  const cookieStore = await cookies();
+  
+  // NextAuth Session Cookie Namen (kann variieren)
+  const sessionTokenNames = [
+    'next-auth.session-token',
+    '__Secure-next-auth.session-token',
+    'authjs.session-token',
+  ];
+  
+  let sessionToken = null;
+  for (const name of sessionTokenNames) {
+    const cookie = cookieStore.get(name);
+    if (cookie) {
+      sessionToken = cookie.value;
+      break;
+    }
+  }
+  
+  if (!sessionToken) {
+    return null;
+  }
+  
+  // Session aus DB holen
+  const { rows } = await sql`
+    SELECT 
+      s.user_id,
+      u.email
+    FROM sessions s
+    JOIN users u ON u.id = s.user_id
+    WHERE s.session_token = ${sessionToken}
+      AND s.expires > NOW()
+    LIMIT 1
+  `;
+  
+  if (rows.length === 0) {
+    return null;
+  }
+  
+  return {
+    id: rows[0].user_id,
+    email: rows[0].email
+  };
+}
 
 export async function POST(request: NextRequest) {
   try {
-    // OPTION 1: Falls du auth() verwendest (NextAuth v5 Beta oder custom wrapper)
-    // const session = await auth();
+    // User aus Session holen
+    const user = await getCurrentUser();
     
-    // OPTION 2: Falls du getServerSession verwendest (NextAuth v4)
-    // Uncomment diese beiden Zeilen und importiere oben:
-    // const session = await getServerSession(authOptions);
-    
-    // TEMPORARY: Für den Build ohne Auth-Check
-    // TODO: Ersetze dies mit deiner echten Auth-Methode
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader && process.env.NODE_ENV === 'production') {
+    if (!user) {
       return NextResponse.json({ error: 'Nicht authentifiziert' }, { status: 401 });
     }
-    
-    // Temporär: User ID aus Query/Body holen bis Auth funktioniert
-    const body = await request.json();
-    const { dateRange, userId } = body;
-    
-    if (!userId) {
-      return NextResponse.json({ 
-        error: 'userId erforderlich (temporär bis Auth implementiert)' 
-      }, { status: 400 });
-    }
 
-    console.log(`[Clear Cache] Request für User ${userId}, dateRange: ${dateRange || 'ALL'}`);
+    const userId = user.id;
+    const body = await request.json();
+    const { dateRange } = body;
+
+    console.log(`[Clear Cache] Request für User ${userId} (${user.email}), dateRange: ${dateRange || 'ALL'}`);
 
     if (dateRange) {
       // Nur spezifischen Cache löschen
-      await sql`
+      const result = await sql`
         DELETE FROM google_data_cache 
         WHERE user_id = ${userId}::uuid AND date_range = ${dateRange}
       `;
@@ -48,11 +79,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ 
         success: true, 
         message: `Cache für ${dateRange} gelöscht`,
-        cleared: dateRange
+        cleared: dateRange,
+        rowsDeleted: result.rowCount
       });
     } else {
       // Gesamten User-Cache löschen
-      await sql`
+      const result = await sql`
         DELETE FROM google_data_cache 
         WHERE user_id = ${userId}::uuid
       `;
@@ -60,7 +92,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ 
         success: true, 
         message: 'Gesamter Cache gelöscht',
-        cleared: 'all'
+        cleared: 'all',
+        rowsDeleted: result.rowCount
       });
     }
 
@@ -76,15 +109,13 @@ export async function POST(request: NextRequest) {
 // GET zum Anzeigen des aktuellen Cache-Status
 export async function GET(request: NextRequest) {
   try {
-    // Temporär ohne Auth für Testing
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
+    const user = await getCurrentUser();
     
-    if (!userId) {
-      return NextResponse.json({ 
-        error: 'userId als Query-Parameter erforderlich' 
-      }, { status: 400 });
+    if (!user) {
+      return NextResponse.json({ error: 'Nicht authentifiziert' }, { status: 401 });
     }
+
+    const userId = user.id;
 
     const { rows } = await sql`
       SELECT date_range, last_fetched, 
@@ -106,13 +137,16 @@ export async function GET(request: NextRequest) {
         ageHours: parseFloat(ageHours.toFixed(1)),
         hasGA4Data: row.ga4_sessions && parseInt(row.ga4_sessions) > 0,
         hasGSCData: row.gsc_clicks && parseInt(row.gsc_clicks) > 0,
-        hasErrors: !!row.api_errors
+        hasErrors: !!row.api_errors,
+        ga4Sessions: row.ga4_sessions,
+        gscClicks: row.gsc_clicks
       };
     });
 
     return NextResponse.json({
       success: true,
       userId,
+      email: user.email,
       cacheEntries: cacheInfo,
       totalEntries: cacheInfo.length
     });
