@@ -6,6 +6,7 @@ import { getOrFetchGoogleData } from '@/lib/google-data-loader';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { streamText } from 'ai';
 import crypto from 'node:crypto';
+import type { User } from '@/lib/schemas'; // ✅ Typ importieren
 
 const google = createGoogleGenerativeAI({
   apiKey: process.env.GEMINI_API_KEY || '',
@@ -41,13 +42,16 @@ export async function POST(req: NextRequest) {
     }
 
     // 1. Daten laden
+    // ✅ KORREKTUR: SELECT * verwenden, damit gsc_site_url & ga4_property_id dabei sind
     const { rows } = await sql`
-      SELECT id, email, domain, project_timeline_active, project_start_date, project_duration_months, "createdAt"
+      SELECT *
       FROM users WHERE id::text = ${projectId}
     `;
 
     if (rows.length === 0) return NextResponse.json({ message: 'Projekt nicht gefunden' }, { status: 404 });
-    const project = rows[0];
+    
+    // ✅ KORREKTUR: Expliziter Cast zu User, um TypeScript zufrieden zu stellen
+    const project = rows[0] as unknown as User;
 
     const data = await getOrFetchGoogleData(project, dateRange);
     if (!data || !data.kpis) return NextResponse.json({ message: 'Keine Daten' }, { status: 400 });
@@ -60,7 +64,7 @@ export async function POST(req: NextRequest) {
     let endDateStr = "";
     
     if (project.project_timeline_active) {
-        const start = new Date(project.project_start_date || project.createdAt);
+        const start = new Date(project.project_start_date || project.createdAt || new Date());
         const now = new Date();
         const duration = project.project_duration_months || 6;
         const diffMonths = Math.ceil(Math.abs(now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 30)); 
@@ -99,11 +103,13 @@ export async function POST(req: NextRequest) {
       
       KPIs (Format: Wert (Veränderung%)):
       - Nutzer (Gesamt): ${fmt(kpis.totalUsers?.value)} (${change(kpis.totalUsers?.change)}%)
-      - Klassische Besucher (Humans): ${fmt(Math.max(0, (kpis.totalUsers?.value || 0) - (data.aiTraffic?.totalUsers || 0)))}
-      - Sichtbarkeit in KI-Systemen (AI Search): ${fmt(data.aiTraffic?.totalUsers || 0)}
+      - Klassische Besucher: ${fmt(Math.max(0, (kpis.totalUsers?.value || 0) - (data.aiTraffic?.totalUsers || 0)))}
+      - Sichtbarkeit in KI-Systemen: ${fmt(data.aiTraffic?.totalUsers || 0)}
       - Impressionen: ${fmt(kpis.impressions?.value)} (${change(kpis.impressions?.change)}%)
       - Klicks: ${fmt(kpis.clicks?.value)} (${change(kpis.clicks?.change)}%)
       - Sitzungen: ${fmt(kpis.sessions?.value)} (${change(kpis.sessions?.change)}%)
+      - Conversions: ${fmt(kpis.conversions?.value)} (${change(kpis.conversions?.change)}%)
+      - Engagement Rate: ${fmt(kpis.engagementRate?.value)}%
       - KI-Anteil am Traffic: ${aiShare}%
       
       TOP KEYWORDS:
@@ -113,8 +119,8 @@ export async function POST(req: NextRequest) {
       ${topChannels}
     `;
 
-    // --- CACHE LOGIK (48 Stunden) ---
-    const cacheInputString = `${summaryData}|ROLE:${userRole}|V3_HTML_FIX`; // Hash Key geändert um Cache zu invalidieren
+    // --- CACHE LOGIK ---
+    const cacheInputString = `${summaryData}|ROLE:${userRole}|V4_FULL_DATA`; 
     const inputHash = createHash(cacheInputString);
 
     const { rows: cacheRows } = await sql`
@@ -142,8 +148,7 @@ export async function POST(req: NextRequest) {
     // --- ENDE CACHE ---
 
 
-    // 2. PROMPT SETUP (Strikes HTML Enforcement)
-    
+    // 2. PROMPT SETUP
     const visualSuccessTemplate = `
       <div class="mt-6 p-4 bg-emerald-50 rounded-xl border border-emerald-100 flex items-start gap-4 shadow-sm">
          <div class="bg-white p-2.5 rounded-full text-emerald-600 shadow-sm mt-1">🏆</div>
@@ -156,8 +161,8 @@ export async function POST(req: NextRequest) {
       Du bist "Data Max", ein Performance-Analyst.
 
       REGELN FÜR FORMATIERUNG (STRIKT BEFOLGEN):
-      1. VERWENDE KEIN MARKDOWN. Keine Sternchen (*), keine Rauten (#), keine Bindestriche (-) für Listen.
-      2. Nutze AUSSCHLIESSLICH HTML-Tags für die Struktur.
+      1. VERWENDE KEIN MARKDOWN.
+      2. Nutze AUSSCHLIESSLICH HTML-Tags.
       
       ERLAUBTE HTML-STRUKTUR:
       - Absätze: <p class="mb-4 leading-relaxed text-gray-700">Dein Text...</p>
@@ -165,9 +170,9 @@ export async function POST(req: NextRequest) {
       - Listen: <ul class="space-y-2 mb-4 text-sm text-gray-600 list-none pl-1"> 
                   <li class="flex gap-2"><span class="text-indigo-400 mt-1">•</span> <span>Dein Punkt</span></li> 
                 </ul>
-      - Hervorhebungen (Positiv): <span class="text-emerald-600 font-bold">
-      - Hervorhebungen (Negativ/Kritisch): <span class="text-red-600 font-bold">
-      - Hervorhebungen (Neutral/Wichtig): <span class="font-semibold text-gray-900">
+      - Positiv: <span class="text-emerald-600 font-bold">
+      - Negativ: <span class="text-red-600 font-bold">
+      - Wichtig: <span class="font-semibold text-gray-900">
 
       OUTPUT AUFBAU:
       [Inhalt Spalte 1]
@@ -178,30 +183,22 @@ export async function POST(req: NextRequest) {
     if (userRole === 'ADMIN' || userRole === 'SUPERADMIN') {
       // === ADMIN MODUS ===
       systemPrompt += `
-        ZIELGRUPPE: Admin/Experte. Ton: Analytisch, Kritisch.
+        ZIELGRUPPE: Admin/Experte. Ton: Analytisch.
         
         SPALTE 1 (Status & Zahlen):
-        1. <h4...>Zeitplan:</h4>
-           <ul...>
-             <li...>Status: ...</li>
-             <li...>Aktueller Monat: ...</li>
-           </ul...>
+        1. <h4...>Zeitplan:</h4> Status, Monat.
         2. <h4...>Performance Kennzahlen:</h4> 
            <ul...>
-             <li...>Liste alle KPIs. Färbe negative Trends (<0%) ROT (<span class="text-red-600 font-bold">). Positive neutral oder grün.</li>
+             <li...>Liste alle KPIs inkl. Conversions und Engagement.
+             <li...>Negative Trends ROT.
            </ul...>
-        3. VISUAL ENDING: ${visualSuccessTemplate} (Fülle ERFOLG_TEXT_PLATZHALTER mit dem stärksten technischen Wert).
+        3. VISUAL ENDING: ${visualSuccessTemplate}
         
         SPALTE 2 (Analyse):
-        1. <h4...>Status-Analyse:</h4>
-           <p...>Analysiere den Projektfortschritt kritisch. Nutze <b>fette rote Schrift</b> für Probleme.</p>
-        2. <h4...>Handlungsempfehlung:</h4>
-           <ul...>
-             <li...>Konkrete technische Schritte (z.B. "Prüfe GSC Snippet für Keyword X").</li>
-           </ul...>
+        1. <h4...>Status-Analyse:</h4> Kritische Analyse.
+        2. <h4...>Handlungsempfehlung:</h4> Technische Schritte.
       `;
     } else {
-
       // === KUNDEN MODUS ===
       systemPrompt += `
         ZIELGRUPPE: Kunde. Ton: Höflich, Positiv.
@@ -211,13 +208,14 @@ export async function POST(req: NextRequest) {
         2. <h4...>Aktuelle Leistung:</h4>
            <ul...>
              <li...>Nutzer & Klassische Besucher.
+             <li...>Conversions (Erreichte Ziele) & Engagement.
              <li...>KI-Sichtbarkeit: Füge hinzu: <br><span class="text-xs text-emerald-600 block mt-0.5">✔ Ihre Inhalte werden von KI (ChatGPT, Gemini) gefunden.</span>
            </ul...>
         3. VISUAL ENDING: ${visualSuccessTemplate}
         
         SPALTE 2 (Performance Analyse):
         1. Anrede: <p class="mb-4 font-medium">Sehr geehrte Kundin, sehr geehrter Kunde,</p>
-        2. <h4...>Zusammenfassung:</h4> Fließtext über Erfolge.
+        2. <h4...>Zusammenfassung:</h4> Fließtext über Erfolge (Conversions hervorheben).
         3. <h4...>Top Keywords & Relevanz:</h4> Analyse der Keywords.
       `;
     }
