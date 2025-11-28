@@ -4,19 +4,17 @@ import { redirect } from 'next/navigation';
 import { getUsersForManagement } from '@/services/userService';
 import UserManagementClient from '@/components/admin/UserManagementClient';
 
-// Server Component (async)
+// Diese Seite ist eine Server Component
 export default async function AdminPage() {
   const session = await auth();
 
-  // 1. Auth Check
   if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
     redirect('/login');
   }
 
-  // 2. Daten laden (Server-Side Fetch)
+  // Typensicherer Aufruf - gibt Promise<User[]> zurück
   const users = await getUsersForManagement(session.user);
 
-  // 3. Client Komponente rendern und Daten übergeben
   return (
     <div className="p-8 mt-8 max-w-full mx-auto bg-gray-50 min-h-screen">
       <div className="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -26,9 +24,8 @@ export default async function AdminPage() {
         </div>
       </div>
 
-      {/* Interaktiver Teil */}
       <UserManagementClient 
-        initialUsers={users as any[]} 
+        initialUsers={users} // ❌ Kein 'as any' mehr nötig!
         sessionUser={session.user} 
       />
     </div>
