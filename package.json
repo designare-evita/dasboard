@@ -13,6 +13,7 @@
     "@ai-sdk/react": "^2.0.102",
     "@e965/xlsx": "^0.20.3",
     "@getbrevo/brevo": "^3.0.1",
+    "@google-analytics/data": "^5.2.1",
     "@google/generative-ai": "^0.24.1",
     "@radix-ui/react-slot": "^1.2.3",
     "@sentry/nextjs": "^10.27.0",
