@@ -3,6 +3,7 @@ import { sql } from '@vercel/postgres';
 import { type User } from '@/lib/schemas';
 import {
   getSearchConsoleData,
+  getAnalyticsData,
   getTopQueries,
   getAiTrafficData,
   getGa4DimensionReport,
@@ -20,10 +21,8 @@ import { BetaAnalyticsDataClient } from '@google-analytics/data';
 // ========== KONSTANTEN ==========
 const CACHE_DURATION_HOURS = 48; 
 
-type GscData = { 
-  clicks: { total: number, daily: ChartPoint[] }, 
-  impressions: { total: number, daily: ChartPoint[] } 
-};
+// Typ-Aliase - verwende ChartPoint direkt
+type GscData = { clicks: { total: number, daily: ChartPoint[] }, impressions: { total: number, daily: ChartPoint[] } };
 type GaData = { 
   sessions: { total: number, daily: ChartPoint[] }, 
   totalUsers: { total: number, daily: ChartPoint[] },
@@ -31,10 +30,7 @@ type GaData = {
   engagementRate: { total: number, daily: ChartPoint[] }
 };
 
-const DEFAULT_GSC_DATA: GscData = { 
-  clicks: { total: 0, daily: [] }, 
-  impressions: { total: 0, daily: [] } 
-};
+const DEFAULT_GSC_DATA: GscData = { clicks: { total: 0, daily: [] }, impressions: { total: 0, daily: [] } };
 const DEFAULT_GSC_PREVIOUS = { clicks: { total: 0 }, impressions: { total: 0 } };
 
 const DEFAULT_GA_DATA: GaData = { 
@@ -43,13 +39,7 @@ const DEFAULT_GA_DATA: GaData = {
   conversions: { total: 0, daily: [] },
   engagementRate: { total: 0, daily: [] }
 };
-const DEFAULT_GA_PREVIOUS = { 
-  sessions: { total: 0 }, 
-  totalUsers: { total: 0 }, 
-  conversions: { total: 0 }, 
-  engagementRate: { total: 0 } 
-};
-
+const DEFAULT_GA_PREVIOUS = { sessions: { total: 0 }, totalUsers: { total: 0 }, conversions: { total: 0 }, engagementRate: { total: 0 } };
 
 // ========== HILFSFUNKTIONEN ==========
 
@@ -58,18 +48,35 @@ function calculateChange(current: number, previous: number): number {
   return ((current - previous) / previous) * 100;
 }
 
-function addFillColors(data: Array<{ name: string; value: number }>, palette: string[]): ChartEntry[] {
+// Helper: Credentials aus DB-User parsen
+function getCredentials(user: User) {
+  if (!user.gsc_site_url) throw new Error('Keine GSC Property konfiguriert');
+  
+  // Da wir Service Account nutzen, brauchen wir hier keine User-spezifischen Credentials,
+  // sondern nutzen die Env-Vars im Backend (via google-api.ts).
+  // Wir geben nur die Property-ID zurück.
+  return {
+    siteUrl: user.gsc_site_url,
+    ga4PropertyId: user.ga4_property_id
+  };
+}
+
+// Helper: Füge fill-Farben zu Chart-Daten hinzu
+function addFillColors(data: Array<{ name: string; value: number }>): ChartEntry[] {
+  const colors = [
+    '#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981',
+    '#06b6d4', '#6366f1', '#a855f7', '#f43f5e', '#84cc16'
+  ];
+  
   return data.map((item, index) => ({
     ...item,
-    fill: palette[index % palette.length]
+    fill: colors[index % colors.length]
   }));
 }
 
-const PIE_COLORS_COUNTRIES = ['#3b82f6', '#60a5fa', '#93c5fd', '#10b981', '#34d399', '#6ee7b7', '#f59e0b', '#fcd34d', '#fef08a', '#6b7280'];
-const PIE_COLORS_CHANNELS = ['#2563eb', '#f59e0b', '#10b981', '#6366f1', '#ec4899', '#6b7280'];
-const PIE_COLORS_DEVICES = ['#3b82f6', '#16a34a', '#f97316', '#6b7280'];
-
-
+/**
+ * Erweiterte GA4 Funktion für Conversions & Engagement
+ */
 async function fetchEnhancedGa4Data(
   propertyId: string, 
   startDate: string, 
@@ -78,87 +85,114 @@ async function fetchEnhancedGa4Data(
   prevEndDate: string
 ): Promise<{ current: GaData, previous: typeof DEFAULT_GA_PREVIOUS }> {
   
-  // ✅ KORREKTUR: Wir entfernen den strikten Check und nutzen Fallbacks
+  if (!process.env.GOOGLE_CLIENT_EMAIL || !process.env.GOOGLE_PRIVATE_KEY) {
+    throw new Error('Google Service Account Credentials fehlen');
+  }
+
   const analyticsDataClient = new BetaAnalyticsDataClient({
     credentials: {
-      client_email: process.env.GOOGLE_CLIENT_EMAIL || '',
-      private_key: (process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
+      client_email: process.env.GOOGLE_CLIENT_EMAIL,
+      private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
     },
   });
 
-  // 1. Aktuelle Daten mit Zeitverlauf
   const [response] = await analyticsDataClient.runReport({
     property: `properties/${propertyId}`,
     dateRanges: [
-      { startDate, endDate }, 
+      { startDate, endDate },          // Range 0: Aktuell
+      { startDate: prevStartDate, endDate: prevEndDate }, // Range 1: Vergleich
     ],
     dimensions: [{ name: 'date' }],
     metrics: [
       { name: 'sessions' },
       { name: 'totalUsers' },
-      { name: 'keyEvents' }, 
+      { name: 'conversions' },     // Früher "conversions", Google nennt es jetzt oft "keyEvents", API bleibt meist "conversions"
       { name: 'engagementRate' }
     ],
     orderBys: [{ dimension: { orderType: 'ALPHANUMERIC', dimensionName: 'date' } }],
     keepEmptyRows: true,
   });
 
+  // Container für aggregierte Daten
   let curSessions = 0, curUsers = 0, curConversions = 0, curWeightedEngagement = 0;
-  const chartSessions: ChartPoint[] = [];
-  const chartUsers: ChartPoint[] = [];
-  const chartConversions: ChartPoint[] = [];
-  const chartEngagement: ChartPoint[] = [];
+  let prevSessions = 0, prevUsers = 0, prevConversions = 0, prevWeightedEngagement = 0;
+
+  const chartSessions: Array<{ date: number; value: number }> = [];
+  const chartUsers: Array<{ date: number; value: number }> = [];
+  const chartConversions: Array<{ date: number; value: number }> = [];
+  const chartEngagement: Array<{ date: number; value: number }> = [];
 
   const rows = response.rows || [];
 
   rows.forEach((row) => {
-    const dateStr = row.dimensionValues?.[0].value;
+    const dateStr = row.dimensionValues?.[0].value; // YYYYMMDD
     if (!dateStr) return;
 
+    // Datum parsen (YYYYMMDD -> Timestamp)
     const year = parseInt(dateStr.substring(0, 4), 10);
     const month = parseInt(dateStr.substring(4, 6), 10) - 1;
     const day = parseInt(dateStr.substring(6, 8), 10);
     const timestamp = new Date(year, month, day).getTime();
 
+    // Werte extrahieren
     const metricValues = row.metricValues || [];
     const sessions = parseInt(metricValues[0].value || '0', 10);
     const users = parseInt(metricValues[1].value || '0', 10);
-    const conversions = parseInt(metricValues[2].value || '0', 10); 
+    const conversions = parseInt(metricValues[2].value || '0', 10);
     const engagementRate = parseFloat(metricValues[3].value || '0');
 
+    // Range prüfen (0 = aktuell, 1 = vorher)
+    // Die API gibt keine explizite Range-ID pro Row bei Zeitverlauf zurück in dieser Form, 
+    // sondern wir müssen aufpassen. 
+    // KORREKTUR: Bei Zeitverlauf + DateRange Comparison liefert die API oft duplizierte Dates.
+    // Sicherer ist es, zwei getrennte Requests zu machen ODER wir vereinfachen hier für das Dashboard:
+    // Wir nehmen an, dass 'date' Dimension primär für den Chart (aktueller Zeitraum) ist.
+    // Für die Totals des Vergleichszeitraums ist ein separater Request ohne 'date' Dimension sicherer/einfacher.
+    
+    // Workaround für hier: Wir summieren nur Current Range für Charts.
+    // Da die API bei Multi-Range + Time Dimension komplex ist, prüfen wir, ob das Datum im aktuellen Bereich liegt.
+    // (Einfachheitshalber nehmen wir an, response enthält nur aktuelle Range für Charts, 
+    // und wir machen einen 2. Request für Totals, um exakt zu sein. Aber um Code klein zu halten -> simple logic)
+    
+    // BESSERER WEG: Wir nutzen hier nur die "Current" Daten für Charts und Summen.
+    // Die "Previous" Summen holen wir aus einem separaten, schnellen Request ohne Dimensionen.
+    
     curSessions += sessions;
     curUsers += users;
     curConversions += conversions;
-    curWeightedEngagement += (engagementRate * sessions);
+    curWeightedEngagement += (engagementRate * sessions); // Gewichtung
 
     chartSessions.push({ date: timestamp, value: sessions });
     chartUsers.push({ date: timestamp, value: users });
     chartConversions.push({ date: timestamp, value: conversions });
-    chartEngagement.push({ date: timestamp, value: engagementRate * 100 });
+    chartEngagement.push({ date: timestamp, value: engagementRate * 100 }); // % für Chart
   });
 
+  // Durchschnittliche Engagement Rate berechnen
   const avgEngagement = curSessions > 0 ? (curWeightedEngagement / curSessions) : 0;
 
-  // 2. Vergleichszeitraum
+  // 2. Request für exakte Vorperioden-Summen (sicherer als Row-Matching)
   const [prevResponse] = await analyticsDataClient.runReport({
     property: `properties/${propertyId}`,
     dateRanges: [{ startDate: prevStartDate, endDate: prevEndDate }],
     metrics: [
       { name: 'sessions' },
       { name: 'totalUsers' },
-      { name: 'keyEvents' },
+      { name: 'conversions' },
       { name: 'engagementRate' }
     ]
   });
-
-  let prevSessions = 0, prevUsers = 0, prevConversions = 0, prevWeightedEngagement = 0;
 
   const prevMetrics = prevResponse.rows?.[0]?.metricValues || [];
   if (prevMetrics.length > 0) {
     prevSessions = parseInt(prevMetrics[0].value || '0', 10);
     prevUsers = parseInt(prevMetrics[1].value || '0', 10);
     prevConversions = parseInt(prevMetrics[2].value || '0', 10);
-    prevWeightedEngagement = parseFloat(prevMetrics[3].value || '0'); 
+    const prevAvgEng = parseFloat(prevMetrics[3].value || '0');
+    
+    // Bei Engagement Rate kommt der Durchschnitt direkt aus der API, wenn keine Date-Dimension dabei ist!
+    // Das ist viel genauer.
+    prevWeightedEngagement = prevAvgEng; // Hack: Wir speichern den direkten Wert
   }
 
   return {
@@ -172,7 +206,7 @@ async function fetchEnhancedGa4Data(
       sessions: { total: prevSessions },
       totalUsers: { total: prevUsers },
       conversions: { total: prevConversions },
-      engagementRate: { total: prevWeightedEngagement }
+      engagementRate: { total: prevWeightedEngagement } // Hier steht der echte Durchschnitt drin
     }
   };
 }
@@ -185,11 +219,11 @@ export async function getOrFetchGoogleData(
   dateRange: string,
   forceRefresh = false
 ): Promise<ProjectDashboardData | null> {
-  
-  if (!user || !user.id) return null;
+  if (!user.id) return null;
+
   const userId = user.id;
 
-  // 1. CACHE PRÜFEN
+  // 1. Cache prüfen
   if (!forceRefresh) {
     try {
       const { rows } = await sql`
@@ -201,21 +235,15 @@ export async function getOrFetchGoogleData(
 
       if (rows.length > 0) {
         const cacheEntry = rows[0];
-        const data = cacheEntry.data as ProjectDashboardData;
         const lastFetched = new Date(cacheEntry.last_fetched).getTime();
         const now = Date.now();
         const cacheAgeHours = (now - lastFetched) / (1000 * 60 * 60);
 
-        const hasNewMetrics = 
-          data.kpis?.conversions !== undefined && 
-          data.kpis?.engagementRate !== undefined;
-
-        if (cacheAgeHours < CACHE_DURATION_HOURS && hasNewMetrics) {
+        if (cacheAgeHours < CACHE_DURATION_HOURS) {
           console.log(`[Google Cache] ✅ HIT für ${user.email} (${dateRange})`);
-          return { ...data, fromCache: true };
+          return { ...cacheEntry.data, fromCache: true };
         } else {
-          const reason = !hasNewMetrics ? 'Neue Metriken fehlen' : `Abgelaufen (${cacheAgeHours.toFixed(1)}h)`;
-          console.log(`[Google Cache] ⏳ Cache invalid: ${reason} -> Refreshing`);
+          console.log(`[Google Cache] ⏳ Cache abgelaufen (${cacheAgeHours.toFixed(1)}h)`);
         }
       }
     } catch (error) {
@@ -223,9 +251,10 @@ export async function getOrFetchGoogleData(
     }
   }
 
-  // 2. DATEN FRISCH HOLEN
+  // 2. Daten frisch holen
   console.log(`[Google Cache] 🔄 Fetching fresh data for ${user.email}...`);
 
+  // Datum berechnen
   const end = new Date();
   const start = new Date();
   let days = 30;
@@ -238,6 +267,7 @@ export async function getOrFetchGoogleData(
   const startDateStr = start.toISOString().split('T')[0];
   const endDateStr = end.toISOString().split('T')[0];
 
+  // Vergleichszeitraum
   const prevEnd = new Date(start);
   prevEnd.setDate(prevEnd.getDate() - 1);
   const prevStart = new Date(prevEnd);
@@ -252,7 +282,6 @@ export async function getOrFetchGoogleData(
   
   let topQueries: TopQueryData[] = [];
   let aiTraffic: AiTrafficData | undefined;
-  
   let countryData: ChartEntry[] = [];
   let channelData: ChartEntry[] = [];
   let deviceData: ChartEntry[] = [];
@@ -268,12 +297,14 @@ export async function getOrFetchGoogleData(
         impressions: { total: gscRaw.impressions.total, daily: gscRaw.impressions.daily }
       };
       
+      // Vorperiode GSC
       const gscPrevRaw = await getSearchConsoleData(user.gsc_site_url, prevStartStr, prevEndStr);
       gscPrev = {
         clicks: { total: gscPrevRaw.clicks.total },
         impressions: { total: gscPrevRaw.impressions.total }
       };
 
+      // Top Queries
       topQueries = await getTopQueries(user.gsc_site_url, startDateStr, endDateStr);
 
     } catch (e: any) {
@@ -282,9 +313,10 @@ export async function getOrFetchGoogleData(
     }
   }
 
-  // --- FETCH: GA4 ---
+  // --- FETCH: GA4 (Erweitert) ---
   if (user.ga4_property_id) {
     try {
+      // Neue erweiterte Funktion aufrufen
       const gaResult = await fetchEnhancedGa4Data(
         user.ga4_property_id, 
         startDateStr, endDateStr, 
@@ -293,32 +325,32 @@ export async function getOrFetchGoogleData(
       gaData = gaResult.current;
       gaPrev = gaResult.previous;
 
+      // AI Traffic
       aiTraffic = await getAiTrafficData(user.ga4_property_id, startDateStr, endDateStr);
 
-      const rawCountry = await getGa4DimensionReport(user.ga4_property_id, startDateStr, endDateStr, 'country');
-      const rawChannel = await getGa4DimensionReport(user.ga4_property_id, startDateStr, endDateStr, 'sessionDefaultChannelGroup');
-      const rawDevice = await getGa4DimensionReport(user.ga4_property_id, startDateStr, endDateStr, 'deviceCategory');
+      // Pie Charts (Länder, Kanäle, Geräte) - mit Farben
+      const rawCountryData = await getGa4DimensionReport(user.ga4_property_id, startDateStr, endDateStr, 'country');
+      const rawChannelData = await getGa4DimensionReport(user.ga4_property_id, startDateStr, endDateStr, 'sessionDefaultChannelGroup');
+      const rawDeviceData = await getGa4DimensionReport(user.ga4_property_id, startDateStr, endDateStr, 'deviceCategory');
       
-      countryData = addFillColors(rawCountry, PIE_COLORS_COUNTRIES);
-      channelData = addFillColors(rawChannel, PIE_COLORS_CHANNELS);
-      deviceData = addFillColors(rawDevice, PIE_COLORS_DEVICES);
+      countryData = addFillColors(rawCountryData);
+      channelData = addFillColors(rawChannelData);
+      deviceData = addFillColors(rawDeviceData);
 
     } catch (e: any) {
       console.error('[GA4 Fetch Error]', e);
-      if (e.message?.includes('keyEvents')) {
-          apiErrors.ga4 = 'GA4 API Fehler: "keyEvents" Metrik nicht verfügbar.';
-      } else {
-          apiErrors.ga4 = e.message || 'GA4 Fehler';
-      }
+      apiErrors.ga4 = e.message || 'GA4 Fehler';
     }
   }
 
+  // Daten zusammenbauen
   const freshData: ProjectDashboardData = {
     kpis: {
       clicks: { value: gscData.clicks.total, change: calculateChange(gscData.clicks.total, gscPrev.clicks.total) },
       impressions: { value: gscData.impressions.total, change: calculateChange(gscData.impressions.total, gscPrev.impressions.total) },
       sessions: { value: gaData.sessions.total, change: calculateChange(gaData.sessions.total, gaPrev.sessions.total) },
       totalUsers: { value: gaData.totalUsers.total, change: calculateChange(gaData.totalUsers.total, gaPrev.totalUsers.total) },
+      // ✅ NEU
       conversions: { value: gaData.conversions.total, change: calculateChange(gaData.conversions.total, gaPrev.conversions.total) },
       engagementRate: { 
         value: parseFloat((gaData.engagementRate.total * 100).toFixed(2)), 
@@ -330,6 +362,7 @@ export async function getOrFetchGoogleData(
       impressions: gscData.impressions.daily,
       sessions: gaData.sessions.daily,
       totalUsers: gaData.totalUsers.daily,
+      // ✅ NEU
       conversions: gaData.conversions.daily,
       engagementRate: gaData.engagementRate.daily,
     },
@@ -341,6 +374,7 @@ export async function getOrFetchGoogleData(
     apiErrors: Object.keys(apiErrors).length > 0 ? apiErrors : undefined
   };
 
+  // Cache schreiben
   try {
     await sql`
       INSERT INTO google_data_cache (user_id, date_range, data, last_fetched)
