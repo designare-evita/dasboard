@@ -1,14 +1,13 @@
-// src/app/api/data/route.ts
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth'; // KORRIGIERT: Import von auth
+import { auth } from '@/lib/auth';
 import { sql } from '@vercel/postgres';
-import { UserSchema } from '@/lib/schemas';
-// ✅ NEU: Importiere unseren Caching-Loader
+// ✅ WICHTIG: UserSchema für Validierung, User Typ ist hier nicht zwingend nötig
+import { UserSchema } from '@/lib/schemas'; 
 import { getOrFetchGoogleData } from '@/lib/google-data-loader';
 
 export async function GET(request: Request) {
   try {
-    const session = await auth(); // KORRIGIERT: auth() aufgerufen
+    const session = await auth();
 
     if (!session?.user?.email) {
       return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
@@ -24,13 +23,12 @@ export async function GET(request: Request) {
     console.log('[/api/data] DateRange:', dateRange, 'ProjectId:', projectId || 'none');
 
     // ========================================
-    // ADMIN/SUPERADMIN mit projectId
+    // 1. ADMIN/SUPERADMIN mit projectId (Einzelnes Dashboard ansehen)
     // ========================================
     if ((role === 'ADMIN' || role === 'SUPERADMIN') && projectId) {
       console.log('[/api/data] Admin/Superadmin lädt Dashboard für Projekt:', projectId);
 
-      // (Berechtigungsprüfung bleibt gleich)
-     const { rows } = await sql`
+      const { rows } = await sql`
         SELECT *
         FROM users
         WHERE id::text = ${projectId}
@@ -39,7 +37,16 @@ export async function GET(request: Request) {
       
       if (rows.length === 0) return NextResponse.json({ message: 'Projekt nicht gefunden' }, { status: 404 });
 
-      // HIER PASSIERT DIE MAGIE: Zod repariert 'permissions: null' zu '[]'
+      // Berechtigungsprüfung für normale Admins
+      if (role === 'ADMIN') {
+        const { rows: assignments } = await sql`
+          SELECT 1 FROM project_assignments
+          WHERE user_id::text = ${id} AND project_id::text = ${projectId}
+        `;
+        if (assignments.length === 0) return NextResponse.json({ message: 'Zugriff verweigert.' }, { status: 403 });
+      }
+
+      // ✅ ZOD VALIDIERUNG (Repariert permissions: null -> [])
       const parseResult = UserSchema.safeParse(rows[0]);
       
       if (!parseResult.success) {
@@ -49,15 +56,7 @@ export async function GET(request: Request) {
       
       const project = parseResult.data;
 
-      if (role === 'ADMIN') {
-        const { rows: assignments } = await sql`
-          SELECT 1 FROM project_assignments
-          WHERE user_id::text = ${id} AND project_id::text = ${projectId}
-        `;
-        if (assignments.length === 0) return NextResponse.json({ message: 'Zugriff verweigert.' }, { status: 403 });
-      }
-      
-      // ✅ AUFRUF AN CACHING-FUNKTION
+      // Caching-Loader aufrufen
       const dashboardData = await getOrFetchGoogleData(project, dateRange);
 
       if (!dashboardData) {
@@ -69,12 +68,12 @@ export async function GET(request: Request) {
     }
 
     // ========================================
-    // SUPERADMIN ohne projectId (Übersicht)
+    // 2. SUPERADMIN ohne projectId (Liste aller Projekte)
     // ========================================
     if (role === 'SUPERADMIN' && !projectId) {
-      // (Diese Logik bleibt unverändert, da sie keine Google-Daten lädt)
       console.log('[/api/data] Lade Projektliste für SUPERADMIN');
-      const { rows: projects } = await sql<User>`
+      // ❌ Hier stand vorher sql<User>. Wir entfernen <User>, da wir nur eine Teilliste laden.
+      const { rows: projects } = await sql`
         SELECT id::text AS id, email, domain
         FROM users WHERE role = 'BENUTZER' ORDER BY email ASC;
       `;
@@ -82,12 +81,12 @@ export async function GET(request: Request) {
     }
 
     // ========================================
-    // ADMIN ohne projectId (Übersicht)
+    // 3. ADMIN ohne projectId (Liste zugewiesener Projekte)
     // ========================================
     if (role === 'ADMIN' && !projectId) {
-      // (Diese Logik bleibt unverändert, da sie keine Google-Daten lädt)
       console.log('[/api/data] Lade zugewiesene Projekte für ADMIN:', id);
-      const { rows: projects } = await sql<User>`
+      // ❌ Auch hier entfernen wir <User>
+      const { rows: projects } = await sql`
         SELECT u.id::text AS id, u.email, u.domain
         FROM users u
         INNER JOIN project_assignments pa ON u.id = pa.project_id
@@ -98,10 +97,11 @@ export async function GET(request: Request) {
     }
 
     // ========================================
-    // BENUTZER (Eigenes Dashboard)
+    // 4. BENUTZER (Eigenes Dashboard)
     // ========================================
     if (role === 'BENUTZER') {
       console.log('[/api/data] Lade Dashboard für BENUTZER');
+      
       const { rows } = await sql`
         SELECT *
         FROM users WHERE id::text = ${id}
@@ -109,6 +109,7 @@ export async function GET(request: Request) {
       
       if (rows.length === 0) return NextResponse.json({ message: 'Benutzer nicht gefunden.' }, { status: 404 });
 
+      // ✅ ZOD VALIDIERUNG
       const parseResult = UserSchema.safeParse(rows[0]);
       
       if (!parseResult.success) {
@@ -118,7 +119,6 @@ export async function GET(request: Request) {
       
       const user = parseResult.data;
 
-      // ✅ AUFRUF AN CACHING-FUNKTION
       const dashboardData = await getOrFetchGoogleData(user, dateRange);
 
       if (!dashboardData) {
