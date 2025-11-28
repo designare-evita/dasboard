@@ -1,12 +1,11 @@
-// src/services/projectService.ts
 import { sql } from '@vercel/postgres';
+import { ProjectStatsSchema, type ProjectStats } from '@/lib/schemas'; // ✅ Import
 
-export async function getProjectsForDashboard(user: { id: string; role: string; mandant_id?: string | null }) {
-  // Wir nutzen die gleiche Logik wie in der API Route für "onlyCustomers=true"
-  
-  // --- SUPERADMIN ---
+export async function getProjectsForDashboard(user: { id: string; role: string; mandant_id?: string | null }): Promise<ProjectStats[]> {
+  let rows: any[] = [];
+
   if (user.role === 'SUPERADMIN') {
-    const { rows } = await sql`
+    const res = await sql`
       SELECT 
         u.id::text as id, u.email, u.role, u.domain, u.mandant_id, u.permissions, u.favicon_url,
         u.project_timeline_active, u.project_start_date, u.project_duration_months, u."createdAt",
@@ -30,13 +29,12 @@ export async function getProjectsForDashboard(user: { id: string; role: string; 
       GROUP BY u.id, creator.email
       ORDER BY u.mandant_id ASC, u.domain ASC, u.email ASC
     `;
-    return parseNumbers(rows);
+    rows = res.rows;
   }
 
-  // --- ADMIN ---
   if (user.role === 'ADMIN') {
     const adminMandantId = user.mandant_id;
-    const { rows } = await sql`
+    const res = await sql`
       SELECT 
         u.id::text as id, u.email, u.role, u.domain, u.mandant_id, u.permissions, u.favicon_url,
         u.project_timeline_active, u.project_start_date, u.project_duration_months, u."createdAt",
@@ -68,21 +66,19 @@ export async function getProjectsForDashboard(user: { id: string; role: string; 
       GROUP BY u.id, creator.email
       ORDER BY u.domain ASC, u.email ASC
     `;
-    return parseNumbers(rows);
+    rows = res.rows;
   }
 
-  return [];
-}
+  // ✅ ZOD VALIDIERUNG: Wandelt auch Strings in Numbers um (coerce)
+  const parsedProjects = rows.map(row => {
+      const result = ProjectStatsSchema.safeParse(row);
+      if(!result.success) {
+          console.warn("Project Data Validation Warning:", result.error.flatten());
+          // Optional: Trotz Fehler versuchen, Teildaten zurückzugeben oder überspringen
+          return null; 
+      }
+      return result.data;
+  }).filter(p => p !== null) as ProjectStats[];
 
-// Hilfsfunktion um Strings aus der DB in Numbers zu wandeln (für SUM/COUNT)
-function parseNumbers(rows: any[]) {
-  return rows.map(r => ({
-    ...r,
-    landingpages_count: Number(r.landingpages_count || 0),
-    landingpages_offen: Number(r.landingpages_offen || 0),
-    landingpages_in_pruefung: Number(r.landingpages_in_pruefung || 0),
-    landingpages_freigegeben: Number(r.landingpages_freigegeben || 0),
-    landingpages_gesperrt: Number(r.landingpages_gesperrt || 0),
-    total_impression_change: Number(r.total_impression_change || 0),
-  }));
+  return parsedProjects;
 }
