@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth'; // KORRIGIERT: Import von auth
 import { sql } from '@vercel/postgres';
-import { User } from '@/types';
+import { UserSchema } from '@/lib/schemas';
 // ✅ NEU: Importiere unseren Caching-Loader
 import { getOrFetchGoogleData } from '@/lib/google-data-loader';
 
