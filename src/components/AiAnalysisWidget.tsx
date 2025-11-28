@@ -29,7 +29,7 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
   // Helfer: Zufälligen "Anfütter"-Text generieren
   const generateTeaser = (range: string) => {
     const teasers = [
-      `Der Datensatz für ${range} ist vollständig importiert und wartet auf Sie. Soll ich die Auswertung jetzt starten?"`,
+      `Der Datensatz für ${range} ist vollständig importiert und wartet auf Sie. Soll ich die Auswertung jetzt starten?`,
       `Ich habe alle relevanten Metriken für ${range} gesammelt. Darf ich die wichtigsten Erkenntnisse für Sie zusammenfassen?`,
       `Die Zahlen für ${range} sind bereit zur Verknüpfung. Sollen wir die Analyse beginnen, um Ursache und Wirkung zu verstehen?`,
       `Die Performance-Daten für ${range} halten neue Insights bereit. Wollen Sie wissen, welche Maßnahmen am besten gegriffen haben?`,
