@@ -9,6 +9,9 @@ import type {
 
 import type { AiTrafficData } from '@/types/ai-traffic';
 
+// Re-exportiere die Basis-Typen, damit sie von anderen Komponenten importiert werden können
+export type { KpiDatum, ChartPoint, TopQueryData, AiTrafficData };
+
 // Wir erweitern den ActiveKpi Typ
 export type ActiveKpi = BaseActiveKpi | 'conversions' | 'engagementRate';
 
