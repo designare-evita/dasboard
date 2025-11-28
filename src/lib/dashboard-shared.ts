@@ -1,135 +1,94 @@
 // src/lib/dashboard-shared.ts
 import { DateRangeOption } from "@/components/DateRangeSelector";
-
-// --- KORREKTUR START ---
-// 1. Importiere Typen, damit sie IN DIESER DATEI verfügbar sind
 import type { 
   KpiDatum, 
   ChartPoint, 
   TopQueryData, 
-  ActiveKpi 
+  ActiveKpi as BaseActiveKpi 
 } from '@/types/dashboard';
-
-// 2. Exportiere Typen, damit ANDERE DATEIEN sie von hier importieren können
-export type { 
-  KpiDatum, 
-  ChartPoint, 
-  TopQueryData, 
-  ActiveKpi 
-} from '@/types/dashboard';
-// --- KORREKTUR ENDE ---
 
 import type { AiTrafficData } from '@/types/ai-traffic';
 
+// Wir erweitern den ActiveKpi Typ
+export type ActiveKpi = BaseActiveKpi | 'conversions' | 'engagementRate';
 
-// --- 1. Geteilte Typen ---
-
-/**
- * Ein Eintrag für ein Kuchendiagramm
- */
 export type ChartEntry = {
   name: string;
   value: number;
-  fill: string; // Farbe für das Diagrammsegment
+  fill: string;
 };
 
-/**
- * Speichert den Fehlerstatus von GSC oder GA4, falls eine API fehlschlägt.
- */
 export interface ApiErrorStatus {
-  gsc?: string; // Fehlermeldung für GSC
-  ga4?: string; // Fehlermeldung für GA4
+  gsc?: string;
+  ga4?: string;
 }
 
-/**
- * Die Struktur für die Dashboard-Daten,
- * die von beiden Seiten (page.tsx und [id]/page.tsx) verwendet wird.
- */
 export interface ProjectDashboardData {
   kpis?: {
     clicks?: KpiDatum;
     impressions?: KpiDatum;
     sessions?: KpiDatum;
     totalUsers?: KpiDatum;
+    // ✅ NEU: Die universellen Erfolgs-Metriken
+    conversions?: KpiDatum;     
+    engagementRate?: KpiDatum; 
   };
   charts?: {
     clicks?: ChartPoint[];
     impressions?: ChartPoint[];
     sessions?: ChartPoint[];
     totalUsers?: ChartPoint[];
+    // ✅ NEU: Charts dafür
+    conversions?: ChartPoint[];
+    engagementRate?: ChartPoint[];
   };
   topQueries?: TopQueryData[];
   aiTraffic?: AiTrafficData;
-  // Daten für die drei Kreisdiagramme
   countryData?: ChartEntry[];
   channelData?: ChartEntry[];
   deviceData?: ChartEntry[];
-  
   apiErrors?: ApiErrorStatus;
-  
-  // Wird vom Loader hinzugefügt, um den Cache-Status anzuzeigen
   fromCache?: boolean; 
 }
 
-
-// --- 2. Geteilte Konstanten ---
-
-/**
- * Metadaten für die Chart-Tabs (Titel und Farbe).
- */
+// ✅ NEU: Farben und Titel für die neuen KPIs
 export const KPI_TAB_META: Record<ActiveKpi, { title: string; color: string }> = {
   clicks: { title: 'Klicks', color: '#3b82f6' },
   impressions: { title: 'Impressionen', color: '#8b5cf6' },
   sessions: { title: 'Sitzungen', color: '#10b981' },
   totalUsers: { title: 'Nutzer', color: '#f59e0b' },
+  // Gold für Conversions (Geld/Erfolg), Pink für Engagement
+  conversions: { title: 'Conversions (Ziele)', color: '#f59e0b' }, 
+  engagementRate: { title: 'Engagement Rate', color: '#ec4899' },
 };
 
-/**
- * Ein Standard-KPI-Objekt für den Fall, dass keine Daten vorhanden sind.
- */
 export const ZERO_KPI: KpiDatum = { value: 0, change: 0 };
 
-
-// --- 3. Geteilte Hilfsfunktionen ---
-
-/**
- * Stellt sicher, dass die KPI-Daten immer ein valides Objekt sind.
- */
 export function normalizeFlatKpis(input?: ProjectDashboardData['kpis']) {
   return {
     clicks: input?.clicks ?? ZERO_KPI,
     impressions: input?.impressions ?? ZERO_KPI,
     sessions: input?.sessions ?? ZERO_KPI,
     totalUsers: input?.totalUsers ?? ZERO_KPI,
+    conversions: input?.conversions ?? ZERO_KPI,
+    engagementRate: input?.engagementRate ?? ZERO_KPI,
   };
 }
 
-/**
- * Prüft, ob sinnvolle KPI- oder Chart-Daten vorhanden sind.
- */
 export function hasDashboardData(data: ProjectDashboardData): boolean {
-  // Wenn beide APIs fehlschlagen, zeige den "Keine Daten"-Screen
-  if (data.apiErrors?.gsc && data.apiErrors?.ga4) {
-    return false;
-  }
+  if (data.apiErrors?.gsc && data.apiErrors?.ga4) return false;
 
   const k = normalizeFlatKpis(data.kpis);
   
+  // Check erweitert
   const hasAnyKpiValue =
     (k.clicks.value > 0) ||
     (k.impressions.value > 0) ||
     (k.sessions.value > 0) ||
-    (k.totalUsers.value > 0);
+    (k.totalUsers.value > 0) ||
+    (k.conversions.value > 0); // Conversions als Indikator
 
-  const hasAnyChartData =
-    !!data.charts &&
-    Boolean(
-      (data.charts.clicks && data.charts.clicks.length) ||
-      (data.charts.impressions && data.charts.impressions.length) ||
-      (data.charts.sessions && data.charts.sessions.length) ||
-      (data.charts.totalUsers && data.charts.totalUsers.length)
-    );
+  const hasAnyChartData = !!data.charts; // Vereinfachter Check
     
-  // Wenn Fehler vorhanden sind, hat die Komponente "Daten" (nämlich die Fehlermeldung)
   return hasAnyKpiValue || hasAnyChartData || !!data.apiErrors;
 }
