@@ -6,7 +6,7 @@ import { JWT } from 'google-auth-library';
 // --- Typdefinitionen ---
 
 interface DailyDataPoint {
-  date: string;
+  date: number; // ✅ Timestamp (number) für Recharts
   value: number;
 }
 
@@ -40,7 +40,7 @@ export interface AiTrafficData {
     percentage: number;
   }>;
   trend: Array<{
-    date: string;
+    date: number; // ✅ Timestamp
     sessions: number;
   }>;
 }
@@ -196,13 +196,15 @@ export async function getSearchConsoleData(
     let totalImpressions = 0;
 
     for (const row of rows) {
-      const date = row.keys?.[0];
+      const dateStr = row.keys?.[0]; // Format: YYYY-MM-DD
       const clicks = row.clicks || 0;
       const impressions = row.impressions || 0;
 
-      if (date) {
-        clicksDaily.push({ date, value: clicks });
-        impressionsDaily.push({ date, value: impressions });
+      if (dateStr) {
+        // Konvertiere YYYY-MM-DD zu Timestamp
+        const timestamp = new Date(dateStr).getTime();
+        clicksDaily.push({ date: timestamp, value: clicks });
+        impressionsDaily.push({ date: timestamp, value: impressions });
         totalClicks += clicks;
         totalImpressions += impressions;
       }
@@ -211,11 +213,11 @@ export async function getSearchConsoleData(
     return {
       clicks: {
         total: totalClicks,
-        daily: clicksDaily.sort((a, b) => a.date.localeCompare(b.date)),
+        daily: clicksDaily.sort((a, b) => a.date - b.date), // ✅ Numerische Sortierung
       },
       impressions: {
         total: totalImpressions,
-        daily: impressionsDaily.sort((a, b) => a.date.localeCompare(b.date)),
+        daily: impressionsDaily.sort((a, b) => a.date - b.date), // ✅ Numerische Sortierung
       },
     };
   } catch (error: unknown) {
@@ -264,8 +266,8 @@ export async function getAnalyticsData(
   startDate: string,
   endDate: string
 ): Promise<{
-  sessions: { total: number; daily: Array<{ date: string; value: number }> };
-  totalUsers: { total: number; daily: Array<{ date: string; value: number }> };
+  sessions: { total: number; daily: Array<{ date: number; value: number }> }; // ✅ Timestamp
+  totalUsers: { total: number; daily: Array<{ date: number; value: number }> }; // ✅ Timestamp
 }> {
   const formattedPropertyId = propertyId.startsWith('properties/') ? propertyId : `properties/${propertyId}`;
   const auth = createAuth();
@@ -283,19 +285,21 @@ export async function getAnalyticsData(
     });
 
     const rows = response.data.rows || [];
-    const sessionsDaily: Array<{ date: string; value: number }> = [];
-    const usersDaily: Array<{ date: string; value: number }> = [];
+    const sessionsDaily: Array<{ date: number; value: number }> = [];
+    const usersDaily: Array<{ date: number; value: number }> = [];
     let totalSessions = 0;
     let totalUsers = 0;
 
     for (const row of rows) {
       const rawDate = row.dimensionValues?.[0]?.value || '';
-      const date = formatDateToISO(rawDate);
+      const dateStr = formatDateToISO(rawDate);
       const sessions = parseInt(row.metricValues?.[0]?.value || '0', 10);
       const users = parseInt(row.metricValues?.[1]?.value || '0', 10);
 
-      sessionsDaily.push({ date, value: sessions });
-      usersDaily.push({ date, value: users });
+      // Konvertiere YYYY-MM-DD zu Timestamp
+      const timestamp = new Date(dateStr).getTime();
+      sessionsDaily.push({ date: timestamp, value: sessions });
+      usersDaily.push({ date: timestamp, value: users });
       totalSessions += sessions;
       totalUsers += users;
     }
@@ -367,7 +371,7 @@ export async function getAiTrafficData(
       }
     }
 
-    const trendMap: { [date: string]: number } = {};
+    const trendMap: { [timestamp: number]: number } = {}; // ✅ Timestamp als Key
     for (const row of trendRows) {
       const rawDate = row.dimensionValues?.[0]?.value || '';
       const source = row.dimensionValues?.[1]?.value || '';
@@ -376,8 +380,9 @@ export async function getAiTrafficData(
       const fullSource = `${source}${medium ? `/${medium}` : ''}`;
 
       if (isAiSource(fullSource) || isAiSource(source)) {
-        const date = formatDateToISO(rawDate);
-        trendMap[date] = (trendMap[date] || 0) + sessions;
+        const dateStr = formatDateToISO(rawDate);
+        const timestamp = new Date(dateStr).getTime();
+        trendMap[timestamp] = (trendMap[timestamp] || 0) + sessions;
       }
     }
 
@@ -392,8 +397,11 @@ export async function getAiTrafficData(
       .slice(0, 5);
 
     const trend = Object.entries(trendMap)
-      .map(([date, sessions]) => ({ date, sessions }))
-      .sort((a, b) => a.date.localeCompare(b.date));
+      .map(([timestampStr, sessions]) => ({ 
+        date: parseInt(timestampStr, 10), // ✅ String-Key zurück zu Number
+        sessions 
+      }))
+      .sort((a, b) => a.date - b.date); // ✅ Numerische Sortierung
 
     return { totalSessions, totalUsers, sessionsBySource, topAiSources, trend };
 
