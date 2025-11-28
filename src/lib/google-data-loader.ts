@@ -20,7 +20,6 @@ import { BetaAnalyticsDataClient } from '@google-analytics/data';
 // ========== KONSTANTEN ==========
 const CACHE_DURATION_HOURS = 48; 
 
-// Typ-Aliase
 type GscData = { 
   clicks: { total: number, daily: ChartPoint[] }, 
   impressions: { total: number, daily: ChartPoint[] } 
@@ -32,7 +31,6 @@ type GaData = {
   engagementRate: { total: number, daily: ChartPoint[] }
 };
 
-// Standardwerte
 const DEFAULT_GSC_DATA: GscData = { 
   clicks: { total: 0, daily: [] }, 
   impressions: { total: 0, daily: [] } 
@@ -60,7 +58,6 @@ function calculateChange(current: number, previous: number): number {
   return ((current - previous) / previous) * 100;
 }
 
-// Helper: Farben für Pie Charts hinzufügen
 function addFillColors(data: Array<{ name: string; value: number }>, palette: string[]): ChartEntry[] {
   return data.map((item, index) => ({
     ...item,
@@ -73,9 +70,6 @@ const PIE_COLORS_CHANNELS = ['#2563eb', '#f59e0b', '#10b981', '#6366f1', '#ec489
 const PIE_COLORS_DEVICES = ['#3b82f6', '#16a34a', '#f97316', '#6b7280'];
 
 
-/**
- * Erweiterte GA4 Funktion für Conversions & Engagement
- */
 async function fetchEnhancedGa4Data(
   propertyId: string, 
   startDate: string, 
@@ -84,18 +78,15 @@ async function fetchEnhancedGa4Data(
   prevEndDate: string
 ): Promise<{ current: GaData, previous: typeof DEFAULT_GA_PREVIOUS }> {
   
-  if (!process.env.GOOGLE_CLIENT_EMAIL || !process.env.GOOGLE_PRIVATE_KEY) {
-    throw new Error('Google Service Account Credentials fehlen');
-  }
-
+  // ✅ KORREKTUR: Wir entfernen den strikten Check und nutzen Fallbacks
   const analyticsDataClient = new BetaAnalyticsDataClient({
     credentials: {
-      client_email: process.env.GOOGLE_CLIENT_EMAIL,
-      private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      client_email: process.env.GOOGLE_CLIENT_EMAIL || '',
+      private_key: (process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
     },
   });
 
-  // 1. Aktuelle Daten mit Zeitverlauf holen
+  // 1. Aktuelle Daten mit Zeitverlauf
   const [response] = await analyticsDataClient.runReport({
     property: `properties/${propertyId}`,
     dateRanges: [
@@ -113,7 +104,6 @@ async function fetchEnhancedGa4Data(
   });
 
   let curSessions = 0, curUsers = 0, curConversions = 0, curWeightedEngagement = 0;
-
   const chartSessions: ChartPoint[] = [];
   const chartUsers: ChartPoint[] = [];
   const chartConversions: ChartPoint[] = [];
@@ -122,7 +112,7 @@ async function fetchEnhancedGa4Data(
   const rows = response.rows || [];
 
   rows.forEach((row) => {
-    const dateStr = row.dimensionValues?.[0].value; 
+    const dateStr = row.dimensionValues?.[0].value;
     if (!dateStr) return;
 
     const year = parseInt(dateStr.substring(0, 4), 10);
@@ -149,7 +139,7 @@ async function fetchEnhancedGa4Data(
 
   const avgEngagement = curSessions > 0 ? (curWeightedEngagement / curSessions) : 0;
 
-  // 2. Vergleichszeitraum holen (Nur Summen)
+  // 2. Vergleichszeitraum
   const [prevResponse] = await analyticsDataClient.runReport({
     property: `properties/${propertyId}`,
     dateRanges: [{ startDate: prevStartDate, endDate: prevEndDate }],
@@ -216,7 +206,6 @@ export async function getOrFetchGoogleData(
         const now = Date.now();
         const cacheAgeHours = (now - lastFetched) / (1000 * 60 * 60);
 
-        // Cache ist nur gültig, wenn neue Metriken vorhanden sind
         const hasNewMetrics = 
           data.kpis?.conversions !== undefined && 
           data.kpis?.engagementRate !== undefined;
@@ -274,15 +263,12 @@ export async function getOrFetchGoogleData(
   if (user.gsc_site_url) {
     try {
       const gscRaw = await getSearchConsoleData(user.gsc_site_url, startDateStr, endDateStr);
-      // ✅ KORREKTUR: Direkter Zugriff auf die Struktur (ohne .totals/.chartData)
       gscData = {
         clicks: { total: gscRaw.clicks.total, daily: gscRaw.clicks.daily },
         impressions: { total: gscRaw.impressions.total, daily: gscRaw.impressions.daily }
       };
       
-      // Vorperiode GSC
       const gscPrevRaw = await getSearchConsoleData(user.gsc_site_url, prevStartStr, prevEndStr);
-      // ✅ KORREKTUR: Auch hier direkter Zugriff
       gscPrev = {
         clicks: { total: gscPrevRaw.clicks.total },
         impressions: { total: gscPrevRaw.impressions.total }
@@ -327,7 +313,6 @@ export async function getOrFetchGoogleData(
     }
   }
 
-  // Daten zusammenbauen
   const freshData: ProjectDashboardData = {
     kpis: {
       clicks: { value: gscData.clicks.total, change: calculateChange(gscData.clicks.total, gscPrev.clicks.total) },
@@ -356,7 +341,6 @@ export async function getOrFetchGoogleData(
     apiErrors: Object.keys(apiErrors).length > 0 ? apiErrors : undefined
   };
 
-  // 3. CACHE SCHREIBEN
   try {
     await sql`
       INSERT INTO google_data_cache (user_id, date_range, data, last_fetched)
