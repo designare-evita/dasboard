@@ -253,19 +253,27 @@ export async function getOrFetchGoogleData(
         const cacheAgeHours = (now - lastFetched) / (1000 * 60 * 60);
 
         if (cacheAgeHours < CACHE_DURATION_HOURS) {
-          console.log(`[Google Cache] ✅ HIT für ${user.email} (${dateRange})`);
+          console.log(`[Google Cache] ✅ HIT für ${user.email} (${dateRange}) - Age: ${cacheAgeHours.toFixed(1)}h`);
+          console.log(`[Google Cache] Cache enthält GA4: ${!!cacheEntry.data?.kpis?.sessions}, GSC: ${!!cacheEntry.data?.kpis?.clicks}`);
           return { ...cacheEntry.data, fromCache: true };
         } else {
-          console.log(`[Google Cache] ⏳ Cache abgelaufen (${cacheAgeHours.toFixed(1)}h)`);
+          console.log(`[Google Cache] ⏳ Cache abgelaufen (${cacheAgeHours.toFixed(1)}h) - Hole neue Daten`);
         }
+      } else {
+        console.log(`[Google Cache] ❌ Kein Cache gefunden für ${user.email} (${dateRange})`);
       }
     } catch (error) {
       console.warn('[Google Cache] Fehler beim Lesen:', error);
     }
+  } else {
+    console.log(`[Google Cache] 🔄 Force Refresh aktiviert für ${user.email}`);
   }
 
   // 2. Daten frisch holen
   console.log(`[Google Cache] 🔄 Fetching fresh data for ${user.email}...`);
+  console.log(`[Google Config] GSC Site: ${user.gsc_site_url || 'NICHT KONFIGURIERT'}`);
+  console.log(`[Google Config] GA4 Property: ${user.ga4_property_id || 'NICHT KONFIGURIERT'}`);
+  console.log(`[Google Config] Date Range: ${dateRange}`);
 
   // Datum berechnen
   const end = new Date();
@@ -329,16 +337,14 @@ export async function getOrFetchGoogleData(
   // --- FETCH: GA4 (Erweitert) ---
   if (user.ga4_property_id) {
     try {
-      // Validierung der Property ID
-      if (!user.ga4_property_id.match(/^\d+$/)) {
-        throw new Error(`Ungültige GA4 Property ID Format: ${user.ga4_property_id}`);
-      }
+      // Property ID trimmen (Leerzeichen entfernen)
+      const propertyId = user.ga4_property_id.trim();
 
-      console.log(`[GA4] Fetching data for property: ${user.ga4_property_id}`);
+      console.log(`[GA4] Fetching data for property: ${propertyId}`);
 
       // Neue erweiterte Funktion aufrufen
       const gaResult = await fetchEnhancedGa4Data(
-        user.ga4_property_id, 
+        propertyId,  // Getrimmte ID verwenden
         startDateStr, endDateStr, 
         prevStartStr, prevEndStr
       );
@@ -349,7 +355,7 @@ export async function getOrFetchGoogleData(
 
       // AI Traffic (Optional - Fehler nicht kritisch)
       try {
-        aiTraffic = await getAiTrafficData(user.ga4_property_id, startDateStr, endDateStr);
+        aiTraffic = await getAiTrafficData(propertyId, startDateStr, endDateStr);
         console.log(`[GA4] ✅ AI Traffic data fetched`);
       } catch (aiError: any) {
         console.warn('[GA4] AI Traffic fetch failed (non-critical):', aiError.message);
@@ -357,9 +363,9 @@ export async function getOrFetchGoogleData(
 
       // Pie Charts (Länder, Kanäle, Geräte) - Optional
       try {
-        const rawCountryData = await getGa4DimensionReport(user.ga4_property_id, startDateStr, endDateStr, 'country');
-        const rawChannelData = await getGa4DimensionReport(user.ga4_property_id, startDateStr, endDateStr, 'sessionDefaultChannelGroup');
-        const rawDeviceData = await getGa4DimensionReport(user.ga4_property_id, startDateStr, endDateStr, 'deviceCategory');
+        const rawCountryData = await getGa4DimensionReport(propertyId, startDateStr, endDateStr, 'country');
+        const rawChannelData = await getGa4DimensionReport(propertyId, startDateStr, endDateStr, 'sessionDefaultChannelGroup');
+        const rawDeviceData = await getGa4DimensionReport(propertyId, startDateStr, endDateStr, 'deviceCategory');
         
         // ChartEntry-Objekte mit 'fill'-Property erstellen
         countryData = rawCountryData.map((item, index) => ({
@@ -432,8 +438,22 @@ export async function getOrFetchGoogleData(
     apiErrors: Object.keys(apiErrors).length > 0 ? apiErrors : undefined
   };
 
+  // Debug Log: Zusammenfassung der geholten Daten
+  console.log(`[Google Data] Zusammenfassung für ${user.email}:`);
+  console.log(`  - GSC Clicks: ${freshData.kpis.clicks.value}`);
+  console.log(`  - GSC Impressions: ${freshData.kpis.impressions.value}`);
+  console.log(`  - GA4 Sessions: ${freshData.kpis.sessions.value}`);
+  console.log(`  - GA4 Users: ${freshData.kpis.totalUsers.value}`);
+  console.log(`  - GA4 Conversions: ${freshData.kpis.conversions.value}`);
+  console.log(`  - Top Queries: ${topQueries.length}`);
+  console.log(`  - API Errors: ${Object.keys(apiErrors).join(', ') || 'Keine'}`);
+  console.log(`  - Country Data: ${countryData.length} Einträge`);
+  console.log(`  - Channel Data: ${channelData.length} Einträge`);
+  console.log(`  - Device Data: ${deviceData.length} Einträge`);
+
   // Cache schreiben
   try {
+    console.log(`[Google Cache] 💾 Schreibe Cache für ${user.email} (${dateRange})`);
     await sql`
       INSERT INTO google_data_cache (user_id, date_range, data, last_fetched)
       VALUES (${userId}::uuid, ${dateRange}, ${JSON.stringify(freshData)}::jsonb, NOW())
@@ -442,8 +462,9 @@ export async function getOrFetchGoogleData(
         data = ${JSON.stringify(freshData)}::jsonb,
         last_fetched = NOW();
     `;
+    console.log(`[Google Cache] ✅ Cache erfolgreich geschrieben`);
   } catch (e) {
-    console.error('[Google Cache] Write Error:', e);
+    console.error('[Google Cache] ❌ Write Error:', e);
   }
 
   return freshData;
