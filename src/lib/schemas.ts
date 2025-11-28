@@ -15,6 +15,13 @@ export const UserSchema = z.object({
   ]).transform(val => val || []),
   favicon_url: z.string().nullable().optional(),
   
+  // API-Konfiguration (Google & Semrush)
+  gsc_site_url: z.string().nullable().optional(),
+  ga4_property_id: z.string().nullable().optional(),
+  semrush_project_id: z.string().nullable().optional(),
+  semrush_tracking_id: z.string().nullable().optional(),
+  semrush_tracking_id_02: z.string().nullable().optional(),
+  
   // Metadaten für Dashboard/Admin
   assigned_admins: z.string().nullable().optional(),
   assigned_projects: z.string().nullable().optional(),
