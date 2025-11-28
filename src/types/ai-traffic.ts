@@ -1,5 +1,7 @@
 // src/types/ai-traffic.ts
 
+import type { ChartPoint } from './dashboard';
+
 export interface AiTrafficData {
   totalSessions: number;
   totalUsers: number;
@@ -20,4 +22,24 @@ export interface AiTrafficData {
     date: number; // ✅ Timestamp (number) für Recharts
     sessions: number;
   }>;
+}
+
+// Props für AiTrafficCard Komponente
+export interface AiTrafficCardProps {
+  totalSessions: number;
+  totalUsers: number;
+  percentage: number;
+  totalSessionsChange?: number;
+  totalUsersChange?: number;
+  trend: ChartPoint[];
+  topAiSources: Array<{
+    source: string;
+    sessions: number;
+    users: number;
+    percentage: number;
+  }>;
+  className?: string;
+  isLoading?: boolean;
+  dateRange?: string;
+  error?: string;
 }
