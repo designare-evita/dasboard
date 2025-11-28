@@ -25,7 +25,6 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
 
   // --- PRE-FETCHING & RESET LOGIK ---
   useEffect(() => {
-    // 1. RESET: Wenn sich das Datum ändert, löschen wir die alte Analyse
     setStatusContent('');
     setAnalysisContent('');
     setError(null);
@@ -37,7 +36,6 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
       
       console.log(`[AI Widget] 🚀 Starte Pre-Fetching für Zeitraum: ${dateRange}`);
       try {
-        // Cache aufwärmen für den neuen Zeitraum
         await fetch(`/api/projects/${projectId}?dateRange=${dateRange}`, {
           priority: 'low'
         });
@@ -122,28 +120,29 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
   // Helfer für den Anzeigetext
   const rangeLabel = getRangeLabel(dateRange as DateRangeOption).toLowerCase();
 
-  // 1. Start-Ansicht (Leerzustand - NEUES PREMIUM DESIGN)
+  // 1. Start-Ansicht (Leerzustand - DEZENTES DESIGN)
   if (!statusContent && !isLoading && !error) {
     return (
       <div className="relative group mb-6">
-        {/* Dekorativer Hintergrund-Glow */}
-        <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 to-blue-500 rounded-2xl opacity-20 group-hover:opacity-40 transition duration-500 blur"></div>
+        {/* Dekorativer Hintergrund-Glow (SEHR DEZENT) */}
+        {/* Opacity auf 5% reduziert, Hover auf 15%. Blur erhöht. */}
+        <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 to-blue-500 rounded-2xl opacity-5 group-hover:opacity-15 transition duration-700 blur-sm"></div>
         
-        <div className="relative bg-white rounded-xl p-6 flex flex-col sm:flex-row items-center gap-5 shadow-sm border border-indigo-50">
+        <div className="relative bg-white rounded-xl p-6 flex flex-col sm:flex-row items-center gap-5 shadow-sm border border-gray-100/80">
           
-          {/* Icon mit Puls-Effekt */}
+          {/* Icon mit Puls-Effekt (BERUHIGT) */}
           <div className="relative shrink-0">
-            {/* Pulsierender Ring hinter dem Icon */}
-            <div className={`absolute inset-0 rounded-xl opacity-30 ${isPrefetched ? 'bg-emerald-400 animate-ping' : 'bg-indigo-400 animate-pulse'}`}></div>
+            {/* Pulsierender Ring hinter dem Icon - Deckkraft massiv reduziert (10%) und immer 'pulse' statt 'ping' */}
+            <div className={`absolute inset-0 rounded-xl opacity-10 animate-pulse ${isPrefetched ? 'bg-emerald-500' : 'bg-indigo-500'}`}></div>
             
-            <div className={`relative p-4 rounded-xl shadow-sm border ${isPrefetched ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-indigo-50 border-indigo-100 text-indigo-600'}`}>
+            <div className={`relative p-4 rounded-xl border ${isPrefetched ? 'bg-emerald-50/50 border-emerald-100/50 text-emerald-600' : 'bg-indigo-50/50 border-indigo-100/50 text-indigo-600'}`}>
               {isPrefetched ? <Cpu size={28} /> : <Robot size={28} />}
             </div>
             
-            {/* Status Dot (Online Indikator) */}
-            <span className={`absolute -top-1 -right-1 flex h-3 w-3`}>
-              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isPrefetched ? 'bg-emerald-400' : 'bg-indigo-400'}`}></span>
-              <span className={`relative inline-flex rounded-full h-3 w-3 ${isPrefetched ? 'bg-emerald-500' : 'bg-indigo-500'}`}></span>
+            {/* Status Dot (Online Indikator) - Kleiner und feiner */}
+            <span className={`absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5`}>
+              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-50 ${isPrefetched ? 'bg-emerald-400' : 'bg-indigo-400'}`}></span>
+              <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${isPrefetched ? 'bg-emerald-500' : 'bg-indigo-500'}`}></span>
             </span>
           </div>
 
@@ -151,24 +150,25 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
           <div className="flex-1 text-center sm:text-left">
             <div className="flex items-center justify-center sm:justify-start gap-2 mb-1">
               <h3 className="text-lg font-bold text-gray-900">Data Max</h3>
-              <span className="px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-700 text-[10px] font-bold uppercase tracking-wider border border-indigo-200">
+              {/* Badge dezenter gestaltet */}
+              <span className="px-2 py-0.5 rounded text-indigo-600/80 bg-indigo-50 text-[10px] font-bold uppercase tracking-wider border border-indigo-100/50">
                 AI Analyst
               </span>
             </div>
-            <p className="text-sm text-gray-600 leading-relaxed">
+            <p className="text-sm text-gray-500 leading-relaxed">
               {isPrefetched 
-                ? <span>Ich habe die Daten der letzten <span className="font-semibold text-gray-900">{rangeLabel}</span> vorbereitet.</span>
-                : <span>Soll ich die Performance der letzten <span className="font-semibold text-gray-900">{rangeLabel}</span> für Sie auswerten?</span>}
+                ? <span>Daten für <span className="font-medium text-gray-700">{rangeLabel}</span> liegen bereit.</span>
+                : <span>Soll ich die Performance der letzten <span className="font-medium text-gray-700">{rangeLabel}</span> analysieren?</span>}
             </p>
           </div>
 
           {/* Action Button */}
           <button
             onClick={handleAnalyze}
-            className="shrink-0 px-6 py-3 bg-gradient-to-r from-[#188BDB] to-[#1479BF] text-white rounded-lg text-sm font-semibold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2 group/btn"
+            className="shrink-0 px-5 py-2.5 bg-[#188BDB] hover:bg-[#1479BF] text-white rounded-lg text-sm font-medium shadow-sm hover:shadow transition-all duration-200 flex items-center gap-2"
           >
-            <Lightbulb size={16} className={isPrefetched ? "text-yellow-200" : "group-hover/btn:text-yellow-200 transition-colors"} />
-            <span>Analyse starten</span>
+            <Lightbulb size={16} className="text-white/90" />
+            <span>Jetzt analysieren</span>
           </button>
         </div>
       </div>
@@ -180,8 +180,8 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6 items-stretch animate-in fade-in slide-in-from-bottom-4 duration-500">
       
       {/* SPALTE 1: Status */}
-      <div className="bg-indigo-50/50 rounded-2xl border border-indigo-100 flex flex-col h-full shadow-sm">
-        <div className="p-5 border-b border-indigo-100 bg-white/40 rounded-t-2xl backdrop-blur-sm flex justify-between items-center">
+      <div className="bg-indigo-50/30 rounded-2xl border border-indigo-100/50 flex flex-col h-full shadow-sm">
+        <div className="p-5 border-b border-indigo-100/50 bg-white/40 rounded-t-2xl backdrop-blur-sm flex justify-between items-center">
           <h3 className="font-bold text-indigo-900 flex items-center gap-2">
             {isLoading ? <ArrowRepeat className="animate-spin" /> : <InfoCircle />}
             Status ({rangeLabel})
@@ -190,14 +190,13 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
         <div className="p-5 text-sm text-indigo-900 leading-relaxed flex-grow">
            <div dangerouslySetInnerHTML={{ __html: statusContent }} />
            
-           {/* GRÜNE ANIMATION SPALTE 1 */}
            {isLoading && !analysisContent && (
-             <div className="inline-flex items-center gap-2 mt-2 text-emerald-600 font-medium animate-pulse">
-               <span className="relative flex h-3 w-3">
+             <div className="inline-flex items-center gap-2 mt-2 text-emerald-600 font-medium animate-pulse opacity-80">
+               <span className="relative flex h-2.5 w-2.5">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
                </span>
-               <span className="text-xs uppercase tracking-wider">Data Max analysiert...</span>
+               <span className="text-xs uppercase tracking-wider">Analysiert...</span>
              </div>
            )}
         </div>
@@ -215,14 +214,12 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
            {analysisContent ? (
              <div dangerouslySetInnerHTML={{ __html: analysisContent }} />
            ) : (
-             /* Platzhalter, solange Spalte 1 noch lädt */
              isLoading && !statusContent ? <p className="text-gray-400 italic">Warte auf Datenverarbeitung...</p> : null
            )}
 
-           {/* GRÜNE ANIMATION SPALTE 2 */}
            {isLoading && analysisContent && (
-             <div className="inline-flex items-center gap-2 mt-2 text-emerald-600 font-medium animate-pulse">
-               <span className="w-2 h-4 bg-emerald-500 rounded-sm shadow-[0_0_10px_rgba(16,185,129,0.6)]"></span>
+             <div className="inline-flex items-center gap-2 mt-2 text-emerald-600 font-medium animate-pulse opacity-80">
+               <span className="w-1.5 h-3 bg-emerald-500 rounded-sm"></span>
                <span className="text-xs uppercase tracking-wider">Schreibt...</span>
              </div>
            )}
