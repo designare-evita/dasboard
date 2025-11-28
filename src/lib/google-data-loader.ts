@@ -21,7 +21,7 @@ import { BetaAnalyticsDataClient } from '@google-analytics/data';
 // ========== KONSTANTEN ==========
 const CACHE_DURATION_HOURS = 48; 
 
-// Typ-Aliase
+// Typ-Aliase - verwende ChartPoint direkt
 type GscData = { clicks: { total: number, daily: ChartPoint[] }, impressions: { total: number, daily: ChartPoint[] } };
 type GaData = { 
   sessions: { total: number, daily: ChartPoint[] }, 
