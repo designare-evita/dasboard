@@ -16,7 +16,6 @@ import {
   ZERO_KPI
 } from '@/lib/dashboard-shared';
 import type { TopQueryData, ChartPoint } from '@/types/dashboard';
-import { BetaAnalyticsDataClient } from '@google-analytics/data';
 
 // ========== KONSTANTEN ==========
 const CACHE_DURATION_HOURS = 48; 
@@ -60,170 +59,6 @@ function getCredentials(user: User) {
     ga4PropertyId: user.ga4_property_id
   };
 }
-
-/**
- * Erweiterte GA4 Funktion für Conversions & Engagement
- */
-async function fetchEnhancedGa4Data(
-  propertyId: string, 
-  startDate: string, 
-  endDate: string, 
-  prevStartDate: string, 
-  prevEndDate: string
-): Promise<{ current: GaData, previous: typeof DEFAULT_GA_PREVIOUS }> {
-  
-  // Credentials validieren
-  if (!process.env.GOOGLE_CLIENT_EMAIL || !process.env.GOOGLE_PRIVATE_KEY) {
-    throw new Error('Google Service Account Credentials fehlen in Umgebungsvariablen');
-  }
-
-  try {
-    const analyticsDataClient = new BetaAnalyticsDataClient({
-      credentials: {
-        client_email: process.env.GOOGLE_CLIENT_EMAIL,
-        private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-      },
-    });
-
-    console.log(`[GA4] Running report for property: properties/${propertyId}`);
-
-    const [response] = await analyticsDataClient.runReport({
-      property: `properties/${propertyId}`,
-      dateRanges: [
-        { startDate, endDate },          // Range 0: Aktuell
-        { startDate: prevStartDate, endDate: prevEndDate }, // Range 1: Vergleich
-      ],
-      dimensions: [{ name: 'date' }],
-      metrics: [
-        { name: 'sessions' },
-        { name: 'totalUsers' },
-        { name: 'conversions' },     // Früher "conversions", Google nennt es jetzt oft "keyEvents", API bleibt meist "conversions"
-        { name: 'engagementRate' }
-      ],
-      orderBys: [{ dimension: { orderType: 'ALPHANUMERIC', dimensionName: 'date' } }],
-      keepEmptyRows: true,
-    });
-
-  // Container für aggregierte Daten
-  let curSessions = 0, curUsers = 0, curConversions = 0, curWeightedEngagement = 0;
-  let prevSessions = 0, prevUsers = 0, prevConversions = 0, prevWeightedEngagement = 0;
-
-  const chartSessions: Array<{ date: number; value: number }> = [];
-  const chartUsers: Array<{ date: number; value: number }> = [];
-  const chartConversions: Array<{ date: number; value: number }> = [];
-  const chartEngagement: Array<{ date: number; value: number }> = [];
-
-  const rows = response.rows || [];
-
-  rows.forEach((row) => {
-    const dateStr = row.dimensionValues?.[0].value; // YYYYMMDD
-    if (!dateStr) return;
-
-    // Datum parsen (YYYYMMDD -> Timestamp)
-    const year = parseInt(dateStr.substring(0, 4), 10);
-    const month = parseInt(dateStr.substring(4, 6), 10) - 1;
-    const day = parseInt(dateStr.substring(6, 8), 10);
-    const timestamp = new Date(year, month, day).getTime();
-
-    // Werte extrahieren
-    const metricValues = row.metricValues || [];
-    const sessions = parseInt(metricValues[0].value || '0', 10);
-    const users = parseInt(metricValues[1].value || '0', 10);
-    const conversions = parseInt(metricValues[2].value || '0', 10);
-    const engagementRate = parseFloat(metricValues[3].value || '0');
-
-    // Range prüfen (0 = aktuell, 1 = vorher)
-    // Die API gibt keine explizite Range-ID pro Row bei Zeitverlauf zurück in dieser Form, 
-    // sondern wir müssen aufpassen. 
-    // KORREKTUR: Bei Zeitverlauf + DateRange Comparison liefert die API oft duplizierte Dates.
-    // Sicherer ist es, zwei getrennte Requests zu machen ODER wir vereinfachen hier für das Dashboard:
-    // Wir nehmen an, dass 'date' Dimension primär für den Chart (aktueller Zeitraum) ist.
-    // Für die Totals des Vergleichszeitraums ist ein separater Request ohne 'date' Dimension sicherer/einfacher.
-    
-    // Workaround für hier: Wir summieren nur Current Range für Charts.
-    // Da die API bei Multi-Range + Time Dimension komplex ist, prüfen wir, ob das Datum im aktuellen Bereich liegt.
-    // (Einfachheitshalber nehmen wir an, response enthält nur aktuelle Range für Charts, 
-    // und wir machen einen 2. Request für Totals, um exakt zu sein. Aber um Code klein zu halten -> simple logic)
-    
-    // BESSERER WEG: Wir nutzen hier nur die "Current" Daten für Charts und Summen.
-    // Die "Previous" Summen holen wir aus einem separaten, schnellen Request ohne Dimensionen.
-    
-    curSessions += sessions;
-    curUsers += users;
-    curConversions += conversions;
-    curWeightedEngagement += (engagementRate * sessions); // Gewichtung
-
-    chartSessions.push({ date: timestamp, value: sessions });
-    chartUsers.push({ date: timestamp, value: users });
-    chartConversions.push({ date: timestamp, value: conversions });
-    chartEngagement.push({ date: timestamp, value: engagementRate * 100 }); // % für Chart
-  });
-
-  // Durchschnittliche Engagement Rate berechnen
-  const avgEngagement = curSessions > 0 ? (curWeightedEngagement / curSessions) : 0;
-
-  // 2. Request für exakte Vorperioden-Summen (sicherer als Row-Matching)
-  const [prevResponse] = await analyticsDataClient.runReport({
-    property: `properties/${propertyId}`,
-    dateRanges: [{ startDate: prevStartDate, endDate: prevEndDate }],
-    metrics: [
-      { name: 'sessions' },
-      { name: 'totalUsers' },
-      { name: 'conversions' },
-      { name: 'engagementRate' }
-    ]
-  });
-
-  const prevMetrics = prevResponse.rows?.[0]?.metricValues || [];
-  if (prevMetrics.length > 0) {
-    prevSessions = parseInt(prevMetrics[0].value || '0', 10);
-    prevUsers = parseInt(prevMetrics[1].value || '0', 10);
-    prevConversions = parseInt(prevMetrics[2].value || '0', 10);
-    const prevAvgEng = parseFloat(prevMetrics[3].value || '0');
-    
-    // Bei Engagement Rate kommt der Durchschnitt direkt aus der API, wenn keine Date-Dimension dabei ist!
-    // Das ist viel genauer.
-    prevWeightedEngagement = prevAvgEng; // Hack: Wir speichern den direkten Wert
-  }
-
-  console.log(`[GA4] Report data processed successfully`);
-
-  return {
-    current: {
-      sessions: { total: curSessions, daily: chartSessions },
-      totalUsers: { total: curUsers, daily: chartUsers },
-      conversions: { total: curConversions, daily: chartConversions },
-      engagementRate: { total: avgEngagement, daily: chartEngagement }
-    },
-    previous: {
-      sessions: { total: prevSessions },
-      totalUsers: { total: prevUsers },
-      conversions: { total: prevConversions },
-      engagementRate: { total: prevWeightedEngagement } // Hier steht der echte Durchschnitt drin
-    }
-  };
-  
-  } catch (error: any) {
-    console.error('[GA4 fetchEnhancedGa4Data] Error details:', {
-      message: error.message,
-      code: error.code,
-      details: error.details,
-      propertyId
-    });
-    
-    // Rethrow mit verbesserter Nachricht
-    if (error.code === 7 || error.message?.includes('permission')) {
-      throw new Error(`Keine Berechtigung für GA4 Property ${propertyId}. Service Account muss als Betrachter hinzugefügt werden.`);
-    } else if (error.code === 5 || error.message?.includes('not found')) {
-      throw new Error(`GA4 Property ${propertyId} nicht gefunden. Property ID überprüfen.`);
-    } else if (error.message?.includes('credentials')) {
-      throw new Error('GA4 Authentifizierung fehlgeschlagen. Service Account Credentials überprüfen.');
-    }
-    
-    throw error;
-  }
-}
-
 
 // ========== HAUPTFUNKTION ==========
 
@@ -342,14 +177,23 @@ export async function getOrFetchGoogleData(
 
       console.log(`[GA4] Fetching data for property: ${propertyId}`);
 
-      // Neue erweiterte Funktion aufrufen
-      const gaResult = await fetchEnhancedGa4Data(
-        propertyId,  // Getrimmte ID verwenden
-        startDateStr, endDateStr, 
-        prevStartStr, prevEndStr
-      );
-      gaData = gaResult.current;
-      gaPrev = gaResult.previous;
+      // Neue erweiterte getAnalyticsData Funktion nutzen
+      const gaCurrent = await getAnalyticsData(propertyId, startDateStr, endDateStr);
+      const gaPrevious = await getAnalyticsData(propertyId, prevStartStr, prevEndStr);
+      
+      gaData = {
+        sessions: gaCurrent.sessions,
+        totalUsers: gaCurrent.totalUsers,
+        conversions: gaCurrent.conversions,
+        engagementRate: gaCurrent.engagementRate
+      };
+      
+      gaPrev = {
+        sessions: { total: gaPrevious.sessions.total },
+        totalUsers: { total: gaPrevious.totalUsers.total },
+        conversions: { total: gaPrevious.conversions.total },
+        engagementRate: { total: gaPrevious.engagementRate.total }
+      };
 
       console.log(`[GA4] ✅ Base metrics fetched successfully`);
 
