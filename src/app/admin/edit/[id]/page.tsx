@@ -1,7 +1,7 @@
 // src/app/admin/edit/[id]/page.tsx
 
 import { sql } from '@vercel/postgres';
-import { getServerSession } from '@/lib/get-session';
+import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import type { User } from '@/types';
 import EditUserForm from './EditUserForm';
@@ -20,8 +20,8 @@ interface Project {
   mandant_id: string | null;
 }
 
-// Admin-Interface (Der Benutzer, der bearbeitet wird)
-interface UserWithAssignments extends User {
+// KORREKTUR: Omit verwenden, um den Typ-Konflikt mit 'string' aus dem User-Interface zu lösen
+interface UserWithAssignments extends Omit<User, 'assigned_projects'> {
   assigned_projects: { project_id: string }[];
 }
 
@@ -42,7 +42,11 @@ async function getUserData(id: string): Promise<UserWithAssignments | null> {
         COALESCE(ga4_property_id, '') as ga4_property_id,
         COALESCE(semrush_project_id, '') as semrush_project_id,
         COALESCE(semrush_tracking_id, '') as semrush_tracking_id,
-        COALESCE(semrush_tracking_id_02, '') as semrush_tracking_id_02
+        COALESCE(semrush_tracking_id_02, '') as semrush_tracking_id_02,
+        favicon_url,
+        project_start_date,
+        project_duration_months,
+        project_timeline_active::boolean as project_timeline_active
       FROM users
       WHERE id::text = ${id}`;
       
@@ -50,7 +54,8 @@ async function getUserData(id: string): Promise<UserWithAssignments | null> {
       console.error('[getUserData] ❌ Benutzer nicht gefunden!');
       return null;
     }
-    const user = users[0] as User;
+    // Cast to unknown first to avoid intersection type issues with Omit
+    const user = users[0] as unknown as Omit<User, 'assigned_projects'>;
     
     // 2. Projekt-Zuweisungen (Ausnahmen) laden
     let assigned_projects: { project_id: string }[] = [];
@@ -64,7 +69,7 @@ async function getUserData(id: string): Promise<UserWithAssignments | null> {
       console.warn('[getUserData] ⚠️ Projektzuweisungen konnten nicht geladen werden:', paError);
     }
     
-    return { ...user, assigned_projects };
+    return { ...user, assigned_projects } as UserWithAssignments;
   } catch (error) {
     console.error('[getUserData] ❌ FEHLER:', error);
     throw error;
@@ -97,7 +102,7 @@ async function getAllProjects(): Promise<Project[]> {
 // --- Hauptkomponente der Seite ---
 
 export default async function EditUserPage({ params }: PageProps) {
-  const session = await getServerSession();
+  const session = await auth();
 
   if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
     redirect('/');
@@ -106,13 +111,12 @@ export default async function EditUserPage({ params }: PageProps) {
   const resolvedParams = await params;
   const { id } = resolvedParams;
 
-  // (ID-Validierung - Unverändert)
   if (!id || typeof id !== 'string' || id.length !== 36) {
     return (
         <div className="min-h-screen bg-gray-50 p-8">
             <div className="p-8 text-center bg-white rounded-lg shadow-md max-w-2xl mx-auto mt-10">
                 <h2 className="text-xl font-bold text-red-600 mb-4">❌ Ungültige ID</h2>
-                {/* ... restlicher Fehlercode ... */}
+                <p>Die angegebene Benutzer-ID ist ungültig.</p>
             </div>
         </div>
     );
@@ -131,26 +135,24 @@ export default async function EditUserPage({ params }: PageProps) {
     loadError = error instanceof Error ? error.message : 'Unbekannter Fehler';
   }
 
-  // (Fehlerbehandlung beim Laden - Unverändert)
   if (!user || loadError) {
      return (
         <div className="min-h-screen bg-gray-50 p-8">
             <div className="p-8 bg-white rounded-lg shadow-md max-w-2xl mx-auto mt-10">
                 <h2 className="text-xl font-bold text-red-600 mb-4">Benutzer nicht gefunden</h2>
-                {/* ... restlicher Fehlercode ... */}
+                <p>Der Benutzer mit der ID {id} konnte nicht geladen werden.</p>
+                {loadError && <p className="text-sm text-gray-500 mt-2">{loadError}</p>}
             </div>
         </div>
     );
   }
 
-  // KORREKTUR: Berechtigungen des EINGELOGGTEN Benutzers prüfen
   const currentUserIsSuperAdmin = session.user.role === 'SUPERADMIN';
   const currentUserIsKlasse1 = session.user.permissions?.includes('kann_admins_verwalten');
   const canManageAssignments = currentUserIsSuperAdmin || currentUserIsKlasse1;
   
   const userBeingEditedIsAdmin = user.role === 'ADMIN';
 
-  // --- Seiten-Rendering ---
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-4xl mx-auto space-y-8">
@@ -172,9 +174,9 @@ export default async function EditUserPage({ params }: PageProps) {
               </span>
             </div>
           </div>
-         {/* KORREKTUR: Prop 'isSuperAdmin' wird übergeben */}
+         {/* Hier muss Cast verwendet werden, da EditUserForm das normale User Interface erwartet */}
          <EditUserForm 
-           user={user}
+           user={user as unknown as User}
            isSuperAdmin={currentUserIsSuperAdmin}
          />
         </div>
@@ -187,17 +189,14 @@ export default async function EditUserPage({ params }: PageProps) {
           </>
         )}
 
-        {/* Projektzuweisungen (Nur für Superadmin ODER Klasse 1 Admins, wenn ein Admin bearbeitet wird) */}
+        {/* Projektzuweisungen */}
         {canManageAssignments && userBeingEditedIsAdmin && (
           <ProjectAssignmentManager 
             user={user} 
             allProjects={allProjects} 
-            // KORREKTUR: Darf der Admin Label-übergreifend zuweisen? NEIN.
-            // Wir filtern die Projekte auf den Mandanten des Admins,
-            // ABER der Superadmin sieht alle.
             availableProjects={currentUserIsSuperAdmin 
-                ? allProjects // Superadmin sieht alle Kunden
-                : allProjects.filter(p => p.mandant_id === session.user.mandant_id) // Klasse 1 Admin sieht nur Kunden im eigenen Mandanten
+                ? allProjects 
+                : allProjects.filter(p => p.mandant_id === session.user.mandant_id)
             }
           />
         )}

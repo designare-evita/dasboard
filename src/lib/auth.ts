@@ -1,11 +1,13 @@
 // src/lib/auth.ts
-import { NextAuthOptions } from 'next-auth';
+import NextAuth from 'next-auth'; // Standard-Import
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { sql } from '@vercel/postgres';
 import bcrypt from 'bcryptjs';
 import { unstable_noStore as noStore } from 'next/cache';
+import type { NextAuthConfig } from 'next-auth'; // Wichtig: NextAuthConfig importieren
 
-export const authOptions: NextAuthOptions = {
+// Die Konfiguration wird jetzt als reines Objekt definiert
+export const authConfig = {
   providers: [
     CredentialsProvider({
       name: 'Credentials',
@@ -14,22 +16,22 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" }
       },
       async authorize(credentials) {
-        noStore(); // Caching für Login-Anfragen deaktivieren
+        noStore(); 
 
         if (!credentials?.email || !credentials.password) {
           throw new Error('E-Mail oder Passwort fehlt');
         }
 
-        const normalizedEmail = credentials.email.toLowerCase().trim();
+        const normalizedEmail = (credentials.email as string).toLowerCase().trim();
         console.log('[Authorize] Suche Benutzer:', normalizedEmail);
 
         let user;
         try {
-          // 1. Benutzerdaten holen (INKLUSIVE GSC_SITE_URL)
+          // 1. Benutzerdaten holen
           const { rows } = await sql`
             SELECT 
               id, email, password, role, mandant_id, permissions,
-              gsc_site_url -- ✅ HINZUGEFÜGT
+              gsc_site_url
             FROM users 
             WHERE email = ${normalizedEmail}
           `;
@@ -48,7 +50,7 @@ export const authOptions: NextAuthOptions = {
           }
 
           // 2. Passwort vergleichen
-          const passwordsMatch = await bcrypt.compare(credentials.password, user.password);
+          const passwordsMatch = await bcrypt.compare(credentials.password as string, user.password);
 
           if (!passwordsMatch) {
             console.log('[Authorize] Passwort-Vergleich fehlgeschlagen für:', normalizedEmail);
@@ -58,36 +60,25 @@ export const authOptions: NextAuthOptions = {
           console.log('[Authorize] Login erfolgreich für:', user.email);
 
         } catch (authError) {
-          // Fängt "Falsches Passwort", "Benutzer nicht gefunden", etc. ab
           if (authError instanceof Error) {
             console.warn(`[Authorize] Authentifizierungsfehler: ${authError.message}`);
-            throw authError; // Wirft den Fehler an NextAuth
+            throw authError; 
           }
           console.error("[Authorize] Unerwarteter Authentifizierungsfehler:", authError);
           throw new Error('Authentifizierungsfehler');
         }
         
-        // ==============================================
         // Login-Ereignis protokollieren
-        // ==============================================
-        
         try {
           console.log('[Authorize] Versuche, Login-Ereignis zu protokollieren...');
-          
           await sql`
             INSERT INTO login_logs (user_id, user_email, user_role)
             VALUES (${user.id}, ${user.email}, ${user.role});
           `;
-          
           console.log('[Authorize] Login-Ereignis erfolgreich protokolliert.');
         } catch (logError) {
-          // Fehler nur loggen, nicht den Login abbrechen
           console.error('[Authorize] FEHLER beim Protokollieren des Logins (nicht-fatal):', logError);
         }
-        // ==============================================
-        // ENDE
-        // ==============================================
-
 
         // Logo-URL-Abruf
         let logo_url: string | null = null;
@@ -104,7 +95,7 @@ export const authOptions: NextAuthOptions = {
           }
         }
 
-        // 3. Auth-Objekt zurückgeben (INKLUSIVE GSC_SITE_URL)
+        // 3. Auth-Objekt zurückgeben
         return {
           id: user.id,
           email: user.email,
@@ -112,7 +103,7 @@ export const authOptions: NextAuthOptions = {
           mandant_id: user.mandant_id,
           permissions: user.permissions || [],
           logo_url: logo_url,
-          gsc_site_url: user.gsc_site_url || null, // ✅ HINZUGEFÜGT
+          gsc_site_url: user.gsc_site_url || null,
         };
       }
     })
@@ -130,16 +121,11 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        // @ts-expect-error Das 'user'-Objekt wird im 'authorize'-Callback dynamisch erweitert
-        token.role = user.role;
-        // @ts-expect-error Das 'user'-Objekt wird im 'authorize'-Callback dynamisch erweitert
+        token.role = user.role as 'BENUTZER' | 'ADMIN' | 'SUPERADMIN';
         token.mandant_id = user.mandant_id;
-        // @ts-expect-error Das 'user'-Objekt wird im 'authorize'-Callback dynamisch erweitert
         token.permissions = user.permissions;
-        // @ts-expect-error Das 'user'-Objekt wird im 'authorize'-Callback dynamisch erweitert
         token.logo_url = user.logo_url;
-        // @ts-expect-error Das 'user'-Objekt wird im 'authorize'-Callback dynamisch erweitert
-        token.gsc_site_url = user.gsc_site_url; // ✅ HINZUGEFÜGT
+        token.gsc_site_url = user.gsc_site_url;
       }
       return token;
     },
@@ -152,9 +138,12 @@ export const authOptions: NextAuthOptions = {
         session.user.mandant_id = token.mandant_id as string | null | undefined;
         session.user.permissions = token.permissions as string[] | undefined;
         session.user.logo_url = token.logo_url as string | null | undefined;
-        session.user.gsc_site_url = token.gsc_site_url as string | null | undefined; // ✅ HINZUGEFÜGT
+        session.user.gsc_site_url = token.gsc_site_url as string | null | undefined;
       }
       return session;
     },
   },
-};
+} satisfies NextAuthConfig; // 'satisfies' stellt Typsicherheit her
+
+// Hiermit exportieren wir die Handler und die auth-Funktion
+export const { handlers, auth, signIn, signOut } = NextAuth(authConfig);

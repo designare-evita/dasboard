@@ -2,13 +2,12 @@
 // Debug-Route zum Überprüfen des Google Cache Status
 
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { auth } from '@/lib/auth'; // KORRIGIERT: Import von auth
 import { sql } from '@vercel/postgres';
 
 export async function GET(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await auth(); // KORRIGIERT: auth() aufgerufen
     
     // Nur Superadmins dürfen dieses Debug-Tool nutzen
     if (session?.user?.role !== 'SUPERADMIN') {

@@ -1,26 +1,23 @@
-// src/components/KpiCardsGrid.tsx (KORRIGIERT)
+// src/components/KpiCardsGrid.tsx
+'use client';
 
-// 1. 'React' import ist nicht nötig, stattdessen 'useState' importieren
-import { useState } from 'react';
+import React, { useState } from 'react';
 import KpiCard from './kpi-card';
-import { KPI_TAB_META } from '@/lib/dashboard-shared';
-// KORREKTUR: KPI-Typ aus dashboard-shared importieren
-import { ProjectDashboardData } from '@/lib/dashboard-shared';
-import type { ChartPoint } from '@/types/dashboard';
+import { 
+  KpiDatum, 
+  ProjectDashboardData, 
+  ApiErrorStatus,
+  KPI_TAB_META
+} from '@/lib/dashboard-shared';
 import { InfoCircle } from 'react-bootstrap-icons';
-
-// 2. InfoTooltip-Komponente WURDE HERAUSGEZOGEN
-// (Stand vorher innerhalb der KpiCardsGrid-Funktion)
 
 /**
  * InfoTooltip - Zeigt Details zu einer KPI an
  */
 function InfoTooltip({ title, description }: { title: string; description: string }) {
-  // 3. 'React.useState' zu 'useState' korrigiert
   const [isVisible, setIsVisible] = useState(false);
 
   return (
-    // 4. 'print:hidden' hinzugefügt, um es im PDF auszublenden
     <div className="absolute top-3 right-3 z-10 print:hidden">
       <div
         className="relative"
@@ -30,18 +27,18 @@ function InfoTooltip({ title, description }: { title: string; description: strin
         {/* Info-Icon */}
         <button
           type="button"
-          className="p-1 rounded-full hover:bg-gray-100 transition-colors cursor-help"
+          className="p-1 rounded-full hover:bg-gray-100/50 transition-colors cursor-help"
           aria-label="Mehr Informationen"
         >
           <InfoCircle
-            size={18}
+            size={16}
             className="text-gray-400 hover:text-indigo-600 transition-colors"
           />
         </button>
 
         {/* Tooltip */}
         {isVisible && (
-          <div className="absolute right-0 top-8 w-72 bg-white rounded-lg shadow-xl border border-gray-200 p-4 z-20 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="absolute right-0 top-8 w-64 bg-white rounded-lg shadow-xl border border-gray-200 p-4 z-20 animate-in fade-in slide-in-from-top-2 duration-200">
             <div className="absolute -top-2 right-3 w-4 h-4 bg-white border-l border-t border-gray-200 transform rotate-45"></div>
             <h4 className="text-sm font-semibold text-gray-900 mb-2">{title}</h4>
             <p className="text-xs text-gray-600 leading-relaxed">{description}</p>
@@ -52,122 +49,91 @@ function InfoTooltip({ title, description }: { title: string; description: strin
   );
 }
 
-// Props-Interface (angepasst an dashboard-shared Typen)
+// Wir definieren den Typ für die KPIs, wie er von normalizeFlatKpis zurückgegeben wird (alles Required)
+type NormalizedKpis = {
+  clicks: KpiDatum;
+  impressions: KpiDatum;
+  sessions: KpiDatum;
+  totalUsers: KpiDatum;
+};
+
 interface KpiCardsGridProps {
-  kpis: Required<ProjectDashboardData['kpis']>; // Stellt sicher, dass alle KPIs vorhanden sind
+  kpis: NormalizedKpis;
   isLoading?: boolean;
   allChartData?: ProjectDashboardData['charts'];
+  apiErrors?: ApiErrorStatus;
 }
 
-/**
- * KpiCardsGrid - Grid-Layout für die 4 Standard-KPI-Karten
- */
 export default function KpiCardsGrid({
   kpis,
   isLoading = false,
   allChartData,
+  apiErrors,
 }: KpiCardsGridProps) {
-  // Frühe Rückgabe, falls kpis nicht vorhanden
+  
   if (!kpis) {
     return null;
   }
-
-  // Das kpiInfo-Objekt (unverändert, da es kein JSX ist)
+  
   const kpiInfo = {
     clicks: {
-      title: 'Was sind Klicks?',
-      description:
-        'Die Anzahl der Klicks auf Ihre Website-Links in den Google-Suchergebnissen...',
+      title: 'Klicks (GSC)',
+      description: 'Anzahl der Klicks auf Ihre Website-Links in den Google-Suchergebnissen.',
     },
     impressions: {
-      title: 'Was sind Impressionen?',
-      description:
-        'Wie oft ein Link zu Ihrer Website in den Google-Suchergebnissen angezeigt wurde...',
+      title: 'Impressionen (GSC)',
+      description: 'Wie oft ein Link zu Ihrer Website in den Google-Suchergebnissen gesehen wurde.',
     },
     sessions: {
-      title: 'Was sind Sitzungen?',
-      description:
-        'Eine Sitzung ist eine Gruppe von Interaktionen, die ein Nutzer innerhalb eines bestimmten Zeitraums...',
+      title: 'Sitzungen (GA4)',
+      description: 'Anzahl der Sitzungen mit Interaktionen auf Ihrer Website.',
     },
     totalUsers: {
-      title: 'Was sind Nutzer?',
-      description: 'Die Anzahl eindeutiger Besucher Ihrer Website...',
+      title: 'Nutzer (GA4)',
+      description: 'Anzahl der eindeutigen Nutzer, die Ihre Website besucht haben.',
     },
   };
 
+  const gscError = apiErrors?.gsc;
+  const ga4Error = apiErrors?.ga4;
+
+  // Helper für das Rendern einer Karte
+  const renderCard = (
+    key: keyof NormalizedKpis, 
+    title: string, 
+    error: string | undefined,
+    info: { title: string, description: string }
+  ) => (
+    <div className="card-glass card-glass-hover h-full relative group">
+      <KpiCard
+        title={title}
+        isLoading={isLoading}
+        value={kpis[key].value}
+        change={kpis[key].change}
+        data={allChartData?.[key]}
+        color={KPI_TAB_META[key].color}
+        error={error || null}
+        // Da wir "card-glass" im Wrapper nutzen, setzen wir hier transparent
+        // (falls KpiCard selbst Styles hat, müssen diese ggf. angepasst werden, 
+        // aber bg-transparent/shadow-none überschreibt meistens Tailwind-Klassen)
+        // Hier übergeben wir keine className Prop an KpiCard, da wir den Wrapper stylen.
+      />
+      
+      {!isLoading && !error && (
+        <InfoTooltip
+          title={info.title}
+          description={info.description}
+        />
+      )}
+    </div>
+  );
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-      {/* Klicks */}
-      <div className="relative kpi-card-wrapper">
-        <KpiCard
-          title="Klicks"
-          isLoading={isLoading}
-          value={kpis.clicks.value}
-          change={kpis.clicks.change}
-          data={allChartData?.clicks}
-          color={KPI_TAB_META.clicks.color}
-        />
-        {!isLoading && (
-          <InfoTooltip
-            title={kpiInfo.clicks.title}
-            description={kpiInfo.clicks.description}
-          />
-        )}
-      </div>
-
-      {/* Impressionen */}
-      <div className="relative kpi-card-wrapper">
-        <KpiCard
-          title="Impressionen"
-          isLoading={isLoading}
-          value={kpis.impressions.value}
-          change={kpis.impressions.change}
-          data={allChartData?.impressions}
-          color={KPI_TAB_META.impressions.color}
-        />
-        {!isLoading && (
-          <InfoTooltip
-            title={kpiInfo.impressions.title}
-            description={kpiInfo.impressions.description}
-          />
-        )}
-      </div>
-
-      {/* Sitzungen */}
-      <div className="relative kpi-card-wrapper">
-        <KpiCard
-          title="Sitzungen"
-          isLoading={isLoading}
-          value={kpis.sessions.value}
-          change={kpis.sessions.change}
-          data={allChartData?.sessions}
-          color={KPI_TAB_META.sessions.color}
-        />
-        {!isLoading && (
-          <InfoTooltip
-            title={kpiInfo.sessions.title}
-            description={kpiInfo.sessions.description}
-          />
-        )}
-      </div>
-
-      {/* Nutzer */}
-      <div className="relative kpi-card-wrapper">
-        <KpiCard
-          title="Nutzer"
-          isLoading={isLoading}
-          value={kpis.totalUsers.value}
-          change={kpis.totalUsers.change}
-          data={allChartData?.totalUsers}
-          color={KPI_TAB_META.totalUsers.color}
-        />
-        {!isLoading && (
-          <InfoTooltip
-            title={kpiInfo.totalUsers.title}
-            description={kpiInfo.totalUsers.description}
-          />
-        )}
-      </div>
+      {renderCard('clicks', 'Klicks', gscError, kpiInfo.clicks)}
+      {renderCard('impressions', 'Impressionen', gscError, kpiInfo.impressions)}
+      {renderCard('sessions', 'Sitzungen', ga4Error, kpiInfo.sessions)}
+      {renderCard('totalUsers', 'Nutzer', ga4Error, kpiInfo.totalUsers)}
     </div>
   );
 }

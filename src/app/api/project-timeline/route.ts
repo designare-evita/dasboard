@@ -1,125 +1,166 @@
 // src/app/api/project-timeline/route.ts
-import { NextResponse, NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@vercel/postgres';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { getSearchConsoleData } from '@/lib/google-api';
-import { User } from '@/types';
-import { unstable_noStore as noStore } from 'next/cache';
-
-// Hilfsfunktion: Format YYYY-MM-DD
-function formatDate(date: Date): string {
-  return date.toISOString().split('T')[0];
-}
+import { auth } from '@/lib/auth';
+import { getSearchConsoleData, getAiTrafficData } from '@/lib/google-api'; // getAiTrafficData hinzugefügt
 
 export async function GET(request: NextRequest) {
-  noStore(); // Caching für diese dynamische Route verhindern
-  
   try {
-    const session = await getServerSession(authOptions);
-    if (session?.user?.role !== 'BENUTZER') {
-      return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 403 });
+    const session = await auth();
+    
+    if (!session?.user) {
+      return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
     }
 
-    const userId = session.user.id;
-    const gscSiteUrl = session.user.gsc_site_url;
-
-    // 1. Hole Projekt-Details (Start, Dauer) aus der DB
-    const { rows: userRows } = await sql<User>`
-      SELECT 
-        project_start_date, 
-        project_duration_months 
-      FROM users 
-      WHERE id = ${userId}::uuid;
-    `;
+    const { searchParams } = new URL(request.url);
+    const projectId = searchParams.get('projectId');
+    const userId = projectId || session.user.id;
     
+    if (!userId) {
+      return NextResponse.json({ message: 'User-ID fehlt' }, { status: 400 });
+    }
+
+    // 1. Lade User-Daten (inkl. GA4 ID)
+    const { rows: userRows } = await sql`
+      SELECT 
+        project_start_date,
+        project_duration_months,
+        project_timeline_active,
+        gsc_site_url,
+        ga4_property_id
+      FROM users
+      WHERE id::text = ${userId}
+    `;
+
     if (userRows.length === 0) {
       return NextResponse.json({ message: 'Benutzer nicht gefunden' }, { status: 404 });
     }
-    
-    const project = userRows[0];
-    const startDate = project.project_start_date ? new Date(project.project_start_date) : new Date();
-    const duration = project.project_duration_months || 6;
 
-    // 2. Aggregiere Landingpage-Status
-    const { rows: statusRows } = await sql`
-      SELECT 
-        status, 
-        COUNT(*) AS count 
-      FROM landingpages 
-      WHERE user_id = ${userId}::uuid
-      GROUP BY status;
-    `;
+    const user = userRows[0];
 
-    const statusCounts = {
-      'Offen': 0,
-      'In Prüfung': 0,
-      'Gesperrt': 0,
-      'Freigegeben': 0,
-      'Total': 0,
-    };
-
-    statusRows.forEach(row => {
-      if (row.status in statusCounts) {
-        statusCounts[row.status as keyof typeof statusCounts] = parseInt(String(row.count), 10);
-      }
-      statusCounts['Total'] += parseInt(String(row.count), 10);
-    });
-
-    // 3. Hole GSC-Daten (Reichweite/Impressionen) seit Projektstart
-    let gscImpressionTrend: { date: string; value: number }[] = [];
-
-    if (gscSiteUrl) {
-      try {
-        const today = new Date();
-        const endDate = new Date(today);
-        endDate.setDate(endDate.getDate() - 2); 
-        
-        const endDateStr = formatDate(endDate);
-        const startDateStr = formatDate(startDate);
-        
-        if (startDateStr < endDateStr) {
-          console.log(`[Timeline API] Rufe GSC-Daten ab für ${gscSiteUrl} von ${startDateStr} bis ${endDateStr}`);
-          
-          const gscDataResult = await getSearchConsoleData(
-            gscSiteUrl,
-            startDateStr,
-            endDateStr
-          );
-          
-          gscImpressionTrend = gscDataResult.impressions.daily;
-
-        } else {
-           console.log('[Timeline API] Projektstart liegt in der Zukunft oder zu nah am Enddatum. Überspringe GSC-Abruf.');
-        }
-        
-      } catch (gscError) {
-        console.error('[Timeline API] Fehler beim Abrufen der GSC-Daten:', gscError);
-      }
-    } else {
-      console.warn('[Timeline API] Keine gsc_site_url für Benutzer konfiguriert.');
+    if (!user.project_timeline_active) {
+      return NextResponse.json({ message: 'Timeline deaktiviert' }, { status: 403 });
     }
 
-    // 4. Daten kombinieren und zurückgeben
+    // 2. Landingpage-Status
+    const { rows: lpRows } = await sql`
+      SELECT status, COUNT(*) as count
+      FROM landingpages
+      WHERE user_id::text = ${userId}
+      GROUP BY status
+    `;
+
+    const counts = { 'Offen': 0, 'In Prüfung': 0, 'Gesperrt': 0, 'Freigegeben': 0, 'Total': 0 };
+    for (const row of lpRows) {
+      const status = row.status as keyof typeof counts;
+      const count = parseInt(row.count, 10);
+      if (status in counts) counts[status] = count;
+      counts.Total += count;
+    }
+    const percentage = counts.Total > 0 ? Math.round((counts.Freigegeben / counts.Total) * 100) : 0;
+
+    // 3. Zeiträume & Daten-Abruf (GSC + AI)
+    let gscImpressionTrend: Array<{ date: string; value: number }> = [];
+    let aiTrafficTrend: Array<{ date: string; value: number }> = [];
+
+    // Zeitraum bestimmen: Vom Projektstart bis heute
+    const today = new Date();
+    const endDate = new Date(today);
+    endDate.setDate(endDate.getDate() - 2); // 2 Tage Puffer für Datenverfügbarkeit
+    
+    let startDate = new Date();
+    if (user.project_start_date) {
+      startDate = new Date(user.project_start_date);
+    } else {
+      startDate.setDate(startDate.getDate() - 90); // Fallback
+    }
+
+    const startDateStr = startDate.toISOString().split('T')[0];
+    const endDateStr = endDate.toISOString().split('T')[0];
+
+    // Cache prüfen
+    let useCache = false;
+    const cacheKey = 'timeline_project'; // Neuer Key für Projekt-Zeitraum
+    
+    try {
+      const { rows: cacheRows } = await sql`
+        SELECT data, last_fetched FROM google_data_cache
+        WHERE user_id::text = ${userId} AND date_range = ${cacheKey}
+      `;
+
+      if (cacheRows.length > 0) {
+        const cache = cacheRows[0];
+        const ageInHours = (new Date().getTime() - new Date(cache.last_fetched).getTime()) / (1000 * 60 * 60);
+        
+        if (ageInHours < 24) { // 24h Cache
+          console.log('[project-timeline] ✅ Cache HIT');
+          gscImpressionTrend = cache.data.gscImpressionTrend || [];
+          aiTrafficTrend = cache.data.aiTrafficTrend || [];
+          useCache = true;
+        }
+      }
+    } catch (e) { console.error('Cache Read Error', e); }
+
+    // Live Fetch wenn kein Cache
+    if (!useCache) {
+      console.log(`[project-timeline] 🔄 Live Fetch (${startDateStr} bis ${endDateStr})`);
+      
+      const promises = [];
+
+      // GSC Fetch
+      if (user.gsc_site_url) {
+        promises.push(
+          getSearchConsoleData(user.gsc_site_url, startDateStr, endDateStr)
+            .then(data => {
+              gscImpressionTrend = data.impressions.daily.map(p => ({ date: p.date, value: p.value }));
+            })
+            .catch(err => console.error('GSC Fetch Error:', err))
+        );
+      }
+
+      // GA4 AI-Traffic Fetch
+      if (user.ga4_property_id) {
+        promises.push(
+          getAiTrafficData(user.ga4_property_id, startDateStr, endDateStr)
+            .then(data => {
+              aiTrafficTrend = data.trend.map(p => ({ date: p.date, value: p.sessions }));
+            })
+            .catch(err => console.error('AI Fetch Error:', err))
+        );
+      }
+
+      await Promise.all(promises);
+
+      // Cache schreiben
+      try {
+        const cacheData = { gscImpressionTrend, aiTrafficTrend };
+        await sql`
+          INSERT INTO google_data_cache (user_id, date_range, data, last_fetched)
+          VALUES (${userId}::uuid, ${cacheKey}, ${JSON.stringify(cacheData)}::jsonb, NOW())
+          ON CONFLICT (user_id, date_range)
+          DO UPDATE SET data = ${JSON.stringify(cacheData)}::jsonb, last_fetched = NOW()
+        `;
+      } catch (e) { console.error('Cache Write Error', e); }
+    }
+
+    // 4. Top Movers
+    const { rows: topMoversRows } = await sql`
+      SELECT url, haupt_keyword, gsc_impressionen, gsc_impressionen_change
+      FROM landingpages
+      WHERE user_id::text = ${userId} AND gsc_impressionen_change > 0
+      ORDER BY gsc_impressionen_change DESC LIMIT 5
+    `;
+
     return NextResponse.json({
-      project: {
-        startDate: startDate.toISOString(),
-        durationMonths: duration,
-      },
-      progress: {
-        counts: statusCounts,
-        percentage: statusCounts.Total > 0 
-          ? (statusCounts['Freigegeben'] / statusCounts.Total) * 100 
-          : 0,
-      },
-      gscImpressionTrend: gscImpressionTrend,
+      project: { startDate: user.project_start_date, durationMonths: user.project_duration_months },
+      progress: { counts, percentage },
+      gscImpressionTrend,
+      aiTrafficTrend, // Neu im Response
+      topMovers: topMoversRows
     });
 
   } catch (error) {
-    console.error('[GET /api/project-timeline] Fehler:', error);
-    return NextResponse.json({ 
-      message: 'Interner Serverfehler',
-      error: error instanceof Error ? error.message : 'Unbekannter Fehler'
-    }, { status: 500 });
+    console.error('[project-timeline] Error:', error);
+    return NextResponse.json({ message: 'Serverfehler', error: String(error) }, { status: 500 });
   }
 }

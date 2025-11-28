@@ -1,4 +1,4 @@
-// src/lib/google-api.ts (KORRIGIERT - trend verwendet 'sessions' statt 'value')
+// src/lib/google-api.ts
 
 import { google } from 'googleapis';
 import { JWT } from 'google-auth-library';
@@ -31,7 +31,7 @@ export interface AiTrafficData {
   totalUsersChange?: number;
   
   sessionsBySource: {
-    [source: string]: number;
+    [key: string]: number;
   };
   topAiSources: Array<{
     source: string;
@@ -41,17 +41,13 @@ export interface AiTrafficData {
   }>;
   trend: Array<{
     date: string;
-    sessions: number; // ✅ KORRIGIERT: Muss 'sessions' heißen, nicht 'value'
+    sessions: number;
   }>;
 }
 
 // --- Authentifizierung ---
 
-/**
- * Erstellt den Authentifizierungs-Client für die Google APIs
- */
 function createAuth(): JWT {
-  // Option 1: Komplettes JSON in GOOGLE_CREDENTIALS
   if (process.env.GOOGLE_CREDENTIALS) {
     try {
       const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
@@ -61,15 +57,14 @@ function createAuth(): JWT {
         scopes: [
           'https://www.googleapis.com/auth/webmasters.readonly',
           'https://www.googleapis.com/auth/analytics.readonly',
+          'https://www.googleapis.com/auth/spreadsheets.readonly', 
         ],
       });
     } catch (e) {
       console.error("Fehler beim Parsen von GOOGLE_CREDENTIALS:", e);
-      // Fallback zu Option 2
     }
   }
 
-  // Option 2: Separate Environment Variables
   const privateKeyBase64 = process.env.GOOGLE_PRIVATE_KEY_BASE64;
   const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
 
@@ -80,7 +75,6 @@ function createAuth(): JWT {
   }
 
   try {
-    // Base64 zu normalem String dekodieren
     const privateKey = Buffer.from(privateKeyBase64, 'base64').toString('utf-8');
 
     return new JWT({
@@ -89,6 +83,7 @@ function createAuth(): JWT {
       scopes: [
         'https://www.googleapis.com/auth/webmasters.readonly',
         'https://www.googleapis.com/auth/analytics.readonly',
+        'https://www.googleapis.com/auth/spreadsheets.readonly', 
       ],
     });
   } catch (error) {
@@ -97,21 +92,42 @@ function createAuth(): JWT {
   }
 }
 
-// --- Hilfsfunktionen ---
+// --- Sheet API ---
+export async function getGoogleSheetData(sheetId: string): Promise<any[]> {
+  const auth = createAuth();
+  const sheets = google.sheets({ version: 'v4', auth });
 
-/**
- * Formatiert GA4-Datum (YYYYMMDD) zu lesbarem Format (DD.MM)
- */
-function formatDateForChart(dateStr: string): string {
-  if (!dateStr || dateStr.length !== 8) return dateStr;
-  const day = dateStr.substring(6, 8);
-  const month = dateStr.substring(4, 6);
-  return `${day}.${month}`;
+  try {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: sheetId,
+      range: 'A1:Z2000', 
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length === 0) return [];
+
+    const headers = rows[0];
+    const data = rows.slice(1).map(row => {
+      const obj: Record<string, string> = {};
+      headers.forEach((header, index) => {
+        const key = header?.trim();
+        const val = row[index] ? row[index].toString().trim() : '';
+        if (key) {
+          obj[key] = val;
+        }
+      });
+      return obj;
+    });
+
+    return data;
+  } catch (error: unknown) {
+    console.error('[Sheets API] Fehler:', error);
+    throw new Error('Konnte Google Sheet nicht lesen.');
+  }
 }
 
-/**
- * Formatiert GA4-Datum (YYYYMMDD) zu ISO-Format (YYYY-MM-DD)
- */
+// --- Hilfsfunktionen ---
+
 function formatDateToISO(dateStr: string): string {
   if (!dateStr || dateStr.length !== 8) return dateStr;
   const year = dateStr.substring(0, 4);
@@ -120,48 +136,21 @@ function formatDateToISO(dateStr: string): string {
   return `${year}-${month}-${day}`;
 }
 
-/**
- * Prüft, ob eine Quelle ein bekannter KI-Bot ist
- */
 function isAiSource(source: string): boolean {
   if (!source) return false;
-  
   const aiPatterns = [
-    // KI-Chatbots
-    'chatgpt', 'gpt', 'openai',
-    'claude', 'anthropic',
-    'bard', 'gemini',
-    'perplexity',
-    'bing chat', 'copilot',
-    
-    // KI-Crawler
-    'gptbot', 'claudebot',
-    'google-extended', // Google's AI Training Bot
-    'cohere-ai',
-    'ai2bot',
-    
-    // Suchmaschinen-KI
-    'you.com', 'neeva',
-    'phind', 'metaphor',
-    
-    // Zusätzliche KI-Dienste
-    'notion ai', 'jasper',
-    'copy.ai', 'writesonic',
+    'chatgpt', 'gpt', 'openai', 'claude', 'anthropic', 'bard', 'gemini',
+    'perplexity', 'bing chat', 'copilot', 'gptbot', 'claudebot', 'google-extended', 
+    'cohere-ai', 'ai2bot', 'you.com', 'neeva', 'phind', 'metaphor',
+    'notion ai', 'jasper', 'copy.ai', 'writesonic',
   ];
-
   const sourceLower = source.toLowerCase();
   return aiPatterns.some(pattern => sourceLower.includes(pattern));
 }
 
-/**
- * Bereinigt und kategorisiert KI-Quellen
- */
 function cleanAiSourceName(source: string): string {
   if (!source) return 'Unbekannt';
-  
   const sourceLower = source.toLowerCase();
-  
-  // Gruppiere ähnliche Quellen
   if (sourceLower.includes('chatgpt') || sourceLower.includes('gptbot')) return 'ChatGPT';
   if (sourceLower.includes('claude')) return 'Claude AI';
   if (sourceLower.includes('bard') || sourceLower.includes('gemini')) return 'Google Gemini';
@@ -169,16 +158,17 @@ function cleanAiSourceName(source: string): string {
   if (sourceLower.includes('bing') || sourceLower.includes('copilot')) return 'Bing Copilot';
   if (sourceLower.includes('you.com')) return 'You.com';
   
-  // Fallback: Ersten Teil des Quellennamens verwenden
   const parts = source.split('/')[0].split('?')[0];
   return parts.length > 30 ? parts.substring(0, 27) + '...' : parts;
 }
 
+// ✅ WICHTIG: Hilfsfunktion für Regex-Escaping (damit URLs im Regex funktionieren)
+function escapeRegExp(string: string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 // --- API-Funktionen ---
 
-/**
- * Ruft aggregierte Klick- und Impressionsdaten von der Google Search Console ab
- */
 export async function getSearchConsoleData(
   siteUrl: string,
   startDate: string,
@@ -230,15 +220,10 @@ export async function getSearchConsoleData(
     };
   } catch (error: unknown) {
     console.error('[GSC] Fehler beim Abrufen der Daten:', error);
-    console.error('[GSC] Request Details:', { siteUrl, startDate, endDate });
-    const errorMessage = error instanceof Error ? error.message : 'Unbekannter API-Fehler';
-    throw new Error(`Fehler bei Google Search Console API: ${errorMessage}`);
+    throw new Error(`Fehler bei Google Search Console API`);
   }
 }
 
-/**
- * Ruft die Top 5 Suchanfragen von der Google Search Console ab
- */
 export async function getTopQueries(
   siteUrl: string,
   startDate: string,
@@ -255,43 +240,34 @@ export async function getTopQueries(
         endDate,
         dimensions: ["query"],
         type: "web",
-        rowLimit: 100,
-        dataState: "all",
         aggregationType: "byProperty",
+        rowLimit: 100,
       },
     });
 
-    const allQueries = res.data.rows?.map((row) => ({
-      query: row.keys?.[0] || "N/A",
+    const rows = res.data.rows || [];
+    return rows.map((row) => ({
+      query: row.keys?.[0] || "",
       clicks: row.clicks || 0,
       impressions: row.impressions || 0,
       ctr: row.ctr || 0,
       position: row.position || 0,
-    })) || [];
-
-    return allQueries
-      .sort((a, b) => b.clicks - a.clicks)
-      .slice(0, 100);
-
+    }));
   } catch (error: unknown) {
-    console.error("[GSC] Fehler beim Abrufen der Top Queries:", error);
-    console.error("[GSC] Request Details:", { siteUrl, startDate, endDate });
+    console.error("[Top Queries] Fehler:", error);
     return [];
   }
 }
 
-/**
- * Ruft aggregierte Sitzungs- und Nutzerdaten von Google Analytics 4 ab
- */
 export async function getAnalyticsData(
   propertyId: string,
   startDate: string,
   endDate: string
-): Promise<{ sessions: DateRangeData; totalUsers: DateRangeData }> {
-  const formattedPropertyId = propertyId.startsWith('properties/')
-    ? propertyId
-    : `properties/${propertyId}`;
-
+): Promise<{
+  sessions: { total: number; daily: Array<{ date: string; value: number }> };
+  totalUsers: { total: number; daily: Array<{ date: string; value: number }> };
+}> {
+  const formattedPropertyId = propertyId.startsWith('properties/') ? propertyId : `properties/${propertyId}`;
   const auth = createAuth();
   const analytics = google.analyticsdata({ version: 'v1beta', auth });
 
@@ -302,119 +278,74 @@ export async function getAnalyticsData(
         dateRanges: [{ startDate, endDate }],
         dimensions: [{ name: 'date' }],
         metrics: [{ name: 'sessions' }, { name: 'totalUsers' }],
-        orderBys: [{
-          dimension: { dimensionName: 'date' },
-          desc: false,
-        }],
+        orderBys: [{ dimension: { dimensionName: 'date' }, desc: false }],
       },
     });
 
     const rows = response.data.rows || [];
-    const sessionsDaily: DailyDataPoint[] = [];
-    const usersDaily: DailyDataPoint[] = [];
+    const sessionsDaily: Array<{ date: string; value: number }> = [];
+    const usersDaily: Array<{ date: string; value: number }> = [];
     let totalSessions = 0;
     let totalUsers = 0;
 
     for (const row of rows) {
-      const rawDate = row.dimensionValues?.[0]?.value;
-      const date = rawDate?.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3') ?? '';
+      const rawDate = row.dimensionValues?.[0]?.value || '';
+      const date = formatDateToISO(rawDate);
       const sessions = parseInt(row.metricValues?.[0]?.value || '0', 10);
       const users = parseInt(row.metricValues?.[1]?.value || '0', 10);
 
-      if (date) {
-        sessionsDaily.push({ date, value: sessions });
-        usersDaily.push({ date, value: users });
-        totalSessions += sessions;
-        totalUsers += users;
-      }
+      sessionsDaily.push({ date, value: sessions });
+      usersDaily.push({ date, value: users });
+      totalSessions += sessions;
+      totalUsers += users;
     }
 
     return {
-      sessions: {
-        total: totalSessions,
-        daily: sessionsDaily,
-      },
-      totalUsers: {
-        total: totalUsers,
-        daily: usersDaily,
-      },
+      sessions: { total: totalSessions, daily: sessionsDaily },
+      totalUsers: { total: totalUsers, daily: usersDaily },
     };
   } catch (error: unknown) {
-    console.error('[GA4] Fehler beim Abrufen der Daten:', error);
-    console.error('[GA4] Request Details:', { propertyId: formattedPropertyId, startDate, endDate });
-    const errorMessage = error instanceof Error ? error.message : 'Unbekannter API-Fehler';
-    throw new Error(`Fehler bei Google Analytics API: ${errorMessage}`);
+    console.error('[GA4] Fehler:', error);
+    return { sessions: { total: 0, daily: [] }, totalUsers: { total: 0, daily: [] } };
   }
 }
 
-/**
- * Ruft KI-Traffic-Daten aus Google Analytics 4 ab
- * Identifiziert Traffic von bekannten KI-Bots und Crawlern
- */
 export async function getAiTrafficData(
   propertyId: string,
   startDate: string,
   endDate: string
 ): Promise<AiTrafficData> {
-  const formattedPropertyId = propertyId.startsWith('properties/')
-    ? propertyId
-    : `properties/${propertyId}`;
-
+  const formattedPropertyId = propertyId.startsWith('properties/') ? propertyId : `properties/${propertyId}`;
   const auth = createAuth();
   const analytics = google.analyticsdata({ version: 'v1beta', auth });
 
   try {
-    console.log('[AI-Traffic] Starte Abruf für Property:', formattedPropertyId);
-
-    // Query 1: Traffic nach Quelle/Medium gruppiert
-    const sourceResponse = await analytics.properties.runReport({
-      property: formattedPropertyId,
-      requestBody: {
-        dateRanges: [{ startDate, endDate }],
-        dimensions: [
-          { name: 'sessionSource' },
-          { name: 'sessionMedium' },
-        ],
-        metrics: [
-          { name: 'sessions' },
-          { name: 'totalUsers' },
-        ],
-        orderBys: [{ 
-          metric: { metricName: 'sessions' }, 
-          desc: true 
-        }],
-        limit: '1000',
-      },
-    });
-
-    // Query 2: Täglicher KI-Traffic-Trend
-    const trendResponse = await analytics.properties.runReport({
-      property: formattedPropertyId,
-      requestBody: {
-        dateRanges: [{ startDate, endDate }],
-        dimensions: [
-          { name: 'date' },
-          { name: 'sessionSource' },
-          { name: 'sessionMedium' },
-        ],
-        metrics: [
-          { name: 'sessions' },
-        ],
-        orderBys: [{ 
-          dimension: { dimensionName: 'date' }, 
-          desc: false 
-        }],
-        limit: '10000',
-      },
-    });
+    const [sourceResponse, trendResponse] = await Promise.all([
+      analytics.properties.runReport({
+        property: formattedPropertyId,
+        requestBody: {
+          dateRanges: [{ startDate, endDate }],
+          dimensions: [{ name: 'sessionSource' }, { name: 'sessionMedium' }],
+          metrics: [{ name: 'sessions' }, { name: 'totalUsers' }],
+          orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
+          limit: '1000',
+        },
+      }),
+      analytics.properties.runReport({
+        property: formattedPropertyId,
+        requestBody: {
+          dateRanges: [{ startDate, endDate }],
+          dimensions: [{ name: 'date' }, { name: 'sessionSource' }, { name: 'sessionMedium' }],
+          metrics: [{ name: 'sessions' }],
+          orderBys: [{ dimension: { dimensionName: 'date' }, desc: false }],
+          limit: '10000',
+        },
+      }),
+    ]);
 
     const sourceRows = sourceResponse.data.rows || [];
     const trendRows = trendResponse.data.rows || [];
 
-    console.log('[AI-Traffic] Quellen-Zeilen:', sourceRows.length);
-    console.log('[AI-Traffic] Trend-Zeilen:', trendRows.length);
-
-    // Verarbeite Quellen-Daten
     let totalSessions = 0;
     let totalUsers = 0;
     const sessionsBySource: { [key: string]: number } = {};
@@ -425,27 +356,18 @@ export async function getAiTrafficData(
       const medium = row.dimensionValues?.[1]?.value || '';
       const sessions = parseInt(row.metricValues?.[0]?.value || '0', 10);
       const users = parseInt(row.metricValues?.[1]?.value || '0', 10);
-
       const fullSource = `${source}${medium ? `/${medium}` : ''}`;
       
       if (isAiSource(fullSource) || isAiSource(source)) {
         const cleanName = cleanAiSourceName(source);
-        
         totalSessions += sessions;
         totalUsers += users;
-        
         sessionsBySource[cleanName] = (sessionsBySource[cleanName] || 0) + sessions;
         usersBySource[cleanName] = (usersBySource[cleanName] || 0) + users;
-        
-        console.log('[AI-Traffic] KI-Quelle gefunden:', cleanName, '- Sitzungen:', sessions);
       }
     }
 
-    console.log('[AI-Traffic] Gesamt KI-Sitzungen:', totalSessions);
-
-    // Verarbeite Trend-Daten
     const trendMap: { [date: string]: number } = {};
-
     for (const row of trendRows) {
       const rawDate = row.dimensionValues?.[0]?.value || '';
       const source = row.dimensionValues?.[1]?.value || '';
@@ -459,7 +381,6 @@ export async function getAiTrafficData(
       }
     }
 
-    // Top AI Sources erstellen
     const topAiSources = Object.entries(sessionsBySource)
       .map(([source, sessions]) => ({
         source,
@@ -470,59 +391,24 @@ export async function getAiTrafficData(
       .sort((a, b) => b.sessions - a.sessions)
       .slice(0, 5);
 
-    console.log('[AI-Traffic] Top AI Sources:', topAiSources);
-
-    // ✅ KORRIGIERT: Trend-Daten mit 'sessions' statt 'value'
     const trend = Object.entries(trendMap)
-      .map(([date, sessions]) => ({
-        date: date, // YYYY-MM-DD Format für Recharts
-        sessions: sessions, // ✅ Muss 'sessions' heißen für dashboard-shared.ts
-      }))
+      .map(([date, sessions]) => ({ date, sessions }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
-    console.log('[AI-Traffic] Trend-Datenpunkte:', trend.length);
+    return { totalSessions, totalUsers, sessionsBySource, topAiSources, trend };
 
-    return {
-      totalSessions,
-      totalUsers,
-      sessionsBySource,
-      topAiSources,
-      trend,
-    };
-
-  } catch (error: unknown) {
-    console.error('[AI-Traffic] Fehler beim Abrufen:', error);
-    console.error('[AI-Traffic] Request Details:', { 
-      propertyId: formattedPropertyId, 
-      startDate, 
-      endDate 
-    });
-
-    return {
-      totalSessions: 0,
-      totalUsers: 0,
-      sessionsBySource: {},
-      topAiSources: [],
-      trend: [],
-    };
+  } catch (error) {
+    return { totalSessions: 0, totalUsers: 0, sessionsBySource: {}, topAiSources: [], trend: [] };
   }
 }
 
-
-/**
- * Ruft einen GA4-Bericht für eine einzelne Dimension ab
- * (z.B. Land, Channel, Gerät)
- */
 export async function getGa4DimensionReport(
   propertyId: string,
   startDate: string,
   endDate: string,
   dimensionName: 'country' | 'sessionDefaultChannelGroup' | 'deviceCategory'
 ): Promise<Array<{ name: string; value: number }>> {
-  
-  const formattedPropertyId = propertyId.startsWith('properties/')
-    ? propertyId
-    : `properties/${propertyId}`;
+  const formattedPropertyId = propertyId.startsWith('properties/') ? propertyId : `properties/${propertyId}`;
   const auth = createAuth();
   const analytics = google.analyticsdata({ version: 'v1beta', auth });
   
@@ -533,10 +419,7 @@ export async function getGa4DimensionReport(
         dateRanges: [{ startDate, endDate }],
         dimensions: [{ name: dimensionName }],
         metrics: [{ name: 'sessions' }],
-        orderBys: [{
-          metric: { metricName: 'sessions' },
-          desc: true,
-        }],
+        orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
         limit: '10',
       },
     });
@@ -553,27 +436,18 @@ export async function getGa4DimensionReport(
     if (results.length > 6) {
       const top5 = results.slice(0, 5);
       const otherValue = results.slice(5).reduce((acc, curr) => acc + curr.value, 0);
-      
       if (otherValue > 0) {
-        return [
-          ...top5,
-          { name: 'Sonstige', value: otherValue }
-        ];
+        return [...top5, { name: 'Sonstige', value: otherValue }];
       }
       return top5;
     }
-    
     return results;
-  } catch (error: unknown) {
-    console.error(`[GA4] Fehler beim Abrufen des ${dimensionName}-Reports:`, error);
+  } catch (error) {
     return [];
   }
 }
 
-
-// ==================================================================
-// --- LANDINGPAGE-DATEN ---
-// ==================================================================
+// --- GSC Page Data ---
 
 export interface GscPageData {
   clicks: number;
@@ -587,6 +461,7 @@ export interface GscPageData {
   position_change: number;
 }
 
+// ✅ KORRIGIERTE FUNKTION: Nutzt Batching und Regex für korrekte "ODER"-Abfragen
 async function queryGscDataForPages(
   siteUrl: string,
   startDate: string,
@@ -600,47 +475,62 @@ async function queryGscDataForPages(
 
   const auth = createAuth();
   const searchconsole = google.searchconsole({ version: 'v1', auth });
+  const resultMap = new Map<string, { clicks: number; impressions: number; position: number }>();
 
-  try {
-    const response = await searchconsole.searchanalytics.query({
-      siteUrl,
-      requestBody: {
-        startDate,
-        endDate,
-        dimensions: ['page'],
-        type: 'web',
-        aggregationType: 'byPage',
-        dimensionFilterGroups: [
-          {
-            filters: pageUrls.map(pageUrl => ({
-              dimension: 'page',
-              operator: 'equals',
-              expression: pageUrl
-            }))
-          }
-        ],
-        rowLimit: Math.min(pageUrls.length, 5000)
-      },
-    });
-
-    const rows = response.data.rows || [];
-    const resultMap = new Map<string, { clicks: number; impressions: number; position: number }>();
-
-    for (const row of rows) {
-      const page = row.keys?.[0];
-      if (page) {
-        resultMap.set(page, {
-          clicks: row.clicks || 0,
-          impressions: row.impressions || 0,
-          position: row.position || 0 
-        });
-      }
-    }
-    return resultMap;
-  } catch (error: unknown) {
-    console.error(`[GSC] Fehler beim Abrufen der Page-Daten (${startDate} - ${endDate}):`, error);
-    return new Map();
+  // Wir teilen die URLs in Batches auf, um Regex-Längenlimits zu vermeiden
+  // ca. 25 URLs pro Request ist ein sicherer Wert
+  const batchSize = 25;
+  const chunks = [];
+  for (let i = 0; i < pageUrls.length; i += batchSize) {
+    chunks.push(pageUrls.slice(i, i + batchSize));
   }
+
+  for (const chunk of chunks) {
+    // Regex bauen: ^(url1|url2|...)$ für exakte Übereinstimmung einer der URLs
+    const regexPattern = chunk.map(url => `^${escapeRegExp(url)}$`).join('|');
+
+    try {
+      const response = await searchconsole.searchanalytics.query({
+        siteUrl,
+        requestBody: {
+          startDate,
+          endDate,
+          dimensions: ['page'],
+          type: 'web',
+          aggregationType: 'byPage',
+          dimensionFilterGroups: [
+            {
+              filters: [
+                {
+                  dimension: 'page',
+                  operator: 'includingRegex', // WICHTIG: Regex statt 'equals'
+                  expression: regexPattern
+                }
+              ]
+            }
+          ],
+          rowLimit: 25000
+        },
+      });
+
+      const rows = response.data.rows || [];
+      for (const row of rows) {
+        const page = row.keys?.[0];
+        if (page) {
+          resultMap.set(page, {
+            clicks: row.clicks || 0,
+            impressions: row.impressions || 0,
+            position: row.position || 0 
+          });
+        }
+      }
+    } catch (error: unknown) {
+      console.error(`[GSC] Fehler beim Abrufen eines Batches (${startDate} - ${endDate}):`, error);
+      // Wir fahren mit dem nächsten Batch fort, anstatt alles abzubrechen
+    }
+  }
+
+  return resultMap;
 }
 
 export async function getGscDataForPagesWithComparison(
@@ -650,6 +540,7 @@ export async function getGscDataForPagesWithComparison(
   previousRange: { startDate: string, endDate: string }
 ): Promise<Map<string, GscPageData>> {
   
+  // Parallele Abfrage für aktuellen und vorherigen Zeitraum
   const [currentDataMap, previousDataMap] = await Promise.all([
     queryGscDataForPages(siteUrl, currentRange.startDate, currentRange.endDate, pageUrls),
     queryGscDataForPages(siteUrl, previousRange.startDate, previousRange.endDate, pageUrls)

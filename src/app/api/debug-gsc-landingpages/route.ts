@@ -2,14 +2,13 @@
 // Testet ob GSC-Daten für spezifische URLs abgerufen werden können
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { auth } from '@/lib/auth'; // KORRIGIERT: Import von auth
 import { sql } from '@vercel/postgres';
 import { getGscDataForPagesWithComparison } from '@/lib/google-api';
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await auth(); // KORRIGIERT: auth() aufgerufen
     
     if (session?.user?.role !== 'SUPERADMIN' && session?.user?.role !== 'ADMIN') {
       return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });

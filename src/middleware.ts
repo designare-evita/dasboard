@@ -1,6 +1,11 @@
 // src/middleware.ts
-export { default } from "next-auth/middleware"
+import NextAuth from 'next-auth';
+import { authConfig } from '@/lib/auth'; // Importiere das reine Konfig-Objekt
 
+// Erzeuge die Middleware und exportiere die .auth-Eigenschaft
+export default NextAuth(authConfig).auth;
+
+// Die config bleibt gleich
 export const config = { 
   matcher: [
     /*

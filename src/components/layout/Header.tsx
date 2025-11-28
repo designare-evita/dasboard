@@ -8,7 +8,16 @@ import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import NotificationBell from '@/components/NotificationBell';
 import { useState } from 'react';
-import { List, X } from 'react-bootstrap-icons';
+import { 
+  List, 
+  X, 
+  Briefcase, 
+  CalendarCheck, 
+  ShieldLock, 
+  Speedometer2, 
+  BoxArrowRight, 
+  BoxArrowInRight 
+} from 'react-bootstrap-icons';
 
 export default function Header() {
   const { data: session, status } = useSession();
@@ -34,12 +43,11 @@ export default function Header() {
 
   return (
     <header className="bg-white shadow-md relative">
-      <nav className="container mx-auto px-6 py-3 flex justify-between items-center">
+      <nav className="w-full px-6 py-3 flex justify-between items-center">
 
         {/* Linke Seite: Logo und Begrüßung */}
         <div className="flex items-center space-x-4">
           <Link href="/" onClick={handleLinkClick}>
-            {/* ✅ LÖSUNG: Container mit fester Höhe + fill-Modus für flexible Logos */}
             <div className="relative h-[45px] w-[180px]">
               <Image
                 src={logoSrc}
@@ -73,47 +81,56 @@ export default function Header() {
               <NotificationBell />
               {isAdmin && (
                 <Link href="/" passHref>
-                  <Button variant={pathname === '/' ? 'default' : 'outline'}>
+                  <Button variant={pathname === '/' ? 'default' : 'outline'} className="gap-2">
+                    <Briefcase size={16} />
                     Projekte
                   </Button>
                 </Link>
               )}
               {isAdmin && (
                 <Link href="/admin/redaktionsplan" passHref>
-                  <Button variant={pathname === '/admin/redaktionsplan' ? 'default' : 'outline'}>
+                  <Button variant={pathname === '/admin/redaktionsplan' ? 'default' : 'outline'} className="gap-2">
+                    <CalendarCheck size={16} />
                     Redaktionspläne
                   </Button>
                 </Link>
               )}
               {isAdmin && (
                 <Link href="/admin" passHref>
-                  <Button variant={pathname === '/admin' ? 'default' : 'outline'}>
+                  <Button variant={pathname === '/admin' ? 'default' : 'outline'} className="gap-2">
+                    <ShieldLock size={16} />
                     Admin-Bereich
                   </Button>
                 </Link>
               )}
               {isUser && (
                 <Link href="/" passHref>
-                  <Button variant={pathname === '/' ? 'default' : 'outline'}>
+                  <Button variant={pathname === '/' ? 'default' : 'outline'} className="gap-2">
+                    <Speedometer2 size={16} />
                     Dashboard
                   </Button>
                 </Link>
               )}
               {isUser && (
                 <Link href="/dashboard/freigabe" passHref>
-                  <Button variant={pathname === '/dashboard/freigabe' ? 'default' : 'outline'}>
+                  <Button variant={pathname === '/dashboard/freigabe' ? 'default' : 'outline'} className="gap-2">
+                    <CalendarCheck size={16} />
                     Redaktionsplan
                   </Button>
                 </Link>
               )}
-              <Button variant="outline" onClick={() => signOut({ callbackUrl: '/login' })}>
+              <Button variant="outline" onClick={() => signOut({ callbackUrl: '/login' })} className="gap-2">
+                <BoxArrowRight size={16} />
                 Abmelden
               </Button>
             </>
           )}
           {status === 'unauthenticated' && (
              <Link href="/login" passHref>
-               <Button variant="default">Anmelden</Button>
+               <Button variant="default" className="gap-2">
+                 <BoxArrowInRight size={16} />
+                 Anmelden
+               </Button>
              </Link>
           )}
         </div>
@@ -143,17 +160,20 @@ export default function Header() {
             {isAdmin && (
               <>
                 <Link href="/" passHref>
-                  <Button variant={pathname === '/' ? 'default' : 'outline'} className="w-full justify-start">
+                  <Button variant={pathname === '/' ? 'default' : 'outline'} className="w-full justify-start gap-2">
+                    <Briefcase size={16} />
                     Projekte
                   </Button>
                 </Link>
                 <Link href="/admin/redaktionsplan" passHref>
-                  <Button variant={pathname === '/admin/redaktionsplan' ? 'default' : 'outline'} className="w-full justify-start">
+                  <Button variant={pathname === '/admin/redaktionsplan' ? 'default' : 'outline'} className="w-full justify-start gap-2">
+                    <CalendarCheck size={16} />
                     Redaktionspläne
                   </Button>
                 </Link>
                 <Link href="/admin" passHref>
-                  <Button variant={pathname === '/admin' ? 'default' : 'outline'} className="w-full justify-start">
+                  <Button variant={pathname === '/admin' ? 'default' : 'outline'} className="w-full justify-start gap-2">
+                    <ShieldLock size={16} />
                     Admin-Bereich
                   </Button>
                 </Link>
@@ -163,12 +183,14 @@ export default function Header() {
             {isUser && (
               <>
                 <Link href="/" passHref>
-                  <Button variant={pathname === '/' ? 'default' : 'outline'} className="w-full justify-start">
+                  <Button variant={pathname === '/' ? 'default' : 'outline'} className="w-full justify-start gap-2">
+                    <Speedometer2 size={16} />
                     Dashboard
                   </Button>
                 </Link>
                 <Link href="/dashboard/freigabe" passHref>
-                  <Button variant={pathname === '/dashboard/freigabe' ? 'default' : 'outline'} className="w-full justify-start">
+                  <Button variant={pathname === '/dashboard/freigabe' ? 'default' : 'outline'} className="w-full justify-start gap-2">
+                    <CalendarCheck size={16} />
                     Redaktionsplan
                   </Button>
                 </Link>
@@ -177,7 +199,8 @@ export default function Header() {
             
             <hr className="my-2" />
 
-            <Button variant="outline" className="w-full justify-start" onClick={() => signOut({ callbackUrl: '/login' })}>
+            <Button variant="outline" className="w-full justify-start gap-2" onClick={() => signOut({ callbackUrl: '/login' })}>
+              <BoxArrowRight size={16} />
               Abmelden
             </Button>
           </div>

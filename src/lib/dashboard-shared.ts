@@ -1,50 +1,28 @@
 // src/lib/dashboard-shared.ts
-
 import { DateRangeOption } from "@/components/DateRangeSelector";
 
+// --- KORREKTUR START ---
+// 1. Importiere Typen, damit sie IN DIESER DATEI verfügbar sind
+import type { 
+  KpiDatum, 
+  ChartPoint, 
+  TopQueryData, 
+  ActiveKpi 
+} from '@/types/dashboard';
+
+// 2. Exportiere Typen, damit ANDERE DATEIEN sie von hier importieren können
+export type { 
+  KpiDatum, 
+  ChartPoint, 
+  TopQueryData, 
+  ActiveKpi 
+} from '@/types/dashboard';
+// --- KORREKTUR ENDE ---
+
+import type { AiTrafficData } from '@/types/ai-traffic';
+
+
 // --- 1. Geteilte Typen ---
-
-export type ActiveKpi = 'clicks' | 'impressions' | 'sessions' | 'totalUsers';
-
-export interface KpiDatum {
-  value: number;
-  change: number;
-  aiTraffic?: {
-    value: number;
-    percentage: number;
-  };
-}
-
-export interface ChartPoint {
-  date: string;
-  value: number;
-}
-
-export interface TopQueryData {
-  query: string;
-  clicks: number;
-  impressions: number;
-  ctr: number;
-  position: number;
-}
-
-export interface AiTrafficData {
-  totalSessions: number;
-  totalUsers: number;
-  sessionsBySource: {
-    [source: string]: number;
-  };
-  topAiSources: Array<{
-    source: string;
-    sessions: number;
-    users: number;
-    percentage: number;
-  }>;
-  trend: Array<{
-    date: string;
-    sessions: number;
-  }>;
-}
 
 /**
  * Ein Eintrag für ein Kuchendiagramm
@@ -54,6 +32,14 @@ export type ChartEntry = {
   value: number;
   fill: string; // Farbe für das Diagrammsegment
 };
+
+/**
+ * Speichert den Fehlerstatus von GSC oder GA4, falls eine API fehlschlägt.
+ */
+export interface ApiErrorStatus {
+  gsc?: string; // Fehlermeldung für GSC
+  ga4?: string; // Fehlermeldung für GA4
+}
 
 /**
  * Die Struktur für die Dashboard-Daten,
@@ -78,6 +64,11 @@ export interface ProjectDashboardData {
   countryData?: ChartEntry[];
   channelData?: ChartEntry[];
   deviceData?: ChartEntry[];
+  
+  apiErrors?: ApiErrorStatus;
+  
+  // Wird vom Loader hinzugefügt, um den Cache-Status anzuzeigen
+  fromCache?: boolean; 
 }
 
 
@@ -102,8 +93,7 @@ export const ZERO_KPI: KpiDatum = { value: 0, change: 0 };
 // --- 3. Geteilte Hilfsfunktionen ---
 
 /**
- * Stellt sicher, dass die KPI-Daten immer ein valides Objekt sind,
- * auch wenn die API "undefined" zurückgibt.
+ * Stellt sicher, dass die KPI-Daten immer ein valides Objekt sind.
  */
 export function normalizeFlatKpis(input?: ProjectDashboardData['kpis']) {
   return {
@@ -118,6 +108,11 @@ export function normalizeFlatKpis(input?: ProjectDashboardData['kpis']) {
  * Prüft, ob sinnvolle KPI- oder Chart-Daten vorhanden sind.
  */
 export function hasDashboardData(data: ProjectDashboardData): boolean {
+  // Wenn beide APIs fehlschlagen, zeige den "Keine Daten"-Screen
+  if (data.apiErrors?.gsc && data.apiErrors?.ga4) {
+    return false;
+  }
+
   const k = normalizeFlatKpis(data.kpis);
   
   const hasAnyKpiValue =
@@ -135,5 +130,6 @@ export function hasDashboardData(data: ProjectDashboardData): boolean {
       (data.charts.totalUsers && data.charts.totalUsers.length)
     );
     
-  return hasAnyKpiValue || hasAnyChartData;
+  // Wenn Fehler vorhanden sind, hat die Komponente "Daten" (nämlich die Fehlermeldung)
+  return hasAnyKpiValue || hasAnyChartData || !!data.apiErrors;
 }

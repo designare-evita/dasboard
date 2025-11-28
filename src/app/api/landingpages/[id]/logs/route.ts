@@ -1,7 +1,6 @@
 // src/app/api/landingpages/[id]/logs/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { auth } from '@/lib/auth'; // KORRIGIERT: Import von auth
 import { sql } from '@vercel/postgres';
 
 type LogEntry = {
@@ -17,7 +16,7 @@ export async function GET(
 ) {
   try {
     const { id: landingpageId } = await params;
-    const session = await getServerSession(authOptions);
+    const session = await auth(); // KORRIGIERT: auth() aufgerufen
 
     // Prüfen, ob der Benutzer eingeloggt ist UND Admin oder Superadmin ist
     if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {

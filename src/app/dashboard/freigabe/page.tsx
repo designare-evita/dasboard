@@ -4,91 +4,77 @@
 import { useState, useEffect, ReactNode, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector'; // NEU
-import { cn } from '@/lib/utils'; // NEU
+import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector';
+import { cn } from '@/lib/utils';
 
-// Icons importieren
+// Icons
 import {
   FileEarmarkText,
   Search,
   SlashCircleFill,
-  CheckCircleFill,
+  CheckCircleFill, // ✅ Wichtig
   InfoCircle,
   ExclamationTriangleFill,
   ArrowRepeat,
   InfoCircleFill,
   ListTask,
   Filter,
-  ArrowUp, // NEU
-  ArrowDown, // NEU
+  ArrowUp,
+  ArrowDown,
+  CalendarEvent, 
+  ClockHistory,
+  ChatSquareText
 } from 'react-bootstrap-icons';
 
-// Typdefinition für Landingpage (AKTUALISIERT)
+// Typdefinition
 type Landingpage = {
   id: number;
   url: string;
   haupt_keyword: string | null;
-  weitere_keywords: string | null; // Behalten wir bei, falls es noch genutzt wird
+  weitere_keywords: string | null;
   status: 'Offen' | 'In Prüfung' | 'Gesperrt' | 'Freigegeben';
+  comment: string | null; 
   user_id: string;
   created_at: string;
+  updated_at?: string;
   
-  // NEUE GSC-Felder:
   gsc_klicks: number | null;
   gsc_klicks_change: number | null;
   gsc_impressionen: number | null;
   gsc_impressionen_change: number | null;
-  gsc_position: number | string | null; // Kann als String (Decimal) kommen
-  gsc_position_change: number | string | null; // Kann als String (Decimal) kommen
+  gsc_position: number | string | null;
+  gsc_position_change: number | string | null;
   gsc_last_updated: string | null;
   gsc_last_range: string | null;
 };
 
-
-// Typdefinition für erlaubte Statuswerte
 type LandingpageStatus = Landingpage['status'];
 
-// NEU: Helper-Komponente für GSC-Vergleichswerte
-const GscChangeIndicator = ({ change, isPosition = false }: { 
-  change: number | string | null | undefined, 
-  isPosition?: boolean 
-}) => {
+// Helper für GSC Indicators
+const GscChangeIndicator = ({ change, isPosition = false }: { change: number | string | null | undefined, isPosition?: boolean }) => {
+  const numChange = (change === null || change === undefined || change === '') ? 0 : parseFloat(String(change));
+  if (numChange === 0) return null;
   
-  const numChange = (change === null || change === undefined || change === '') 
-    ? 0 
-    : parseFloat(String(change));
-
-  if (numChange === 0) {
-    return null;
-  }
+  let isPositive = isPosition ? numChange < 0 : numChange > 0;
+  let text = isPosition 
+    ? (numChange > 0 ? `+${numChange.toFixed(2)}` : numChange.toFixed(2)) 
+    : (numChange > 0 ? `+${numChange.toLocaleString('de-DE')}` : numChange.toLocaleString('de-DE'));
   
-  let isPositive: boolean;
-  if (isPosition) {
-    isPositive = numChange < 0; // Negative Zahl ist gut
-  } else {
-    isPositive = numChange > 0; // Positive Zahl ist gut
-  }
-  
-  let text: string;
-  if (isPosition) {
-    text = (numChange > 0 ? `+${numChange.toFixed(2)}` : numChange.toFixed(2));
-  } else {
-    text = (numChange > 0 ? `+${numChange.toLocaleString('de-DE')}` : numChange.toLocaleString('de-DE'));
-  }
-  
-  const colorClasses = isPositive 
-    ? 'text-green-700 bg-green-100' 
-    : 'text-red-700 bg-red-100';
+  const colorClasses = isPositive ? 'text-green-700 bg-green-100' : 'text-red-700 bg-red-100';
   const Icon = isPositive ? ArrowUp : ArrowDown;
 
   return (
-    <span className={cn('ml-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-bold', colorClasses)}>
-      <Icon size={12} />
+    <span className={cn('inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-[4px] text-[10px] font-bold tracking-wide', colorClasses)}>
+      <Icon size={9} />
       {text}
     </span>
   );
 };
 
+const formatDateOnly = (dateString?: string | null) => {
+  if (!dateString) return '-';
+  return new Date(dateString).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+};
 
 export default function FreigabePage() {
   const { data: session, status: authStatus } = useSession();
@@ -100,61 +86,44 @@ export default function FreigabePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState('');
   
-  // NEUE STATES
+  // ✅ State für das grüne Hackerl
+  const [savedCommentId, setSavedCommentId] = useState<number | null>(null);
+  
   const [dateRange, setDateRange] = useState<DateRangeOption>('30d');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Funktion zum Laden der Landingpages (mit useCallback)
   const loadLandingpages = useCallback(async () => {
     if (!session?.user?.id) return;
-    
-    // isLoading nur beim ersten Laden setzen, nicht bei Refresh
     if (landingpages.length === 0) setIsLoading(true);
 
     try {
       const response = await fetch(`/api/users/${session.user.id}/landingpages`);
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(`API-Fehler: ${response.status} - ${errorData.message || 'Unbekannter Fehler'}`);
-      }
+      if (!response.ok) throw new Error('API-Fehler');
       const data: Landingpage[] = await response.json();
       setLandingpages(data);
-      if(message.startsWith('Starte')) setMessage(''); // Lade-Nachricht löschen
+      if(message.startsWith('Starte')) setMessage('');
     } catch (error) {
-      console.error('[Freigabe] Fehler:', error);
-      setMessage(error instanceof Error ? error.message : 'Fehler beim Laden der Landingpages');
+      setMessage(error instanceof Error ? error.message : 'Fehler');
     } finally {
       setIsLoading(false);
     }
-  }, [session?.user?.id, landingpages.length, message]); // message hinzugefügt, um Lade-Status zu löschen
+  }, [session?.user?.id, landingpages.length, message]);
 
-  // Landingpages laden und Auto-Refresh einrichten
   useEffect(() => {
     if (authStatus === 'authenticated' && session?.user?.id) {
-      loadLandingpages(); // Initiales Laden
-
-      // Auto-Refresh (nur für Status, nicht GSC)
-      const interval = setInterval(loadLandingpages, 30000);
-      return () => clearInterval(interval); // Aufräumen bei Unmount
+      loadLandingpages();
     }
   }, [authStatus, session?.user?.id, loadLandingpages]);
 
-  // Filter anwenden, wenn sich Filter oder Landingpages ändern
   useEffect(() => {
-    if (filterStatus === 'alle') {
-      setFilteredPages(landingpages);
-    } else {
-      setFilteredPages(landingpages.filter(lp => lp.status === filterStatus));
-    }
+    setFilteredPages(filterStatus === 'alle' ? landingpages : landingpages.filter(lp => lp.status === filterStatus));
   }, [filterStatus, landingpages]);
 
-  // Funktion zum Aktualisieren des Status (nur Freigeben/Sperren)
   const updateStatus = async (landingpageId: number, newStatus: 'Freigegeben' | 'Gesperrt') => {
+    const now = new Date().toISOString();
     const originalLandingpages = [...landingpages];
-    setLandingpages(prev =>
-        prev.map(lp => lp.id === landingpageId ? { ...lp, status: newStatus } : lp)
-    );
-    setMessage(''); // Alte Nachrichten löschen
+    setLandingpages(prev => prev.map(lp => lp.id === landingpageId ? { ...lp, status: newStatus, updated_at: now } : lp));
+    setMessage('');
 
     try {
       const response = await fetch(`/api/landingpages/${landingpageId}/status`, {
@@ -162,61 +131,56 @@ export default function FreigabePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus })
       });
-
-      if (!response.ok) {
-        setLandingpages(originalLandingpages); // Rollback bei Fehler
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || 'Status-Update fehlgeschlagen');
-      }
-
-      setMessage(`Landingpage erfolgreich ${newStatus === 'Freigegeben' ? 'freigegeben' : 'gesperrt'}`);
-      setTimeout(() => setMessage(''), 3000); // Erfolgsmeldung nach 3s ausblenden
+      if (!response.ok) throw new Error('Status-Update fehlgeschlagen');
+      setMessage(`Status auf "${newStatus}" geändert`);
+      setTimeout(() => setMessage(''), 3000);
     } catch (error) {
-      setLandingpages(originalLandingpages); // Sicherstellen, dass Rollback passiert
-      console.error('Fehler beim Status-Update:', error);
-      setMessage(error instanceof Error ? error.message : 'Fehler beim Ändern des Status');
+      setLandingpages(originalLandingpages);
+      setMessage('Fehler beim Ändern des Status');
+    }
+  };
+
+  // ✅ Kommentarspeicher-Logik MIT Hackerl
+  const saveComment = async (landingpageId: number, newComment: string) => {
+    try {
+      setLandingpages(prev => prev.map(lp => lp.id === landingpageId ? { ...lp, comment: newComment } : lp));
+      
+      const response = await fetch(`/api/landingpages/${landingpageId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ comment: newComment })
+      });
+      if (!response.ok) throw new Error('Fehler');
+      
+      // ✅ LÄNGERE DAUER (60 Sekunden) & Feedback
+      setSavedCommentId(landingpageId);
+      setTimeout(() => setSavedCommentId(null), 60000); // 60000ms = 1 Minute
+
+    } catch (error) {
+      console.error(error);
+      setMessage('Kommentar konnte nicht gespeichert werden');
     }
   };
   
-  // NEU: GSC-Daten-Abgleich-Handler
   const handleGscRefresh = async () => {
-    if (!session?.user?.id) {
-      setMessage("Fehler: Sitzung nicht gefunden.");
-      return;
-    }
-    
+    if (!session?.user?.id) return;
     setIsRefreshing(true);
-    setMessage(`Starte GSC-Abgleich für Zeitraum: ${dateRange}...`);
-    
+    setMessage(`GSC-Abgleich...`);
     try {
       const response = await fetch('/api/landingpages/refresh-gsc', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          projectId: session.user.id, // Für Kunden ist die User-ID die Projekt-ID
-          dateRange: dateRange
-        })
+        body: JSON.stringify({ projectId: session.user.id, dateRange })
       });
-      
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.message || 'GSC-Abgleich fehlgeschlagen');
-      }
-      
-      setMessage(result.message || 'Daten erfolgreich abgeglichen!');
-      // Lade die Tabelle neu, um die frischen GSC-Daten anzuzeigen
+      if (!response.ok) throw new Error('Fehler');
+      setMessage('Daten erfolgreich abgeglichen!');
       await loadLandingpages(); 
-      
     } catch (error) {
-      console.error('Fehler beim GSC-Abgleich:', error);
-      setMessage(error instanceof Error ? `❌ Fehler: ${error.message}` : 'Fehler beim Abgleich');
+      setMessage('Fehler beim Abgleich');
     } finally {
       setIsRefreshing(false);
     }
   };
-
-
-  // ---- Hilfsfunktionen für die UI ----
 
   const getStatusStyle = (status: LandingpageStatus) => {
     switch (status) {
@@ -227,18 +191,16 @@ export default function FreigabePage() {
       default: return 'text-gray-700 border-gray-300 bg-gray-50';
     }
   };
-
   const getStatusIcon = (status: LandingpageStatus): ReactNode => {
     switch (status) {
-      case 'Offen': return <FileEarmarkText className="inline-block" size={18} />;
-      case 'In Prüfung': return <Search className="inline-block" size={18} />;
-      case 'Gesperrt': return <SlashCircleFill className="inline-block" size={18} />;
-      case 'Freigegeben': return <CheckCircleFill className="inline-block" size={18} />;
-      default: return <InfoCircle className="inline-block" size={18} />;
+      case 'Offen': return <FileEarmarkText className="inline-block" size={16} />;
+      case 'In Prüfung': return <Search className="inline-block" size={16} />;
+      case 'Gesperrt': return <SlashCircleFill className="inline-block" size={16} />;
+      case 'Freigegeben': return <CheckCircleFill className="inline-block" size={16} />;
+      default: return <InfoCircle className="inline-block" size={16} />;
     }
   };
-
-  const filterOptions: { label: string; value: LandingpageStatus | 'alle'; icon: ReactNode }[] = [
+  const filterOptions = [
     { label: 'Alle', value: 'alle', icon: <ListTask className="inline-block mr-1" size={16}/> },
     { label: 'Offen', value: 'Offen', icon: <FileEarmarkText className="inline-block mr-1" size={16}/> },
     { label: 'In Prüfung', value: 'In Prüfung', icon: <Search className="inline-block mr-1" size={16}/> },
@@ -246,261 +208,144 @@ export default function FreigabePage() {
     { label: 'Gesperrt', value: 'Gesperrt', icon: <SlashCircleFill className="inline-block mr-1" size={16}/> },
   ];
 
-  // ---- Auth-Check ----
-  if (authStatus === 'loading') {
-    return <div className="p-8 text-center">Lade Sitzung...</div>;
-  }
-
+  if (authStatus === 'loading') return <div className="p-8 text-center">Lade...</div>;
   if (authStatus === 'unauthenticated' || session?.user?.role !== 'BENUTZER') {
-    router.push('/'); 
-    return null;
+    router.push('/'); return null;
   }
 
-  const pendingReviewCount = landingpages.filter(lp => lp.status === 'In Prüfung').length;
-
-  // ---- Rendern der Komponente ----
   return (
     <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Header-Bereich */}
+      <div className="max-w-full mx-auto"> 
+        
         <div className="mb-8 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Landingpages Freigabe</h1>
-            <p className="text-gray-600 mt-2">
-              Geben Sie hier Landingpages frei oder sperren Sie diese.
-            </p>
+            <p className="text-gray-600 mt-2">Verwalten Sie den Status Ihrer Landingpages.</p>
           </div>
         </div>
 
-        {/* Nachrichtenanzeige */}
         {message && (
-          <div className={`mb-6 p-4 border rounded-md ${message.startsWith('Fehler') || message.startsWith('❌') ? 'bg-red-50 border-red-200 text-red-800' : 'bg-blue-50 border-blue-200 text-blue-800'} flex items-center gap-2`}>
-            {message.startsWith('Fehler') || message.startsWith('❌') ? <ExclamationTriangleFill size={18}/> : <InfoCircleFill size={18}/>}
+          <div className={`mb-6 p-4 border rounded-md flex items-center gap-2 ${message.startsWith('Fehler') ? 'bg-red-50 border-red-200 text-red-800' : 'bg-blue-50 border-blue-200 text-blue-800'}`}>
+            {message.startsWith('Fehler') ? <ExclamationTriangleFill size={18}/> : <InfoCircleFill size={18}/>}
             {message}
           </div>
         )}
 
-        {/* NEU: GSC-Abgleich-Box */}
         <div className="bg-white p-6 rounded-lg shadow-md mb-6">
           <h3 className="text-lg font-semibold text-gray-800 mb-4">GSC-Daten Abgleich</h3>
-          <p className="text-sm text-gray-600 mb-4">
-            Klicken Sie hier, um die GSC-Daten (Klicks, Impressionen, Position) für die untenstehenden Landingpages manuell abzurufen. 
-            Der Abgleich passiert sonst automatisch alle 48 Stunden.
-          </p>
           <div className="flex flex-col sm:flex-row gap-4">
-            <DateRangeSelector
-              value={dateRange}
-              onChange={setDateRange}
-              className="w-full sm:w-auto"
-            />
-            <button
-              onClick={handleGscRefresh}
-              disabled={isRefreshing || isLoading}
-              className="px-4 py-2 font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-wait flex items-center justify-center gap-2 w-full sm:w-auto"
-            >
-              {isRefreshing ? (
-                <ArrowRepeat className="animate-spin" size={18} />
-              ) : (
-                <Search size={16} />
-              )}
+            <DateRangeSelector value={dateRange} onChange={setDateRange} className="w-full sm:w-auto" />
+            <button onClick={handleGscRefresh} disabled={isRefreshing || isLoading} className="px-4 py-2 font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-wait flex items-center justify-center gap-2 w-full sm:w-auto">
+              {isRefreshing ? <ArrowRepeat className="animate-spin" size={18} /> : <Search size={16} />}
               <span>{isRefreshing ? 'Wird abgeglichen...' : 'GSC-Daten abgleichen'}</span>
             </button>
           </div>
         </div>
 
-
-        {/* Benachrichtigung für wartende Freigaben */}
-        {pendingReviewCount > 0 && (
-          <div className="mb-6 p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded-r-md shadow-sm">
-            <div className="flex items-center">
-              <ExclamationTriangleFill className="text-yellow-500 mr-3 flex-shrink-0" size={24} />
-              <div>
-                <p className="font-semibold text-yellow-900">
-                  {pendingReviewCount} Landingpage{pendingReviewCount > 1 ? 's warten' : ' wartet'} auf Ihre Freigabe
-                </p>
-                <p className="text-sm text-yellow-700 mt-1">
-                  Bitte prüfen Sie die Seiten unter <span className="font-medium">&quot;In Prüfung&quot;</span> und geben Sie sie frei oder sperren Sie sie.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Filter-Buttons */}
         <div className="bg-white p-4 rounded-lg shadow-md mb-6">
            <h3 className="text-sm font-semibold text-gray-500 mb-3 flex items-center gap-1"><Filter size={16}/> Filtern nach Status</h3>
            <div className="flex gap-2 flex-wrap">
-              {filterOptions.map(option => {
-                const count = option.value === 'alle'
-                    ? landingpages.length
-                    : landingpages.filter(lp => lp.status === option.value).length;
-                const isActive = filterStatus === option.value;
-                return (
-                    <button
-                        key={option.value}
-                        onClick={() => setFilterStatus(option.value)}
-                        className={`px-3 py-1.5 text-sm rounded-md font-medium border transition-colors flex items-center gap-1 ${
-                            isActive
-                            ? 'bg-indigo-600 text-white border-indigo-600'
-                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                        }`}
-                    >
-                        {option.icon} {option.label} ({count})
-                    </button>
-                );
-             })}
+              {filterOptions.map(option => (
+                <button key={option.value} onClick={() => setFilterStatus(option.value as any)} className={`px-3 py-1.5 text-sm rounded-md font-medium border transition-colors flex items-center gap-1 ${filterStatus === option.value ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}>
+                    {option.icon} {option.label} ({option.value === 'alle' ? landingpages.length : landingpages.filter(lp => lp.status === option.value).length})
+                </button>
+             ))}
           </div>
         </div>
 
-        {/* Landingpages-Liste */}
         {isLoading ? (
-          <div className="text-center py-12">
-             <ArrowRepeat className="animate-spin inline-block text-indigo-600 mr-2" size={24}/>
-             <p className="text-gray-600 inline-block">Lade Landingpages...</p>
-          </div>
+          <div className="text-center py-12"><ArrowRepeat className="animate-spin inline-block text-indigo-600 mr-2" size={24}/><p className="text-gray-600 inline-block">Lade Landingpages...</p></div>
         ) : filteredPages.length === 0 ? (
           <div className="bg-white p-12 rounded-lg shadow-md text-center">
-             <span className="text-gray-400 text-4xl mb-3 block">{getStatusIcon(filterStatus as LandingpageStatus)}</span>
-             <p className="text-gray-500">
-                {landingpages.length === 0
-                  ? 'Sie haben noch keine Landingpages.'
-                  : `Keine Landingpages mit Status "${filterStatus}" gefunden.`}
-             </p>
+             <p className="text-gray-500">{landingpages.length === 0 ? 'Sie haben noch keine Landingpages.' : `Keine Landingpages mit Status "${filterStatus}" gefunden.`}</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {filteredPages.map((lp) => (
-              <div
-                key={lp.id}
-                className="bg-white rounded-lg shadow-md border border-gray-200 hover:shadow-lg transition-shadow overflow-hidden"
-              >
-                {/* Header der Karte (Status) */}
-                <div className={`p-4 border-b ${getStatusStyle(lp.status)} flex items-center justify-between`}>
-                  <div className="flex items-center gap-2 font-semibold">
-                     {getStatusIcon(lp.status)}
-                     {lp.status}
-                  </div>
-                  {/* GSC-Datum anzeigen, falls vorhanden */}
-                  {lp.gsc_last_updated && (
-                     <span className="text-xs text-gray-600 opacity-80" title={new Date(lp.gsc_last_updated).toLocaleString('de-DE')}>
-                       GSC-Daten ({lp.gsc_last_range}): {new Date(lp.gsc_last_updated).toLocaleDateString('de-DE')}
-                     </span>
-                  )}
-                </div>
-                
-                {/* Inhalt der Karte */}
-                <div className="p-5 space-y-4">
-                  {/* Titel/URL */}
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-800 mb-1">
-                      {lp.haupt_keyword || <span className="italic text-gray-500">Kein Haupt-Keyword</span>}
-                    </h3>
-                    <a
-                      href={lp.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-indigo-600 hover:text-indigo-800 text-sm break-all underline"
-                      title={lp.url}
-                    >
-                      {lp.url}
-                    </a>
-                  </div>
-                  
-                  {/* AKTUALISIERT: GSC-Daten statt alter Felder */}
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm border-t border-b py-4">
-                    {/* Klicks */}
-                    <div>
-                      <span className="text-gray-500">GSC Klicks:</span>
-                      <p className="font-medium text-gray-900 flex items-center">
-                        {lp.gsc_klicks?.toLocaleString('de-DE') || '-'}
-                        <GscChangeIndicator change={lp.gsc_klicks_change} />
-                      </p>
-                    </div>
-                    {/* Impressionen */}
-                    <div>
-                      <span className="text-gray-500">GSC Impressionen:</span>
-                      <p className="font-medium text-gray-900 flex items-center">
-                        {lp.gsc_impressionen?.toLocaleString('de-DE') || '-'}
-                        <GscChangeIndicator change={lp.gsc_impressionen_change} />
-                      </p>
-                    </div>
-                    {/* Position (KORRIGIERT) */}
-                    <div>
-                      <span className="text-gray-500">GSC Position:</span>
-                      <p className="font-medium text-gray-900 flex items-center">
-                        {lp.gsc_position ? parseFloat(String(lp.gsc_position)).toFixed(2) : '-'}
-                        <GscChangeIndicator change={lp.gsc_position_change} isPosition={true} />
-                      </p>
-                    </div>
-                  </div>
-                  
-                  {/* Weitere Keywords (falls vorhanden) */}
-                  {lp.weitere_keywords && (
-                    <div className="col-span-2">
-                      <span className="text-gray-500 text-sm">Weitere Keywords:</span>
-                      <p className="font-medium text-gray-900 text-xs mt-1 bg-gray-50 p-2 rounded border">
-                        {lp.weitere_keywords}
-                      </p>
-                    </div>
-                  )}
-                  
-                  {/* Aktionen (Freigabe/Sperren) */}
-                  <div className="pt-4 border-t border-gray-100 flex gap-2 justify-end">
-                    {lp.status === 'In Prüfung' && (
-                      <>
-                        <button
-                          onClick={() => updateStatus(lp.id, 'Gesperrt')}
-                          className="px-4 py-2 text-sm font-medium rounded border border-red-600 text-red-700 hover:bg-red-50 transition-colors flex items-center gap-1"
-                        >
-                          <SlashCircleFill size={16} /> Sperren
-                        </button>
-                        <button
-                          onClick={() => updateStatus(lp.id, 'Freigegeben')}
-                          className="px-4 py-2 text-sm font-medium rounded bg-green-600 border border-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1"
-                        >
-                          <CheckCircleFill size={16} /> Freigeben
-                        </button>
-                      </>
-                    )}
-                    {lp.status === 'Freigegeben' && (
-                      <button
-                        onClick={() => updateStatus(lp.id, 'Gesperrt')}
-                         className="px-4 py-2 text-sm font-medium rounded border border-red-600 text-red-700 hover:bg-red-50 transition-colors flex items-center gap-1"
-                      >
-                         <SlashCircleFill size={16} /> Sperren
-                      </button>
-                    )}
-                    {lp.status === 'Gesperrt' && (
-                       <button
-                        onClick={() => updateStatus(lp.id, 'Freigegeben')}
-                        className="px-4 py-2 text-sm font-medium rounded border border-green-600 text-green-700 hover:bg-green-50 transition-colors flex items-center gap-1"
-                      >
-                        <CheckCircleFill size={16} /> Freigeben
-                      </button>
-                    )}
-                    {lp.status === 'Offen' && (
-                      <p className="text-sm text-gray-500 italic text-right w-full">
-                        in Bearbeitung
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
+          <div className="bg-white rounded-lg shadow-md overflow-x-auto">
+            <table className="w-full min-w-[1400px]">
+               <thead className="bg-gray-50 border-b border-gray-200">
+                 <tr>
+                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[20%]">URL / Keyword</th>
+                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><div className="flex items-center gap-1"><CalendarEvent/> Daten</div></th>
+                   
+                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">GSC Klicks</th>
+                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">GSC Impr.</th>
+                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">GSC Pos.</th>
+                   
+                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[35%]">
+                     <div className="flex items-center gap-1"><ChatSquareText/> Anmerkung</div>
+                   </th>
+                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aktionen</th>
+                 </tr>
+               </thead>
+               <tbody className="bg-white divide-y divide-gray-200">
+                 {filteredPages.map((lp) => (
+                   <tr key={lp.id} className="hover:bg-gray-50 transition-colors">
+                     {/* (Spalten 1-6 bleiben gleich) */}
+                     <td className="px-6 py-4 whitespace-nowrap align-top">
+                       <div className="text-sm font-medium text-gray-900 truncate" title={lp.haupt_keyword || undefined}>{lp.haupt_keyword || <span className="text-gray-400 italic">Kein Keyword</span>}</div>
+                       <a href={lp.url} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-800 text-xs truncate block" title={lp.url}>{lp.url}</a>
+                     </td>
+                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 align-top">
+                       <div className="text-xs">Erstellt: {formatDateOnly(lp.created_at)}</div>
+                       <div className="text-xs">Update: {formatDateOnly(lp.updated_at)}</div>
+                     </td>
+                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right align-top">
+                       <div className="flex flex-col items-end gap-1">
+                         <span className="font-medium text-gray-900">{lp.gsc_klicks?.toLocaleString('de-DE') || '-'}</span>
+                         <GscChangeIndicator change={lp.gsc_klicks_change} />
+                       </div>
+                     </td>
+                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right align-top">
+                       <div className="flex flex-col items-end gap-1">
+                         <span className="font-medium text-gray-900">{lp.gsc_impressionen?.toLocaleString('de-DE') || '-'}</span>
+                         <GscChangeIndicator change={lp.gsc_impressionen_change} />
+                       </div>
+                     </td>
+                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right align-top">
+                       <div className="flex flex-col items-end gap-1">
+                         <span className="font-medium text-gray-900">{lp.gsc_position ? parseFloat(String(lp.gsc_position)).toFixed(2) : '-'}</span>
+                         <GscChangeIndicator change={lp.gsc_position_change} isPosition={true} />
+                       </div>
+                     </td>
+                     <td className="px-6 py-4 whitespace-nowrap align-top">
+                       <span className={`px-2.5 py-0.5 text-xs font-medium rounded-full border ${getStatusStyle(lp.status)}`}>{getStatusIcon(lp.status)} {lp.status}</span>
+                     </td>
+
+                     {/* ✅ Anmerkung mit Badge für Kunde */}
+                     <td className="px-6 py-4 align-top relative">
+                        <textarea
+                          className="w-full text-sm p-2 border border-gray-300 rounded focus:ring-indigo-500 focus:border-indigo-500 resize-y"
+                          rows={3}
+                          defaultValue={lp.comment || ''}
+                          placeholder="Anmerkung hinzufügen..."
+                          onBlur={(e) => {
+                            if (e.target.value !== (lp.comment || '')) {
+                              saveComment(lp.id, e.target.value);
+                            }
+                          }}
+                        />
+                        {/* ✅ Feedback Badge (1 Minute) */}
+                        {savedCommentId === lp.id && (
+                          <div className="absolute top-2 right-2 bg-green-50 text-green-700 text-[10px] font-medium px-2 py-1 rounded border border-green-200 shadow-sm flex items-center gap-1.5 animate-in fade-in zoom-in duration-300 z-10">
+                            <CheckCircleFill size={10} />
+                            <span>Gespeichert & Betreuer benachrichtigt</span>
+                          </div>
+                        )}
+                     </td>
+
+                     <td className="px-6 py-4 whitespace-nowrap align-top">
+                       <div className="flex flex-col gap-2">
+                          <button onClick={() => updateStatus(lp.id, 'Freigegeben')} className="px-3 py-1.5 text-xs font-medium rounded bg-green-600 border border-green-600 text-white hover:bg-green-700 flex items-center gap-1 justify-center"><CheckCircleFill size={14} /> Freigeben</button>
+                          <button onClick={() => updateStatus(lp.id, 'Gesperrt')} className="px-3 py-1.5 text-xs font-medium rounded border border-red-600 text-red-700 hover:bg-red-50 flex items-center gap-1 justify-center"><SlashCircleFill size={14} /> Sperren</button>
+                       </div>
+                     </td>
+                   </tr>
+                 ))}
+               </tbody>
+            </table>
           </div>
         )}
-
-        <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-6 text-sm text-blue-800 space-y-3">
-           <h3 className="font-semibold text-blue-900 flex items-center gap-2">
-            <InfoCircleFill size={18}/> Status-Bedeutungen
-          </h3>
-          <ul className="list-disc pl-5 space-y-1">
-             <li><strong>Offen:</strong> Die Landingpage wurde vom Admin angelegt und wird bald zur Prüfung freigegeben.</li>
-            <li><strong>In Prüfung:</strong> Diese Landingpage wartet auf Ihre Aktion (Freigeben oder Sperren).</li>
-            <li><strong>Freigegeben:</strong> Sie haben diese Landingpage für die Veröffentlichung freigegeben.</li>
-            <li><strong>Gesperrt:</strong> Sie haben diese Landingpage gesperrt. Sie wird nicht veröffentlicht.</li>
-          </ul>
-        </div>
       </div>
     </div>
   );

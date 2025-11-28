@@ -1,7 +1,6 @@
 // src/app/api/users/[id]/logs/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { auth } from '@/lib/auth'; // KORRIGIERT: Import von auth
 import { sql } from '@vercel/postgres';
 
 type LogEntry = {
@@ -18,7 +17,7 @@ export async function GET(
 ) {
   try {
     const { id: targetUserId } = await params; // Die ID des Benutzers, dessen Logs wir sehen wollen
-    const session = await getServerSession(authOptions);
+    const session = await auth(); // KORRIGI'G'ERT: auth() aufgerufen
 
     // Prüfen, ob der anfragende Benutzer Admin oder Superadmin ist
     if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {

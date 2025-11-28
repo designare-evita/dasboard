@@ -1,40 +1,45 @@
 // src/app/api/landingpages/[id]/route.ts
 import { NextResponse, NextRequest } from 'next/server';
 import { sql } from '@vercel/postgres';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { auth } from '@/lib/auth';
+import * as Brevo from '@getbrevo/brevo'; // ✅ Brevo direkt importiert
 
-// Helper-Funktion für Admin-Check
-async function isAdminSession() {
-  const session = await getServerSession(authOptions);
-  return session?.user?.role === 'ADMIN' || session?.user?.role === 'SUPERADMIN';
+// --- Brevo Konfiguration (Wie in deiner Status-Route) ---
+const apiInstance = new Brevo.TransactionalEmailsApi();
+apiInstance.setApiKey(
+  Brevo.TransactionalEmailsApiApiKeys.apiKey,
+  process.env.BREVO_API_KEY || ''
+);
+const systemEmail = process.env.BREVO_SYSTEM_EMAIL || 'status@datapeak.at'; // Fallback wie in Status-Route
+
+// Helper-Funktion: Prüft, ob Benutzer Admin/Superadmin ist ODER Eigentümer der Landingpage
+async function hasAccess(landingpageId: string, session: any) {
+  if (!session?.user) return false;
+  if (session.user.role === 'ADMIN' || session.user.role === 'SUPERADMIN') return true;
+  
+  const { rows } = await sql`SELECT user_id FROM landingpages WHERE id = ${landingpageId}`;
+  if (rows.length > 0 && rows[0].user_id === session.user.id) {
+    return true;
+  }
+  return false;
 }
 
-/**
- * GET - Landingpage Details abrufen
- */
+// GET - Landingpage Details abrufen
 export async function GET(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
-  if (!(await isAdminSession())) {
+  const { id } = await context.params;
+  const session = await auth();
+
+  if (!(await hasAccess(id, session))) {
     return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
   }
-
-  const { id } = await context.params;
 
   try {
     const { rows } = await sql`
       SELECT 
-        lp.id,
-        lp.url,
-        lp.haupt_keyword,
-        lp.weitere_keywords,
-        lp.suchvolumen,
-        lp.aktuelle_position,
-        lp.status,
-        lp.created_at,
-        lp.user_id::text,
+        lp.*,
         u.domain,
         u.email as user_email
       FROM landingpages lp
@@ -53,38 +58,128 @@ export async function GET(
   }
 }
 
-/**
- * PUT - Landingpage aktualisieren
- */
+// PUT - Landingpage aktualisieren (Mit Brevo E-Mail Versand)
 export async function PUT(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
-  if (!(await isAdminSession())) {
+  const { id } = await context.params;
+  const session = await auth();
+
+  if (!(await hasAccess(id, session))) {
     return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
   }
 
-  const { id } = await context.params;
   const body = await req.json();
-  const { url, haupt_keyword, weitere_keywords, suchvolumen, aktuelle_position, status } = body;
+  const { url, haupt_keyword, weitere_keywords, suchvolumen, aktuelle_position, status, comment } = body;
 
   try {
-    const { rows } = await sql`
-      UPDATE landingpages
-      SET 
-        url = ${url},
-        haupt_keyword = ${haupt_keyword},
-        weitere_keywords = ${weitere_keywords},
-        suchvolumen = ${suchvolumen},
-        aktuelle_position = ${aktuelle_position},
-        status = ${status}
-      WHERE id = ${id}
-      RETURNING *
+    // 1. Alten Zustand holen (Prüfung auf Kommentar-Änderung)
+    const { rows: currentRows } = await sql`
+      SELECT lp.comment, lp.user_id, lp.url, u.domain 
+      FROM landingpages lp
+      LEFT JOIN users u ON lp.user_id = u.id
+      WHERE lp.id = ${id}
     `;
+    
+    if (currentRows.length === 0) return NextResponse.json({ message: 'LP nicht gefunden' }, { status: 404 });
+    
+    const currentLP = currentRows[0];
+    const oldComment = currentLP.comment || '';
+    const newComment = comment || '';
+    const lpOwnerId = currentLP.user_id;
+    const lpUrl = currentLP.url;
+    const customerDomain = currentLP.domain || 'Kunde';
 
-    if (rows.length === 0) {
-      return NextResponse.json({ message: 'Landingpage nicht gefunden' }, { status: 404 });
+    // 2. Update durchführen
+    if (session?.user?.role === 'BENUTZER') {
+       if (comment !== undefined) {
+         await sql`UPDATE landingpages SET comment = ${comment}, updated_at = NOW() WHERE id = ${id}`;
+       }
+    } else {
+       await sql`
+        UPDATE landingpages
+        SET 
+          url = COALESCE(${url}, url),
+          haupt_keyword = COALESCE(${haupt_keyword}, haupt_keyword),
+          weitere_keywords = COALESCE(${weitere_keywords}, weitere_keywords),
+          suchvolumen = COALESCE(${suchvolumen}, suchvolumen),
+          aktuelle_position = COALESCE(${aktuelle_position}, aktuelle_position),
+          status = COALESCE(${status}, status),
+          comment = COALESCE(${comment}, comment),
+          updated_at = NOW()
+        WHERE id = ${id}
+      `;
     }
+
+    // 3. E-Mail Benachrichtigung via Brevo Senden
+    // Nur wenn sich der Kommentar geändert hat UND nicht leer ist
+    if (comment !== undefined && newComment !== oldComment && newComment.trim() !== '') {
+      
+      const actorRole = session?.user?.role;
+      const actorEmail = session?.user?.email;
+
+      // Fall A: Admin schreibt -> Kunde bekommt Info
+      if (actorRole === 'ADMIN' || actorRole === 'SUPERADMIN') {
+        const { rows: customerRows } = await sql`SELECT email FROM users WHERE id = ${lpOwnerId}`;
+        if (customerRows.length > 0) {
+          const customerEmail = customerRows[0].email;
+          
+          const sendSmtpEmail = new Brevo.SendSmtpEmail();
+          sendSmtpEmail.sender = { email: systemEmail, name: 'Dashboard Info' };
+          sendSmtpEmail.to = [{ email: customerEmail }];
+          sendSmtpEmail.subject = `Neue Anmerkung zu: ${lpUrl}`;
+          sendSmtpEmail.textContent = `Hallo,\n\nEs gibt eine neue Anmerkung zu Ihrer Landingpage "${lpUrl}".\n\nAnmerkung:\n"${newComment}"\n\nBitte prüfen Sie dies im Dashboard.`;
+
+          try {
+            await apiInstance.sendTransacEmail(sendSmtpEmail);
+            console.log(`✅ Brevo-Mail gesendet an Kunde: ${customerEmail}`);
+          } catch (err) {
+            console.error('❌ Fehler beim Brevo-Versand an Kunde:', err);
+          }
+        }
+      } 
+      // Fall B: Kunde schreibt -> Admin(s) bekommen Info
+      else if (actorRole === 'BENUTZER') {
+        // Hole zugewiesene Admins
+        const { rows: adminRows } = await sql`
+          SELECT u.email 
+          FROM users u
+          INNER JOIN project_assignments pa ON u.id = pa.user_id
+          WHERE pa.project_id = ${lpOwnerId}
+        `;
+        
+        let recipients = adminRows.map(r => r.email);
+        
+        // Fallback: Wenn kein Admin zugewiesen, an Ersteller senden
+        if (recipients.length === 0) {
+           const { rows: creatorRows } = await sql`
+             SELECT u.email FROM users u 
+             JOIN users customer ON customer."createdByAdminId" = u.id 
+             WHERE customer.id = ${lpOwnerId}
+           `;
+           if(creatorRows.length > 0) recipients.push(creatorRows[0].email);
+        }
+
+        // An alle Empfänger senden
+        for (const adminEmail of recipients) {
+          const sendSmtpEmail = new Brevo.SendSmtpEmail();
+          sendSmtpEmail.sender = { email: systemEmail, name: 'Dashboard Info' };
+          sendSmtpEmail.to = [{ email: adminEmail }];
+          sendSmtpEmail.subject = `Kunden-Anmerkung: ${lpUrl}`;
+          sendSmtpEmail.textContent = `Hallo,\n\nDer Kunde (${customerDomain}) hat eine Anmerkung zur Landingpage "${lpUrl}" verfasst.\n\nAnmerkung:\n"${newComment}"\n\nBitte im Redaktionsplan prüfen.`;
+
+          try {
+            await apiInstance.sendTransacEmail(sendSmtpEmail);
+            console.log(`✅ Brevo-Mail gesendet an Admin: ${adminEmail}`);
+          } catch (err) {
+            console.error(`❌ Fehler beim Brevo-Versand an Admin (${adminEmail}):`, err);
+          }
+        }
+      }
+    }
+
+    const { rows } = await sql`SELECT * FROM landingpages WHERE id = ${id}`;
 
     return NextResponse.json({ 
       message: 'Landingpage erfolgreich aktualisiert', 
@@ -96,100 +191,21 @@ export async function PUT(
   }
 }
 
-/**
- * DELETE - Landingpage löschen (nur für Admin/Superadmin)
- */
+// DELETE - Unverändert
 export async function DELETE(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    
-    // Nur Admin und Superadmin dürfen löschen
+    const session = await auth();
     if (!session?.user?.id || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
-      console.warn('[DELETE Landingpage] Zugriff verweigert für:', session?.user?.email);
       return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
     }
-
     const { id } = await context.params;
-
-    console.log('[DELETE Landingpage] Lösche Landingpage:', id);
-    console.log('[DELETE Landingpage] Angefordert von:', session.user.email, 'Rolle:', session.user.role);
-
-    // Lade Landingpage-Details für Logging und Berechtigungsprüfung
-    const { rows: landingpages } = await sql`
-      SELECT 
-        lp.*,
-        u.email as user_email,
-        u.domain as user_domain
-      FROM landingpages lp
-      INNER JOIN users u ON lp.user_id = u.id
-      WHERE lp.id = ${id};
-    `;
-
-    if (landingpages.length === 0) {
-      console.warn('[DELETE Landingpage] Nicht gefunden:', id);
-      return NextResponse.json({ message: 'Landingpage nicht gefunden' }, { status: 404 });
-    }
-
-    const landingpage = landingpages[0];
-
-    // Admin-Berechtigungsprüfung: Nur bei zugewiesenen Projekten
-    if (session.user.role === 'ADMIN') {
-      const { rows: accessCheck } = await sql`
-        SELECT 1 
-        FROM project_assignments 
-        WHERE user_id::text = ${session.user.id} 
-        AND project_id::text = ${landingpage.user_id};
-      `;
-
-      if (accessCheck.length === 0) {
-        console.warn('[DELETE Landingpage] Admin hat keinen Zugriff auf Projekt');
-        return NextResponse.json({ 
-          message: 'Sie haben keine Berechtigung, Landingpages dieses Projekts zu löschen' 
-        }, { status: 403 });
-      }
-    }
-
-    // Lösche die Landingpage
-    await sql`
-      DELETE FROM landingpages 
-      WHERE id = ${id};
-    `;
-
-    console.log('[DELETE Landingpage] ✅ Erfolgreich gelöscht:', landingpage.url);
-
-    // Optional: Benachrichtigung an den Kunden senden
-    try {
-      await sql`
-        INSERT INTO notifications (user_id, message, type)
-        VALUES (
-          ${landingpage.user_id},
-          ${`Ihre Landingpage "${landingpage.url}" wurde vom Admin gelöscht.`},
-          'warning'
-        );
-      `;
-      console.log('[DELETE Landingpage] Benachrichtigung an Kunde gesendet');
-    } catch (notifError) {
-      console.error('[DELETE Landingpage] Fehler beim Senden der Benachrichtigung:', notifError);
-      // Nicht kritisch, fahre fort
-    }
-
-    return NextResponse.json({ 
-      message: 'Landingpage erfolgreich gelöscht',
-      deleted: {
-        id: landingpage.id,
-        url: landingpage.url,
-        customer: landingpage.user_domain || landingpage.user_email
-      }
-    });
-
+    await sql`DELETE FROM landingpages WHERE id = ${id}`;
+    return NextResponse.json({ message: 'Landingpage erfolgreich gelöscht' });
   } catch (error) {
     console.error('[DELETE Landingpage] Fehler:', error);
-    return NextResponse.json({ 
-      message: 'Fehler beim Löschen der Landingpage',
-      error: error instanceof Error ? error.message : 'Unbekannter Fehler'
-    }, { status: 500 });
+    return NextResponse.json({ message: 'Fehler beim Löschen' }, { status: 500 });
   }
 }

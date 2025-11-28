@@ -1,8 +1,23 @@
 // src/next-auth.d.ts
 import 'next-auth';
-import { DefaultSession } from 'next-auth';
+// KORREKTUR 1: DefaultUser importieren
+import { DefaultSession, User as DefaultUser } from 'next-auth';
 
 declare module 'next-auth' {
+  
+  /**
+   * KORREKTUR 2: Die User-Schnittstelle erweitern.
+   * Dies ist der Typ, der vom `authorize`-Callback zurückgegeben
+   * und an den `jwt`-Callback beim Login übergeben wird.
+   */
+  interface User extends DefaultUser {
+    role: 'BENUTZER' | 'ADMIN' | 'SUPERADMIN';
+    mandant_id?: string | null;
+    permissions?: string[];
+    logo_url?: string | null;
+    gsc_site_url?: string | null;
+  }
+
   /**
    * Extends the built-in session type to include our custom properties.
    */

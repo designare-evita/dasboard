@@ -1,14 +1,16 @@
 // src/app/admin/edit/[id]/EditUserForm.tsx
 'use client';
 
-import { useState, FormEvent, useEffect } from 'react';
+import { useState, FormEvent, useEffect, ChangeEvent } from 'react';
 import { User } from '@/types';
 import { 
   Pencil, 
   ArrowRepeat, 
   CheckCircle, 
   CalendarEvent, 
-  ClockHistory 
+  ClockHistory,
+  ToggleOn, // NEU
+  ToggleOff // NEU
 } from 'react-bootstrap-icons';
 
 interface EditUserFormProps {
@@ -43,6 +45,7 @@ interface ApiPayload {
   semrush_tracking_id_02: string | null;
   project_start_date: string | null; 
   project_duration_months: number | null; 
+  project_timeline_active: boolean; // NEU
   password?: string; 
 }
 
@@ -61,6 +64,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
     favicon_url: '',
     project_start_date: '',    
     project_duration_months: '6', 
+    project_timeline_active: false, // NEU
   });
 
   const [password, setPassword] = useState('');
@@ -70,7 +74,11 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
 
   useEffect(() => {
     if (user) {
-      setFormData({
+      console.log('[EditUserForm] useEffect - user.project_timeline_active:', user.project_timeline_active);
+      console.log('[EditUserForm] useEffect - typeof:', typeof user.project_timeline_active);
+      console.log('[EditUserForm] useEffect - Boolean():', Boolean(user.project_timeline_active));
+      
+      const newFormData = {
         email: user.email || '',
         mandantId: user.mandant_id || '',
         permissions: user.permissions?.join(', ') || '',
@@ -82,20 +90,35 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
         semrushTrackingId02: user.semrush_tracking_id_02 || '',
         favicon_url: user.favicon_url || '',
         project_start_date: formatDateForInput(user.project_start_date), 
-        project_duration_months: String(user.project_duration_months || 6), 
-      });
+        project_duration_months: String(user.project_duration_months || 6),
+        project_timeline_active: Boolean(user.project_timeline_active), // KORREKTUR: Explizit als Boolean casten
+      };
+      
+      console.log('[EditUserForm] useEffect - newFormData.project_timeline_active:', newFormData.project_timeline_active);
+      setFormData(newFormData);
       setPassword('');
       setMessage('');
       setSuccessMessage('');
     }
   }, [user]);
 
-  const handleInputChange = (field: keyof typeof formData, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
+  const handleInputChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value, type } = e.target;
+    
+    if (type === 'checkbox') {
+      const checked = (e.target as HTMLInputElement).checked;
+      setFormData(prev => ({
+        ...prev,
+        [name]: checked
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
   };
+
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -121,6 +144,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
         semrush_tracking_id_02: formData.semrushTrackingId02 || null,
         project_start_date: formData.project_start_date || null,
         project_duration_months: parseInt(formData.project_duration_months, 10) || 6,
+        project_timeline_active: formData.project_timeline_active, // NEU
       };
       
       if (!isSuperAdmin || user.role !== 'ADMIN') {
@@ -163,6 +187,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
         favicon_url: updatedUser.favicon_url || '',
         project_start_date: formatDateForInput(updatedUser.project_start_date),
         project_duration_months: String(updatedUser.project_duration_months || 6),
+        project_timeline_active: Boolean(updatedUser.project_timeline_active), // KORREKTUR: Explizit als Boolean casten
       });
       setPassword('');
       setMessage('');
@@ -191,17 +216,16 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
         {/* --- E-Mail --- */}
         <div>
           <label className="block text-sm font-medium text-gray-700">E-Mail *</label>
-          {/* ✅ Wrapper für Icon */}
           <div className="relative mt-1">
             <input
               type="email"
+              name="email" // WICHTIG
               value={formData.email}
-              onChange={(e) => handleInputChange('email', e.target.value)}
+              onChange={handleInputChange} 
               required
               className="block w-full px-3 py-2 pr-10 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
               disabled={isSubmitting}
             />
-            {/* ✅ Grünes Häkchen */}
             {formData.email && !isSubmitting && (
               <CheckCircle 
                 className="absolute top-1/2 right-3 -translate-y-1/2 text-green-500" 
@@ -211,7 +235,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
           </div>
         </div>
 
-        {/* --- Passwort (Kein Häkchen hier) --- */}
+        {/* --- Passwort --- */}
         <div>
           <label className="block text-sm font-medium text-gray-700">
             Passwort (Optional - leer lassen um nicht zu ändern)
@@ -229,18 +253,17 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
         {/* --- Mandant-ID --- */}
         <div className="border-t pt-4 mt-4">
           <label className="block text-sm font-medium text-gray-700">Mandant-ID (Label)</label>
-          {/* ✅ Wrapper für Icon */}
           <div className="relative mt-1">
             <input
               type="text"
+              name="mandantId" // WICHTIG
               value={formData.mandantId}
-              onChange={(e) => handleInputChange('mandantId', e.target.value)}
+              onChange={handleInputChange} 
               placeholder="z.B. max-online"
               className="block w-full px-3 py-2 pr-10 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
               disabled={isSubmitting || !isSuperAdmin}
               readOnly={!isSuperAdmin}
             />
-            {/* ✅ Grünes Häkchen */}
             {formData.mandantId && !isSubmitting && isSuperAdmin && (
               <CheckCircle 
                 className="absolute top-1/2 right-3 -translate-y-1/2 text-green-500" 
@@ -256,18 +279,17 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
             <label className="block text-sm font-medium text-gray-700">
               Admin-Berechtigungen (kommagetrennt)
             </label>
-            {/* ✅ Wrapper für Icon */}
             <div className="relative mt-1">
               <input
                 type="text"
+                name="permissions" // WICHTIG
                 value={formData.permissions}
-                onChange={(e) => handleInputChange('permissions', e.target.value)}
+                onChange={handleInputChange} 
                 placeholder={isSuperAdmin ? "z.B. kann_admins_verwalten" : "Nur von Superadmin editierbar"}
                 className="block w-full px-3 py-2 pr-10 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
                 disabled={isSubmitting || !isSuperAdmin}
                 readOnly={!isSuperAdmin}
               />
-              {/* ✅ Grünes Häkchen */}
               {formData.permissions && !isSubmitting && (
                 <CheckCircle 
                   className="absolute top-1/2 right-3 -translate-y-1/2 text-green-500" 
@@ -287,60 +309,92 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
             {/* --- Projekt-Timeline --- */}
             <fieldset className="border-t pt-4 mt-4">
               <legend className="text-sm font-medium text-gray-700 mb-2">Projekt-Timeline</legend>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                
-                {/* Startdatum */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 flex items-center gap-1">
-                    <CalendarEvent size={14} /> Projekt-Startdatum
-                  </label>
-                  {/* ✅ Wrapper für Icon (wichtig bei type="date") */}
-                  <div className="relative mt-1">
-                    <input
-                      type="date"
-                      value={formData.project_start_date}
-                      onChange={(e) => handleInputChange('project_start_date', e.target.value)}
-                      className="block w-full px-3 py-2 pr-10 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                      disabled={isSubmitting}
-                    />
-                    {/* ✅ Grünes Häkchen (pointer-events-none, um Klick auf Kalender-Icon nicht zu blockieren) */}
-                    {formData.project_start_date && !isSubmitting && (
-                      <CheckCircle 
-                        className="absolute top-1/2 right-3 -translate-y-1/2 text-green-500 pointer-events-none" 
-                        size={16}
-                      />
-                    )}
-                  </div>
-                </div>
-
-                {/* Dauer */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 flex items-center gap-1">
-                    <ClockHistory size={14} /> Projektdauer (Monate)
-                  </label>
-                  {/* ✅ Wrapper für Icon (wichtig bei <select>) */}
-                  <div className="relative mt-1">
-                    <select
-                      value={formData.project_duration_months}
-                      onChange={(e) => handleInputChange('project_duration_months', e.target.value)}
-                      className="block w-full px-3 py-2 pr-10 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                      disabled={isSubmitting}
-                    >
-                      <option value="6">6 Monate</option>
-                      <option value="12">12 Monate</option>
-                      <option value="18">18 Monate</option>
-                      <option value="24">24 Monate</option>
-                    </select>
-                    {/* ✅ Grünes Häkchen (pointer-events-none, um Klick auf Dropdown-Pfeil nicht zu blockieren) */}
-                    {formData.project_duration_months && !isSubmitting && (
-                      <CheckCircle 
-                        className="absolute top-1/2 right-3 -translate-y-1/2 text-green-500 pointer-events-none" 
-                        size={16}
-                      />
-                    )}
-                  </div>
-                </div>
+              
+              {/* HIER IST DIE NEUE CHECKBOX */}
+              <div className="mb-4">
+                <label 
+                  htmlFor="project_timeline_active" 
+                  className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    id="project_timeline_active"
+                    name="project_timeline_active" // WICHTIG
+                    checked={formData.project_timeline_active}
+                    onChange={(e) => {
+                      console.log('[EditUserForm] Checkbox onChange - checked:', e.target.checked);
+                      handleInputChange(e);
+                    }}
+                    disabled={isSubmitting}
+                    className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                  />
+                  {formData.project_timeline_active ? (
+                    <ToggleOn size={20} className="text-green-500" />
+                  ) : (
+                    <ToggleOff size={20} className="text-gray-400" />
+                  )}
+                  Projekt-Timeline Widget auf Dashboard anzeigen
+                  {/* DEBUG INFO */}
+                  <span className="text-xs text-gray-400 ml-2">
+                    (State: {String(formData.project_timeline_active)})
+                  </span>
+                </label>
               </div>
+
+              {/* Startdatum & Dauer (nur sichtbar wenn Timeline aktiv ist) */}
+              {formData.project_timeline_active && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Startdatum */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 flex items-center gap-1">
+                      <CalendarEvent size={14} /> Projekt-Startdatum
+                    </label>
+                    <div className="relative mt-1">
+                      <input
+                        type="date"
+                        name="project_start_date" // WICHTIG
+                        value={formData.project_start_date}
+                        onChange={handleInputChange} 
+                        className="block w-full px-3 py-2 pr-10 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                        disabled={isSubmitting}
+                      />
+                      {formData.project_start_date && !isSubmitting && (
+                        <CheckCircle 
+                          className="absolute top-1/2 right-3 -translate-y-1/2 text-green-500 pointer-events-none" 
+                          size={16}
+                        />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Dauer */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 flex items-center gap-1">
+                      <ClockHistory size={14} /> Projektdauer (Monate)
+                    </label>
+                    <div className="relative mt-1">
+                      <select
+                        name="project_duration_months" // WICHTIG
+                        value={formData.project_duration_months}
+                        onChange={handleInputChange} 
+                        className="block w-full px-3 py-2 pr-10 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                        disabled={isSubmitting}
+                      >
+                        <option value="6">6 Monate</option>
+                        <option value="12">12 Monate</option>
+                        <option value="18">18 Monate</option>
+                        <option value="24">24 Monate</option>
+                      </select>
+                      {formData.project_duration_months && !isSubmitting && (
+                        <CheckCircle 
+                          className="absolute top-1/2 right-3 -translate-y-1/2 text-green-500 pointer-events-none" 
+                          size={16}
+                        />
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </fieldset>
 
             {/* --- Konfiguration --- */}
@@ -353,8 +407,9 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
                 <div className="relative mt-1">
                   <input
                     type="text"
+                    name="domain" // WICHTIG
                     value={formData.domain}
-                    onChange={(e) => handleInputChange('domain', e.target.value)}
+                    onChange={handleInputChange} 
                     placeholder="z.B. www.kundendomain.at"
                     className="block w-full px-3 py-2 pr-10 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
                     disabled={isSubmitting}
@@ -374,8 +429,9 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
                 <div className="relative mt-1">
                   <input
                     type="text"
+                    name="favicon_url" // WICHTIG
                     value={formData.favicon_url}
-                    onChange={(e) => handleInputChange('favicon_url', e.target.value)}
+                    onChange={handleInputChange} 
                     placeholder="Optional: https://example.com/favicon.png"
                     className="block w-full px-3 py-2 pr-10 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
                     disabled={isSubmitting}
@@ -395,8 +451,9 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
                 <div className="relative mt-1">
                   <input
                     type="text"
+                    name="gscSiteUrl" // WICHTIG
                     value={formData.gscSiteUrl}
-                    onChange={(e) => handleInputChange('gscSiteUrl', e.target.value)}
+                    onChange={handleInputChange} 
                     placeholder="z.B. sc-domain:kundendomain.at"
                     className="block w-full px-3 py-2 pr-10 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
                     disabled={isSubmitting}
@@ -416,8 +473,9 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
                 <div className="relative mt-1">
                   <input
                     type="text"
+                    name="ga4PropertyId" // WICHTIG
                     value={formData.ga4PropertyId}
-                    onChange={(e) => handleInputChange('ga4PropertyId', e.target.value)}
+                    onChange={handleInputChange} 
                     placeholder="z.B. 123456789"
                     className="block w-full px-3 py-2 pr-10 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
                     disabled={isSubmitting}
@@ -444,8 +502,9 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
                 <div className="relative mt-1">
                   <input
                     type="text"
+                    name="semrushProjectId" // WICHTIG
                     value={formData.semrushProjectId}
-                    onChange={(e) => handleInputChange('semrushProjectId', e.target.value)}
+                    onChange={handleInputChange} 
                     placeholder="z.B. 12920575"
                     className="block w-full px-3 py-2 pr-10 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
                     disabled={isSubmitting}
@@ -467,8 +526,9 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
                 <div className="relative mt-1">
                   <input
                     type="text"
+                    name="semrushTrackingId" // WICHTIG
                     value={formData.semrushTrackingId}
-                    onChange={(e) => handleInputChange('semrushTrackingId', e.target.value)}
+                    onChange={handleInputChange} 
                     placeholder="z.B. 1209408"
                     className="block w-full px-3 py-2 pr-10 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
                     disabled={isSubmitting}
@@ -490,8 +550,9 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
                 <div className="relative mt-1">
                   <input
                     type="text"
+                    name="semrushTrackingId02" // WICHTIG
                     value={formData.semrushTrackingId02}
-                    onChange={(e) => handleInputChange('semrushTrackingId02', e.target.value)}
+                    onChange={handleInputChange} 
                     placeholder="z.B. 1209491"
                     className="block w-full px-3 py-2 pr-10 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
                     disabled={isSubmitting}

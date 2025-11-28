@@ -1,8 +1,7 @@
 // src/app/api/notifications/route.ts
 
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { auth } from '@/lib/auth'; // KORRIGIERT: Import von auth
 import { sql } from '@vercel/postgres';
 import { unstable_noStore as noStore } from 'next/cache'; // Importiere noStore
 
@@ -21,7 +20,7 @@ export async function GET() {
   noStore(); 
   
   try {
-    const session = await getServerSession(authOptions);
+    const session = await auth(); // KORRIGIERT: auth() aufgerufen
     
     if (!session?.user?.id) {
       return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
@@ -67,7 +66,7 @@ export async function GET() {
 // PUT: Benachrichtigung als gelesen markieren
 export async function PUT(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await auth(); // KORRIGIERT: auth() aufgerufen
     
     if (!session?.user?.id) {
       return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
@@ -118,7 +117,7 @@ export async function PUT(request: Request) {
 // DELETE: Benachrichtigung löschen
 export async function DELETE(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await auth(); // KORRIGIERT: auth() aufgerufen
     
     if (!session?.user?.id) {
       return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });

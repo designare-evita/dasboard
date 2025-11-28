@@ -1,26 +1,26 @@
 // src/app/api/landingpages/[id]/status/route.ts
+// KORRIGIERT: Mit E-Mail Debounce-Logik
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { auth } from '@/lib/auth';
 import { sql } from '@vercel/postgres';
-import * as Brevo from '@getbrevo/brevo'; // NEU: Brevo importieren
+import * as Brevo from '@getbrevo/brevo'; 
 
-// NEU: Brevo API-Client initialisieren
 const apiInstance = new Brevo.TransactionalEmailsApi();
 
-// NEU (KORRIGIERT): API-Key über die setApiKey-Methode setzen
 apiInstance.setApiKey(
   Brevo.TransactionalEmailsApiApiKeys.apiKey,
-  process.env.BREVO_API_KEY || '' // API Key aus Umgebungsvariablen laden
+  process.env.BREVO_API_KEY || ''
 );
 
-// NEU: System-E-Mail-Adresse für den Absender laden
-const systemEmail = process.env.BREVO_SYSTEM_EMAIL || 'status@datapeak.at'; // Passe die Fallback-Adresse an
+const systemEmail = process.env.BREVO_SYSTEM_EMAIL || 'status@datapeak.at';
+
+// +++ NEU: Cooldown-Periode in Minuten +++
+const NOTIFICATION_COOLDOWN_MINUTES = 30;
 
 type StatusType = 'Offen' | 'In Prüfung' | 'Gesperrt' | 'Freigegeben';
 
-// Hilfsfunktion: Benachrichtigung erstellen
+// (Hilfsfunktion createNotification bleibt unverändert)
 async function createNotification(
   userId: string,
   message: string,
@@ -45,7 +45,7 @@ export async function PUT(
 ) {
   try {
     const { id: landingpageId } = await params;
-    const session = await getServerSession(authOptions);
+    const session = await auth();
 
     if (!session?.user?.email) {
       return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
@@ -58,22 +58,19 @@ export async function PUT(
     console.log('[Status Update] Landingpage ID:', landingpageId);
     console.log('[Status Update] Neuer Status:', newStatus);
 
-    // Validierung: Status muss einer der erlaubten Werte sein
     const validStatuses: StatusType[] = ['Offen', 'In Prüfung', 'Gesperrt', 'Freigegeben'];
     if (!validStatuses.includes(newStatus)) {
-      return NextResponse.json({
-        message: 'Ungültiger Status',
-        validStatuses
-      }, { status: 400 });
+      return NextResponse.json({ message: 'Ungültiger Status' }, { status: 400 });
     }
 
-    // Lade die Landingpage mit User-Info
+    // Lade die Landingpage mit User-Info (inkl. last_admin_notification_sent)
     const { rows: landingpages } = await sql`
       SELECT
         lp.*,
-        u.id as user_id, -- Sicherstellen, dass user_id als UUID verfügbar ist
+        u.id as user_id,
         u.email as user_email,
-        u.domain as user_domain
+        u.domain as user_domain,
+        u.last_admin_notification_sent -- +++ NEU: Zeitstempel laden +++
       FROM landingpages lp
       INNER JOIN users u ON lp.user_id = u.id
       WHERE lp.id = ${landingpageId};
@@ -85,62 +82,50 @@ export async function PUT(
 
     const landingpage = landingpages[0];
     const oldStatus = landingpage.status;
+    const customerUserId = landingpage.user_id; // ID des Kunden, dem die LP gehört
 
     console.log('[Status Update] Alter Status:', oldStatus);
     console.log('[Status Update] Landingpage gehört zu:', landingpage.user_email);
 
-    // Berechtigungsprüfung
+    // Berechtigungsprüfung (bleibt gleich)
     const isAdmin = session.user.role === 'ADMIN' || session.user.role === 'SUPERADMIN';
-    const isOwner = session.user.id === landingpage.user_id;
-    const currentUser = session.user; // Aktuellen Benutzer für Logging und E-Mail speichern
+    const isOwner = session.user.id === customerUserId;
+    const currentUser = session.user;
 
-    // BENUTZER darf nur zwischen Freigegeben und Gesperrt wechseln
     if (session.user.role === 'BENUTZER') {
       if (!isOwner) {
-        return NextResponse.json({
-          message: 'Sie dürfen nur Ihre eigenen Landingpages bearbeiten'
-        }, { status: 403 });
+        return NextResponse.json({ message: 'Sie dürfen nur Ihre eigenen Landingpages bearbeiten' }, { status: 403 });
       }
-
-      // BENUTZER darf nur Freigegeben/Gesperrt ändern
       if (newStatus !== 'Freigegeben' && newStatus !== 'Gesperrt') {
-        return NextResponse.json({
-          message: 'Sie dürfen nur zwischen "Freigegeben" und "Gesperrt" wechseln'
-        }, { status: 403 });
+        return NextResponse.json({ message: 'Sie dürfen nur zwischen "Freigegeben" und "Gesperrt" wechseln' }, { status: 403 });
       }
     }
 
-    // ADMIN/SUPERADMIN: Prüfe Zugriff auf Projekt
     if (isAdmin) {
       if (session.user.role === 'ADMIN') {
-        // Prüfe, ob der Admin Zugriff auf dieses Projekt hat
         const { rows: accessCheck } = await sql`
           SELECT 1
           FROM project_assignments
           WHERE user_id::text = ${session.user.id}
-          AND project_id::text = ${landingpage.user_id};
+          AND project_id::text = ${customerUserId};
         `;
-
-        // Nur ADMINs (nicht SUPERADMINs) müssen Projektzugriff haben
         if (accessCheck.length === 0) {
-          return NextResponse.json({
-            message: 'Sie haben keinen Zugriff auf dieses Projekt'
-          }, { status: 403 });
+          return NextResponse.json({ message: 'Sie haben keinen Zugriff auf dieses Projekt' }, { status: 403 });
         }
       }
-      // SUPERADMIN hat automatisch Zugriff auf alle Projekte
     }
 
     // Status-Update durchführen
     await sql`
       UPDATE landingpages
-      SET status = ${newStatus}
+      SET 
+        status = ${newStatus},
+        updated_at = NOW() -- ✅ NEU
       WHERE id = ${landingpageId};
     `;
-
     console.log('✅ Status erfolgreich aktualisiert');
 
-    // === Log-Eintrag erstellen ===
+    // === Log-Eintrag erstellen (bleibt gleich) ===
     try {
       let actionPerformer = '';
       if (isAdmin) {
@@ -148,11 +133,9 @@ export async function PUT(
       } else if (isOwner) {
         actionPerformer = `Kunde (${currentUser.email})`;
       } else {
-        actionPerformer = `System (${currentUser.email})`; // Fallback
+        actionPerformer = `System (${currentUser.email})`;
       }
-
       const actionDescription = `Status von "${oldStatus}" auf "${newStatus}" geändert durch ${actionPerformer}`;
-
       await sql`
         INSERT INTO landingpage_logs (landingpage_id, user_id, user_email, action)
         VALUES (${landingpageId}, ${currentUser.id}::uuid, ${currentUser.email}, ${actionDescription});
@@ -160,30 +143,22 @@ export async function PUT(
       console.log('✅ Log-Eintrag erstellt für Landingpage:', landingpageId);
     } catch (logError) {
       console.error('❌ Fehler beim Erstellen des Log-Eintrags:', logError);
-      // Fahre trotzdem fort, das Logging ist sekundär
     }
-    // === ENDE: Log-Eintrag erstellen ===
 
-    // Benachrichtigungen erstellen
+    // === Benachrichtigungen erstellen (Logik angepasst) ===
     const pageUrl = new URL(landingpage.url).pathname;
 
-    // 1. Benachrichtigung an den Kunden (wenn Admin den Status ändert)
+    // 1. Benachrichtigung an den Kunden (wenn Admin ändert - bleibt gleich)
     if (isAdmin && oldStatus !== newStatus) {
       let customerMessage = '';
-
-      if (newStatus === 'In Prüfung') {
-        customerMessage = `Ihre Landingpage "${pageUrl}" wartet auf Ihre Freigabe.`;
-      } else if (newStatus === 'Offen') {
-        customerMessage = `Ihre Landingpage "${pageUrl}" wurde auf "Offen" gesetzt.`;
-      } else if (newStatus === 'Freigegeben') {
-        customerMessage = `Ihre Landingpage "${pageUrl}" wurde vom Admin freigegeben.`;
-      } else if (newStatus === 'Gesperrt') {
-        customerMessage = `Ihre Landingpage "${pageUrl}" wurde vom Admin gesperrt.`;
-      }
+      if (newStatus === 'In Prüfung') customerMessage = `Ihre Landingpage "${pageUrl}" wartet auf Ihre Freigabe.`;
+      else if (newStatus === 'Offen') customerMessage = `Ihre Landingpage "${pageUrl}" wurde auf "Offen" gesetzt.`;
+      else if (newStatus === 'Freigegeben') customerMessage = `Ihre Landingpage "${pageUrl}" wurde vom Admin freigegeben.`;
+      else if (newStatus === 'Gesperrt') customerMessage = `Ihre Landingpage "${pageUrl}" wurde vom Admin gesperrt.`;
 
       if (customerMessage) {
         await createNotification(
-          landingpage.user_id,
+          customerUserId,
           customerMessage,
           newStatus === 'Freigegeben' ? 'success' : newStatus === 'Gesperrt' ? 'warning' : 'info',
           parseInt(landingpageId)
@@ -191,78 +166,81 @@ export async function PUT(
       }
     }
 
-    // 2. Benachrichtigung an Admins (wenn Kunde den Status ändert) + *** E-MAIL VERSAND ***
+    // 2. Benachrichtigung an Admins (wenn Kunde ändert - *** MIT DEBOUNCE ***)
     if (isOwner && !isAdmin && oldStatus !== newStatus) {
-      // Finde alle Admins, die Zugriff auf dieses Projekt haben
+      
+      // +++ START: Debounce-Prüfung +++
+      const lastSentTime = landingpage.last_admin_notification_sent ? new Date(landingpage.last_admin_notification_sent).getTime() : 0;
+      const now = new Date().getTime();
+      const timeSinceLastEmail = (now - lastSentTime) / (1000 * 60); // in Minuten
+
+      let shouldSendEmail = true;
+      if (timeSinceLastEmail < NOTIFICATION_COOLDOWN_MINUTES) {
+        shouldSendEmail = false;
+        console.log(`[Debounce] E-Mail für Kunde ${customerUserId} zurückgehalten. Letzter Versand vor ${timeSinceLastEmail.toFixed(1)} Min.`);
+      } else {
+        console.log(`[Debounce] E-Mail für Kunde ${customerUserId} wird gesendet. (Letzter Versand: ${lastSentTime === 0 ? 'Nie' : timeSinceLastEmail.toFixed(1) + ' Min. her'})`);
+      }
+      // +++ ENDE: Debounce-Prüfung +++
+
+      // Finde alle Admins (bleibt gleich)
       const { rows: admins } = await sql`
         SELECT DISTINCT u.id, u.email
         FROM users u
         INNER JOIN project_assignments pa ON u.id = pa.user_id
-        WHERE pa.project_id::text = ${landingpage.user_id}
+        WHERE pa.project_id::text = ${customerUserId}
         AND u.role = 'ADMIN';
       `;
-
-      // Benachrichtige auch den Superadmin
       const { rows: superadmins } = await sql`
-        SELECT id, email
-        FROM users
-        WHERE role = 'SUPERADMIN';
+        SELECT id, email FROM users WHERE role = 'SUPERADMIN';
       `;
-
       const allAdmins = [...admins, ...superadmins];
-
-      let adminMessage = ''; // Für interne Benachrichtigung
-      let emailSubject = ''; // NEU: Betreff für E-Mail
-      let emailTextContent = ''; // NEU: Textinhalt für E-Mail
+      
       const customerDomain = landingpage.user_domain || landingpage.user_email;
 
-      if (newStatus === 'Freigegeben') {
-        adminMessage = `Kunde "${customerDomain}" hat die Landingpage "${pageUrl}" freigegeben.`;
-        // NEU: E-Mail-Inhalte definieren
-        emailSubject = `Landingpage Freigegeben: ${customerDomain} (${pageUrl})`;
-        emailTextContent = `Hallo,\n\nder Kunde "${customerDomain}" hat die Landingpage ${landingpage.url} soeben freigegeben.\n\nStatus alt: ${oldStatus}\nStatus neu: ${newStatus}\n\nGesendet von,\nDeinem Data Peak Dashboardd`;
-      } else if (newStatus === 'Gesperrt') {
-        adminMessage = `Kunde "${customerDomain}" hat die Landingpage "${pageUrl}" gesperrt.`;
-        // NEU: E-Mail-Inhalte definieren
-        emailSubject = `Landingpage Gesperrt: ${customerDomain} (${pageUrl})`;
-        emailTextContent = `Hallo,\n\nder Kunde "${customerDomain}" hat die Landingpage ${landingpage.url} soeben gesperrt.\n\nStatus alt: ${oldStatus}\nStatus neu: ${newStatus}\n\nGesendet von,\nDeinem Data Peak Dashboard`;
-      }
+      // +++ KORREKTUR: Generische Nachrichten (nicht mehr Seitenspezifisch) +++
+      const adminMessage = `Kunde "${customerDomain}" hat mit der Freigabe von Landingpages begonnen (z.B. "${pageUrl}" auf "${newStatus}").`;
+      const emailSubject = `Neue Status-Updates von ${customerDomain} gibt Landingpages frei`;
+      const emailTextContent = `Hallo,\n\nDer Kunde "${customerDomain}" hat soeben mit der Freigabe von Landingpages begonnen (z.B. wurde die Seite "${pageUrl}" auf "${newStatus}" gesetzt).\n\nDies ist eine Sammel-Benachrichtigung. Weitere Aktionen dieses Kunden innerhalb der nächsten 30 Minuten werden keine neue E-Mail auslösen.\n\nAlle Details zu den einzelnen Änderungen finden Sie im Redaktionsplan oder in der Benachrichtigungs-Glocke im Dashboard.\n\nGesendet von,\nDeinem Data Peak Dashboard`;
 
-      if (adminMessage && emailSubject) { // Prüfen, ob E-Mail-Inhalt vorhanden ist
-        for (const admin of allAdmins) {
-          // Bestehende interne Benachrichtigung
-          await createNotification(
-            admin.id,
-            adminMessage,
-            newStatus === 'Freigegeben' ? 'success' : 'warning',
-            parseInt(landingpageId)
-          );
+      for (const admin of allAdmins) {
+        // Interne Benachrichtigung wird IMMER erstellt (wichtig!)
+        await createNotification(
+          admin.id,
+          adminMessage, // Generische Nachricht
+          newStatus === 'Freigegeben' ? 'success' : 'warning',
+          parseInt(landingpageId)
+        );
 
-          // *** NEU: E-Mail-Versand über Brevo ***
+        // *** E-Mail-Versand (nur wenn Cooldown abgelaufen ist) ***
+        if (shouldSendEmail) {
           const sendSmtpEmail = new Brevo.SendSmtpEmail();
-          // Sender: Verwende die System-E-Mail aus den Umgebungsvariablen
           sendSmtpEmail.sender = { email: systemEmail, name: 'Projekt-Updates' }; 
-          // Empfänger: Der jeweilige Admin
           sendSmtpEmail.to = [{ email: admin.email }]; 
-          sendSmtpEmail.subject = emailSubject;
-          sendSmtpEmail.textContent = emailTextContent;
-          // Optional: HTML-Inhalt hinzufügen für schönere E-Mails
-          // sendSmtpEmail.htmlContent = `<html><body><p>${emailTextContent.replace(/\n/g, '<br>')}</p></body></html>`;
+          sendSmtpEmail.subject = emailSubject; // Generischer Betreff
+          sendSmtpEmail.textContent = emailTextContent; // Generischer Inhalt
 
           try {
             await apiInstance.sendTransacEmail(sendSmtpEmail);
-            console.log(`✅ E-Mail gesendet an Admin: ${admin.email} für Landingpage ${landingpageId}`);
+            console.log(`✅ E-Mail gesendet an Admin: ${admin.email} (für Kunde ${customerUserId})`);
           } catch (emailError) {
             console.error(`❌ Fehler beim Senden der E-Mail an ${admin.email}:`, emailError);
-            // Fehler loggen, aber den Prozess nicht unbedingt abbrechen,
-            // damit interne Benachrichtigungen ggf. noch funktionieren.
           }
-          // *** ENDE: E-Mail-Versand ***
         }
+      } // Ende der Admin-Schleife
+
+      // +++ NEU: Zeitstempel in DB aktualisieren, NACHDEM die Schleife lief +++
+      if (shouldSendEmail && allAdmins.length > 0) {
+        await sql`
+          UPDATE users
+          SET last_admin_notification_sent = NOW()
+          WHERE id::text = ${customerUserId};
+        `;
+        console.log(`[Debounce] Zeitstempel für Kunde ${customerUserId} aktualisiert.`);
       }
     }
 
-    // Erfolgs-Response senden
+    // Erfolgs-Response (bleibt gleich)
     return NextResponse.json({
       message: 'Status erfolgreich aktualisiert',
       oldStatus,

@@ -1,14 +1,14 @@
 // src/app/admin/redaktionsplan/page.tsx
 'use client';
 
-import { useState, useEffect, ReactNode, useCallback } from 'react';
+import { useState, useEffect, ReactNode, useCallback, Suspense } from 'react';
 import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import type { User } from '@/types';
 import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector';
 import { cn } from '@/lib/utils'; 
 
-// Icons importieren
+// Icons
 import {
   FileEarmarkText,
   Search,
@@ -23,86 +23,72 @@ import {
   Trash,
   ArrowUp,
   ArrowDown,
+  CalendarEvent, 
+  ClockHistory,
+  ChatSquareText,
+  EnvelopeCheck // NEU: Icon für Email-Bestätigung
 } from 'react-bootstrap-icons';
 
-// Typdefinition für Landingpage (AKTUALISIERT)
+// Typdefinition
 type Landingpage = {
   id: number;
   url: string;
   haupt_keyword: string | null;
   weitere_keywords: string | null;
   status: 'Offen' | 'In Prüfung' | 'Gesperrt' | 'Freigegeben';
+  comment: string | null;
   user_id: string;
   created_at: string;
+  updated_at?: string;
   
-  // NEUE GSC-Felder (Typen an DB-Rückgabe angepasst)
   gsc_klicks: number | null;
   gsc_klicks_change: number | null;
   gsc_impressionen: number | null;
   gsc_impressionen_change: number | null;
-  gsc_position: number | string | null; // Kann als String (Decimal) kommen
-  gsc_position_change: number | string | null; // Kann als String (Decimal) kommen
+  gsc_position: number | string | null;
+  gsc_position_change: number | string | null;
   gsc_last_updated: string | null;
   gsc_last_range: string | null;
 };
 
-// Typdefinition für erlaubte Statuswerte
 type LandingpageStatus = Landingpage['status'];
 
-// NEU: Helper-Komponente für GSC-Vergleichswerte (KORRIGIERT)
-const GscChangeIndicator = ({ change, isPosition = false }: { 
-  change: number | string | null | undefined, 
-  isPosition?: boolean 
-}) => {
+// Helper für GSC Indicators
+const GscChangeIndicator = ({ change, isPosition = false }: { change: number | string | null | undefined, isPosition?: boolean }) => {
+  const numChange = (change === null || change === undefined || change === '') ? 0 : parseFloat(String(change));
+  if (numChange === 0) return null;
   
-  // KORREKTUR: Explizite Konvertierung zu einer Zahl
-  const numChange = (change === null || change === undefined || change === '') 
-    ? 0 
-    : parseFloat(String(change));
-
-  if (numChange === 0) {
-    return null;
-  }
+  let isPositive = isPosition ? numChange < 0 : numChange > 0;
   
-  let isPositive: boolean;
-  // Bei Position ist eine negative Veränderung (z.B. -1.5) GUT
-  if (isPosition) {
-    isPositive = numChange < 0; 
-  } else {
-    // Bei Klicks/Impressions ist eine positive Veränderung GUT
-    isPositive = numChange > 0;
-  }
+  let text = isPosition 
+    ? (numChange > 0 ? `+${numChange.toFixed(2)}` : numChange.toFixed(2)) 
+    : (numChange > 0 ? `+${numChange.toLocaleString('de-DE')}` : numChange.toLocaleString('de-DE'));
   
-  // Formatierung der Zahl
-  let text: string;
-  if (isPosition) {
-    // Positionen immer mit Vorzeichen und 2 Nachkommastellen
-    text = (numChange > 0 ? `+${numChange.toFixed(2)}` : numChange.toFixed(2));
-  } else {
-    // Klicks/Impressions als ganze Zahl mit Vorzeichen
-    text = (numChange > 0 ? `+${numChange.toLocaleString('de-DE')}` : numChange.toLocaleString('de-DE'));
-  }
-  
-  const colorClasses = isPositive 
-    ? 'text-green-700 bg-green-100' 
-    : 'text-red-700 bg-red-100';
+  const colorClasses = isPositive ? 'text-green-700 bg-green-100' : 'text-red-700 bg-red-100';
   const Icon = isPositive ? ArrowUp : ArrowDown;
 
   return (
-    <span className={cn('ml-2 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-bold', colorClasses)}>
-      <Icon size={12} />
+    <span className={cn('inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-[4px] text-[10px] font-bold tracking-wide', colorClasses)}>
+      <Icon size={9} />
       {text}
     </span>
   );
 };
 
+const formatDateOnly = (dateString?: string | null) => {
+  if (!dateString) return '-';
+  return new Date(dateString).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+};
 
-export default function RedaktionsplanPage() {
+// Interne Komponente
+function RedaktionsplanContent() {
   const { data: session, status: authStatus } = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialProjectId = searchParams.get('id');
 
   const [projects, setProjects] = useState<User[]>([]);
-  const [selectedProject, setSelectedProject] = useState<string>('');
+  const [selectedProject, setSelectedProject] = useState<string>(initialProjectId || '');
   const [landingpages, setLandingpages] = useState<Landingpage[]>([]);
   const [filteredPages, setFilteredPages] = useState<Landingpage[]>([]);
   const [filterStatus, setFilterStatus] = useState<LandingpageStatus | 'alle'>('alle');
@@ -110,89 +96,55 @@ export default function RedaktionsplanPage() {
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
   const [message, setMessage] = useState('');
   
+  const [savedCommentId, setSavedCommentId] = useState<number | null>(null);
+  
   const [dateRange, setDateRange] = useState<DateRangeOption>('30d');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Projekte laden (für Admin/Superadmin)
   useEffect(() => {
-    if (authStatus === 'authenticated') {
-      loadProjects();
-    }
+    if (authStatus === 'authenticated') loadProjects();
   }, [authStatus]);
 
-  // loadLandingpages mit useCallback
   const loadLandingpages = useCallback(async (userId: string) => {
     setIsLoading(true);
     setMessage('');
-    
-    console.log('[Redaktionsplan] Lade Landingpages für User:', userId);
-    
     try {
       const response = await fetch(`/api/users/${userId}/landingpages`);
-      
-      console.log('[Redaktionsplan] Response Status:', response.status);
-      
-      if (!response.ok) {
-         const errorData = await response.json().catch(() => ({}));
-         console.error('[Redaktionsplan] Fehler-Response:', errorData);
-         throw new Error(errorData.message || 'Fehler beim Laden der Landingpages');
-      }
-      
+      if (!response.ok) throw new Error('Fehler beim Laden');
       const data: Landingpage[] = await response.json();
-      console.log('[Redaktionsplan] Landingpages geladen:', data.length, 'Einträge');
-      
       setLandingpages(data);
     } catch (error) {
-      console.error('[Redaktionsplan] Fehler:', error);
-      setMessage(error instanceof Error ? error.message : 'Unbekannter Fehler beim Laden');
+      setMessage(error instanceof Error ? error.message : 'Fehler');
       setLandingpages([]);
     } finally {
       setIsLoading(false);
     }
-  }, []); // Keine Abhängigkeiten
+  }, []);
 
-  // Landingpages laden, wenn Projekt ausgewählt wird
   useEffect(() => {
-    if (selectedProject) {
-      loadLandingpages(selectedProject);
-    } else {
-      setLandingpages([]);
-      setFilteredPages([]);
-    }
+    if (selectedProject) loadLandingpages(selectedProject);
+    else { setLandingpages([]); setFilteredPages([]); }
     setFilterStatus('alle');
   }, [selectedProject, loadLandingpages]);
 
-  // Filter anwenden, wenn sich Filter oder Landingpages ändern
   useEffect(() => {
-    if (filterStatus === 'alle') {
-      setFilteredPages(landingpages);
-    } else {
-      setFilteredPages(landingpages.filter(lp => lp.status === filterStatus));
-    }
+    setFilteredPages(filterStatus === 'alle' ? landingpages : landingpages.filter(lp => lp.status === filterStatus));
   }, [filterStatus, landingpages]);
 
-  // Funktion zum Laden der Projekte (Kunden)
   const loadProjects = async () => {
     setIsLoadingProjects(true);
     try {
       const response = await fetch('/api/users?onlyCustomers=true');
-      if (!response.ok) throw new Error('Fehler beim Laden der Projekte');
+      if (!response.ok) throw new Error('Fehler');
       const data: User[] = await response.json();
       setProjects(data);
-    } catch (error) {
-      console.error('Fehler beim Laden der Projekte:', error);
-      setMessage('Fehler beim Laden der Projekte');
-    } finally {
-      setIsLoadingProjects(false);
-    }
+    } catch (error) { setMessage('Fehler beim Laden der Projekte'); } finally { setIsLoadingProjects(false); }
   };
 
-  // Funktion zum Aktualisieren des Status einer Landingpage
   const updateStatus = async (landingpageId: number, newStatus: LandingpageStatus) => {
+    const now = new Date().toISOString();
     const originalLandingpages = [...landingpages];
-    setLandingpages(prev =>
-        prev.map(lp => lp.id === landingpageId ? { ...lp, status: newStatus } : lp)
-    );
+    setLandingpages(prev => prev.map(lp => lp.id === landingpageId ? { ...lp, status: newStatus, updated_at: now } : lp));
 
     try {
       const response = await fetch(`/api/landingpages/${landingpageId}/status`, {
@@ -200,84 +152,65 @@ export default function RedaktionsplanPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus })
       });
-
-      if (!response.ok) {
-        setLandingpages(originalLandingpages);
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || 'Status-Update fehlgeschlagen');
-      }
-
-      setMessage(`Status erfolgreich auf "${newStatus}" geändert`);
+      if (!response.ok) throw new Error('Update fehlgeschlagen');
+      setMessage(`Status geändert`);
       setTimeout(() => setMessage(''), 3000);
-
     } catch (error) {
       setLandingpages(originalLandingpages);
-      console.error('Fehler beim Status-Update:', error);
-      setMessage(error instanceof Error ? error.message : 'Fehler beim Ändern des Status');
+      setMessage('Fehler beim Ändern des Status');
     }
   };
 
-  // Funktion zum Löschen einer Landingpage
-  const deleteLandingpage = async (landingpageId: number, landingpageUrl: string) => {
-    if (!window.confirm(`Möchten Sie diese Landingpage wirklich löschen?\n\n${landingpageUrl}\n\nDiese Aktion kann nicht rückgängig gemacht werden!`)) {
-      return;
-    }
-    setMessage('Lösche Landingpage...');
+  const saveComment = async (landingpageId: number, newComment: string) => {
     try {
+      setLandingpages(prev => prev.map(lp => lp.id === landingpageId ? { ...lp, comment: newComment } : lp));
+      
       const response = await fetch(`/api/landingpages/${landingpageId}`, {
-        method: 'DELETE'
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ comment: newComment })
       });
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || 'Löschen fehlgeschlagen');
-      }
-      setLandingpages(prev => prev.filter(lp => lp.id !== landingpageId));
-      setMessage('✅ Landingpage erfolgreich gelöscht');
-      setTimeout(() => setMessage(''), 3000);
+
+      if (!response.ok) throw new Error('Kommentar konnte nicht gespeichert werden');
+      
+      // ✅ LÄNGERE DAUER (60 Sekunden) & Feedback
+      setSavedCommentId(landingpageId);
+      setTimeout(() => setSavedCommentId(null), 60000); // 60000ms = 1 Minute
+
     } catch (error) {
-      console.error('Fehler beim Löschen:', error);
-      setMessage(error instanceof Error ? error.message : 'Fehler beim Löschen der Landingpage');
+      console.error(error);
+      setMessage('Fehler beim Speichern des Kommentars');
     }
   };
 
-  // GSC-Daten-Abgleich
+  const deleteLandingpage = async (landingpageId: number, landingpageUrl: string) => {
+    if (!window.confirm(`Wirklich löschen?\n\n${landingpageUrl}`)) return;
+    try {
+      const response = await fetch(`/api/landingpages/${landingpageId}`, { method: 'DELETE' });
+      if (!response.ok) throw new Error('Löschen fehlgeschlagen');
+      setLandingpages(prev => prev.filter(lp => lp.id !== landingpageId));
+      setMessage('✅ Gelöscht');
+      setTimeout(() => setMessage(''), 3000);
+    } catch (error) { setMessage('Fehler beim Löschen'); }
+  };
+
   const handleGscRefresh = async () => {
-    if (!selectedProject) {
-      setMessage("Bitte zuerst ein Projekt auswählen.");
-      return;
-    }
-    
+    if (!selectedProject) return;
     setIsRefreshing(true);
-    setMessage(`Starte GSC-Abgleich für Zeitraum: ${dateRange}...`);
-    
+    setMessage(`GSC-Abgleich...`);
     try {
       const response = await fetch('/api/landingpages/refresh-gsc', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          projectId: selectedProject,
-          dateRange: dateRange
-        })
+        body: JSON.stringify({ projectId: selectedProject, dateRange })
       });
-      
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.message || 'GSC-Abgleich fehlgeschlagen');
-      }
-      
-      setMessage(result.message || 'Daten erfolgreich abgeglichen!');
-      // Lade die Tabelle neu, um die frischen GSC-Daten anzuzeigen
+      if (!response.ok) throw new Error('Fehler');
+      setMessage('Daten abgeglichen!');
       await loadLandingpages(selectedProject); 
-      
-    } catch (error) {
-      console.error('Fehler beim GSC-Abgleich:', error);
-      setMessage(error instanceof Error ? `❌ Fehler: ${error.message}` : 'Fehler beim Abgleich');
-    } finally {
-      setIsRefreshing(false);
-    }
+    } catch (error) { setMessage('Fehler beim Abgleich'); } finally { setIsRefreshing(false); }
   };
 
-  // ---- Hilfsfunktionen für die UI ----
+  // Styles
   const getStatusStyle = (status: LandingpageStatus) => {
     switch (status) {
       case 'Offen': return 'text-blue-700 border-blue-300 bg-blue-50';
@@ -287,7 +220,6 @@ export default function RedaktionsplanPage() {
       default: return 'text-gray-700 border-gray-300 bg-gray-50';
     }
   };
-
   const getStatusIcon = (status: LandingpageStatus) => {
     switch (status) {
       case 'Offen': return <FileEarmarkText className="inline-block mr-1" size={16} />;
@@ -297,7 +229,6 @@ export default function RedaktionsplanPage() {
       default: return <InfoCircle className="inline-block mr-1" size={16} />;
     }
   };
-
   const filterOptions: { label: string; value: LandingpageStatus | 'alle'; icon: ReactNode }[] = [
     { label: 'Alle', value: 'alle', icon: <ListTask className="inline-block mr-1" size={16}/> },
     { label: 'Offen', value: 'Offen', icon: <FileEarmarkText className="inline-block mr-1" size={16}/> },
@@ -306,241 +237,149 @@ export default function RedaktionsplanPage() {
     { label: 'Gesperrt', value: 'Gesperrt', icon: <SlashCircleFill className="inline-block mr-1" size={16}/> },
   ];
 
-  // ---- Auth-Check ----
-  if (authStatus === 'loading') {
-    return <div className="p-8 text-center">Lade Sitzung...</div>;
+  if (authStatus === 'loading') return <div className="p-8 text-center">Lade...</div>;
+  if (authStatus === 'unauthenticated' || (session?.user?.role !== 'ADMIN' && session?.user?.role !== 'SUPERADMIN')) {
+    router.push('/'); return null;
   }
 
-  if (authStatus === 'unauthenticated' ||
-      (session?.user?.role !== 'ADMIN' && session?.user?.role !== 'SUPERADMIN')) {
-    router.push('/');
-    return null;
-  }
-
-  // ---- Rendern der Komponente ----
   return (
     <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Header-Bereich */}
+      <div className="max-w-full mx-auto"> 
         <div className="mb-8 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Redaktionsplan</h1>
-            <p className="text-gray-600 mt-2">Verwalten Sie den Status von Landingpages für Ihre Projekte.</p>
+            <h1 className="text-3xl font-bold text-gray-900">Redaktionsplan (Admin)</h1>
+            <p className="text-gray-600 mt-2">Verwalten Sie Landingpages und Anmerkungen.</p>
           </div>
         </div>
 
-        {/* Nachrichtenanzeige */}
         {message && (
-          <div className={`mb-6 p-4 border rounded-md ${message.startsWith('Fehler') || message.startsWith('❌') ? 'bg-red-50 border-red-200 text-red-800' : 'bg-blue-50 border-blue-200 text-blue-800'} flex items-center gap-2`}>
-            {message.startsWith('Fehler') || message.startsWith('❌') ? <ExclamationTriangleFill size={18}/> : <InfoCircleFill size={18}/>}
+          <div className={`mb-6 p-4 border rounded-md ${message.startsWith('Fehler') ? 'bg-red-50 border-red-200 text-red-800' : 'bg-blue-50 border-blue-200 text-blue-800'} flex items-center gap-2`}>
+            {message.startsWith('Fehler') ? <ExclamationTriangleFill size={18}/> : <InfoCircleFill size={18}/>}
             {message}
           </div>
         )}
 
-        {/* Projekt-Auswahl Dropdown */}
         <div className="bg-white p-6 rounded-lg shadow-md mb-6">
-          <label htmlFor="projectSelect" className="block text-sm font-semibold text-gray-700 mb-2">
-            Projekt auswählen
-          </label>
+          <label htmlFor="projectSelect" className="block text-sm font-semibold text-gray-700 mb-2">Projekt auswählen</label>
           <select
             id="projectSelect"
             value={selectedProject}
             onChange={(e) => setSelectedProject(e.target.value)}
             disabled={isLoadingProjects}
-            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
             <option value="">{isLoadingProjects ? 'Lade Projekte...' : '-- Bitte wählen --'}</option>
-            {projects.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.domain || project.email}
-              </option>
-            ))}
+            {projects.map((p) => <option key={p.id} value={p.id}>{p.domain || p.email}</option>)}
           </select>
         </div>
 
-        {/* Bereich wird nur angezeigt, wenn ein Projekt ausgewählt wurde */}
         {selectedProject && (
           <>
-            {/* GSC-Abgleich-Box */}
             <div className="bg-white p-6 rounded-lg shadow-md mb-6">
               <h3 className="text-lg font-semibold text-gray-800 mb-4">GSC-Daten Abgleich</h3>
               <div className="flex flex-col sm:flex-row gap-4">
-                <DateRangeSelector
-                  value={dateRange}
-                  onChange={setDateRange}
-                  className="w-full sm:w-auto"
-                />
-                <button
-                  onClick={handleGscRefresh}
-                  disabled={isRefreshing || isLoading}
-                  className="px-4 py-2 font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-wait flex items-center justify-center gap-2 w-full sm:w-auto"
-                >
-                  {isRefreshing ? (
-                    <ArrowRepeat className="animate-spin" size={18} />
-                  ) : (
-                    <Search size={16} />
-                  )}
+                <DateRangeSelector value={dateRange} onChange={setDateRange} className="w-full sm:w-auto" />
+                <button onClick={handleGscRefresh} disabled={isRefreshing || isLoading} className="px-4 py-2 rounded-md text-white bg-indigo-600 hover:bg-indigo-700 flex items-center justify-center gap-2 w-full sm:w-auto disabled:opacity-50">
+                  {isRefreshing ? <ArrowRepeat className="animate-spin" size={18} /> : <Search size={16} />}
                   <span>{isRefreshing ? 'Wird abgeglichen...' : 'GSC-Daten abgleichen'}</span>
                 </button>
               </div>
             </div>
 
-            {/* Filter-Buttons */}
             <div className="bg-white p-4 rounded-lg shadow-md mb-6">
-               <h3 className="text-sm font-semibold text-gray-500 mb-3 flex items-center gap-1">
-                 <Filter size={16}/> Filtern nach Status
-               </h3>
+               <h3 className="text-sm font-semibold text-gray-500 mb-3 flex items-center gap-1"><Filter size={16}/> Filtern nach Status</h3>
                <div className="flex gap-2 flex-wrap">
-                  {filterOptions.map(option => {
-                    const count = option.value === 'alle'
-                        ? landingpages.length
-                        : landingpages.filter(lp => lp.status === option.value).length;
-                    const isActive = filterStatus === option.value;
-                    return (
-                        <button
-                            key={option.value}
-                            onClick={() => setFilterStatus(option.value)}
-                            className={`px-3 py-1.5 text-sm rounded-md font-medium border transition-colors flex items-center gap-1 ${
-                                isActive
-                                ? 'bg-indigo-600 text-white border-indigo-600'
-                                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                            }`}
-                        >
-                            {option.icon} {option.label} ({count})
-                        </button>
-                    );
-                 })}
+                  {filterOptions.map((option: any) => (
+                    <button key={option.value} onClick={() => setFilterStatus(option.value)} className={`px-3 py-1.5 text-sm rounded-md border transition-colors flex items-center gap-1 ${filterStatus === option.value ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}>
+                        {option.icon} {option.label} ({option.value === 'alle' ? landingpages.length : landingpages.filter(lp => lp.status === option.value).length})
+                    </button>
+                 ))}
               </div>
             </div>
 
-            {/* Landingpages-Tabelle (AKTUALISIERT) */}
             {isLoading ? (
-              <div className="text-center py-12">
-                 <ArrowRepeat className="animate-spin inline-block text-indigo-600 mr-2" size={24}/>
-                 <p className="text-gray-600 inline-block">Lade Landingpages...</p>
-              </div>
+              <div className="text-center py-12"><ArrowRepeat className="animate-spin inline-block text-indigo-600 mr-2" size={24}/><p className="text-gray-600 inline-block">Lade Landingpages...</p></div>
             ) : filteredPages.length === 0 ? (
-              <div className="bg-white p-12 rounded-lg shadow-md text-center">
-                 <span className="text-gray-400 text-4xl mb-3 block">📄</span>
-                 <p className="text-gray-500">
-                    {landingpages.length === 0
-                      ? 'Für dieses Projekt sind noch keine Landingpages vorhanden.'
-                      : `Keine Landingpages mit Status "${filterStatus}" gefunden.`}
-                 </p>
-              </div>
+              <div className="bg-white p-12 rounded-lg shadow-md text-center"><p className="text-gray-500">Keine Landingpages gefunden.</p></div>
             ) : (
               <div className="bg-white rounded-lg shadow-md overflow-x-auto">
-                 {/* Min-width erhöht für neue Spalten */}
-                 <table className="w-full min-w-[1200px]">
+                 <table className="w-full min-w-[1400px]">
                    <thead className="bg-gray-50 border-b border-gray-200">
                      <tr>
-                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/3">
-                         URL / Keyword
+                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[20%]">URL / Keyword</th>
+                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><div className="flex items-center gap-1"><CalendarEvent/> Daten</div></th>
+                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">GSC Klicks</th>
+                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">GSC Impr.</th>
+                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">GSC Pos.</th>
+                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[35%]">
+                         <div className="flex items-center gap-1"><ChatSquareText/> Anmerkung</div>
                        </th>
-                       {/* Spalten-Header aktualisiert */}
-                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                         GSC Klicks
-                       </th>
-                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                         GSC Impressionen
-                       </th>
-                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                         GSC Position
-                       </th>
-                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                         Status
-                       </th>
-                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                         Aktionen
-                       </th>
+                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aktionen</th>
                      </tr>
                    </thead>
                    <tbody className="bg-white divide-y divide-gray-200">
                      {filteredPages.map((lp) => (
                        <tr key={lp.id} className="hover:bg-gray-50 transition-colors">
-                         {/* URL/Keyword */}
-                         <td className="px-6 py-4 whitespace-nowrap">
-                           <div className="text-sm font-medium text-gray-900 truncate" title={lp.haupt_keyword || undefined}>
-                             {lp.haupt_keyword || <span className="text-gray-400 italic">Kein Keyword</span>}
-                           </div>
-                           <a
-                             href={lp.url}
-                             target="_blank"
-                             rel="noopener noreferrer"
-                             className="text-indigo-600 hover:text-indigo-800 text-xs truncate block"
-                             title={lp.url}
-                           >
-                             {lp.url}
-                           </a>
+                         {/* (Spalten 1-6 bleiben gleich) */}
+                         <td className="px-6 py-4 whitespace-nowrap align-top">
+                           <div className="text-sm font-medium text-gray-900 truncate" title={lp.haupt_keyword || undefined}>{lp.haupt_keyword || <span className="text-gray-400 italic">Kein Keyword</span>}</div>
+                           <a href={lp.url} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-800 text-xs truncate block" title={lp.url}>{lp.url}</a>
                          </td>
-                         
-                         {/* GSC Klicks (NEU) */}
-                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right">
-                           <div className="flex items-center justify-end">
-                             <span>{lp.gsc_klicks?.toLocaleString('de-DE') || '-'}</span>
+                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 align-top">
+                           <div className="text-xs">Erstellt: {formatDateOnly(lp.created_at)}</div>
+                           <div className="text-xs">Update: {formatDateOnly(lp.updated_at)}</div>
+                         </td>
+                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right align-top">
+                           <div className="flex flex-col items-end gap-1">
+                             <span className="font-medium text-gray-900">{lp.gsc_klicks?.toLocaleString('de-DE') || '-'}</span>
                              <GscChangeIndicator change={lp.gsc_klicks_change} />
                            </div>
                          </td>
-
-                         {/* GSC Impressionen (NEU) */}
-                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right">
-                           <div className="flex items-center justify-end">
-                             <span>{lp.gsc_impressionen?.toLocaleString('de-DE') || '-'}</span>
+                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right align-top">
+                           <div className="flex flex-col items-end gap-1">
+                             <span className="font-medium text-gray-900">{lp.gsc_impressionen?.toLocaleString('de-DE') || '-'}</span>
                              <GscChangeIndicator change={lp.gsc_impressionen_change} />
                            </div>
                          </td>
-                         
-                         {/* GSC Position (KORRIGIERT) */}
-                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right">
-                           <div className="flex items-center justify-end">
-                             {/* HIER IST DIE KORREKTUR: parseFloat(String(...)) */}
-                             <span>
-                               {lp.gsc_position ? parseFloat(String(lp.gsc_position)).toFixed(2) : '-'}
-                             </span>
+                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right align-top">
+                           <div className="flex flex-col items-end gap-1">
+                             <span className="font-medium text-gray-900">{lp.gsc_position ? parseFloat(String(lp.gsc_position)).toFixed(2) : '-'}</span>
                              <GscChangeIndicator change={lp.gsc_position_change} isPosition={true} />
                            </div>
                          </td>
-
-                         {/* Status */}
-                         <td className="px-6 py-4 whitespace-nowrap">
-                           <span className={`px-2.5 py-0.5 text-xs font-medium rounded-full border ${getStatusStyle(lp.status)}`}>
-                             {getStatusIcon(lp.status)} {lp.status}
-                           </span>
-                           {/* Zeige letzte Aktualisierung, falls vorhanden */}
-                           {lp.gsc_last_updated && (
-                             <div className="text-[10px] text-gray-400 mt-1">
-                               GSC: {lp.gsc_last_range} ({new Date(lp.gsc_last_updated).toLocaleDateString('de-DE')})
-                             </div>
-                           )}
+                         <td className="px-6 py-4 whitespace-nowrap align-top">
+                           <span className={`px-2.5 py-0.5 text-xs font-medium rounded-full border ${getStatusStyle(lp.status)}`}>{getStatusIcon(lp.status)} {lp.status}</span>
                          </td>
-                         
-                         {/* Aktionen */}
-                         <td className="px-6 py-4 whitespace-nowrap">
-                           <div className="flex gap-1">
-                             {/* Status-Buttons */}
-                             {(['Offen', 'In Prüfung', 'Freigegeben', 'Gesperrt'] as LandingpageStatus[]).map(statusValue => (
-                               <button
-                                 key={statusValue}
-                                 onClick={() => updateStatus(lp.id, statusValue)}
-                                 disabled={lp.status === statusValue}
-                                 className={`px-2 py-1 text-xs font-medium rounded border transition-colors ${
-                                    lp.status === statusValue
-                                      ? 'bg-gray-200 text-gray-500 border-gray-200 cursor-not-allowed'
-                                      : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed'
-                                 }`}
-                                 title={statusValue}
-                               >
-                                 {getStatusIcon(statusValue)}
-                               </button>
+
+                         {/* ✅ Anmerkung mit Badge für Admin */}
+                         <td className="px-6 py-4 align-top relative">
+                            <textarea
+                              className="w-full text-sm p-2 border border-gray-300 rounded focus:ring-indigo-500 focus:border-indigo-500 resize-y"
+                              rows={3}
+                              defaultValue={lp.comment || ''}
+                              placeholder="Anmerkung hinzufügen..."
+                              onBlur={(e) => {
+                                if (e.target.value !== (lp.comment || '')) {
+                                  saveComment(lp.id, e.target.value);
+                                }
+                              }}
+                            />
+                            {/* ✅ Feedback Badge (1 Minute) */}
+                            {savedCommentId === lp.id && (
+                              <div className="absolute top-2 right-2 bg-green-50 text-green-700 text-[10px] font-medium px-2 py-1 rounded border border-green-200 shadow-sm flex items-center gap-1.5 animate-in fade-in zoom-in duration-300 z-10">
+                                <CheckCircleFill size={10} />
+                                <span>Gespeichert & Kunde benachrichtigt</span>
+                              </div>
+                            )}
+                         </td>
+
+                         <td className="px-6 py-4 whitespace-nowrap align-top">
+                           <div className="flex flex-wrap gap-1 w-32">
+                             {(['Offen', 'In Prüfung', 'Freigegeben', 'Gesperrt'] as LandingpageStatus[]).map(status => (
+                               <button key={status} onClick={() => updateStatus(lp.id, status)} disabled={lp.status === status} className={`px-2 py-1 text-[10px] font-medium rounded border flex-grow ${lp.status === status ? 'bg-gray-200 text-gray-500' : 'bg-white text-gray-600 hover:bg-gray-100'}`}>{status.substring(0,1)}</button>
                              ))}
-                             {/* Löschen-Button */}
-                             <button
-                               onClick={() => deleteLandingpage(lp.id, lp.url)}
-                               className="px-2 py-1 text-xs font-medium rounded border border-red-600 bg-red-50 text-red-700 hover:bg-red-100 transition-colors flex items-center gap-1"
-                               title="Landingpage löschen"
-                             >
-                               <Trash size={14} />
-                             </button>
+                             <button onClick={() => deleteLandingpage(lp.id, lp.url)} className="px-2 py-1 text-xs font-medium rounded border border-red-600 bg-red-50 text-red-700 hover:bg-red-100 w-full mt-1"><Trash size={14} /></button>
                            </div>
                          </td>
                        </tr>
@@ -553,5 +392,13 @@ export default function RedaktionsplanPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function RedaktionsplanPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-gray-50 text-gray-500">Lade Redaktionsplan...</div>}>
+      <RedaktionsplanContent />
+    </Suspense>
   );
 }

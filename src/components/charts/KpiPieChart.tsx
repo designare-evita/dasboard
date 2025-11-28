@@ -13,7 +13,8 @@ import {
 } from 'recharts';
 import { ChartEntry } from '@/lib/dashboard-shared';
 import { cn } from '@/lib/utils';
-import { ArrowRepeat } from 'react-bootstrap-icons';
+// +++ KORREKTUR: Icons für Laden & Fehler importiert +++
+import { ArrowRepeat, ExclamationTriangleFill } from 'react-bootstrap-icons';
 
 // Props für das wiederverwendbare Diagramm
 interface KpiPieChartProps {
@@ -21,6 +22,7 @@ interface KpiPieChartProps {
   title: string;
   isLoading?: boolean;
   className?: string;
+  error?: string | null; // +++ KORREKTUR: error-Prop hinzugefügt +++
 }
 
 // Typen für Tooltip
@@ -35,24 +37,17 @@ interface CustomTooltipProps {
   payload?: TooltipPayload[];
 }
 
-// Benutzerdefinierter Tooltip
+// Benutzerdefinierter Tooltip (bleibt gleich)
 const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
-    // WICHTIG: Der percent Wert in payload ist bereits korrekt (0.84 = 84%)
     const rawPercent = payload[0].percent;
     
-    // Debug-Log um zu sehen, was wir bekommen
-    console.log('Tooltip percent raw:', rawPercent, 'type:', typeof rawPercent);
-    
-    // Sichere Konvertierung zu Prozent
     let percentValue = 0;
     if (typeof rawPercent === 'number' && !isNaN(rawPercent)) {
-      // Wenn rawPercent zwischen 0 und 1 liegt, multipliziere mit 100
       if (rawPercent >= 0 && rawPercent <= 1) {
         percentValue = rawPercent * 100;
       } else {
-        // Falls es schon ein Prozentwert ist (sollte nicht passieren)
         percentValue = rawPercent;
       }
     }
@@ -83,11 +78,9 @@ interface CustomLegendProps {
   payload?: LegendPayloadItem[];
 }
 
-// Benutzerdefiniertes Legend mit Prozentwerten
+// Benutzerdefiniertes Legend (bleibt gleich)
 const CustomLegend = (props: CustomLegendProps) => {
   const { payload } = props;
-  
-  // Berechne Gesamtsumme für Prozentberechnung
   const total = payload?.reduce((sum, entry) => sum + (entry.payload?.value || 0), 0) || 0;
   
   return (
@@ -110,38 +103,26 @@ const CustomLegend = (props: CustomLegendProps) => {
   );
 };
 
-// Hilfsfunktion für Label-Rendering mit besserer Fehlerbehandlung
+// Label-Rendering (bleibt gleich)
 const renderCustomLabel = (props: PieLabelRenderProps): string => {
-  // Debug-Log
-  console.log('Label props:', props);
-  
-  // Extrahiere den percent-Wert aus props
   const rawPercent = props.percent;
-  
-  // Prüfe verschiedene Möglichkeiten
   if (typeof rawPercent === 'number' && !isNaN(rawPercent)) {
-    // Wenn es ein Dezimalwert ist (0-1), multipliziere mit 100
     if (rawPercent >= 0 && rawPercent <= 1) {
       const percentValue = rawPercent * 100;
       return `${Math.round(percentValue)}%`;
     }
-    // Wenn es schon ein Prozentwert ist (sollte nicht passieren)
     return `${Math.round(rawPercent)}%`;
   }
   
-  // Fallback: Berechne manuell aus den Daten
   if (props.value && props.payload && Array.isArray(props.payload)) {
     const total = props.payload.reduce((sum: number, item: ChartEntry) => {
       return sum + (typeof item.value === 'number' ? item.value : 0);
     }, 0);
-    
     if (total > 0 && typeof props.value === 'number') {
       const manualPercent = (props.value / total) * 100;
       return `${Math.round(manualPercent)}%`;
     }
   }
-  
-  // Letzter Fallback
   return '0%';
 };
 
@@ -150,21 +131,20 @@ export default function KpiPieChart({
   title,
   isLoading = false,
   className,
+  error = null // +++ KORREKTUR: error-Prop empfangen +++
 }: KpiPieChartProps) {
   
-  // Debug-Log für eingehende Daten
+  // (Debug-Log bleibt gleich)
   React.useEffect(() => {
     if (data && data.length > 0) {
-      console.log('KpiPieChart data:', data);
       const total = data.reduce((sum, item) => sum + item.value, 0);
-      console.log('Total value:', total);
       data.forEach(item => {
         const percent = (item.value / total) * 100;
-        console.log(`${item.name}: ${item.value} = ${percent.toFixed(1)}%`);
       });
     }
   }, [data]);
   
+  // (isLoading-Zustand bleibt gleich)
   if (isLoading) {
     return (
       <div
@@ -179,6 +159,28 @@ export default function KpiPieChart({
     );
   }
 
+  // +++ KORREKTUR: Fehlerzustand hinzugefügt +++
+  if (error) {
+    return (
+      <div
+        className={cn(
+          'bg-white rounded-lg shadow-md border border-gray-200 p-6 flex flex-col h-[350px] justify-center items-center',
+          className
+        )}
+      >
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 absolute top-6 left-6">{title}</h3>
+        <div className="flex flex-col items-center justify-center text-center text-red-700">
+          <ExclamationTriangleFill className="text-red-500 w-8 h-8 mb-3" />
+          <p className="text-sm font-semibold">Fehler bei GA4-Daten</p>
+          <p className="text-xs text-gray-500 mt-1" title={error}>
+            {title} konnten nicht geladen werden.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // (Leer-Zustand bleibt gleich)
   if (!data || data.length === 0) {
     return (
       <div
@@ -195,6 +197,7 @@ export default function KpiPieChart({
     );
   }
 
+  // (Erfolgs-Zustand bleibt gleich)
   return (
     <div
       className={cn(

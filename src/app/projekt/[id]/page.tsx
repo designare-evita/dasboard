@@ -1,74 +1,101 @@
 // src/app/projekt/[id]/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
-import useSWR from 'swr';
-import { type DateRangeOption } from '@/components/DateRangeSelector';
+import { useSession } from 'next-auth/react';
+import { useRouter, useParams } from 'next/navigation';
+import { useEffect, useState } from 'react'; 
+import { User } from '@/types';
+import {
+  ArrowRepeat,
+  ExclamationTriangleFill
+} from 'react-bootstrap-icons';
 import {
   ProjectDashboardData,
-  ChartEntry // ✅ NEU: Import für Kreisdiagramm-Daten
 } from '@/lib/dashboard-shared';
 import ProjectDashboard from '@/components/ProjectDashboard';
-import { ArrowRepeat, ExclamationTriangleFill } from 'react-bootstrap-icons';
-import { useSession } from 'next-auth/react';
+import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector';
 
-interface FetchError extends Error {
-  status?: number;
-}
+export default function ProjectPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const params = useParams();
+  const projectId = params.id as string;
 
-// Der Fetcher bleibt unverändert
-const fetcher = (url: string) => fetch(url).then(async (res) => {
-  if (!res.ok) {
-    const errorData = await res.json().catch(() => ({ message: res.statusText }));
-    const error: FetchError = new Error(errorData.message || 'Fehler beim Laden der Daten');
-    error.status = res.status; 
-    throw error;
-  }
-  return res.json();
-});
-
-export default function ProjektDetailPage() {
-  const params = useParams<{ id: string }>();
-  const projectId = params?.id;
-  const { data: session, status: sessionStatus } = useSession();
-
+  const [dashboardData, setDashboardData] = useState<ProjectDashboardData | null>(null);
+  const [projectUser, setProjectUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true); 
+  const [error, setError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<DateRangeOption>('30d');
 
-  // Google-Daten (kritisch)
-  // Der SWR-Hook ist bereits korrekt typisiert (ProjectDashboardData)
-  // und empfängt automatisch die neuen Daten (countryData, channelData, deviceData)
-  const { 
-    data: googleData, 
-    isLoading: isLoadingGoogle, 
-    error: errorGoogle 
-  } = useSWR<ProjectDashboardData>(
-    projectId ? `/api/data?projectId=${projectId}&dateRange=${dateRange}` : null, 
-    fetcher
-  );
+  /**
+   * Lädt die Dashboard-Daten (Google KPIs) für einen bestimmten Zeitraum.
+   */
+  const fetchGoogleData = async (range: DateRangeOption) => {
+    if (!projectId) return;
 
-  // User/Domain-Daten (bleibt unverändert)
-  const { 
-    data: userData,
-    isLoading: isLoadingUser 
-  } = useSWR<{ 
-    domain?: string; 
-    email?: string;
-    semrush_tracking_id?: string | null;
-    semrush_tracking_id_02?: string | null;
-    favicon_url?: string | null;
-  }>(
-    projectId ? `/api/users/${projectId}` : null,
-    fetcher
-  );
+    setIsLoading(true); 
+    setError(null);
+    
+    try {
+      const googleResponse = await fetch(`/api/projects/${projectId}?dateRange=${range}`);
+      if (!googleResponse.ok) {
+        const errorResult = await googleResponse.json();
+        throw new Error(errorResult.message || 'Fehler beim Laden der Google-Daten');
+      }
+      const googleResult = await googleResponse.json();
+      setDashboardData(googleResult);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Ein unbekannter Fehler ist aufgetreten');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  /**
+   * Lädt die Projekt-Details (Domain, Keys, etc.) - Nur einmal.
+   */
+  const fetchProjectDetails = async () => {
+    if (!projectId) return null;
+    
+    try {
+      const userResponse = await fetch(`/api/users/${projectId}`);
+      if (!userResponse.ok) {
+        const errorResult = await userResponse.json();
+        throw new Error(errorResult.message || 'Fehler beim Laden der Projekt-Details');
+      }
+      const userData = await userResponse.json();
+      setProjectUser(userData);
+      return userData; 
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Ein unbekannter Fehler ist aufgetreten');
+      return null;
+    }
+  };
 
   useEffect(() => {
-    if (userData) {
-      console.log('[ProjektPage] User-Daten geladen:', userData);
+    if (status === 'authenticated' && projectId) {
+      setIsLoading(true);
+      
+      fetchProjectDetails().then(userData => {
+        if (userData) {
+          return fetchGoogleData(dateRange); 
+        } else {
+          setIsLoading(false);
+        }
+      }).catch(err => {
+        setError(err instanceof Error ? err.message : 'Fehler beim Laden');
+        setIsLoading(false);
+      });
+      
+    } else if (status === 'unauthenticated') {
+      router.push('/login');
     }
-  }, [userData]);
+  }, [status, session, projectId, router]);
 
-  const isLoading = isLoadingGoogle || sessionStatus === 'loading';
+  const handleDateRangeChange = (range: DateRangeOption) => {
+    setDateRange(range); 
+    void fetchGoogleData(range); 
+  };
 
   const handlePdfExport = () => {
     if (typeof window !== 'undefined') {
@@ -76,89 +103,57 @@ export default function ProjektDetailPage() {
     }
   };
 
-  // Zugriffs-Check (bleibt unverändert)
-  useEffect(() => {
-    if (sessionStatus === 'authenticated' && session?.user && 
-        session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN' &&
-        session.user.id !== projectId) {
-       console.error("Zugriffsversuch auf fremdes Projekt durch Benutzer:", session.user.id, "auf Projekt:", projectId);
-    }
-  }, [sessionStatus, session, projectId]);
+  // --- Render-Zustände ---
 
-  // Loading-State (bleibt unverändert)
-  if (isLoading) {
+  if (status === 'loading' || (isLoading && !dashboardData && !error) || !projectUser && !error) {
     return (
-      <div className="flex justify-center items-center min-h-[calc(100vh-200px)]">
+      <div className="flex justify-center items-center min-h-screen bg-gray-50">
         <ArrowRepeat className="animate-spin text-indigo-600" size={40} />
-        <span className="ml-3 text-gray-600">Daten werden geladen...</span>
       </div>
     );
   }
 
-  // Error-State (bleibt unverändert)
-  const error = errorGoogle as FetchError | undefined;
   if (error) {
-    console.error("Fehler beim Laden der Projektdaten:", error);
     return (
-      <div className="flex justify-center items-center min-h-[calc(100vh-200px)] p-8">
+      <div className="flex justify-center items-center min-h-screen bg-gray-50 p-8">
         <div className="bg-white p-8 rounded-lg shadow-md max-w-lg text-center border border-red-200">
-           <ExclamationTriangleFill className="text-red-500 mx-auto mb-4" size={40} />
+          <ExclamationTriangleFill className="text-red-500 mx-auto mb-4" size={40} />
           <h2 className="text-xl font-bold text-gray-800 mb-2">Fehler beim Laden</h2>
-          <p className="text-gray-600">
-             {error.status === 404 
-                ? 'Das angeforderte Projekt wurde nicht gefunden.' 
-                : (error.message || 'Die Dashboard-Daten konnten nicht abgerufen werden.')}
-          </p>
-           {error.status !== 404 && (
-             <button 
-               onClick={() => window.location.reload()}
-               className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
-             >
-               Erneut versuchen
-             </button>
-           )}
+          <p className="text-gray-600">{error}</p>
         </div>
       </div>
     );
   }
-  
-  // ✅ KORREKTUR: Fallback-Objekt um die neuen Diagramm-Daten erweitert
-  const finalGoogleData: ProjectDashboardData = googleData ?? { 
-    kpis: {}, 
-    aiTraffic: undefined, 
-    topQueries: [],
-    countryData: [], // Default für Länder
-    channelData: [], // Default für Channels
-    deviceData: [],  // Default für Geräte
-  }; 
 
-  // Debug-Log (bleibt unverändert)
-  console.log('[ProjektPage] Finale Daten:', {
-    domain: userData?.domain,
-    faviconUrl: userData?.favicon_url,
-    semrushTrackingId: userData?.semrush_tracking_id,
-    semrushTrackingId02: userData?.semrush_tracking_id_02
-  });
-
-  return (
-   <div className="p-4 sm:p-6 md:p-8">
+  // --- Erfolgreiches Rendering ---
+  if (dashboardData && projectUser) {
+    // WICHTIG: Wir rendern NUR ProjectDashboard. 
+    // Keine Wrapper-Divs mit Padding oder Margin mehr hier!
+    // ProjectDashboard kümmert sich um das Layout.
+    return (
       <ProjectDashboard
-        data={finalGoogleData} 
-        isLoading={isLoading} 
+        data={dashboardData}
+        isLoading={isLoading}
         dateRange={dateRange}
-        onDateRangeChange={setDateRange}
+        onDateRangeChange={handleDateRangeChange}
         onPdfExport={handlePdfExport}
-        projectId={projectId}
-        domain={userData?.domain}
-        faviconUrl={userData?.favicon_url}
-        semrushTrackingId={userData?.semrush_tracking_id}
-        semrushTrackingId02={userData?.semrush_tracking_id_02}
-        
-        // ✅ NEU: Die Daten aus finalGoogleData werden an das Dashboard übergeben
-        countryData={finalGoogleData.countryData}
-        channelData={finalGoogleData.channelData}
-        deviceData={finalGoogleData.deviceData}
+        projectId={projectUser.id}
+        domain={projectUser.domain}
+        faviconUrl={projectUser.favicon_url}
+        semrushTrackingId={projectUser.semrush_tracking_id}
+        semrushTrackingId02={projectUser.semrush_tracking_id_02}
+        // KORRIGIERT: Konvertiere null zu undefined für TypeScript-Kompatibilität
+        projectTimelineActive={projectUser.project_timeline_active ?? undefined}
+        countryData={dashboardData.countryData}
+        channelData={dashboardData.channelData}
+        deviceData={dashboardData.deviceData}
       />
+    );
+  }
+  
+  return (
+    <div className="flex justify-center items-center min-h-screen bg-gray-50">
+      <p>Dashboard konnte nicht geladen werden.</p>
     </div>
   );
 }

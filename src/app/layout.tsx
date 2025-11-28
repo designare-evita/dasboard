@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-// ✅ KORREKTUR: Wir importieren Poppins, wie von dir gewünscht.
 import { Poppins } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
-// ✅ KORREKTUR: Wir importieren die neue MainLayout-Komponente.
 import MainLayout from '@/components/MainLayout';
+import { Toaster } from 'sonner';
+import * as Sentry from '@sentry/nextjs'; // ✅ NEU: Sentry Import
 
 // Konfiguriert den Poppins-Font
 const poppins = Poppins({ 
@@ -12,15 +12,21 @@ const poppins = Poppins({
   weight: ["400", "500", "600", "700"]
 });
 
-export const metadata: Metadata = {
-  title: 'Data Peak | SEO & Analytics Dashboard',
-  description:
-    'Data Peak ist das zentrale Dashboard zur Analyse Ihrer Web-Performance. Verbinden Sie Google Search Console, Analytics & Semrush für einheitliches KPI-Reporting.',
-  icons: {
-    icon: '/favicon.ico',
-  },
-};
-
+// ✅ ÄNDERUNG: Von "const metadata" zu "function generateMetadata"
+export function generateMetadata(): Metadata {
+  return {
+    title: 'Data Peak | SEO & Analytics Dashboard',
+    description:
+      'Data Peak ist das zentrale Dashboard zur Analyse Ihrer Web-Performance. Verbinden Sie Google Search Console, Analytics & Semrush für einheitliches KPI-Reporting.',
+    icons: {
+      icon: '/favicon.ico',
+    },
+    // Hier werden die Sentry Trace Daten für das Backend-Frontend-Tracing injiziert
+    other: {
+      ...Sentry.getTraceData()
+    }
+  };
+}
 
 export default function RootLayout({
   children,
@@ -29,12 +35,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="de">
-      {/* Wir wenden die Poppins-Font-Klasse an */}
       <body className={`${poppins.className} bg-gray-50`}>
         <Providers>
-          {/* MainLayout kümmert sich jetzt um die Anzeige von Header/Footer
-            und erhält die Kinder (die eigentlichen Seiteninhalte).
-          */}
+          {/* Toaster für Benachrichtigungen */}
+          <Toaster position="top-right" richColors closeButton />
+          
           <MainLayout>
             {children}
           </MainLayout>

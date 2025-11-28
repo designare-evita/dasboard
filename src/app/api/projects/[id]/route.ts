@@ -1,8 +1,7 @@
 // src/app/api/projects/[id]/route.ts (KORRIGIERT - Mit Google Cache)
 
 import { NextResponse, NextRequest } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { auth } from '@/lib/auth'; // KORRIGIERT: Import von auth
 import { sql } from '@vercel/postgres';
 import { User } from '@/types';
 // ✅ WICHTIG: Nutze die Caching-Funktion
@@ -29,7 +28,7 @@ export async function GET(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await auth(); // KORRIGIERT: auth() aufgerufen
 
     if (!session?.user?.email) {
       return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
