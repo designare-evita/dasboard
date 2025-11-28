@@ -64,8 +64,8 @@ export default function KpiCard({
             <ExclamationTriangleFill size={14} />
             <span className="text-xs font-semibold">Datenfehler</span>
           </div>
-          <p className="text-[10px] text-gray-400 leading-tight">
-            Quelle nicht erreichbar.
+          <p className="text-[10px] text-gray-500 leading-tight">
+            {error}
           </p>
         </div>
       ) : (
