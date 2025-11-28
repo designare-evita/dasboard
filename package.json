@@ -9,12 +9,17 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@ai-sdk/google": "^2.0.43",
+    "@ai-sdk/react": "^2.0.102",
     "@e965/xlsx": "^0.20.3",
     "@getbrevo/brevo": "^3.0.1",
+    "@google/generative-ai": "^0.24.1",
     "@radix-ui/react-slot": "^1.2.3",
+    "@sentry/nextjs": "^10.27.0",
     "@tanstack/react-query": "^5.90.5",
     "@types/bcryptjs": "^3.0.0",
     "@vercel/postgres": "^0.10.0",
+    "ai": "^5.0.102",
     "bcryptjs": "^3.0.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -30,8 +35,10 @@
     "react-bootstrap-icons": "^1.11.6",
     "react-dom": "^18.3.1",
     "recharts": "^3.2.1",
+    "sonner": "^2.0.7",
     "swr": "^2.3.6",
-    "tailwind-merge": "^3.3.1"
+    "tailwind-merge": "^3.3.1",
+    "zod": "^4.1.13"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
