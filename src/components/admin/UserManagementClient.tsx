@@ -3,7 +3,8 @@
 import { useRouter } from 'next/navigation';
 import { useState, FormEvent } from 'react';
 import Link from 'next/link';
-import { User } from '@/types';
+// ✅ WICHTIG: Importiere den User Typ aus den neuen Schemas
+import type { User } from '@/lib/schemas';
 import {
   Pencil, Trash, PersonPlus, ArrowRepeat, People, PersonVideo, Briefcase,
   Globe, CalendarRange, CheckCircleFill, Circle, Link45deg
