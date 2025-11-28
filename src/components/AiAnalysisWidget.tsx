@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Lightbulb, ArrowRepeat, Robot, Cpu, ExclamationTriangle, InfoCircle, GraphUpArrow } from 'react-bootstrap-icons';
-// Entferne 'type' beim Import, um Kompatibilitätsprobleme auszuschließen
 import { getRangeLabel, DateRangeOption } from '@/components/DateRangeSelector';
 
 interface Props {
@@ -121,35 +120,62 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
   };
 
   // Helfer für den Anzeigetext
-  // Cast zu DateRangeOption für Typsicherheit
   const rangeLabel = getRangeLabel(dateRange as DateRangeOption).toLowerCase();
 
-  // Start-Ansicht (Leerzustand)
+  // 1. Start-Ansicht (Leerzustand - NEUES PREMIUM DESIGN)
   if (!statusContent && !isLoading && !error) {
     return (
-      <div className="card-glass p-6 mb-6 flex items-center gap-4 transition-all hover:shadow-md">
-        <div className={`p-3 rounded-xl text-indigo-600 transition-colors ${isPrefetched ? 'bg-green-50 text-green-600' : 'bg-indigo-50'}`}>
-          {isPrefetched ? <Cpu size={24} /> : <Robot size={24} />}
+      <div className="relative group mb-6">
+        {/* Dekorativer Hintergrund-Glow */}
+        <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 to-blue-500 rounded-2xl opacity-20 group-hover:opacity-40 transition duration-500 blur"></div>
+        
+        <div className="relative bg-white rounded-xl p-6 flex flex-col sm:flex-row items-center gap-5 shadow-sm border border-indigo-50">
+          
+          {/* Icon mit Puls-Effekt */}
+          <div className="relative shrink-0">
+            {/* Pulsierender Ring hinter dem Icon */}
+            <div className={`absolute inset-0 rounded-xl opacity-30 ${isPrefetched ? 'bg-emerald-400 animate-ping' : 'bg-indigo-400 animate-pulse'}`}></div>
+            
+            <div className={`relative p-4 rounded-xl shadow-sm border ${isPrefetched ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-indigo-50 border-indigo-100 text-indigo-600'}`}>
+              {isPrefetched ? <Cpu size={28} /> : <Robot size={28} />}
+            </div>
+            
+            {/* Status Dot (Online Indikator) */}
+            <span className={`absolute -top-1 -right-1 flex h-3 w-3`}>
+              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isPrefetched ? 'bg-emerald-400' : 'bg-indigo-400'}`}></span>
+              <span className={`relative inline-flex rounded-full h-3 w-3 ${isPrefetched ? 'bg-emerald-500' : 'bg-indigo-500'}`}></span>
+            </span>
+          </div>
+
+          {/* Text Inhalt */}
+          <div className="flex-1 text-center sm:text-left">
+            <div className="flex items-center justify-center sm:justify-start gap-2 mb-1">
+              <h3 className="text-lg font-bold text-gray-900">Data Max</h3>
+              <span className="px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-700 text-[10px] font-bold uppercase tracking-wider border border-indigo-200">
+                AI Analyst
+              </span>
+            </div>
+            <p className="text-sm text-gray-600 leading-relaxed">
+              {isPrefetched 
+                ? <span>Ich habe die Daten der letzten <span className="font-semibold text-gray-900">{rangeLabel}</span> vorbereitet.</span>
+                : <span>Soll ich die Performance der letzten <span className="font-semibold text-gray-900">{rangeLabel}</span> für Sie auswerten?</span>}
+            </p>
+          </div>
+
+          {/* Action Button */}
+          <button
+            onClick={handleAnalyze}
+            className="shrink-0 px-6 py-3 bg-gradient-to-r from-[#188BDB] to-[#1479BF] text-white rounded-lg text-sm font-semibold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2 group/btn"
+          >
+            <Lightbulb size={16} className={isPrefetched ? "text-yellow-200" : "group-hover/btn:text-yellow-200 transition-colors"} />
+            <span>Analyse starten</span>
+          </button>
         </div>
-        <div className="flex-1">
-          <h3 className="text-lg font-bold text-gray-900">Data Max Analyse</h3>
-          <p className="text-sm text-gray-500">
-            {isPrefetched 
-              ? `Daten für "${rangeLabel}" liegen bereit.` 
-              : `Soll ich die Daten für "${rangeLabel}" auswerten?`}
-          </p>
-        </div>
-        <button
-          onClick={handleAnalyze}
-          className="px-4 py-2 bg-[#188BDB] text-white rounded-lg text-sm font-medium hover:bg-[#1479BF] transition-colors flex items-center gap-2 shadow-sm"
-        >
-          <Lightbulb size={14} />
-          Jetzt analysieren
-        </button>
       </div>
     );
   }
 
+  // 2. Aktive Ansicht (Split Screen mit Analyse)
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6 items-stretch animate-in fade-in slide-in-from-bottom-4 duration-500">
       
