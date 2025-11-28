@@ -72,33 +72,37 @@ async function fetchEnhancedGa4Data(
   prevEndDate: string
 ): Promise<{ current: GaData, previous: typeof DEFAULT_GA_PREVIOUS }> {
   
+  // Credentials validieren
   if (!process.env.GOOGLE_CLIENT_EMAIL || !process.env.GOOGLE_PRIVATE_KEY) {
-    throw new Error('Google Service Account Credentials fehlen');
+    throw new Error('Google Service Account Credentials fehlen in Umgebungsvariablen');
   }
 
-  const analyticsDataClient = new BetaAnalyticsDataClient({
-    credentials: {
-      client_email: process.env.GOOGLE_CLIENT_EMAIL,
-      private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-    },
-  });
+  try {
+    const analyticsDataClient = new BetaAnalyticsDataClient({
+      credentials: {
+        client_email: process.env.GOOGLE_CLIENT_EMAIL,
+        private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      },
+    });
 
-  const [response] = await analyticsDataClient.runReport({
-    property: `properties/${propertyId}`,
-    dateRanges: [
-      { startDate, endDate },          // Range 0: Aktuell
-      { startDate: prevStartDate, endDate: prevEndDate }, // Range 1: Vergleich
-    ],
-    dimensions: [{ name: 'date' }],
-    metrics: [
-      { name: 'sessions' },
-      { name: 'totalUsers' },
-      { name: 'conversions' },     // Früher "conversions", Google nennt es jetzt oft "keyEvents", API bleibt meist "conversions"
-      { name: 'engagementRate' }
-    ],
-    orderBys: [{ dimension: { orderType: 'ALPHANUMERIC', dimensionName: 'date' } }],
-    keepEmptyRows: true,
-  });
+    console.log(`[GA4] Running report for property: properties/${propertyId}`);
+
+    const [response] = await analyticsDataClient.runReport({
+      property: `properties/${propertyId}`,
+      dateRanges: [
+        { startDate, endDate },          // Range 0: Aktuell
+        { startDate: prevStartDate, endDate: prevEndDate }, // Range 1: Vergleich
+      ],
+      dimensions: [{ name: 'date' }],
+      metrics: [
+        { name: 'sessions' },
+        { name: 'totalUsers' },
+        { name: 'conversions' },     // Früher "conversions", Google nennt es jetzt oft "keyEvents", API bleibt meist "conversions"
+        { name: 'engagementRate' }
+      ],
+      orderBys: [{ dimension: { orderType: 'ALPHANUMERIC', dimensionName: 'date' } }],
+      keepEmptyRows: true,
+    });
 
   // Container für aggregierte Daten
   let curSessions = 0, curUsers = 0, curConversions = 0, curWeightedEngagement = 0;
@@ -182,6 +186,8 @@ async function fetchEnhancedGa4Data(
     prevWeightedEngagement = prevAvgEng; // Hack: Wir speichern den direkten Wert
   }
 
+  console.log(`[GA4] Report data processed successfully`);
+
   return {
     current: {
       sessions: { total: curSessions, daily: chartSessions },
@@ -196,6 +202,26 @@ async function fetchEnhancedGa4Data(
       engagementRate: { total: prevWeightedEngagement } // Hier steht der echte Durchschnitt drin
     }
   };
+  
+  } catch (error: any) {
+    console.error('[GA4 fetchEnhancedGa4Data] Error details:', {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      propertyId
+    });
+    
+    // Rethrow mit verbesserter Nachricht
+    if (error.code === 7 || error.message?.includes('permission')) {
+      throw new Error(`Keine Berechtigung für GA4 Property ${propertyId}. Service Account muss als Betrachter hinzugefügt werden.`);
+    } else if (error.code === 5 || error.message?.includes('not found')) {
+      throw new Error(`GA4 Property ${propertyId} nicht gefunden. Property ID überprüfen.`);
+    } else if (error.message?.includes('credentials')) {
+      throw new Error('GA4 Authentifizierung fehlgeschlagen. Service Account Credentials überprüfen.');
+    }
+    
+    throw error;
+  }
 }
 
 
@@ -303,6 +329,13 @@ export async function getOrFetchGoogleData(
   // --- FETCH: GA4 (Erweitert) ---
   if (user.ga4_property_id) {
     try {
+      // Validierung der Property ID
+      if (!user.ga4_property_id.match(/^\d+$/)) {
+        throw new Error(`Ungültige GA4 Property ID Format: ${user.ga4_property_id}`);
+      }
+
+      console.log(`[GA4] Fetching data for property: ${user.ga4_property_id}`);
+
       // Neue erweiterte Funktion aufrufen
       const gaResult = await fetchEnhancedGa4Data(
         user.ga4_property_id, 
@@ -312,31 +345,59 @@ export async function getOrFetchGoogleData(
       gaData = gaResult.current;
       gaPrev = gaResult.previous;
 
-      // AI Traffic
-      aiTraffic = await getAiTrafficData(user.ga4_property_id, startDateStr, endDateStr);
+      console.log(`[GA4] ✅ Base metrics fetched successfully`);
 
-      // Pie Charts (Länder, Kanäle, Geräte)
-      const rawCountryData = await getGa4DimensionReport(user.ga4_property_id, startDateStr, endDateStr, 'country');
-      const rawChannelData = await getGa4DimensionReport(user.ga4_property_id, startDateStr, endDateStr, 'sessionDefaultChannelGroup');
-      const rawDeviceData = await getGa4DimensionReport(user.ga4_property_id, startDateStr, endDateStr, 'deviceCategory');
-      
-      // ChartEntry-Objekte mit 'fill'-Property erstellen
-      countryData = rawCountryData.map((item, index) => ({
-        ...item,
-        fill: `hsl(var(--chart-${(index % 5) + 1}))`
-      }));
-      channelData = rawChannelData.map((item, index) => ({
-        ...item,
-        fill: `hsl(var(--chart-${(index % 5) + 1}))`
-      }));
-      deviceData = rawDeviceData.map((item, index) => ({
-        ...item,
-        fill: `hsl(var(--chart-${(index % 5) + 1}))`
-      }));
+      // AI Traffic (Optional - Fehler nicht kritisch)
+      try {
+        aiTraffic = await getAiTrafficData(user.ga4_property_id, startDateStr, endDateStr);
+        console.log(`[GA4] ✅ AI Traffic data fetched`);
+      } catch (aiError: any) {
+        console.warn('[GA4] AI Traffic fetch failed (non-critical):', aiError.message);
+      }
+
+      // Pie Charts (Länder, Kanäle, Geräte) - Optional
+      try {
+        const rawCountryData = await getGa4DimensionReport(user.ga4_property_id, startDateStr, endDateStr, 'country');
+        const rawChannelData = await getGa4DimensionReport(user.ga4_property_id, startDateStr, endDateStr, 'sessionDefaultChannelGroup');
+        const rawDeviceData = await getGa4DimensionReport(user.ga4_property_id, startDateStr, endDateStr, 'deviceCategory');
+        
+        // ChartEntry-Objekte mit 'fill'-Property erstellen
+        countryData = rawCountryData.map((item, index) => ({
+          ...item,
+          fill: `hsl(var(--chart-${(index % 5) + 1}))`
+        }));
+        channelData = rawChannelData.map((item, index) => ({
+          ...item,
+          fill: `hsl(var(--chart-${(index % 5) + 1}))`
+        }));
+        deviceData = rawDeviceData.map((item, index) => ({
+          ...item,
+          fill: `hsl(var(--chart-${(index % 5) + 1}))`
+        }));
+        
+        console.log(`[GA4] ✅ Dimension reports fetched`);
+      } catch (dimError: any) {
+        console.warn('[GA4] Dimension reports fetch failed (non-critical):', dimError.message);
+      }
 
     } catch (e: any) {
       console.error('[GA4 Fetch Error]', e);
-      apiErrors.ga4 = e.message || 'GA4 Fehler';
+      
+      // Detailliertere Fehlermeldung
+      let errorMessage = 'GA4 Fehler';
+      if (e.message) {
+        if (e.message.includes('credentials') || e.message.includes('authentication')) {
+          errorMessage = 'GA4 Authentifizierung fehlgeschlagen - Service Account prüfen';
+        } else if (e.message.includes('permission') || e.message.includes('access')) {
+          errorMessage = 'GA4 Zugriff verweigert - Property-Berechtigungen prüfen';
+        } else if (e.message.includes('property') || e.message.includes('not found')) {
+          errorMessage = 'GA4 Property nicht gefunden - Property ID prüfen';
+        } else {
+          errorMessage = `GA4: ${e.message}`;
+        }
+      }
+      
+      apiErrors.ga4 = errorMessage;
     }
   }
 
