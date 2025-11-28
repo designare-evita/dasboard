@@ -266,8 +266,10 @@ export async function getAnalyticsData(
   startDate: string,
   endDate: string
 ): Promise<{
-  sessions: { total: number; daily: Array<{ date: number; value: number }> }; // ✅ Timestamp
-  totalUsers: { total: number; daily: Array<{ date: number; value: number }> }; // ✅ Timestamp
+  sessions: { total: number; daily: Array<{ date: number; value: number }> };
+  totalUsers: { total: number; daily: Array<{ date: number; value: number }> };
+  conversions: { total: number; daily: Array<{ date: number; value: number }> };
+  engagementRate: { total: number; daily: Array<{ date: number; value: number }> };
 }> {
   const formattedPropertyId = propertyId.startsWith('properties/') ? propertyId : `properties/${propertyId}`;
   const auth = createAuth();
@@ -279,7 +281,12 @@ export async function getAnalyticsData(
       requestBody: {
         dateRanges: [{ startDate, endDate }],
         dimensions: [{ name: 'date' }],
-        metrics: [{ name: 'sessions' }, { name: 'totalUsers' }],
+        metrics: [
+          { name: 'sessions' },
+          { name: 'totalUsers' },
+          { name: 'conversions' },
+          { name: 'engagementRate' }
+        ],
         orderBys: [{ dimension: { dimensionName: 'date' }, desc: false }],
       },
     });
@@ -287,30 +294,50 @@ export async function getAnalyticsData(
     const rows = response.data.rows || [];
     const sessionsDaily: Array<{ date: number; value: number }> = [];
     const usersDaily: Array<{ date: number; value: number }> = [];
+    const conversionsDaily: Array<{ date: number; value: number }> = [];
+    const engagementDaily: Array<{ date: number; value: number }> = [];
+    
     let totalSessions = 0;
     let totalUsers = 0;
+    let totalConversions = 0;
+    let weightedEngagement = 0;
 
     for (const row of rows) {
       const rawDate = row.dimensionValues?.[0]?.value || '';
       const dateStr = formatDateToISO(rawDate);
       const sessions = parseInt(row.metricValues?.[0]?.value || '0', 10);
       const users = parseInt(row.metricValues?.[1]?.value || '0', 10);
+      const conversions = parseInt(row.metricValues?.[2]?.value || '0', 10);
+      const engagementRate = parseFloat(row.metricValues?.[3]?.value || '0');
 
-      // Konvertiere YYYY-MM-DD zu Timestamp
       const timestamp = new Date(dateStr).getTime();
       sessionsDaily.push({ date: timestamp, value: sessions });
       usersDaily.push({ date: timestamp, value: users });
+      conversionsDaily.push({ date: timestamp, value: conversions });
+      engagementDaily.push({ date: timestamp, value: engagementRate * 100 }); // Als Prozent
+      
       totalSessions += sessions;
       totalUsers += users;
+      totalConversions += conversions;
+      weightedEngagement += (engagementRate * sessions);
     }
+
+    const avgEngagement = totalSessions > 0 ? (weightedEngagement / totalSessions) : 0;
 
     return {
       sessions: { total: totalSessions, daily: sessionsDaily },
       totalUsers: { total: totalUsers, daily: usersDaily },
+      conversions: { total: totalConversions, daily: conversionsDaily },
+      engagementRate: { total: avgEngagement, daily: engagementDaily }
     };
   } catch (error: unknown) {
     console.error('[GA4] Fehler:', error);
-    return { sessions: { total: 0, daily: [] }, totalUsers: { total: 0, daily: [] } };
+    return {
+      sessions: { total: 0, daily: [] },
+      totalUsers: { total: 0, daily: [] },
+      conversions: { total: 0, daily: [] },
+      engagementRate: { total: 0, daily: [] }
+    };
   }
 }
 
