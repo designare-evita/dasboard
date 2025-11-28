@@ -280,15 +280,15 @@ export async function getOrFetchGoogleData(
     try {
       const gscRaw = await getSearchConsoleData(user.gsc_site_url, startDateStr, endDateStr);
       gscData = {
-        clicks: { total: gscRaw.totals.clicks, daily: gscRaw.chartData.clicks },
-        impressions: { total: gscRaw.totals.impressions, daily: gscRaw.chartData.impressions }
+        clicks: { total: gscRaw.clicks.total, daily: gscRaw.clicks.daily },
+        impressions: { total: gscRaw.impressions.total, daily: gscRaw.impressions.daily }
       };
       
       // Vorperiode GSC
       const gscPrevRaw = await getSearchConsoleData(user.gsc_site_url, prevStartStr, prevEndStr);
       gscPrev = {
-        clicks: { total: gscPrevRaw.totals.clicks },
-        impressions: { total: gscPrevRaw.totals.impressions }
+        clicks: { total: gscPrevRaw.clicks.total },
+        impressions: { total: gscPrevRaw.impressions.total }
       };
 
       // Top Queries
