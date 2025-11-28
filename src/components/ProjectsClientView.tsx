@@ -9,10 +9,11 @@ import {
   ArrowUp, ArrowDown, ArrowRight
 } from 'react-bootstrap-icons';
 import { addMonths, format } from 'date-fns';
-import type { User } from '@/types';
+// ✅ WICHTIG: Importiere ProjectStats aus schemas
+import type { ProjectStats } from '@/lib/schemas';
 
 interface Props {
-  initialProjects: User[]; // Daten kommen jetzt direkt als Prop!
+  initialProjects: ProjectStats[];
 }
 
 export default function ProjectsClientView({ initialProjects }: Props) {
