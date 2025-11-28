@@ -82,7 +82,6 @@ export default function ProjectDashboard({
           <div className="mb-6 print-timeline">
             <ProjectTimelineWidget 
               projectId={projectId} 
-              domain={domain} 
             />
           </div>
         )}
