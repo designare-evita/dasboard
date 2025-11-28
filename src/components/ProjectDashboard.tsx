@@ -135,7 +135,7 @@ export default function ProjectDashboard({
               totalSessionsChange={data.aiTraffic?.totalSessionsChange}
               totalUsersChange={data.aiTraffic?.totalUsersChange}
               trend={(data.aiTraffic?.trend ?? []).map(item => ({
-                date: item.date,
+                date: item.date, // ✅ Bereits number
                 value: (item as any).value ?? (item as any).sessions ?? 0
               }))}
               topAiSources={data.aiTraffic?.topAiSources ?? []}
