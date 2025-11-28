@@ -1,6 +1,6 @@
 // src/app/api/clear-cache/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
+import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { sql } from '@vercel/postgres';
 
@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
 
     if (dateRange) {
       // Nur spezifischen Cache löschen
-      await sql`
+      const result = await sql`
         DELETE FROM google_data_cache 
         WHERE user_id = ${userId}::uuid AND date_range = ${dateRange}
       `;
@@ -28,11 +28,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ 
         success: true, 
         message: `Cache für ${dateRange} gelöscht`,
-        cleared: dateRange
+        cleared: dateRange,
+        rowsDeleted: result.rowCount
       });
     } else {
       // Gesamten User-Cache löschen
-      await sql`
+      const result = await sql`
         DELETE FROM google_data_cache 
         WHERE user_id = ${userId}::uuid
       `;
@@ -40,7 +41,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ 
         success: true, 
         message: 'Gesamter Cache gelöscht',
-        cleared: 'all'
+        cleared: 'all',
+        rowsDeleted: result.rowCount
       });
     }
 
@@ -83,7 +85,9 @@ export async function GET(request: NextRequest) {
         ageHours: parseFloat(ageHours.toFixed(1)),
         hasGA4Data: row.ga4_sessions && parseInt(row.ga4_sessions) > 0,
         hasGSCData: row.gsc_clicks && parseInt(row.gsc_clicks) > 0,
-        hasErrors: !!row.api_errors
+        hasErrors: !!row.api_errors,
+        ga4Sessions: row.ga4_sessions,
+        gscClicks: row.gsc_clicks
       };
     });
 
