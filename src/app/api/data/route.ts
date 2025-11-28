@@ -30,14 +30,24 @@ export async function GET(request: Request) {
       console.log('[/api/data] Admin/Superadmin lädt Dashboard für Projekt:', projectId);
 
       // (Berechtigungsprüfung bleibt gleich)
-      const { rows } = await sql<User>`
-        SELECT id, email, domain, gsc_site_url, ga4_property_id
+     const { rows } = await sql`
+        SELECT *
         FROM users
         WHERE id::text = ${projectId}
         AND role = 'BENUTZER'
       `;
+      
       if (rows.length === 0) return NextResponse.json({ message: 'Projekt nicht gefunden' }, { status: 404 });
-      const project = rows[0];
+
+      // HIER PASSIERT DIE MAGIE: Zod repariert 'permissions: null' zu '[]'
+      const parseResult = UserSchema.safeParse(rows[0]);
+      
+      if (!parseResult.success) {
+        console.error("User Data Invalid:", parseResult.error);
+        return NextResponse.json({ message: 'Projektdaten fehlerhaft' }, { status: 500 });
+      }
+      
+      const project = parseResult.data;
 
       if (role === 'ADMIN') {
         const { rows: assignments } = await sql`
@@ -92,12 +102,21 @@ export async function GET(request: Request) {
     // ========================================
     if (role === 'BENUTZER') {
       console.log('[/api/data] Lade Dashboard für BENUTZER');
-      const { rows } = await sql<User>`
-        SELECT id, email, gsc_site_url, ga4_property_id
+      const { rows } = await sql`
+        SELECT *
         FROM users WHERE id::text = ${id}
       `;
-      const user = rows[0];
-      if (!user) return NextResponse.json({ message: 'Benutzer nicht gefunden.' }, { status: 404 });
+      
+      if (rows.length === 0) return NextResponse.json({ message: 'Benutzer nicht gefunden.' }, { status: 404 });
+
+      const parseResult = UserSchema.safeParse(rows[0]);
+      
+      if (!parseResult.success) {
+        console.error("User Data Invalid:", parseResult.error);
+        return NextResponse.json({ message: 'Benutzerdaten fehlerhaft' }, { status: 500 });
+      }
+      
+      const user = parseResult.data;
 
       // ✅ AUFRUF AN CACHING-FUNKTION
       const dashboardData = await getOrFetchGoogleData(user, dateRange);
