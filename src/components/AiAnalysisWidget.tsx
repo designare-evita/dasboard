@@ -1,7 +1,9 @@
+// src/components/AiAnalysisWidget.tsx
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Lightbulb, ArrowRepeat, Robot, Cpu, ExclamationTriangle, InfoCircle, GraphUpArrow } from 'react-bootstrap-icons';
+import Image from 'next/image'; // ✅ NEU: Image Import
+import { Lightbulb, ArrowRepeat, ExclamationTriangle, InfoCircle, GraphUpArrow } from 'react-bootstrap-icons';
 import { getRangeLabel, DateRangeOption } from '@/components/DateRangeSelector';
 
 interface Props {
@@ -20,7 +22,7 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
   const [error, setError] = useState<Error | null>(null);
   const [isPrefetched, setIsPrefetched] = useState(false);
   
-  // NEU: Dynamischer Teaser Text
+  // Dynamischer Teaser Text
   const [teaserText, setTeaserText] = useState('');
 
   // Ref für AbortController
@@ -29,10 +31,10 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
   // Helfer: Zufälligen "Anfütter"-Text generieren
   const generateTeaser = (range: string) => {
     const teasers = [
-      `Der Datensatz für ${range} ist vollständig importiert und wartet auf Sie. Soll ich die Auswertung jetzt starten?`,
-      `Ich habe alle relevanten Metriken für ${range} gesammelt. Darf ich die wichtigsten Erkenntnisse für Sie zusammenfassen?`,
-      `Die Zahlen für ${range} sind bereit zur Verknüpfung. Sollen wir die Analyse beginnen, um Ursache und Wirkung zu verstehen?`,
-      `Die Performance-Daten für ${range} halten neue Insights bereit. Wollen Sie wissen, welche Maßnahmen am besten gegriffen haben?`,
+      `Ich habe spannende Muster in den letzten ${range} entdeckt.`,
+      `Ihre Performance-Daten für ${range} halten Überraschungen bereit.`,
+      `Analyse vorbereitet: Es gibt Neuigkeiten zu Ihrem Traffic.`,
+      `Wollen Sie wissen, wie Ihre Keywords in ${range} performt haben?`,
       `Die Daten sind komplett. Zeit für neue Insights?`
     ];
     return teasers[Math.floor(Math.random() * teasers.length)];
@@ -47,7 +49,7 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
     setError(null);
     setIsStreamComplete(false);
     setIsPrefetched(false);
-    setTeaserText(''); // Reset Teaser
+    setTeaserText('');
 
     const prefetchData = async () => {
       if (!projectId) return;
@@ -58,7 +60,6 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
           priority: 'low'
         });
         
-        // Wenn fertig: Status setzen und Teaser generieren
         setIsPrefetched(true);
         setTeaserText(generateTeaser(rangeLabel));
         
@@ -148,12 +149,22 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
         
         <div className="relative bg-white rounded-xl p-6 flex flex-col sm:flex-row items-center gap-5 shadow-sm border border-gray-100/80">
           
-          {/* Icon mit Puls-Effekt */}
+          {/* Avatar Bereich */}
           <div className="relative shrink-0">
+            {/* Pulsierender Ring hinter dem Icon */}
             <div className={`absolute inset-0 rounded-xl opacity-10 animate-pulse ${isPrefetched ? 'bg-emerald-500' : 'bg-indigo-500'}`}></div>
             
-            <div className={`relative p-4 rounded-xl border ${isPrefetched ? 'bg-emerald-50/50 border-emerald-100/50 text-emerald-600' : 'bg-indigo-50/50 border-indigo-100/50 text-indigo-600'}`}>
-              <Robot size={28} />
+            {/* ✅ BILD STATT ICON: Data Max Illustration */}
+            <div className={`relative p-3 rounded-xl border ${isPrefetched ? 'bg-emerald-50/50 border-emerald-100/50' : 'bg-indigo-50/50 border-indigo-100/50'}`}>
+              <div className="relative w-9 h-9">
+                <Image 
+                  src="/data-max.webp" 
+                  alt="Data Max AI Analyst" 
+                  fill
+                  className="object-contain"
+                  sizes="36px"
+                />
+              </div>
             </div>
             
             {/* Status Dot */}
@@ -173,7 +184,6 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
             </div>
             <p className="text-sm text-gray-600 leading-relaxed">
               {isPrefetched && teaserText 
-                // ✅ ÄNDERUNG: text-gray-600 statt text-gray-800, font-medium entfernt
                 ? <span className="text-gray-600 animate-in fade-in duration-500">{teaserText}</span>
                 : <span>Soll ich die Performance der letzten <span className="font-medium text-gray-700">{rangeLabel}</span> analysieren?</span>}
             </p>
@@ -192,7 +202,7 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
     );
   }
 
-  // 2. Aktive Ansicht (Split Screen mit Analyse)
+  // 2. Aktive Ansicht (Split Screen)
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6 items-stretch animate-in fade-in slide-in-from-bottom-4 duration-500">
       
@@ -231,7 +241,6 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
            {analysisContent ? (
              <div dangerouslySetInnerHTML={{ __html: analysisContent }} />
            ) : (
-             /* Platzhalter, solange Spalte 1 noch lädt */
              isLoading && !statusContent ? <p className="text-gray-400 italic">Warte auf Datenverarbeitung...</p> : null
            )}
 
