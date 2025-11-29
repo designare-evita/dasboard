@@ -13,9 +13,10 @@ import {
 } from 'recharts';
 import { ChartEntry } from '@/lib/dashboard-shared';
 import { cn } from '@/lib/utils';
-import { ArrowRepeat, ExclamationTriangleFill, Activity } from 'react-bootstrap-icons'; // Activity Icon für Engagement
+// ✅ KORREKTUR: 'GraphUp' statt 'Activity' importiert
+import { ArrowRepeat, ExclamationTriangleFill, GraphUp } from 'react-bootstrap-icons'; 
 
-// ✅ Definiere die exakte Farbpalette der KPI Cards
+// Farben definieren
 const KPI_COLORS = [
   '#3b82f6', // Blue
   '#8b5cf6', // Purple
@@ -26,7 +27,6 @@ const KPI_COLORS = [
   '#06b6d4', // Cyan
 ];
 
-// Farben, die dunklen Text erfordern
 const LIGHT_COLORS = ['#f59e0b', '#06b6d4', '#10b981', '#fcd34d'];
 
 interface TableauPieChartProps {
@@ -63,7 +63,7 @@ const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
 
     return (
       <div className="bg-white px-3 py-2 rounded-lg shadow-xl border border-gray-200 min-w-[150px]">
-        {/* Header mit Farbe */}
+        {/* Header */}
         <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-100">
           <div 
             className="w-2.5 h-2.5 rounded-full shadow-sm" 
@@ -72,7 +72,7 @@ const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
           <span className="text-sm font-semibold text-gray-700">{data.name}</span>
         </div>
 
-        {/* Hauptwert (Sitzungen) */}
+        {/* Werte */}
         <div className="flex justify-between items-center mb-1 gap-4">
           <span className="text-xs text-gray-500">Anteil:</span>
           <span className="text-xs font-bold text-gray-900">{percentValue.toFixed(1)}%</span>
@@ -84,11 +84,12 @@ const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
           </span>
         </div>
 
-        {/* ✅ NEU: Sekundärwert (Engagement Rate) falls vorhanden */}
+        {/* ✅ NEU: Engagement Rate mit GraphUp Icon */}
         {data.subValue && (
           <div className="mt-2 pt-2 border-t border-gray-100 flex justify-between items-center bg-gray-50 -mx-3 px-3 py-1">
             <div className="flex items-center gap-1.5">
-              <Activity size={12} className="text-purple-500" />
+              {/* Hier GraphUp verwenden */}
+              <GraphUp size={12} className="text-purple-500" />
               <span className="text-xs font-medium text-gray-600">{data.subLabel || 'Rate'}:</span>
             </div>
             <span className="text-xs font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100">
@@ -102,7 +103,6 @@ const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
   return null;
 };
 
-// Custom Label mit Kontrast-Check (unverändert)
 const renderCustomLabel = (props: PieLabelRenderProps & { index?: number }) => {
   const { cx, cy, midAngle, innerRadius, outerRadius, percent, index } = props;
 
@@ -140,7 +140,6 @@ export default function TableauPieChart({
   error
 }: TableauPieChartProps) {
 
-  // Daten vorbereiten & Farben zuweisen
   const chartData = useMemo(() => {
     if (!data) return [];
     return data.map((entry, index) => ({
