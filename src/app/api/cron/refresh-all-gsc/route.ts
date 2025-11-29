@@ -1,196 +1,195 @@
 // src/app/api/cron/refresh-all-gsc/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import { sql, type QueryResult } from '@vercel/postgres';
+import { sql } from '@vercel/postgres';
 import { getGscDataForPagesWithComparison } from '@/lib/google-api';
 import type { User } from '@/types';
 
-// === Hilfsfunktionen zur Datumsberechnung ===
+// Konfiguration
+const BATCH_SIZE = 5; // Anzahl der User, die gleichzeitig verarbeitet werden
+const MAX_EXECUTION_TIME_MS = 50 * 1000; // 50 Sekunden (Sicherheitsabstand zu Vercel 60s Limit)
 
-/**
- * Formatiert ein Date-Objekt zu 'YYYY-MM-DD'
- */
+// === Hilfsfunktionen ===
+
 function formatDate(date: Date): string {
   return date.toISOString().split('T')[0];
 }
 
-/**
- * Berechnet Start- und Enddatum für den aktuellen und vorherigen Zeitraum.
- * (Hardcoded auf '30d' für den Cron-Job)
- */
-function calculateDateRanges(): {
-  currentRange: { startDate: string, endDate: string },
-  previousRange: { startDate: string, endDate: string }
-} {
+function calculateDateRanges() {
   const today = new Date();
-  // GSC-Daten sind oft 2 Tage verzögert.
   const endDateCurrent = new Date(today);
-  endDateCurrent.setDate(endDateCurrent.getDate() - 2); 
+  endDateCurrent.setDate(endDateCurrent.getDate() - 2); // GSC Verzögerung
   
   const startDateCurrent = new Date(endDateCurrent);
-  const daysBack = 29; // 30 Tage total (Tag 0 bis Tag 29)
-  
+  const daysBack = 29; 
   startDateCurrent.setDate(startDateCurrent.getDate() - daysBack);
   
   const endDatePrevious = new Date(startDateCurrent);
-  endDatePrevious.setDate(endDatePrevious.getDate() - 1); // 1 Tag davor
+  endDatePrevious.setDate(endDatePrevious.getDate() - 1);
   const startDatePrevious = new Date(endDatePrevious);
-  startDatePrevious.setDate(startDatePrevious.getDate() - daysBack); // Gleiche Dauer
+  startDatePrevious.setDate(startDatePrevious.getDate() - daysBack);
   
   return {
-    currentRange: {
-      startDate: formatDate(startDateCurrent),
-      endDate: formatDate(endDateCurrent),
-    },
-    previousRange: {
-      startDate: formatDate(startDatePrevious),
-      endDate: formatDate(endDatePrevious),
-    },
+    currentRange: { startDate: formatDate(startDateCurrent), endDate: formatDate(endDateCurrent) },
+    previousRange: { startDate: formatDate(startDatePrevious), endDate: formatDate(endDatePrevious) },
   };
 }
 
-
-/**
- * POST /api/cron/refresh-all-gsc
- * * Geht alle Benutzer durch, die GSC konfiguriert haben,
- * ruft die GSC-Daten für alle ihre Landingpages ab (Zeitraum 30d)
- * und speichert die Ergebnisse in der 'landingpages'-Tabelle.
- * * Geschützt durch CRON_SECRET.
- */
-export async function POST(request: NextRequest) {
-  // 1. Sicherheit: Cron-Job absichern
-  const authHeader = request.headers.get('Authorization');
-  const cronSecret = process.env.CRON_SECRET;
-
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
-    console.warn('[CRON GSC] ❌ Nicht autorisierter Zugriff');
-    return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
-  }
-
-  console.log('[CRON GSC] 🚀 Starte automatischen GSC-Abgleich...');
-  const dateRange = '30d';
-  const { currentRange, previousRange } = calculateDateRanges();
-
-  let totalUsersProcessed = 0;
-  let totalPagesUpdated = 0;
-  const errors: string[] = [];
+// Verarbeitet EINEN einzelnen User
+async function processUser(
+  user: Pick<User, 'id' | 'email' | 'gsc_site_url'>, 
+  ranges: ReturnType<typeof calculateDateRanges>
+) {
+  const logPrefix = `[User ${user.email}]`;
+  let updatedCount = 0;
 
   try {
-    // 2. Alle relevanten Benutzer laden (Kunden mit GSC-URL)
+    const client = await sql.connect();
+    
+    try {
+      // 1. Landingpages laden
+      const { rows: landingpageRows } = await client.query<{ id: number; url: string }>(
+        `SELECT id, url FROM landingpages WHERE user_id::text = $1;`,
+        [user.id]
+      );
+
+      if (landingpageRows.length === 0) {
+        return { success: true, count: 0, msg: 'Keine Landingpages' };
+      }
+
+      const pageUrls = landingpageRows.map(lp => lp.url);
+      const pageIdMap = new Map(landingpageRows.map(lp => [lp.url, lp.id]));
+
+      // 2. GSC Daten holen
+      // (Hinweis: GSC API Limits beachten, aber bei 5 parallelen Usern meist OK)
+      const gscDataMap = await getGscDataForPagesWithComparison(
+        user.gsc_site_url!,
+        pageUrls,
+        ranges.currentRange,
+        ranges.previousRange
+      );
+
+      // 3. Batch Update in Transaktion
+      await client.query('BEGIN');
+      
+      for (const [url, data] of gscDataMap.entries()) {
+        const landingpageId = pageIdMap.get(url);
+        if (landingpageId) {
+          await client.query(
+            `UPDATE landingpages
+             SET 
+               gsc_klicks = $1, gsc_klicks_change = $2,
+               gsc_impressionen = $3, gsc_impressionen_change = $4,
+               gsc_position = $5, gsc_position_change = $6,
+               gsc_last_updated = NOW(), gsc_last_range = '30d'
+             WHERE id = $7;`,
+            [
+              data.clicks, data.clicks_change,
+              data.impressions, data.impressions_change,
+              data.position, data.position_change,
+              landingpageId
+            ]
+          );
+          updatedCount++;
+        }
+      }
+
+      await client.query('COMMIT');
+      return { success: true, count: updatedCount };
+
+    } catch (innerErr) {
+      await client.query('ROLLBACK');
+      throw innerErr;
+    } finally {
+      client.release();
+    }
+
+  } catch (err: any) {
+    console.error(`${logPrefix} Fehler:`, err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+// === MAIN ROUTE ===
+export const dynamic = 'force-dynamic'; // Wichtig für Cron
+
+export async function POST(request: NextRequest) {
+  const startTime = Date.now();
+  
+  // 1. Auth Check
+  const authHeader = request.headers.get('Authorization');
+  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { currentRange, previousRange } = calculateDateRanges();
+  const ranges = { currentRange, previousRange };
+
+  try {
+    // 2. User laden
     const { rows: users } = await sql<Pick<User, 'id' | 'email' | 'gsc_site_url'>>`
       SELECT id, email, gsc_site_url 
       FROM users 
       WHERE role = 'BENUTZER' AND gsc_site_url IS NOT NULL AND gsc_site_url != '';
     `;
 
-    console.log(`[CRON GSC] 👥 ${users.length} Benutzer mit GSC-Konfiguration gefunden.`);
+    console.log(`[CRON] Starte Batch-Verarbeitung für ${users.length} User.`);
 
-    // 3. Durch jeden Benutzer loopen
-    for (const user of users) {
-      if (!user.gsc_site_url) continue; // Sollte nie passieren, aber sicher ist sicher
+    let processedCount = 0;
+    let totalUpdatedPages = 0;
+    const errors: string[] = [];
 
-      console.log(`[CRON GSC] 🔄 Verarbeite User: ${user.email} (ID: ${user.id})`);
+    // 3. Batch-Verarbeitung (Parallelisierung)
+    for (let i = 0; i < users.length; i += BATCH_SIZE) {
       
-      // Pro User eine eigene Transaktion starten
-      const client = await sql.connect();
-      try {
-        // 4. Landingpages für diesen User laden
-        const { rows: landingpageRows } = await client.query<{ id: number; url: string }>(
-          `SELECT id, url FROM landingpages WHERE user_id::text = $1;`,
-          [user.id]
-        );
-
-        if (landingpageRows.length === 0) {
-          console.log(`[CRON GSC] ℹ️ User ${user.email} hat keine Landingpages. Überspringe.`);
-          client.release();
-          continue; // Nächster User
-        }
-
-        const pageUrls = landingpageRows.map(lp => lp.url);
-        const pageIdMap = new Map<string, number>(landingpageRows.map(lp => [lp.url, lp.id]));
-
-        // 5. GSC-Daten für alle URLs dieses Users abrufen
-        const gscDataMap = await getGscDataForPagesWithComparison(
-          user.gsc_site_url,
-          pageUrls,
-          currentRange,
-          previousRange
-        );
-
-        // 6. Transaktion starten und Daten aktualisieren
-        await client.query('BEGIN');
-
-        const updatePromises: Promise<QueryResult>[] = [];
-        let updatedCountForUser = 0;
-
-        for (const [url, data] of gscDataMap.entries()) {
-          const landingpageId = pageIdMap.get(url);
-          
-          if (landingpageId) {
-  updatePromises.push(
-              client.query(
-                `UPDATE landingpages
-                 SET 
-                   gsc_klicks = $1,
-                   gsc_klicks_change = $2,
-                   gsc_impressionen = $3,
-                   gsc_impressionen_change = $4,
-                   gsc_position = $5,
-                   gsc_position_change = $6,
-                   gsc_last_updated = NOW(),
-                   gsc_last_range = $7
-                 WHERE id = $8;`,
-                [
-                  data.clicks,
-                  data.clicks_change,
-                  data.impressions,
-                  data.impressions_change,
-                  data.position,
-                  data.position_change,
-                  dateRange,
-                  landingpageId
-                ]
-              )
-            );
-            updatedCountForUser++;
-          }
-        }
-
-        await Promise.all(updatePromises);
-        await client.query('COMMIT');
-        
-        console.log(`[CRON GSC] ✅ User ${user.email}: ${updatedCountForUser} von ${pageUrls.length} Seiten aktualisiert.`);
-        totalUsersProcessed++;
-        totalPagesUpdated += updatedCountForUser;
-
-      } catch (userError) {
-        // Fehler bei diesem User -> Rollback und nächsten User versuchen
-        await client.query('ROLLBACK');
-        const errorMessage = `Fehler bei User ${user.email}: ${userError instanceof Error ? userError.message : 'Unbekannt'}`;
-        console.error(`[CRON GSC] ❌ ${errorMessage}`);
-        errors.push(errorMessage);
-      } finally {
-        client.release();
+      // Zeit-Check: Haben wir noch genug Zeit für den nächsten Batch?
+      if (Date.now() - startTime > MAX_EXECUTION_TIME_MS) {
+        console.warn('[CRON] ⚠️ Zeitlimit fast erreicht. Stoppe vorzeitig.');
+        errors.push('Zeitlimit erreicht - Job unvollständig');
+        break; 
       }
-    } // Ende des User-Loops
 
-    console.log(`[CRON GSC] 🎉 Job beendet. ${totalPagesUpdated} Seiten für ${totalUsersProcessed} User aktualisiert.`);
-    
-    return NextResponse.json({ 
-      message: `Cron-Job erfolgreich. ${totalPagesUpdated} Landingpages für ${totalUsersProcessed} Benutzer aktualisiert.`,
-      usersProcessed: totalUsersProcessed,
-      pagesUpdated: totalPagesUpdated,
-      errors: errors.length > 0 ? errors : undefined
+      const batch = users.slice(i, i + BATCH_SIZE);
+      console.log(`[CRON] Verarbeite Batch ${Math.floor(i / BATCH_SIZE) + 1} (${batch.length} User)...`);
+
+      // Promise.allSettled sorgt dafür, dass ein Fehler nicht den ganzen Batch stoppt
+      const results = await Promise.allSettled(
+        batch.map(user => processUser(user, ranges))
+      );
+
+      // Ergebnisse auswerten
+      results.forEach((res, idx) => {
+        const user = batch[idx];
+        if (res.status === 'fulfilled') {
+          const val = res.value;
+          if (val.success) {
+            totalUpdatedPages += val.count || 0;
+          } else {
+            errors.push(`User ${user.email}: ${val.error}`);
+          }
+        } else {
+          errors.push(`User ${user.email}: Kritischer Fehler (Promise rejected)`);
+        }
+      });
+
+      processedCount += batch.length;
+    }
+
+    const duration = (Date.now() - startTime) / 1000;
+    console.log(`[CRON] ✅ Fertig in ${duration}s. Seiten: ${totalUpdatedPages}. Errors: ${errors.length}`);
+
+    return NextResponse.json({
+      success: true,
+      processedUsers: processedCount,
+      totalUsers: users.length,
+      pagesUpdated: totalUpdatedPages,
+      durationSeconds: duration,
+      errors: errors.length > 0 ? errors : undefined,
+      incomplete: processedCount < users.length
     });
 
-  } catch (error) {
-    console.error('[CRON GSC] ❌ Schwerwiegender Fehler im Cron-Job:', error);
-    return NextResponse.json(
-      { 
-        message: 'Fehler beim Ausführen des Cron-Jobs.',
-        error: error instanceof Error ? error.message : 'Unbekannter Fehler'
-      },
-      { status: 500 }
-    );
+  } catch (error: any) {
+    console.error('[CRON] Fataler Fehler:', error);
+    return NextResponse.json({ message: error.message }, { status: 500 });
   }
 }
