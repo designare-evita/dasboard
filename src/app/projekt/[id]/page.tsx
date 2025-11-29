@@ -5,9 +5,9 @@ import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import { getOrFetchGoogleData } from '@/lib/google-data-loader';
 import { sql } from '@vercel/postgres';
-import { User } from '@/lib/schemas'; //
+import { User } from '@/lib/schemas'; 
 import ProjectDashboard from '@/components/ProjectDashboard';
-import { DateRangeOption } from '@/components/DateRangeSelector'; //
+import { DateRangeOption } from '@/components/DateRangeSelector'; 
 import { ArrowRepeat } from 'react-bootstrap-icons';
 
 // Ladekomponente für Suspense (verhindert Layout Shift)
@@ -24,7 +24,7 @@ function DashboardLoading() {
 
 // Diese Funktion lädt die Daten direkt auf dem Server
 async function loadData(projectId: string, dateRange: string) {
-  // 1. Projekt-Infos laden (wie in /api/projects/[id])
+  // 1. Projekt-Infos laden
   const { rows } = await sql`
     SELECT
       id::text as id, email, role, domain,
@@ -39,13 +39,13 @@ async function loadData(projectId: string, dateRange: string) {
   
   const projectUser = rows[0] as unknown as User;
 
-  // 2. Google Daten laden (Server-Funktion statt API-Call)
+  // 2. Google Daten laden
   const dashboardData = await getOrFetchGoogleData(projectUser, dateRange);
   
   return { projectUser, dashboardData };
 }
 
-// Die Hauptkomponente ist jetzt ASYNC (Server Component)
+// Die Hauptkomponente ist ASYNC (Server Component)
 export default async function ProjectPage({ 
   params, 
   searchParams 
@@ -53,7 +53,7 @@ export default async function ProjectPage({
   params: { id: string }, 
   searchParams: { dateRange?: string } 
 }) {
-  const session = await auth(); //
+  const session = await auth(); 
 
   if (!session?.user) {
     redirect('/login');
@@ -63,7 +63,7 @@ export default async function ProjectPage({
   // Datum aus URL lesen oder Default '30d' nutzen
   const dateRange = (searchParams.dateRange as DateRangeOption) || '30d';
 
-  // Berechtigungsprüfung (vereinfacht, analog zu Ihrer API)
+  // Berechtigungsprüfung
   if (session.user.role === 'BENUTZER' && session.user.id !== projectId) {
     redirect('/');
   }
@@ -83,14 +83,13 @@ export default async function ProjectPage({
 
   return (
     <Suspense fallback={<DashboardLoading />}>
+      {/* KORREKTUR: Keine Funktionen (onDateRangeChange, onPdfExport) übergeben! 
+         ProjectDashboard kümmert sich jetzt selbst darum bzw. die Props sind optional.
+      */}
       <ProjectDashboard
         data={dashboardData}
-        isLoading={false} // Daten sind bereits da!
+        isLoading={false} 
         dateRange={dateRange}
-        // Wir übergeben eine leere Funktion oder passen die Komponente an, 
-        // da die Navigation jetzt über URL-Parameter läuft (siehe Schritt 2)
-        onDateRangeChange={() => {}} 
-        onPdfExport={() => {}} // Client-Funktion muss in ProjectDashboard bleiben
         projectId={projectUser.id}
         domain={projectUser.domain || ''}
         faviconUrl={projectUser.favicon_url}
