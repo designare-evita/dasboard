@@ -61,6 +61,68 @@ function calculateChange(current: number, previous: number): number {
   return ((current - previous) / previous) * 100;
 }
 
+// ✅ NEU: Funktion zum Abrufen der Engagement Rate pro Channel
+async function getChannelDataWithEngagement(
+  propertyId: string,
+  startDate: string,
+  endDate: string
+): Promise<ChartEntry[]> {
+  try {
+    // 1. Sessions pro Channel holen
+    const channelSessions = await getGa4DimensionReport(
+      propertyId, 
+      startDate, 
+      endDate, 
+      'sessionDefaultChannelGroup'
+    );
+
+    // 2. Engagement Rate pro Channel über Google Analytics Data API abrufen
+    const { BetaAnalyticsDataClient } = require('@google-analytics/data');
+    const analyticsDataClient = new BetaAnalyticsDataClient();
+    
+    const [engagementResponse] = await analyticsDataClient.runReport({
+      property: `properties/${propertyId}`,
+      dateRanges: [{ startDate, endDate }],
+      dimensions: [{ name: 'sessionDefaultChannelGroup' }],
+      metrics: [
+        { name: 'engagementRate' }
+      ],
+    });
+
+    // 3. Map erstellen: Channel -> Engagement Rate
+    const engagementMap = new Map<string, number>();
+    
+    if (engagementResponse?.rows) {
+      for (const row of engagementResponse.rows) {
+        const channelName = row.dimensionValues?.[0]?.value || 'Unknown';
+        const engagementRate = parseFloat(row.metricValues?.[0]?.value || '0');
+        engagementMap.set(channelName, engagementRate * 100); // In Prozent umrechnen
+      }
+    }
+
+    // 4. ChartEntry mit subValue (Engagement Rate) erstellen
+    const result: ChartEntry[] = channelSessions.map((item, index) => ({
+      ...item,
+      fill: `hsl(var(--chart-${(index % 5) + 1}))`,
+      subValue: engagementMap.has(item.name) 
+        ? `${engagementMap.get(item.name)!.toFixed(1)}%` 
+        : undefined,
+      subLabel: 'Engagement'
+    }));
+
+    return result;
+
+  } catch (error) {
+    console.error('[Channel Engagement] Fehler:', error);
+    // Fallback: Nur Sessions ohne Engagement Rate
+    const fallback = await getGa4DimensionReport(propertyId, startDate, endDate, 'sessionDefaultChannelGroup');
+    return fallback.map((item, index) => ({ 
+      ...item, 
+      fill: `hsl(var(--chart-${(index % 5) + 1}))` 
+    }));
+  }
+}
+
 // ========== HAUPTFUNKTION ==========
 
 export async function getOrFetchGoogleData(
@@ -184,13 +246,16 @@ export async function getOrFetchGoogleData(
       try { aiTraffic = await getAiTrafficData(propertyId, startDateStr, endDateStr); } catch (e) {}
       try {
         const rawCountryData = await getGa4DimensionReport(propertyId, startDateStr, endDateStr, 'country');
-        const rawChannelData = await getGa4DimensionReport(propertyId, startDateStr, endDateStr, 'sessionDefaultChannelGroup');
+        // ✅ HIER: Channel-Daten MIT Engagement Rate abrufen
+        channelData = await getChannelDataWithEngagement(propertyId, startDateStr, endDateStr);
         const rawDeviceData = await getGa4DimensionReport(propertyId, startDateStr, endDateStr, 'deviceCategory');
         
         countryData = rawCountryData.map((item, index) => ({ ...item, fill: `hsl(var(--chart-${(index % 5) + 1}))` }));
-        channelData = rawChannelData.map((item, index) => ({ ...item, fill: `hsl(var(--chart-${(index % 5) + 1}))` }));
+        // channelData ist bereits oben zugewiesen
         deviceData = rawDeviceData.map((item, index) => ({ ...item, fill: `hsl(var(--chart-${(index % 5) + 1}))` }));
-      } catch (e) {}
+      } catch (e) {
+        console.error('[GA4 Dimensions] Fehler:', e);
+      }
 
     } catch (e: any) {
       apiErrors.ga4 = e.message || 'GA4 Fehler';
@@ -252,7 +317,7 @@ export async function getOrFetchGoogleData(
     topQueries,
     aiTraffic,
     countryData,
-    channelData,
+    channelData, // ✅ Jetzt mit Engagement Rate
     deviceData,
     apiErrors: Object.keys(apiErrors).length > 0 ? apiErrors : undefined
   };
