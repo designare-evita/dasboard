@@ -1,7 +1,7 @@
 // src/components/TableauKpiGrid.tsx
 'use client';
 
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo } from 'react';
 import TableauKpiCard from './tableau-kpi-card';
 import { KpiDatum, ChartPoint, ApiErrorStatus } from '@/lib/dashboard-shared';
 import { getRangeLabel, DateRangeOption } from '@/components/DateRangeSelector';
@@ -35,16 +35,6 @@ export default function TableauKpiGrid({
   apiErrors,
   dateRange = '30d'
 }: TableauKpiGridProps) {
-
-  // DEBUGGING: Zeigt im Browser an, was wirklich ankommt
-  useEffect(() => {
-    console.log('📊 [TableauGrid Debug] Charts received:', allChartData);
-    if (allChartData) {
-      console.log(`- Impressions Points: ${allChartData.impressions?.length}`);
-      console.log(`- Clicks Points: ${allChartData.clicks?.length}`);
-      console.log(`- NewUsers Points: ${allChartData.newUsers?.length}`);
-    }
-  }, [allChartData]);
 
   if (!kpis) return null;
 
@@ -89,6 +79,7 @@ export default function TableauKpiGrid({
           
           <TableauKpiCard
             title="Impressionen"
+            description="Wie oft Ihre Website in den Google-Suchergebnissen gesehen wurde."
             subtitle={dateSubtitle}
             valueLabel={rangeLabel}
             value={kpis.impressions.value}
@@ -102,6 +93,7 @@ export default function TableauKpiGrid({
 
           <TableauKpiCard
             title="Google Klicks"
+            description="Wie oft Nutzer in der Google-Suche auf Ihre Website geklickt haben."
             subtitle={dateSubtitle}
             valueLabel={rangeLabel}
             value={kpis.clicks.value}
@@ -116,6 +108,7 @@ export default function TableauKpiGrid({
           {kpis.newUsers && (
             <TableauKpiCard
               title="Neue Besucher"
+              description="Anzahl der Nutzer, die Ihre Website zum ersten Mal besucht haben."
               subtitle={dateSubtitle}
               valueLabel={rangeLabel}
               value={kpis.newUsers.value}
@@ -130,6 +123,7 @@ export default function TableauKpiGrid({
 
           <TableauKpiCard
             title="Besucher"
+            description="Gesamtzahl der eindeutigen Nutzer (User), die Ihre Website besucht haben."
             subtitle={dateSubtitle}
             valueLabel={rangeLabel}
             value={kpis.totalUsers.value}
@@ -143,6 +137,7 @@ export default function TableauKpiGrid({
 
           <TableauKpiCard
             title="Sessions"
+            description="Anzahl der einzelnen Sitzungen (Besuche), die auf Ihrer Website stattgefunden haben."
             subtitle={dateSubtitle}
             valueLabel={rangeLabel}
             value={kpis.sessions.value}
@@ -165,6 +160,7 @@ export default function TableauKpiGrid({
           {kpis.engagementRate && (
             <TableauKpiCard
               title="Engagement Rate"
+              description="Prozentsatz der Sitzungen mit Interaktion (länger als 10s, Conversion oder 2+ Seiten)."
               subtitle={dateSubtitle}
               valueLabel={rangeLabel}
               value={kpis.engagementRate.value}
@@ -181,6 +177,7 @@ export default function TableauKpiGrid({
           {kpis.conversions && (
             <TableauKpiCard
               title="Conversions"
+              description="Anzahl der erreichten Zielvorhaben (z.B. Kontaktanfragen, Käufe)."
               subtitle={dateSubtitle}
               valueLabel={rangeLabel}
               value={kpis.conversions.value}
@@ -196,6 +193,7 @@ export default function TableauKpiGrid({
           {kpis.avgEngagementTime && (
             <TableauKpiCard
               title="Ø Verweildauer"
+              description="Durchschnittliche Zeit, die die Website im Vordergrund des Browsers geöffnet war."
               subtitle={dateSubtitle}
               valueLabel={rangeLabel}
               value={kpis.avgEngagementTime.value}
@@ -212,6 +210,7 @@ export default function TableauKpiGrid({
           {kpis.bounceRate && (
             <TableauKpiCard
               title="Absprungrate"
+              description="Prozentsatz der Sitzungen ohne Interaktion. (Hinweis: In GA4 oft durch Engagement Rate ersetzt)."
               subtitle={dateSubtitle}
               valueLabel={rangeLabel}
               value={kpis.bounceRate.value}
