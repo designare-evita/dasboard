@@ -1,158 +1,98 @@
 // src/app/projekt/[id]/page.tsx
-'use client';
 
-import { useSession } from 'next-auth/react';
-import { useRouter, useParams } from 'next/navigation';
-import { useEffect, useState } from 'react'; 
-import { User } from '@/types';
-import {
-  ArrowRepeat,
-  ExclamationTriangleFill
-} from 'react-bootstrap-icons';
-import {
-  ProjectDashboardData,
-} from '@/lib/dashboard-shared';
+import { auth } from '@/lib/auth';
+import { redirect } from 'next/navigation';
+import { Suspense } from 'react';
+import { getOrFetchGoogleData } from '@/lib/google-data-loader';
+import { sql } from '@vercel/postgres';
+import { User } from '@/lib/schemas'; //
 import ProjectDashboard from '@/components/ProjectDashboard';
-import { type DateRangeOption } from '@/components/DateRangeSelector'; // Fix import
+import { DateRangeOption } from '@/components/DateRangeSelector'; //
+import { ArrowRepeat } from 'react-bootstrap-icons';
 
-export default function ProjectPage() {
-  const { data: session, status } = useSession();
-  const router = useRouter();
-  const params = useParams();
-  const projectId = params.id as string;
-
-  const [dashboardData, setDashboardData] = useState<ProjectDashboardData | null>(null);
-  const [projectUser, setProjectUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true); 
-  const [error, setError] = useState<string | null>(null);
-  const [dateRange, setDateRange] = useState<DateRangeOption>('30d');
-
-  /**
-   * Lädt die Dashboard-Daten (Google KPIs) für einen bestimmten Zeitraum.
-   */
-  const fetchGoogleData = async (range: DateRangeOption) => {
-    if (!projectId) return;
-
-    setIsLoading(true); 
-    setError(null);
-    
-    try {
-      const googleResponse = await fetch(`/api/projects/${projectId}?dateRange=${range}`);
-      if (!googleResponse.ok) {
-        const errorResult = await googleResponse.json();
-        throw new Error(errorResult.message || 'Fehler beim Laden der Google-Daten');
-      }
-      const googleResult = await googleResponse.json();
-      setDashboardData(googleResult);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Ein unbekannter Fehler ist aufgetreten');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  /**
-   * Lädt die Projekt-Details (Domain, Keys, etc.) - Nur einmal.
-   */
-  const fetchProjectDetails = async () => {
-    if (!projectId) return null;
-    
-    try {
-      const userResponse = await fetch(`/api/users/${projectId}`);
-      if (!userResponse.ok) {
-        const errorResult = await userResponse.json();
-        throw new Error(errorResult.message || 'Fehler beim Laden der Projekt-Details');
-      }
-      const userData = await userResponse.json();
-      setProjectUser(userData);
-      return userData; 
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Ein unbekannter Fehler ist aufgetreten');
-      return null;
-    }
-  };
-
-  useEffect(() => {
-    if (status === 'authenticated' && projectId) {
-      setIsLoading(true);
-      
-      // Chain loading: Erst Projekt-Infos, dann Google Daten
-      fetchProjectDetails().then(userData => {
-        if (userData) {
-          return fetchGoogleData(dateRange); 
-        } else {
-          setIsLoading(false);
-        }
-      }).catch(err => {
-        setError(err instanceof Error ? err.message : 'Fehler beim Laden');
-        setIsLoading(false);
-      });
-      
-    } else if (status === 'unauthenticated') {
-      router.push('/login');
-    }
-  }, [status, session, projectId, router]);
-
-  const handleDateRangeChange = (range: DateRangeOption) => {
-    setDateRange(range); 
-    void fetchGoogleData(range); 
-  };
-
-  const handlePdfExport = () => {
-    if (typeof window !== 'undefined') {
-      window.print();
-    }
-  };
-
-  // ==========================================
-  // ✅ VERBESSERTE RENDER LOGIK
-  // ==========================================
-
-  // 1. Auth Loading State
-  if (status === 'loading') {
-    return (
-      <div className="flex justify-center items-center min-h-screen bg-gray-50">
+// Ladekomponente für Suspense (verhindert Layout Shift)
+function DashboardLoading() {
+  return (
+    <div className="flex justify-center items-center min-h-screen bg-gray-50">
+      <div className="flex flex-col items-center gap-4">
         <ArrowRepeat className="animate-spin text-indigo-600" size={40} />
+        <p className="text-gray-500 font-medium">Das Dashboard wird vorbereitet...</p>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
-  // 2. Error State (Hat Vorrang vor allem anderen, wenn gesetzt)
-  if (error) {
-    return (
-      <div className="flex justify-center items-center min-h-screen bg-gray-50 p-8">
-        <div className="bg-white p-8 rounded-lg shadow-md max-w-lg text-center border border-red-200">
-          <ExclamationTriangleFill className="text-red-500 mx-auto mb-4" size={40} />
-          <h2 className="text-xl font-bold text-gray-800 mb-2">Fehler beim Laden</h2>
-          <p className="text-gray-600">{error}</p>
-        </div>
-      </div>
-    );
-  }
+// Diese Funktion lädt die Daten direkt auf dem Server
+async function loadData(projectId: string, dateRange: string) {
+  // 1. Projekt-Infos laden (wie in /api/projects/[id])
+  const { rows } = await sql`
+    SELECT
+      id::text as id, email, role, domain,
+      gsc_site_url, ga4_property_id,
+      semrush_project_id, semrush_tracking_id, semrush_tracking_id_02,
+      favicon_url, project_timeline_active, project_start_date, project_duration_months
+    FROM users
+    WHERE id::text = ${projectId}
+  `;
 
-  // 3. Data Loading State (Solange Daten fehlen UND kein Fehler vorliegt -> Spinner)
-  // Das verhindert das "Aufblitzen" des Fallbacks, wenn ein Teil der Daten schon da ist, der andere aber noch lädt.
-  const isDataMissing = !dashboardData || !projectUser;
+  if (rows.length === 0) return null;
   
-  if (isLoading || isDataMissing) {
+  const projectUser = rows[0] as unknown as User;
+
+  // 2. Google Daten laden (Server-Funktion statt API-Call)
+  const dashboardData = await getOrFetchGoogleData(projectUser, dateRange);
+  
+  return { projectUser, dashboardData };
+}
+
+// Die Hauptkomponente ist jetzt ASYNC (Server Component)
+export default async function ProjectPage({ 
+  params, 
+  searchParams 
+}: { 
+  params: { id: string }, 
+  searchParams: { dateRange?: string } 
+}) {
+  const session = await auth(); //
+
+  if (!session?.user) {
+    redirect('/login');
+  }
+
+  const projectId = params.id;
+  // Datum aus URL lesen oder Default '30d' nutzen
+  const dateRange = (searchParams.dateRange as DateRangeOption) || '30d';
+
+  // Berechtigungsprüfung (vereinfacht, analog zu Ihrer API)
+  if (session.user.role === 'BENUTZER' && session.user.id !== projectId) {
+    redirect('/');
+  }
+
+  // Datenabruf auf dem Server
+  const data = await loadData(projectId, dateRange);
+
+  if (!data || !data.dashboardData) {
     return (
       <div className="flex justify-center items-center min-h-screen bg-gray-50">
-        <ArrowRepeat className="animate-spin text-indigo-600" size={40} />
+        <p className="text-gray-500">Projekt nicht gefunden oder keine Daten verfügbar.</p>
       </div>
     );
   }
 
-  // 4. Success State (Alles da)
-  if (dashboardData && projectUser) {
-    return (
+  const { projectUser, dashboardData } = data;
+
+  return (
+    <Suspense fallback={<DashboardLoading />}>
       <ProjectDashboard
         data={dashboardData}
-        isLoading={isLoading} // Wird hier false sein, aber für Refreshes genutzt
+        isLoading={false} // Daten sind bereits da!
         dateRange={dateRange}
-        onDateRangeChange={handleDateRangeChange}
-        onPdfExport={handlePdfExport}
+        // Wir übergeben eine leere Funktion oder passen die Komponente an, 
+        // da die Navigation jetzt über URL-Parameter läuft (siehe Schritt 2)
+        onDateRangeChange={() => {}} 
+        onPdfExport={() => {}} // Client-Funktion muss in ProjectDashboard bleiben
         projectId={projectUser.id}
-        domain={projectUser.domain}
+        domain={projectUser.domain || ''}
         faviconUrl={projectUser.favicon_url}
         semrushTrackingId={projectUser.semrush_tracking_id}
         semrushTrackingId02={projectUser.semrush_tracking_id_02}
@@ -161,13 +101,6 @@ export default function ProjectPage() {
         channelData={dashboardData.channelData}
         deviceData={dashboardData.deviceData}
       />
-    );
-  }
-  
-  // 5. Fallback (Sollte theoretisch nie erreicht werden, wenn Logik oben stimmt)
-  return (
-    <div className="flex justify-center items-center min-h-screen bg-gray-50">
-      <p className="text-gray-500">Dashboard konnte nicht geladen werden.</p>
-    </div>
+    </Suspense>
   );
 }
