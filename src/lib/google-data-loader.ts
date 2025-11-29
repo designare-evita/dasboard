@@ -21,13 +21,11 @@ const CACHE_DURATION_HOURS = 48;
 
 type GscData = { clicks: { total: number, daily: ChartPoint[] }, impressions: { total: number, daily: ChartPoint[] } };
 
-// ✅ Update Typ Definition für GA4 Data
 type GaData = { 
   sessions: { total: number, daily: ChartPoint[] }, 
   totalUsers: { total: number, daily: ChartPoint[] },
   conversions: { total: number, daily: ChartPoint[] },
   engagementRate: { total: number, daily: ChartPoint[] },
-  // Neue Felder
   bounceRate: { total: number, daily: ChartPoint[] },
   newUsers: { total: number, daily: ChartPoint[] },
   avgEngagementTime: { total: number, daily: ChartPoint[] }
@@ -74,7 +72,7 @@ export async function getOrFetchGoogleData(
 
   const userId = user.id;
 
-  // 1. Cache prüfen (unverändert)
+  // 1. Cache prüfen
   if (!forceRefresh) {
     try {
       const { rows } = await sql`
@@ -103,7 +101,6 @@ export async function getOrFetchGoogleData(
   // 2. Daten frisch holen
   console.log(`[Google Cache] 🔄 Fetching fresh data for ${user.email}...`);
 
-  // Datum berechnen (unverändert)
   const end = new Date();
   const start = new Date();
   let days = 30;
@@ -137,7 +134,7 @@ export async function getOrFetchGoogleData(
   
   let apiErrors: ApiErrorStatus = {};
 
-  // --- FETCH: GSC (unverändert) ---
+  // --- FETCH: GSC ---
   if (user.gsc_site_url) {
     try {
       const gscRaw = await getSearchConsoleData(user.gsc_site_url, startDateStr, endDateStr);
@@ -156,13 +153,11 @@ export async function getOrFetchGoogleData(
     }
   }
 
-  // --- FETCH: GA4 (ERWEITERT) ---
+  // --- FETCH: GA4 ---
   if (user.ga4_property_id) {
     try {
       const propertyId = user.ga4_property_id.trim();
 
-      // ✅ Abruf erweitert in google-api.ts (getAnalyticsData muss dort angepasst sein, siehe unten)
-      // Wir gehen davon aus, dass getAnalyticsData bereits die neuen Felder zurückgibt.
       const gaCurrent = await getAnalyticsData(propertyId, startDateStr, endDateStr);
       const gaPrevious = await getAnalyticsData(propertyId, prevStartStr, prevEndStr);
       
@@ -171,7 +166,6 @@ export async function getOrFetchGoogleData(
         totalUsers: gaCurrent.totalUsers,
         conversions: gaCurrent.conversions,
         engagementRate: gaCurrent.engagementRate,
-        // ✅ Mappen der neuen Felder
         bounceRate: gaCurrent.bounceRate,
         newUsers: gaCurrent.newUsers,
         avgEngagementTime: gaCurrent.avgEngagementTime
@@ -182,13 +176,11 @@ export async function getOrFetchGoogleData(
         totalUsers: { total: gaPrevious.totalUsers.total },
         conversions: { total: gaPrevious.conversions.total },
         engagementRate: { total: gaPrevious.engagementRate.total },
-        // ✅ Mappen der neuen Previous Felder
         bounceRate: { total: gaPrevious.bounceRate.total },
         newUsers: { total: gaPrevious.newUsers.total },
         avgEngagementTime: { total: gaPrevious.avgEngagementTime.total }
       };
 
-      // AI Traffic & Pie Charts (unverändert)
       try { aiTraffic = await getAiTrafficData(propertyId, startDateStr, endDateStr); } catch (e) {}
       try {
         const rawCountryData = await getGa4DimensionReport(propertyId, startDateStr, endDateStr, 'country');
@@ -205,19 +197,34 @@ export async function getOrFetchGoogleData(
     }
   }
 
+  // ✅ BERECHNUNG DES AI ANTEILS
+  let aiTrafficPercentage = 0;
+  if (aiTraffic && gaData.sessions.total > 0) {
+    aiTrafficPercentage = (aiTraffic.totalSessions / gaData.sessions.total) * 100;
+  }
+
   // Daten zusammenbauen
   const freshData: ProjectDashboardData = {
     kpis: {
       clicks: { value: gscData.clicks.total, change: calculateChange(gscData.clicks.total, gscPrev.clicks.total) },
       impressions: { value: gscData.impressions.total, change: calculateChange(gscData.impressions.total, gscPrev.impressions.total) },
-      sessions: { value: gaData.sessions.total, change: calculateChange(gaData.sessions.total, gaPrev.sessions.total) },
+      
+      // ✅ HIER: AI Traffic Info hinzufügen, damit sie im Frontend ankommt
+      sessions: { 
+        value: gaData.sessions.total, 
+        change: calculateChange(gaData.sessions.total, gaPrev.sessions.total),
+        aiTraffic: aiTraffic ? {
+          value: aiTraffic.totalSessions,
+          percentage: aiTrafficPercentage
+        } : undefined
+      },
+      
       totalUsers: { value: gaData.totalUsers.total, change: calculateChange(gaData.totalUsers.total, gaPrev.totalUsers.total) },
       conversions: { value: gaData.conversions.total, change: calculateChange(gaData.conversions.total, gaPrev.conversions.total) },
       engagementRate: { 
         value: parseFloat((gaData.engagementRate.total * 100).toFixed(2)), 
         change: calculateChange(gaData.engagementRate.total, gaPrev.engagementRate.total) 
       },
-      // ✅ Neue KPIs
       bounceRate: {
         value: parseFloat((gaData.bounceRate.total * 100).toFixed(2)),
         change: calculateChange(gaData.bounceRate.total, gaPrev.bounceRate.total)
@@ -238,7 +245,6 @@ export async function getOrFetchGoogleData(
       totalUsers: gaData.totalUsers.daily,
       conversions: gaData.conversions.daily,
       engagementRate: gaData.engagementRate.daily,
-      // ✅ Neue Charts
       bounceRate: gaData.bounceRate.daily,
       newUsers: gaData.newUsers.daily,
       avgEngagementTime: gaData.avgEngagementTime.daily
@@ -251,7 +257,6 @@ export async function getOrFetchGoogleData(
     apiErrors: Object.keys(apiErrors).length > 0 ? apiErrors : undefined
   };
 
-  // Cache schreiben (unverändert)
   try {
     await sql`
       INSERT INTO google_data_cache (user_id, date_range, data, last_fetched)
