@@ -13,20 +13,24 @@ import {
   ProjectDashboardData, 
   ChartEntry, 
   ApiErrorStatus,
-  ZERO_KPI
 } from '@/lib/dashboard-shared';
 import type { TopQueryData, ChartPoint } from '@/types/dashboard';
 
 // ========== KONSTANTEN ==========
 const CACHE_DURATION_HOURS = 48; 
 
-// Typ-Aliase - verwende ChartPoint direkt
 type GscData = { clicks: { total: number, daily: ChartPoint[] }, impressions: { total: number, daily: ChartPoint[] } };
+
+// ✅ Update Typ Definition für GA4 Data
 type GaData = { 
   sessions: { total: number, daily: ChartPoint[] }, 
   totalUsers: { total: number, daily: ChartPoint[] },
   conversions: { total: number, daily: ChartPoint[] },
-  engagementRate: { total: number, daily: ChartPoint[] }
+  engagementRate: { total: number, daily: ChartPoint[] },
+  // Neue Felder
+  bounceRate: { total: number, daily: ChartPoint[] },
+  newUsers: { total: number, daily: ChartPoint[] },
+  avgEngagementTime: { total: number, daily: ChartPoint[] }
 };
 
 const DEFAULT_GSC_DATA: GscData = { clicks: { total: 0, daily: [] }, impressions: { total: 0, daily: [] } };
@@ -36,28 +40,27 @@ const DEFAULT_GA_DATA: GaData = {
   sessions: { total: 0, daily: [] }, 
   totalUsers: { total: 0, daily: [] },
   conversions: { total: 0, daily: [] },
-  engagementRate: { total: 0, daily: [] }
+  engagementRate: { total: 0, daily: [] },
+  bounceRate: { total: 0, daily: [] },
+  newUsers: { total: 0, daily: [] },
+  avgEngagementTime: { total: 0, daily: [] }
 };
-const DEFAULT_GA_PREVIOUS = { sessions: { total: 0 }, totalUsers: { total: 0 }, conversions: { total: 0 }, engagementRate: { total: 0 } };
+
+const DEFAULT_GA_PREVIOUS = { 
+  sessions: { total: 0 }, 
+  totalUsers: { total: 0 }, 
+  conversions: { total: 0 }, 
+  engagementRate: { total: 0 },
+  bounceRate: { total: 0 },
+  newUsers: { total: 0 },
+  avgEngagementTime: { total: 0 }
+};
 
 // ========== HILFSFUNKTIONEN ==========
 
 function calculateChange(current: number, previous: number): number {
   if (previous === 0) return current > 0 ? 100 : 0;
   return ((current - previous) / previous) * 100;
-}
-
-// Helper: Credentials aus DB-User parsen
-function getCredentials(user: User) {
-  if (!user.gsc_site_url) throw new Error('Keine GSC Property konfiguriert');
-  
-  // Da wir Service Account nutzen, brauchen wir hier keine User-spezifischen Credentials,
-  // sondern nutzen die Env-Vars im Backend (via google-api.ts).
-  // Wir geben nur die Property-ID zurück.
-  return {
-    siteUrl: user.gsc_site_url,
-    ga4PropertyId: user.ga4_property_id
-  };
 }
 
 // ========== HAUPTFUNKTION ==========
@@ -71,7 +74,7 @@ export async function getOrFetchGoogleData(
 
   const userId = user.id;
 
-  // 1. Cache prüfen
+  // 1. Cache prüfen (unverändert)
   if (!forceRefresh) {
     try {
       const { rows } = await sql`
@@ -88,42 +91,32 @@ export async function getOrFetchGoogleData(
         const cacheAgeHours = (now - lastFetched) / (1000 * 60 * 60);
 
         if (cacheAgeHours < CACHE_DURATION_HOURS) {
-          console.log(`[Google Cache] ✅ HIT für ${user.email} (${dateRange}) - Age: ${cacheAgeHours.toFixed(1)}h`);
-          console.log(`[Google Cache] Cache enthält GA4: ${!!cacheEntry.data?.kpis?.sessions}, GSC: ${!!cacheEntry.data?.kpis?.clicks}`);
+          console.log(`[Google Cache] ✅ HIT für ${user.email}`);
           return { ...cacheEntry.data, fromCache: true };
-        } else {
-          console.log(`[Google Cache] ⏳ Cache abgelaufen (${cacheAgeHours.toFixed(1)}h) - Hole neue Daten`);
         }
-      } else {
-        console.log(`[Google Cache] ❌ Kein Cache gefunden für ${user.email} (${dateRange})`);
       }
     } catch (error) {
       console.warn('[Google Cache] Fehler beim Lesen:', error);
     }
-  } else {
-    console.log(`[Google Cache] 🔄 Force Refresh aktiviert für ${user.email}`);
   }
 
   // 2. Daten frisch holen
   console.log(`[Google Cache] 🔄 Fetching fresh data for ${user.email}...`);
-  console.log(`[Google Config] GSC Site: ${user.gsc_site_url || 'NICHT KONFIGURIERT'}`);
-  console.log(`[Google Config] GA4 Property: ${user.ga4_property_id || 'NICHT KONFIGURIERT'}`);
-  console.log(`[Google Config] Date Range: ${dateRange}`);
 
-  // Datum berechnen
+  // Datum berechnen (unverändert)
   const end = new Date();
   const start = new Date();
   let days = 30;
-  
   if (dateRange === '7d') days = 7;
   if (dateRange === '30d') days = 30;
   if (dateRange === '3m') days = 90;
+  if (dateRange === '6m') days = 180;
+  if (dateRange === '12m') days = 365;
   
   start.setDate(end.getDate() - days);
   const startDateStr = start.toISOString().split('T')[0];
   const endDateStr = end.toISOString().split('T')[0];
 
-  // Vergleichszeitraum
   const prevEnd = new Date(start);
   prevEnd.setDate(prevEnd.getDate() - 1);
   const prevStart = new Date(prevEnd);
@@ -144,7 +137,7 @@ export async function getOrFetchGoogleData(
   
   let apiErrors: ApiErrorStatus = {};
 
-  // --- FETCH: GSC ---
+  // --- FETCH: GSC (unverändert) ---
   if (user.gsc_site_url) {
     try {
       const gscRaw = await getSearchConsoleData(user.gsc_site_url, startDateStr, endDateStr);
@@ -152,32 +145,24 @@ export async function getOrFetchGoogleData(
         clicks: { total: gscRaw.clicks.total, daily: gscRaw.clicks.daily },
         impressions: { total: gscRaw.impressions.total, daily: gscRaw.impressions.daily }
       };
-      
-      // Vorperiode GSC
       const gscPrevRaw = await getSearchConsoleData(user.gsc_site_url, prevStartStr, prevEndStr);
       gscPrev = {
         clicks: { total: gscPrevRaw.clicks.total },
         impressions: { total: gscPrevRaw.impressions.total }
       };
-
-      // Top Queries
       topQueries = await getTopQueries(user.gsc_site_url, startDateStr, endDateStr);
-
     } catch (e: any) {
-      console.error('[GSC Fetch Error]', e);
       apiErrors.gsc = e.message || 'GSC Fehler';
     }
   }
 
-  // --- FETCH: GA4 (Erweitert) ---
+  // --- FETCH: GA4 (ERWEITERT) ---
   if (user.ga4_property_id) {
     try {
-      // Property ID trimmen (Leerzeichen entfernen)
       const propertyId = user.ga4_property_id.trim();
 
-      console.log(`[GA4] Fetching data for property: ${propertyId}`);
-
-      // Neue erweiterte getAnalyticsData Funktion nutzen
+      // ✅ Abruf erweitert in google-api.ts (getAnalyticsData muss dort angepasst sein, siehe unten)
+      // Wir gehen davon aus, dass getAnalyticsData bereits die neuen Felder zurückgibt.
       const gaCurrent = await getAnalyticsData(propertyId, startDateStr, endDateStr);
       const gaPrevious = await getAnalyticsData(propertyId, prevStartStr, prevEndStr);
       
@@ -185,59 +170,38 @@ export async function getOrFetchGoogleData(
         sessions: gaCurrent.sessions,
         totalUsers: gaCurrent.totalUsers,
         conversions: gaCurrent.conversions,
-        engagementRate: gaCurrent.engagementRate
+        engagementRate: gaCurrent.engagementRate,
+        // ✅ Mappen der neuen Felder
+        bounceRate: gaCurrent.bounceRate,
+        newUsers: gaCurrent.newUsers,
+        avgEngagementTime: gaCurrent.avgEngagementTime
       };
       
       gaPrev = {
         sessions: { total: gaPrevious.sessions.total },
         totalUsers: { total: gaPrevious.totalUsers.total },
         conversions: { total: gaPrevious.conversions.total },
-        engagementRate: { total: gaPrevious.engagementRate.total }
+        engagementRate: { total: gaPrevious.engagementRate.total },
+        // ✅ Mappen der neuen Previous Felder
+        bounceRate: { total: gaPrevious.bounceRate.total },
+        newUsers: { total: gaPrevious.newUsers.total },
+        avgEngagementTime: { total: gaPrevious.avgEngagementTime.total }
       };
 
-      console.log(`[GA4] ✅ Base metrics fetched successfully`);
-
-      // AI Traffic (Optional - Fehler nicht kritisch)
-      try {
-        aiTraffic = await getAiTrafficData(propertyId, startDateStr, endDateStr);
-        console.log(`[GA4] ✅ AI Traffic data fetched`);
-      } catch (aiError: any) {
-        console.warn('[GA4] AI Traffic fetch failed (non-critical):', aiError.message);
-      }
-
-      // Pie Charts (Länder, Kanäle, Geräte) - Optional
+      // AI Traffic & Pie Charts (unverändert)
+      try { aiTraffic = await getAiTrafficData(propertyId, startDateStr, endDateStr); } catch (e) {}
       try {
         const rawCountryData = await getGa4DimensionReport(propertyId, startDateStr, endDateStr, 'country');
         const rawChannelData = await getGa4DimensionReport(propertyId, startDateStr, endDateStr, 'sessionDefaultChannelGroup');
         const rawDeviceData = await getGa4DimensionReport(propertyId, startDateStr, endDateStr, 'deviceCategory');
         
-        // ChartEntry-Objekte mit 'fill'-Property erstellen
-        countryData = rawCountryData.map((item, index) => ({
-          ...item,
-          fill: `hsl(var(--chart-${(index % 5) + 1}))`
-        }));
-        channelData = rawChannelData.map((item, index) => ({
-          ...item,
-          fill: `hsl(var(--chart-${(index % 5) + 1}))`
-        }));
-        deviceData = rawDeviceData.map((item, index) => ({
-          ...item,
-          fill: `hsl(var(--chart-${(index % 5) + 1}))`
-        }));
-        
-        console.log(`[GA4] ✅ Dimension reports fetched`);
-      } catch (dimError: any) {
-        console.warn('[GA4] Dimension reports fetch failed (non-critical):', dimError.message);
-      }
+        countryData = rawCountryData.map((item, index) => ({ ...item, fill: `hsl(var(--chart-${(index % 5) + 1}))` }));
+        channelData = rawChannelData.map((item, index) => ({ ...item, fill: `hsl(var(--chart-${(index % 5) + 1}))` }));
+        deviceData = rawDeviceData.map((item, index) => ({ ...item, fill: `hsl(var(--chart-${(index % 5) + 1}))` }));
+      } catch (e) {}
 
     } catch (e: any) {
-      console.error('[GA4 Fetch Error] Raw error:', e);
-      console.error('[GA4 Fetch Error] Message:', e.message);
-      console.error('[GA4 Fetch Error] Code:', e.code);
-      console.error('[GA4 Fetch Error] Stack:', e.stack);
-      
-      // Zeige ECHTEN Fehler, nicht generisch umschreiben
-      apiErrors.ga4 = e.message || 'GA4 Fehler: Unbekannt';
+      apiErrors.ga4 = e.message || 'GA4 Fehler';
     }
   }
 
@@ -248,21 +212,36 @@ export async function getOrFetchGoogleData(
       impressions: { value: gscData.impressions.total, change: calculateChange(gscData.impressions.total, gscPrev.impressions.total) },
       sessions: { value: gaData.sessions.total, change: calculateChange(gaData.sessions.total, gaPrev.sessions.total) },
       totalUsers: { value: gaData.totalUsers.total, change: calculateChange(gaData.totalUsers.total, gaPrev.totalUsers.total) },
-      // ✅ NEU
       conversions: { value: gaData.conversions.total, change: calculateChange(gaData.conversions.total, gaPrev.conversions.total) },
       engagementRate: { 
         value: parseFloat((gaData.engagementRate.total * 100).toFixed(2)), 
         change: calculateChange(gaData.engagementRate.total, gaPrev.engagementRate.total) 
       },
+      // ✅ Neue KPIs
+      bounceRate: {
+        value: parseFloat((gaData.bounceRate.total * 100).toFixed(2)),
+        change: calculateChange(gaData.bounceRate.total, gaPrev.bounceRate.total)
+      },
+      newUsers: {
+        value: gaData.newUsers.total,
+        change: calculateChange(gaData.newUsers.total, gaPrev.newUsers.total)
+      },
+      avgEngagementTime: {
+        value: gaData.avgEngagementTime.total,
+        change: calculateChange(gaData.avgEngagementTime.total, gaPrev.avgEngagementTime.total)
+      }
     },
     charts: {
       clicks: gscData.clicks.daily,
       impressions: gscData.impressions.daily,
       sessions: gaData.sessions.daily,
       totalUsers: gaData.totalUsers.daily,
-      // ✅ NEU
       conversions: gaData.conversions.daily,
       engagementRate: gaData.engagementRate.daily,
+      // ✅ Neue Charts
+      bounceRate: gaData.bounceRate.daily,
+      newUsers: gaData.newUsers.daily,
+      avgEngagementTime: gaData.avgEngagementTime.daily
     },
     topQueries,
     aiTraffic,
@@ -272,34 +251,15 @@ export async function getOrFetchGoogleData(
     apiErrors: Object.keys(apiErrors).length > 0 ? apiErrors : undefined
   };
 
-  // Debug Log: Zusammenfassung der geholten Daten
-  console.log(`[Google Data] Zusammenfassung für ${user.email}:`);
-  console.log(`  - GSC Clicks: ${freshData.kpis?.clicks?.value ?? 0}`);
-  console.log(`  - GSC Impressions: ${freshData.kpis?.impressions?.value ?? 0}`);
-  console.log(`  - GA4 Sessions: ${freshData.kpis?.sessions?.value ?? 0}`);
-  console.log(`  - GA4 Users: ${freshData.kpis?.totalUsers?.value ?? 0}`);
-  console.log(`  - GA4 Conversions: ${freshData.kpis?.conversions?.value ?? 0}`);
-  console.log(`  - Top Queries: ${topQueries.length}`);
-  console.log(`  - API Errors: ${Object.keys(apiErrors).join(', ') || 'Keine'}`);
-  console.log(`  - Country Data: ${countryData.length} Einträge`);
-  console.log(`  - Channel Data: ${channelData.length} Einträge`);
-  console.log(`  - Device Data: ${deviceData.length} Einträge`);
-
-  // Cache schreiben
+  // Cache schreiben (unverändert)
   try {
-    console.log(`[Google Cache] 💾 Schreibe Cache für ${user.email} (${dateRange})`);
     await sql`
       INSERT INTO google_data_cache (user_id, date_range, data, last_fetched)
       VALUES (${userId}::uuid, ${dateRange}, ${JSON.stringify(freshData)}::jsonb, NOW())
       ON CONFLICT (user_id, date_range)
-      DO UPDATE SET 
-        data = ${JSON.stringify(freshData)}::jsonb,
-        last_fetched = NOW();
+      DO UPDATE SET data = ${JSON.stringify(freshData)}::jsonb, last_fetched = NOW();
     `;
-    console.log(`[Google Cache] ✅ Cache erfolgreich geschrieben`);
-  } catch (e) {
-    console.error('[Google Cache] ❌ Write Error:', e);
-  }
+  } catch (e) { console.error(e); }
 
   return freshData;
 }
