@@ -1,9 +1,12 @@
 // src/components/TableauKpiGrid.tsx
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import TableauKpiCard from './tableau-kpi-card';
 import { KpiDatum, ChartPoint, ApiErrorStatus } from '@/lib/dashboard-shared';
+import { getRangeLabel, DateRangeOption } from '@/components/DateRangeSelector';
+import { format } from 'date-fns';
+import { de } from 'date-fns/locale';
 
 interface ExtendedKpis {
   // GSC
@@ -34,7 +37,8 @@ export default function TableauKpiGrid({
   kpis,
   isLoading = false,
   allChartData,
-  apiErrors
+  apiErrors,
+  dateRange = '30d'
 }: TableauKpiGridProps) {
 
   if (!kpis) return null;
@@ -50,6 +54,30 @@ export default function TableauKpiGrid({
     return `${minutes}m ${seconds}s`;
   };
 
+  // 1. Ermittle das dynamische Datum aus den Chart-Daten (Start - Ende)
+  const dateSubtitle = useMemo(() => {
+    // Versuche Daten aus Sessions oder Clicks zu nehmen
+    const dataPoints = allChartData?.sessions || allChartData?.clicks;
+    
+    if (dataPoints && dataPoints.length > 0) {
+      // Sortiere sicherheitshalber
+      const sorted = [...dataPoints].sort((a, b) => a.date - b.date);
+      const startDate = sorted[0].date;
+      const endDate = sorted[sorted.length - 1].date;
+      
+      try {
+        return `${format(startDate, 'dd.MM.', { locale: de })} - ${format(endDate, 'dd.MM.yyyy', { locale: de })}`;
+      } catch (e) {
+        console.error('Date formatting error', e);
+      }
+    }
+    // Fallback
+    return 'Zeitraum';
+  }, [allChartData]);
+
+  // 2. Ermittle das Label für "Latest Month" basierend auf dem DatePicker
+  const rangeLabel = getRangeLabel(dateRange as DateRangeOption);
+
   return (
     <div className="space-y-6">
       
@@ -58,11 +86,13 @@ export default function TableauKpiGrid({
         <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3 px-1">
           Traffic & Reichweite
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           
           <TableauKpiCard
             title="Sessions"
-            subtitle="vs YTD PY"
+            subtitle={dateSubtitle}
+            valueLabel={rangeLabel}
+            changeLabel="Veränderung"
             value={kpis.sessions.value}
             change={kpis.sessions.change}
             data={allChartData?.sessions}
@@ -78,7 +108,9 @@ export default function TableauKpiGrid({
 
           <TableauKpiCard
             title="Besucher"
-            subtitle="vs YTD PY"
+            subtitle={dateSubtitle}
+            valueLabel={rangeLabel}
+            changeLabel="Veränderung"
             value={kpis.totalUsers.value}
             change={kpis.totalUsers.change}
             data={allChartData?.totalUsers}
@@ -95,7 +127,9 @@ export default function TableauKpiGrid({
           {kpis.newUsers && (
             <TableauKpiCard
               title="Neue Besucher"
-              subtitle="vs YTD PY"
+              subtitle={dateSubtitle}
+              valueLabel={rangeLabel}
+              changeLabel="Veränderung"
               value={kpis.newUsers.value}
               change={kpis.newUsers.change}
               data={allChartData?.newUsers}
@@ -112,7 +146,9 @@ export default function TableauKpiGrid({
 
           <TableauKpiCard
             title="Google Klicks"
-            subtitle="vs YTD PY"
+            subtitle={dateSubtitle}
+            valueLabel={rangeLabel}
+            changeLabel="Veränderung"
             value={kpis.clicks.value}
             change={kpis.clicks.change}
             data={allChartData?.clicks}
@@ -128,7 +164,9 @@ export default function TableauKpiGrid({
 
           <TableauKpiCard
             title="Impressionen"
-            subtitle="vs YTD PY"
+            subtitle={dateSubtitle}
+            valueLabel={rangeLabel}
+            changeLabel="Veränderung"
             value={kpis.impressions.value}
             change={kpis.impressions.change}
             data={allChartData?.impressions}
@@ -142,10 +180,23 @@ export default function TableauKpiGrid({
             goalMet={true}
           />
 
+        </div>
+      </div>
+
+      {/* ZEILE 2: Qualität & Engagement */}
+      <div>
+        <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3 px-1">
+          Qualität & Engagement
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4 gap-4">
+          
+          {/* ✅ Conversions hierher verschoben */}
           {kpis.conversions && (
             <TableauKpiCard
               title="Conversions"
-              subtitle="vs YTD PY"
+              subtitle={dateSubtitle}
+              valueLabel={rangeLabel}
+              changeLabel="Veränderung"
               value={kpis.conversions.value}
               change={kpis.conversions.change}
               data={allChartData?.conversions}
@@ -159,21 +210,13 @@ export default function TableauKpiGrid({
               goalMet={true}
             />
           )}
-
-        </div>
-      </div>
-
-      {/* ZEILE 2: Qualitäts-Metriken */}
-      <div>
-        <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3 px-1">
-          Qualität & Engagement
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
           
           {kpis.bounceRate && (
             <TableauKpiCard
               title="Absprungrate"
-              subtitle="vs YTD PY"
+              subtitle={dateSubtitle}
+              valueLabel={rangeLabel}
+              changeLabel="Veränderung"
               value={kpis.bounceRate.value}
               change={kpis.bounceRate.change}
               data={allChartData?.bounceRate}
@@ -192,7 +235,9 @@ export default function TableauKpiGrid({
           {kpis.avgEngagementTime && (
             <TableauKpiCard
               title="Ø Verweildauer"
-              subtitle="vs YTD PY"
+              subtitle={dateSubtitle}
+              valueLabel={rangeLabel}
+              changeLabel="Veränderung"
               value={kpis.avgEngagementTime.value}
               change={kpis.avgEngagementTime.change}
               data={allChartData?.avgEngagementTime}
@@ -211,7 +256,9 @@ export default function TableauKpiGrid({
           {kpis.engagementRate && (
             <TableauKpiCard
               title="Engagement Rate"
-              subtitle="vs YTD PY"
+              subtitle={dateSubtitle}
+              valueLabel={rangeLabel}
+              changeLabel="Veränderung"
               value={kpis.engagementRate.value}
               change={kpis.engagementRate.change}
               data={allChartData?.engagementRate}
