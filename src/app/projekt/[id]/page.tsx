@@ -13,7 +13,7 @@ import {
   ProjectDashboardData,
 } from '@/lib/dashboard-shared';
 import ProjectDashboard from '@/components/ProjectDashboard';
-import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector';
+import { type DateRangeOption } from '@/components/DateRangeSelector'; // Fix import
 
 export default function ProjectPage() {
   const { data: session, status } = useSession();
@@ -76,6 +76,7 @@ export default function ProjectPage() {
     if (status === 'authenticated' && projectId) {
       setIsLoading(true);
       
+      // Chain loading: Erst Projekt-Infos, dann Google Daten
       fetchProjectDetails().then(userData => {
         if (userData) {
           return fetchGoogleData(dateRange); 
@@ -103,9 +104,12 @@ export default function ProjectPage() {
     }
   };
 
-  // --- Render-Zustände ---
+  // ==========================================
+  // ✅ VERBESSERTE RENDER LOGIK
+  // ==========================================
 
-  if (status === 'loading' || (isLoading && !dashboardData && !error) || !projectUser && !error) {
+  // 1. Auth Loading State
+  if (status === 'loading') {
     return (
       <div className="flex justify-center items-center min-h-screen bg-gray-50">
         <ArrowRepeat className="animate-spin text-indigo-600" size={40} />
@@ -113,6 +117,7 @@ export default function ProjectPage() {
     );
   }
 
+  // 2. Error State (Hat Vorrang vor allem anderen, wenn gesetzt)
   if (error) {
     return (
       <div className="flex justify-center items-center min-h-screen bg-gray-50 p-8">
@@ -125,15 +130,24 @@ export default function ProjectPage() {
     );
   }
 
-  // --- Erfolgreiches Rendering ---
+  // 3. Data Loading State (Solange Daten fehlen UND kein Fehler vorliegt -> Spinner)
+  // Das verhindert das "Aufblitzen" des Fallbacks, wenn ein Teil der Daten schon da ist, der andere aber noch lädt.
+  const isDataMissing = !dashboardData || !projectUser;
+  
+  if (isLoading || isDataMissing) {
+    return (
+      <div className="flex justify-center items-center min-h-screen bg-gray-50">
+        <ArrowRepeat className="animate-spin text-indigo-600" size={40} />
+      </div>
+    );
+  }
+
+  // 4. Success State (Alles da)
   if (dashboardData && projectUser) {
-    // WICHTIG: Wir rendern NUR ProjectDashboard. 
-    // Keine Wrapper-Divs mit Padding oder Margin mehr hier!
-    // ProjectDashboard kümmert sich um das Layout.
     return (
       <ProjectDashboard
         data={dashboardData}
-        isLoading={isLoading}
+        isLoading={isLoading} // Wird hier false sein, aber für Refreshes genutzt
         dateRange={dateRange}
         onDateRangeChange={handleDateRangeChange}
         onPdfExport={handlePdfExport}
@@ -142,7 +156,6 @@ export default function ProjectPage() {
         faviconUrl={projectUser.favicon_url}
         semrushTrackingId={projectUser.semrush_tracking_id}
         semrushTrackingId02={projectUser.semrush_tracking_id_02}
-        // KORRIGIERT: Konvertiere null zu undefined für TypeScript-Kompatibilität
         projectTimelineActive={projectUser.project_timeline_active ?? undefined}
         countryData={dashboardData.countryData}
         channelData={dashboardData.channelData}
@@ -151,9 +164,10 @@ export default function ProjectPage() {
     );
   }
   
+  // 5. Fallback (Sollte theoretisch nie erreicht werden, wenn Logik oben stimmt)
   return (
     <div className="flex justify-center items-center min-h-screen bg-gray-50">
-      <p>Dashboard konnte nicht geladen werden.</p>
+      <p className="text-gray-500">Dashboard konnte nicht geladen werden.</p>
     </div>
   );
 }
