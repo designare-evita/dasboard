@@ -2,28 +2,18 @@
 'use client';
 
 import React, { useMemo } from 'react';
-// ✅ KORREKTUR: Import muss dem Dateinamen entsprechen (kleingeschrieben)
-import TableauKpiCard from './tableau-kpi-card'; 
+import TableauKpiCard from './tableau-kpi-card';
 import { KpiDatum, ChartPoint, ApiErrorStatus } from '@/lib/dashboard-shared';
 import { getRangeLabel, DateRangeOption } from '@/components/DateRangeSelector';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 
-// ============================================
-// ✅ EXPORTED INTERFACES (für TypeScript)
-// ============================================
-
 export interface ExtendedKpis {
-  // GSC
   clicks: KpiDatum;
   impressions: KpiDatum;
-  
-  // GA4 Traffic
   sessions: KpiDatum;
   totalUsers: KpiDatum;
   newUsers?: KpiDatum;
-  
-  // GA4 Engagement
   conversions?: KpiDatum;
   engagementRate?: KpiDatum;
   bounceRate?: KpiDatum;
@@ -33,19 +23,16 @@ export interface ExtendedKpis {
 export interface TableauKpiGridProps {
   kpis: ExtendedKpis;
   isLoading?: boolean;
+  // WICHTIG: Hier kommt das komplette Chart-Objekt an
   allChartData?: Record<string, ChartPoint[]>;
   apiErrors?: ApiErrorStatus;
   dateRange?: string;
 }
 
-// ============================================
-// ✅ KOMPONENTE
-// ============================================
-
 export default function TableauKpiGrid({
   kpis,
   isLoading = false,
-  allChartData,
+  allChartData, // Hier sind ALLE Chart-Arrays drin (clicks, sessions, etc.)
   apiErrors,
   dateRange = '30d'
 }: TableauKpiGridProps) {
@@ -70,26 +57,18 @@ export default function TableauKpiGrid({
       const endDate = sorted[sorted.length - 1].date;
       try {
         return `${format(startDate, 'dd.MM.', { locale: de })} - ${format(endDate, 'dd.MM.yyyy', { locale: de })}`;
-      } catch (e) {
-        console.error(e);
-      }
+      } catch (e) { console.error(e); }
     }
     return 'Zeitraum';
   }, [allChartData]);
 
   const rangeLabel = getRangeLabel(dateRange as DateRangeOption);
 
+  // Vergleichs-Balken Logik
   const getComparison = (kpi: KpiDatum) => {
-    if (!kpi || typeof kpi.value !== 'number' || typeof kpi.change !== 'number') {
-      return undefined;
-    }
+    if (!kpi || typeof kpi.value !== 'number' || typeof kpi.change !== 'number') return undefined;
     if (kpi.change === -100) return { current: kpi.value, previous: 0 };
-    
-    const previous = kpi.value / (1 + kpi.change / 100);
-    return {
-      current: kpi.value,
-      previous: previous
-    };
+    return { current: kpi.value, previous: kpi.value / (1 + kpi.change / 100) };
   };
 
   return (
@@ -97,51 +76,46 @@ export default function TableauKpiGrid({
       
       {/* ZEILE 1: Traffic & Reichweite */}
       <div>
-        <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 px-1">
-          Traffic & Reichweite
-        </h3>
+        <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 px-1">Traffic & Reichweite</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           
+          {/* 1. IMPRESSIONEN (Funktioniert bereits - als Referenz) */}
           <TableauKpiCard
             title="Impressionen"
-            description="Anzahl der Anzeigen Ihrer Website in den Google-Suchergebnissen. Jedes Mal, wenn ein Link zu Ihrer Seite erscheint, wird dies als Impression gezählt."
             subtitle={dateSubtitle}
             valueLabel={rangeLabel}
-            changeLabel="Veränderung"
             value={kpis.impressions.value}
             change={kpis.impressions.change}
-            data={allChartData?.impressions}
+            data={allChartData?.impressions} // <-- Array ist da
             color="#8b5cf6"
             error={gscError}
             isLoading={isLoading}
             barComparison={getComparison(kpis.impressions)}
           />
 
+          {/* 2. KLICKS (Muss genauso aussehen wie Impressionen) */}
           <TableauKpiCard
             title="Google Klicks"
-            description="Anzahl der Klicks aus der Google-Suche auf Ihre Website. Misst die tatsächliche Nutzerinteraktion mit Ihren Suchergebnissen."
             subtitle={dateSubtitle}
             valueLabel={rangeLabel}
-            changeLabel="Veränderung"
             value={kpis.clicks.value}
             change={kpis.clicks.change}
-            data={allChartData?.clicks}
+            data={allChartData?.clicks} // <-- Array MUSS hier ankommen
             color="#3b82f6"
             error={gscError}
             isLoading={isLoading}
             barComparison={getComparison(kpis.clicks)}
           />
 
+          {/* 3. NEUE BESUCHER (Muss genauso aussehen wie Besucher) */}
           {kpis.newUsers && (
             <TableauKpiCard
               title="Neue Besucher"
-              description="Erstbesucher Ihrer Website im gewählten Zeitraum. Diese Nutzer haben Ihre Seite zum ersten Mal besucht und sind besonders wertvoll für Wachstum."
               subtitle={dateSubtitle}
               valueLabel={rangeLabel}
-              changeLabel="Veränderung"
               value={kpis.newUsers.value}
               change={kpis.newUsers.change}
-              data={allChartData?.newUsers}
+              data={allChartData?.newUsers} // <-- Array MUSS hier ankommen
               color="#6366f1"
               error={ga4Error}
               isLoading={isLoading}
@@ -149,12 +123,11 @@ export default function TableauKpiGrid({
             />
           )}
 
+          {/* 4. BESUCHER (Funktioniert bereits) */}
           <TableauKpiCard
             title="Besucher"
-            description="Gesamtzahl eindeutiger Nutzer, die Ihre Website besucht haben. Ein Nutzer wird nur einmal gezählt, unabhängig davon, wie oft er zurückkehrt."
             subtitle={dateSubtitle}
             valueLabel={rangeLabel}
-            changeLabel="Veränderung"
             value={kpis.totalUsers.value}
             change={kpis.totalUsers.change}
             data={allChartData?.totalUsers}
@@ -164,12 +137,11 @@ export default function TableauKpiGrid({
             barComparison={getComparison(kpis.totalUsers)}
           />
 
+          {/* 5. SESSIONS (Funktioniert bereits) */}
           <TableauKpiCard
             title="Sessions"
-            description="Anzahl der Besuche auf Ihrer Website. Ein Nutzer kann mehrere Sessions haben (z.B. morgens und abends). Eine Session endet nach 30 Min. Inaktivität."
             subtitle={dateSubtitle}
             valueLabel={rangeLabel}
-            changeLabel="Veränderung"
             value={kpis.sessions.value}
             change={kpis.sessions.change}
             data={allChartData?.sessions}
@@ -184,21 +156,17 @@ export default function TableauKpiGrid({
 
       {/* ZEILE 2: Qualität & Engagement */}
       <div>
-        <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 px-1">
-          Qualität & Engagement
-        </h3>
+        <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 px-1">Qualität & Engagement</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4 gap-4">
           
           {kpis.engagementRate && (
             <TableauKpiCard
               title="Engagement Rate"
-              description="Anteil der Sitzungen mit aktiver Interaktion. Eine Session gilt als engaged, wenn sie länger als 10 Sekunden dauert, eine Conversion auslöst oder 2+ Seitenaufrufe hat."
               subtitle={dateSubtitle}
               valueLabel={rangeLabel}
-              changeLabel="Veränderung"
               value={kpis.engagementRate.value}
               change={kpis.engagementRate.change}
-              data={allChartData?.engagementRate}
+              data={allChartData?.engagementRate} // <-- Array
               color="#ec4899"
               error={ga4Error}
               isLoading={isLoading}
@@ -210,13 +178,11 @@ export default function TableauKpiGrid({
           {kpis.conversions && (
             <TableauKpiCard
               title="Conversions"
-              description="Anzahl der erreichten Ziele (z.B. Käufe, Formular-Absendungen, Anrufe). Conversions messen den geschäftlichen Erfolg Ihrer Website."
               subtitle={dateSubtitle}
               valueLabel={rangeLabel}
-              changeLabel="Veränderung"
               value={kpis.conversions.value}
               change={kpis.conversions.change}
-              data={allChartData?.conversions}
+              data={allChartData?.conversions} // <-- Array
               color="#10b981"
               error={ga4Error}
               isLoading={isLoading}
@@ -227,13 +193,11 @@ export default function TableauKpiGrid({
           {kpis.avgEngagementTime && (
             <TableauKpiCard
               title="Ø Verweildauer"
-              description="Durchschnittliche Zeit, die ein Nutzer aktiv auf Ihrer Website verbringt. Längere Verweildauer deutet auf hochwertigen, relevanten Content hin."
               subtitle={dateSubtitle}
               valueLabel={rangeLabel}
-              changeLabel="Veränderung"
               value={kpis.avgEngagementTime.value}
               change={kpis.avgEngagementTime.change}
-              data={allChartData?.avgEngagementTime}
+              data={allChartData?.avgEngagementTime} // <-- Array
               color="#f59e0b"
               error={ga4Error}
               isLoading={isLoading}
@@ -245,13 +209,11 @@ export default function TableauKpiGrid({
           {kpis.bounceRate && (
             <TableauKpiCard
               title="Absprungrate"
-              description="Anteil der Besuche ohne Interaktion. Eine hohe Absprungrate kann auf irrelevanten Content oder technische Probleme hinweisen. Niedriger ist meist besser."
               subtitle={dateSubtitle}
               valueLabel={rangeLabel}
-              changeLabel="Veränderung"
               value={kpis.bounceRate.value}
               change={kpis.bounceRate.change}
-              data={allChartData?.bounceRate}
+              data={allChartData?.bounceRate} // <-- Array
               color="#f43f5e"
               error={ga4Error}
               isLoading={isLoading}
@@ -262,7 +224,6 @@ export default function TableauKpiGrid({
 
         </div>
       </div>
-
     </div>
   );
 }
