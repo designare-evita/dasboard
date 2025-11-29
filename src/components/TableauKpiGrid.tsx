@@ -1,7 +1,7 @@
 // src/components/TableauKpiGrid.tsx
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import TableauKpiCard from './tableau-kpi-card';
 import { KpiDatum, ChartPoint, ApiErrorStatus } from '@/lib/dashboard-shared';
 import { getRangeLabel, DateRangeOption } from '@/components/DateRangeSelector';
@@ -23,7 +23,6 @@ export interface ExtendedKpis {
 export interface TableauKpiGridProps {
   kpis: ExtendedKpis;
   isLoading?: boolean;
-  // WICHTIG: Hier kommt das komplette Chart-Objekt an
   allChartData?: Record<string, ChartPoint[]>;
   apiErrors?: ApiErrorStatus;
   dateRange?: string;
@@ -32,10 +31,20 @@ export interface TableauKpiGridProps {
 export default function TableauKpiGrid({
   kpis,
   isLoading = false,
-  allChartData, // Hier sind ALLE Chart-Arrays drin (clicks, sessions, etc.)
+  allChartData,
   apiErrors,
   dateRange = '30d'
 }: TableauKpiGridProps) {
+
+  // DEBUGGING: Zeigt im Browser an, was wirklich ankommt
+  useEffect(() => {
+    console.log('📊 [TableauGrid Debug] Charts received:', allChartData);
+    if (allChartData) {
+      console.log(`- Impressions Points: ${allChartData.impressions?.length}`);
+      console.log(`- Clicks Points: ${allChartData.clicks?.length}`);
+      console.log(`- NewUsers Points: ${allChartData.newUsers?.length}`);
+    }
+  }, [allChartData]);
 
   if (!kpis) return null;
 
@@ -64,7 +73,6 @@ export default function TableauKpiGrid({
 
   const rangeLabel = getRangeLabel(dateRange as DateRangeOption);
 
-  // Vergleichs-Balken Logik
   const getComparison = (kpi: KpiDatum) => {
     if (!kpi || typeof kpi.value !== 'number' || typeof kpi.change !== 'number') return undefined;
     if (kpi.change === -100) return { current: kpi.value, previous: 0 };
@@ -79,35 +87,32 @@ export default function TableauKpiGrid({
         <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 px-1">Traffic & Reichweite</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           
-          {/* 1. IMPRESSIONEN (Funktioniert bereits - als Referenz) */}
           <TableauKpiCard
             title="Impressionen"
             subtitle={dateSubtitle}
             valueLabel={rangeLabel}
             value={kpis.impressions.value}
             change={kpis.impressions.change}
-            data={allChartData?.impressions} // <-- Array ist da
+            data={allChartData?.impressions}
             color="#8b5cf6"
             error={gscError}
             isLoading={isLoading}
             barComparison={getComparison(kpis.impressions)}
           />
 
-          {/* 2. KLICKS (Muss genauso aussehen wie Impressionen) */}
           <TableauKpiCard
             title="Google Klicks"
             subtitle={dateSubtitle}
             valueLabel={rangeLabel}
             value={kpis.clicks.value}
             change={kpis.clicks.change}
-            data={allChartData?.clicks} // <-- Array MUSS hier ankommen
+            data={allChartData?.clicks}
             color="#3b82f6"
             error={gscError}
             isLoading={isLoading}
             barComparison={getComparison(kpis.clicks)}
           />
 
-          {/* 3. NEUE BESUCHER (Muss genauso aussehen wie Besucher) */}
           {kpis.newUsers && (
             <TableauKpiCard
               title="Neue Besucher"
@@ -115,7 +120,7 @@ export default function TableauKpiGrid({
               valueLabel={rangeLabel}
               value={kpis.newUsers.value}
               change={kpis.newUsers.change}
-              data={allChartData?.newUsers} // <-- Array MUSS hier ankommen
+              data={allChartData?.newUsers}
               color="#6366f1"
               error={ga4Error}
               isLoading={isLoading}
@@ -123,7 +128,6 @@ export default function TableauKpiGrid({
             />
           )}
 
-          {/* 4. BESUCHER (Funktioniert bereits) */}
           <TableauKpiCard
             title="Besucher"
             subtitle={dateSubtitle}
@@ -137,7 +141,6 @@ export default function TableauKpiGrid({
             barComparison={getComparison(kpis.totalUsers)}
           />
 
-          {/* 5. SESSIONS (Funktioniert bereits) */}
           <TableauKpiCard
             title="Sessions"
             subtitle={dateSubtitle}
@@ -166,7 +169,7 @@ export default function TableauKpiGrid({
               valueLabel={rangeLabel}
               value={kpis.engagementRate.value}
               change={kpis.engagementRate.change}
-              data={allChartData?.engagementRate} // <-- Array
+              data={allChartData?.engagementRate}
               color="#ec4899"
               error={ga4Error}
               isLoading={isLoading}
@@ -182,7 +185,7 @@ export default function TableauKpiGrid({
               valueLabel={rangeLabel}
               value={kpis.conversions.value}
               change={kpis.conversions.change}
-              data={allChartData?.conversions} // <-- Array
+              data={allChartData?.conversions}
               color="#10b981"
               error={ga4Error}
               isLoading={isLoading}
@@ -197,7 +200,7 @@ export default function TableauKpiGrid({
               valueLabel={rangeLabel}
               value={kpis.avgEngagementTime.value}
               change={kpis.avgEngagementTime.change}
-              data={allChartData?.avgEngagementTime} // <-- Array
+              data={allChartData?.avgEngagementTime}
               color="#f59e0b"
               error={ga4Error}
               isLoading={isLoading}
@@ -213,7 +216,7 @@ export default function TableauKpiGrid({
               valueLabel={rangeLabel}
               value={kpis.bounceRate.value}
               change={kpis.bounceRate.change}
-              data={allChartData?.bounceRate} // <-- Array
+              data={allChartData?.bounceRate}
               color="#f43f5e"
               error={ga4Error}
               isLoading={isLoading}
