@@ -208,8 +208,9 @@ export default function TableauKpiCard({
           </div>
         )}
 
-        {/* --- FOOTER: DATUM (Subtitle) GANZ UNTEN --- */}
-        <div className="mt-3 pt-2 border-t border-gray-100 text-xs text-gray-400 text-right font-medium">
+        {/* --- FOOTER: DATUM (Subtitle) GANZ UNTEN LINKS --- */}
+        {/* Änderung: text-left statt text-right */}
+        <div className="mt-3 pt-2 border-t border-gray-100 text-xs text-gray-400 text-left font-medium">
           {subtitle}
         </div>
 
