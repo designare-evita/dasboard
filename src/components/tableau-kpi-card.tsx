@@ -51,6 +51,7 @@ export default function TableauKpiCard({
   const InfoIcon = ({ iconClass = "text-gray-400 hover:text-blue-600" }: { iconClass?: string }) => {
     if (!description) return null;
     return (
+      // WICHTIG: Kein hardcodiertes ml-2 mehr hier, damit es links bündig ist
       <div className="group relative inline-flex items-center align-middle z-20">
         <InfoCircle size={14} className={`${iconClass} cursor-help transition-colors`} />
         {/* Tooltip */}
@@ -96,11 +97,10 @@ export default function TableauKpiCard({
       {/* Content Container */}
       <div className="relative z-10 flex flex-col h-full">
         
-        {/* --- OBERER BEREICH (Fallback, falls kein Balken da ist) --- */}
+        {/* --- OBERER BEREICH (Fallback) --- */}
         {(error || !barComparison) && (
           <div className="mb-4">
             <div className="flex items-center mb-1">
-              {/* Icon LINKS vor dem Titel */}
               <div className="mr-2">
                 <InfoIcon />
               </div>
@@ -127,7 +127,6 @@ export default function TableauKpiCard({
             >
               {/* Titel LINKS im Balken */}
               <div className="flex items-center">
-                {/* Icon ganz links */}
                 <div className="mr-2 flex items-center">
                    <InfoIcon iconClass="text-white opacity-80 hover:opacity-100 hover:text-white" />
                 </div>
@@ -157,8 +156,6 @@ export default function TableauKpiCard({
           </div>
         ) : (
           <div className="flex-grow flex flex-col justify-end">
-            
-            {/* Hauptwert */}
             <div className="mb-2">
               <div className="text-3xl font-extrabold text-gray-900 tracking-tight">
                 {formatValue(value)}
@@ -168,7 +165,6 @@ export default function TableauKpiCard({
               </div>
             </div>
 
-            {/* Change Badge */}
             {change !== undefined && (
               <div className="flex items-center gap-2 mb-4">
                 <div className={`text-lg font-bold ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
@@ -180,7 +176,6 @@ export default function TableauKpiCard({
               </div>
             )}
 
-            {/* Sparkline Chart */}
             <div className="h-[65px] -mx-2 opacity-90 hover:opacity-100 transition-opacity">
               {data && data.length > 1 ? (
                 <ResponsiveContainer width="100%" height="100%">
@@ -215,7 +210,7 @@ export default function TableauKpiCard({
           </div>
         )}
 
-        {/* --- FOOTER: DATUM (Subtitle) GANZ UNTEN LINKS --- */}
+        {/* --- FOOTER --- */}
         <div className="mt-3 pt-2 border-t border-gray-100 text-xs text-gray-400 text-left font-medium">
           {subtitle}
         </div>
