@@ -307,6 +307,7 @@ export async function getAnalyticsData(
       const dateStr = formatDateToISO(rawDate);
       const sessions = parseInt(row.metricValues?.[0]?.value || '0', 10);
       const users = parseInt(row.metricValues?.[1]?.value || '0', 10);
+      // Conversions und EngagementRate könnten fehlen wenn Property sie nicht unterstützt
       const conversions = parseInt(row.metricValues?.[2]?.value || '0', 10);
       const engagementRate = parseFloat(row.metricValues?.[3]?.value || '0');
 
@@ -331,7 +332,56 @@ export async function getAnalyticsData(
       engagementRate: { total: avgEngagement, daily: engagementDaily }
     };
   } catch (error: unknown) {
-    console.error('[GA4] Fehler:', error);
+    const err = error as any;
+    console.error('[GA4] Fehler:', err.message);
+    
+    // Falls Conversions/EngagementRate nicht verfügbar sind, versuche ohne
+    if (err.message?.includes('INVALID_METRIC') || err.message?.includes('conversions') || err.message?.includes('engagementRate')) {
+      console.warn('[GA4] Conversions/EngagementRate nicht verfügbar, fallback zu Basic Metrics');
+      try {
+        const fallbackResponse = await analytics.properties.runReport({
+          property: formattedPropertyId,
+          requestBody: {
+            dateRanges: [{ startDate, endDate }],
+            dimensions: [{ name: 'date' }],
+            metrics: [
+              { name: 'sessions' },
+              { name: 'totalUsers' }
+            ],
+            orderBys: [{ dimension: { dimensionName: 'date' }, desc: false }],
+          },
+        });
+
+        const rows = fallbackResponse.data.rows || [];
+        const sessionsDaily: Array<{ date: number; value: number }> = [];
+        const usersDaily: Array<{ date: number; value: number }> = [];
+        let totalSessions = 0;
+        let totalUsers = 0;
+
+        for (const row of rows) {
+          const rawDate = row.dimensionValues?.[0]?.value || '';
+          const dateStr = formatDateToISO(rawDate);
+          const sessions = parseInt(row.metricValues?.[0]?.value || '0', 10);
+          const users = parseInt(row.metricValues?.[1]?.value || '0', 10);
+
+          const timestamp = new Date(dateStr).getTime();
+          sessionsDaily.push({ date: timestamp, value: sessions });
+          usersDaily.push({ date: timestamp, value: users });
+          totalSessions += sessions;
+          totalUsers += users;
+        }
+
+        return {
+          sessions: { total: totalSessions, daily: sessionsDaily },
+          totalUsers: { total: totalUsers, daily: usersDaily },
+          conversions: { total: 0, daily: [] },
+          engagementRate: { total: 0, daily: [] }
+        };
+      } catch (fallbackError) {
+        console.error('[GA4] Auch Fallback fehlgeschlagen:', fallbackError);
+      }
+    }
+    
     return {
       sessions: { total: 0, daily: [] },
       totalUsers: { total: 0, daily: [] },
