@@ -48,23 +48,22 @@ export default function TableauKpiCard({
   const isPositive = change !== undefined && change >= 0;
 
   // ✅ WICHTIG: Sichere ID für SVG erstellen (Leerzeichen entfernen!)
-  // "Google Klicks" -> "google-klicks"
   const gradientId = `tableau-grad-${title.replace(/\s+/g, '-').toLowerCase()}`;
 
-  // Kleines Info-Icon mit Tooltip
-  const InfoIcon = () => {
+  // Kleines Info-Icon mit Tooltip (jetzt mit anpassbarer Farbe)
+  const InfoIcon = ({ iconClass = "text-gray-400 hover:text-blue-600" }: { iconClass?: string }) => {
     if (!description) return null;
     
     return (
       <div className="group relative inline-flex items-center ml-2 align-middle z-20">
         <InfoCircle 
           size={14} 
-          className="text-gray-400 hover:text-blue-600 cursor-help transition-colors"
+          className={`${iconClass} cursor-help transition-colors`}
         />
         <div className="absolute left-1/2 bottom-full mb-2 w-52 -translate-x-1/2 p-3 
                         bg-gray-800 text-white text-xs leading-snug rounded-md shadow-xl 
                         opacity-0 invisible group-hover:opacity-100 group-hover:visible 
-                        transition-all duration-200 pointer-events-none text-center font-normal normal-case">
+                        transition-all duration-200 pointer-events-none text-center font-normal normal-case z-50">
           {description}
           <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800"></div>
         </div>
@@ -103,12 +102,17 @@ export default function TableauKpiCard({
         
         {/* TOP BEREICH */}
         <div className="mb-4">
-          <div className="flex items-center mb-1">
-            <h3 className="text-lg font-bold text-gray-600 tracking-tight leading-none">
-              {title}
-            </h3>
-            <InfoIcon />
-          </div>
+          {/* ✅ Titel hier NUR anzeigen, wenn wir KEINEN Balken haben (z.B. Fehler), sonst ist er jetzt im Balken */}
+          {(error || !barComparison) && (
+            <div className="flex items-center mb-1">
+              <h3 className="text-lg font-bold text-gray-600 tracking-tight leading-none">
+                {title}
+              </h3>
+              <InfoIcon />
+            </div>
+          )}
+          
+          {/* Datum bleibt hier */}
           <div className="text-sm text-gray-400 font-medium">
             {subtitle}
           </div>
@@ -125,12 +129,22 @@ export default function TableauKpiCard({
         {barComparison && !error && (
           <div className="flex items-center gap-2 mb-3">
             <div 
-              className="flex-1 h-7 rounded-sm flex items-center justify-end pr-2 text-white text-sm font-bold shadow-sm"
+              // ✅ ÄNDERUNG: justify-between statt justify-end, um Platz für Titel links zu schaffen
+              className="flex-1 h-7 rounded-sm flex items-center justify-between pl-2 pr-2 text-white text-sm font-bold shadow-sm"
               style={{ backgroundColor: color }}
             >
-              {formatValue(barComparison.current)}
+              {/* ✅ TITEL (Links im Balken) */}
+              <div className="flex items-center">
+                <span className="mr-1">{title}</span>
+                <InfoIcon iconClass="text-white opacity-80 hover:opacity-100 hover:text-white" />
+              </div>
+
+              {/* WERT (Rechts im Balken) */}
+              <span>{formatValue(barComparison.current)}</span>
             </div>
+            
             <div className="w-px h-7 bg-gray-300"></div>
+            
             <div className="w-auto min-w-[3rem] text-right text-sm text-gray-500 font-medium">
               {formatValue(barComparison.previous)}
             </div>
@@ -149,7 +163,7 @@ export default function TableauKpiCard({
           </div>
         ) : (
           <div className="mt-auto">
-            {/* Hauptwert */}
+            {/* Hauptwert (Große Zahl unten) */}
             <div className="mb-2">
               <div className="text-3xl font-extrabold text-gray-900 tracking-tight">
                 {formatValue(value)}
@@ -177,7 +191,6 @@ export default function TableauKpiCard({
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={data}>
                     <defs>
-                      {/* ✅ FIX: Verwende die bereinigte gradientId */}
                       <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor={color} stopOpacity={0.25} />
                         <stop offset="100%" stopColor={color} stopOpacity={0} />
@@ -188,14 +201,12 @@ export default function TableauKpiCard({
                       dataKey="value"
                       stroke={color}
                       strokeWidth={2.5}
-                      // ✅ FIX: Referenziere die bereinigte ID
                       fill={`url(#${gradientId})`}
                       animationDuration={1000}
                     />
                   </AreaChart>
                 </ResponsiveContainer>
               ) : (
-                // Fallback (wird jetzt nicht mehr fälschlicherweise angezeigt, wenn Daten da sind)
                 <div className="h-full flex items-end pb-1 px-2">
                   <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
                     <div 
