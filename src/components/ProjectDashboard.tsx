@@ -172,20 +172,26 @@ export default function ProjectDashboard({
           </div>
         </div>
 
-        {/* ✅ TABLEAU PIE CHARTS (Ersetzt alte Pie Charts) */}
+        {/* ✅ NEUE REIHENFOLGE: Channel → Country → Device */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6 print-pie-grid">
-          <TableauPieChart 
-            data={data.countryData} 
-            title="Zugriffe nach Land"
-            isLoading={isLoading} 
-            error={apiErrors?.ga4}
-          />
+          
+          {/* 1️⃣ CHANNEL (mit Engagement Rate im Tooltip) */}
           <TableauPieChart 
             data={data.channelData} 
             title="Zugriffe nach Channel"
             isLoading={isLoading} 
             error={apiErrors?.ga4}
           />
+          
+          {/* 2️⃣ COUNTRY */}
+          <TableauPieChart 
+            data={data.countryData} 
+            title="Zugriffe nach Land"
+            isLoading={isLoading} 
+            error={apiErrors?.ga4}
+          />
+          
+          {/* 3️⃣ DEVICE */}
           <TableauPieChart 
             data={data.deviceData} 
             title="Zugriffe nach Endgerät"
