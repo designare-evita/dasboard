@@ -22,6 +22,7 @@ import DashboardHeader from '@/components/DashboardHeader';
 import GlobalHeader from '@/components/GlobalHeader';
 import ProjectTimelineWidget from '@/components/ProjectTimelineWidget'; 
 import AiAnalysisWidget from '@/components/AiAnalysisWidget';
+import CacheRefreshButton from '@/components/CacheRefreshButton';
 
 interface ProjectDashboardProps {
   data: ProjectDashboardData;
@@ -110,6 +111,13 @@ export default function ProjectDashboard({
             onDateRangeChange={onDateRangeChange}
             onPdfExport={onPdfExport || (() => console.warn('PDF Export not implemented'))}
           />
+          
+          {/* ✅ CACHE REFRESH BUTTON (nur für Admins/Development) */}
+          {projectId && (
+            <div className="mt-4 flex justify-end">
+              <CacheRefreshButton projectId={projectId} />
+            </div>
+          )}
         </div>
 
         {/* AI ANALYSE WIDGET */}
