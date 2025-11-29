@@ -231,23 +231,13 @@ export async function getOrFetchGoogleData(
       }
 
     } catch (e: any) {
-      console.error('[GA4 Fetch Error]', e);
+      console.error('[GA4 Fetch Error] Raw error:', e);
+      console.error('[GA4 Fetch Error] Message:', e.message);
+      console.error('[GA4 Fetch Error] Code:', e.code);
+      console.error('[GA4 Fetch Error] Stack:', e.stack);
       
-      // Detailliertere Fehlermeldung
-      let errorMessage = 'GA4 Fehler';
-      if (e.message) {
-        if (e.message.includes('credentials') || e.message.includes('authentication')) {
-          errorMessage = 'GA4 Authentifizierung fehlgeschlagen - Service Account prüfen';
-        } else if (e.message.includes('permission') || e.message.includes('access')) {
-          errorMessage = 'GA4 Zugriff verweigert - Property-Berechtigungen prüfen';
-        } else if (e.message.includes('property') || e.message.includes('not found')) {
-          errorMessage = 'GA4 Property nicht gefunden - Property ID prüfen';
-        } else {
-          errorMessage = `GA4: ${e.message}`;
-        }
-      }
-      
-      apiErrors.ga4 = errorMessage;
+      // Zeige ECHTEN Fehler, nicht generisch umschreiben
+      apiErrors.ga4 = e.message || 'GA4 Fehler: Unbekannt';
     }
   }
 
