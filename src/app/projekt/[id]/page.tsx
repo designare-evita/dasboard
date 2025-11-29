@@ -5,26 +5,15 @@ import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import { getOrFetchGoogleData } from '@/lib/google-data-loader';
 import { sql } from '@vercel/postgres';
-import { User } from '@/lib/schemas'; 
+import { User } from '@/lib/schemas';
 import ProjectDashboard from '@/components/ProjectDashboard';
-import { DateRangeOption } from '@/components/DateRangeSelector'; 
-import { ArrowRepeat } from 'react-bootstrap-icons';
+import { DateRangeOption } from '@/components/DateRangeSelector';
+// ✅ NEU: Import des Skeleton Loaders
+import { DashboardSkeleton } from '@/components/skeletons/DashboardSkeleton';
 
-// Ladekomponente für Suspense (verhindert Layout Shift)
-function DashboardLoading() {
-  return (
-    <div className="flex justify-center items-center min-h-screen bg-gray-50">
-      <div className="flex flex-col items-center gap-4">
-        <ArrowRepeat className="animate-spin text-indigo-600" size={40} />
-        <p className="text-gray-500 font-medium">Das Dashboard wird vorbereitet...</p>
-      </div>
-    </div>
-  );
-}
-
-// Diese Funktion lädt die Daten direkt auf dem Server
+// Diese Funktion lädt die Daten direkt auf dem Server (Serverseitig)
 async function loadData(projectId: string, dateRange: string) {
-  // 1. Projekt-Infos laden
+  // 1. Projekt-Infos aus der DB laden
   const { rows } = await sql`
     SELECT
       id::text as id, email, role, domain,
@@ -36,25 +25,26 @@ async function loadData(projectId: string, dateRange: string) {
   `;
 
   if (rows.length === 0) return null;
-  
+
   const projectUser = rows[0] as unknown as User;
 
-  // 2. Google Daten laden
+  // 2. Google Daten laden (GSC, GA4, Semrush via Cache/API)
   const dashboardData = await getOrFetchGoogleData(projectUser, dateRange);
-  
+
   return { projectUser, dashboardData };
 }
 
 // Die Hauptkomponente ist ASYNC (Server Component)
-export default async function ProjectPage({ 
-  params, 
-  searchParams 
-}: { 
-  params: { id: string }, 
-  searchParams: { dateRange?: string } 
+export default async function ProjectPage({
+  params,
+  searchParams
+}: {
+  params: { id: string },
+  searchParams: { dateRange?: string }
 }) {
-  const session = await auth(); 
+  const session = await auth();
 
+  // Redirect wenn nicht eingeloggt
   if (!session?.user) {
     redirect('/login');
   }
@@ -63,14 +53,15 @@ export default async function ProjectPage({
   // Datum aus URL lesen oder Default '30d' nutzen
   const dateRange = (searchParams.dateRange as DateRangeOption) || '30d';
 
-  // Berechtigungsprüfung
+  // Berechtigungsprüfung (Security)
   if (session.user.role === 'BENUTZER' && session.user.id !== projectId) {
     redirect('/');
   }
 
-  // Datenabruf auf dem Server
+  // Datenabruf auf dem Server (blockiert bis Daten da sind -> Suspense zeigt Skeleton)
   const data = await loadData(projectId, dateRange);
 
+  // Fallback, wenn Projekt nicht existiert
   if (!data || !data.dashboardData) {
     return (
       <div className="flex justify-center items-center min-h-screen bg-gray-50">
@@ -82,14 +73,13 @@ export default async function ProjectPage({
   const { projectUser, dashboardData } = data;
 
   return (
-    <Suspense fallback={<DashboardLoading />}>
-      {/* KORREKTUR: Keine Funktionen (onDateRangeChange, onPdfExport) übergeben! 
-         ProjectDashboard kümmert sich jetzt selbst darum bzw. die Props sind optional.
-      */}
+    // ✅ UX-UPGRADE: Skeleton Loading statt Spinner
+    <Suspense fallback={<DashboardSkeleton />}>
       <ProjectDashboard
         data={dashboardData}
-        isLoading={false} 
+        isLoading={false} // Daten sind durch Server-Wait bereits da
         dateRange={dateRange}
+        // Keine Funktionen mehr übergeben! (onDateRangeChange entfernt)
         projectId={projectUser.id}
         domain={projectUser.domain || ''}
         faviconUrl={projectUser.favicon_url}
