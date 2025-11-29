@@ -8,7 +8,7 @@ import {
   ChartEntry
 } from '@/lib/dashboard-shared';
 
-// ✅ NEU: Import von Tableau-Komponenten
+// ✅ Import von Tableau-Komponenten
 import TableauKpiGrid from '@/components/TableauKpiGrid';
 import TableauPieChart from '@/components/charts/TableauPieChart';
 
@@ -41,7 +41,7 @@ interface ProjectDashboardProps {
   deviceData?: ChartEntry[];
 }
 
-// Helper für KPI Normalisierung, falls undefined (Lokal, da normalizeFlatKpis in shared ggf. nicht alles abdeckt)
+// Helper für KPI Normalisierung
 function safeKpi(kpi: any) {
   return kpi || { value: 0, change: 0 };
 }
@@ -127,7 +127,8 @@ export default function ProjectDashboard({
           </div>
         )}
 
-        {/* ✅ TABLEAU KPI GRID (Ersetzt KpiCardsGrid) */}
+        {/* ✅ TABLEAU KPI GRID */}
+        {/* WICHTIG: allChartData={data.charts} sorgt für die farbigen Graphen */}
         <div className="mt-6 print-kpi-grid">
           {extendedKpis && (
             <TableauKpiGrid
@@ -135,6 +136,7 @@ export default function ProjectDashboard({
               isLoading={isLoading}
               allChartData={data.charts as any} 
               apiErrors={apiErrors}
+              dateRange={dateRange} 
             />
           )}
         </div>
@@ -180,10 +182,9 @@ export default function ProjectDashboard({
           </div>
         </div>
 
-        {/* ✅ NEUE REIHENFOLGE: Channel → Country → Device */}
+        {/* PIE CHARTS: Channel → Country → Device */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6 print-pie-grid">
           
-          {/* 1️⃣ CHANNEL (mit Engagement Rate im Tooltip) */}
           <TableauPieChart 
             data={data.channelData} 
             title="Zugriffe nach Channel"
@@ -191,7 +192,6 @@ export default function ProjectDashboard({
             error={apiErrors?.ga4}
           />
           
-          {/* 2️⃣ COUNTRY */}
           <TableauPieChart 
             data={data.countryData} 
             title="Zugriffe nach Land"
@@ -199,7 +199,6 @@ export default function ProjectDashboard({
             error={apiErrors?.ga4}
           />
           
-          {/* 3️⃣ DEVICE */}
           <TableauPieChart 
             data={data.deviceData} 
             title="Zugriffe nach Endgerät"
