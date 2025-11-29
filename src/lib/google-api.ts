@@ -520,19 +520,28 @@ export async function getGa4DimensionReport(
       requestBody: {
         dateRanges: [{ startDate, endDate }],
         dimensions: [{ name: dimensionName }],
-        metrics: [{ name: 'sessions' }],
+        metrics: [{ name: 'sessions' }, { name: 'engagementRate' }],
         orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
         limit: '10',
       },
     });
     
     const rows = response.data.rows || [];
-    const results: Array<{ name: string; value: number }> = [];
+    // Typ explizit machen, damit er zu ChartEntry passt
+    const results: Array<{ name: string; value: number; subValue?: string; subLabel?: string }> = [];
     
     for (const row of rows) {
       const name = row.dimensionValues?.[0]?.value || 'Unknown';
       const sessions = parseInt(row.metricValues?.[0]?.value || '0', 10);
-      results.push({ name, value: sessions });
+      const rate = parseFloat(row.metricValues?.[1]?.value || '0'); // Dezimal z.B. 0.554
+
+      results.push({ 
+        name, 
+        value: sessions,
+        // ✅ NEU: Formatierte Engagement Rate hinzufügen
+        subValue: `${(rate * 100).toFixed(1)}%`,
+        subLabel: 'Engagement Rate'
+      });
     }
     
     if (results.length > 6) {
