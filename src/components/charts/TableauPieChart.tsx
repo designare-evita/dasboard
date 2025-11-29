@@ -49,7 +49,6 @@ interface CustomTooltipProps {
 const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
-    // Recharts liefert 'percent' im Payload mit (0 bis 1)
     const rawPercent = payload[0].percent;
     
     let percentValue = 0;
@@ -57,7 +56,6 @@ const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
       percentValue = rawPercent * 100;
     }
     
-    // Nutze die Farbe aus dem Payload (die wir unten zuweisen)
     const color = payload[0].fill || data.fill;
 
     return (
@@ -83,16 +81,20 @@ const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
   return null;
 };
 
-// Custom Label, das nur angezeigt wird, wenn das Segment groß genug ist
+// Custom Label
 const renderCustomLabel = (props: PieLabelRenderProps) => {
   const { cx, cy, midAngle, innerRadius, outerRadius, percent } = props;
+
+  // ✅ FIX: Prüfen, ob midAngle definiert ist
+  if (typeof midAngle !== 'number') return null;
   
   // Zeige Label nur wenn > 5%
   if ((percent || 0) < 0.05) return null;
 
   const RADIAN = Math.PI / 180;
-  // Radius etwas weiter außen für bessere Lesbarkeit
   const radius = Number(innerRadius) + (Number(outerRadius) - Number(innerRadius)) * 0.6;
+  
+  // Jetzt ist sicher, dass midAngle eine number ist
   const x = Number(cx) + radius * Math.cos(-midAngle * RADIAN);
   const y = Number(cy) + radius * Math.sin(-midAngle * RADIAN);
 
@@ -118,12 +120,11 @@ export default function TableauPieChart({
   error
 }: TableauPieChartProps) {
 
-  // ✅ Daten vorbereiten: Farben aus unserer Palette zuweisen
+  // Daten vorbereiten & Farben zuweisen
   const chartData = useMemo(() => {
     if (!data) return [];
     return data.map((entry, index) => ({
       ...entry,
-      // Weise zyklisch eine Farbe aus der KPI-Palette zu
       fill: KPI_COLORS[index % KPI_COLORS.length]
     }));
   }, [data]);
@@ -177,9 +178,9 @@ export default function TableauPieChart({
               nameKey="name"
               cx="50%"
               cy="50%"
-              innerRadius={60} // Donut-Style wirkt oft moderner/übersichtlicher
+              innerRadius={60} 
               outerRadius={80}
-              paddingAngle={2} // Kleiner Abstand zwischen Segmenten
+              paddingAngle={2} 
               labelLine={false}
               label={renderCustomLabel}
             >
@@ -187,7 +188,7 @@ export default function TableauPieChart({
                 <Cell 
                   key={`cell-${index}`} 
                   fill={entry.fill} 
-                  stroke="#ffffff" // Weißer Rand für saubere Trennung
+                  stroke="#ffffff" 
                   strokeWidth={2} 
                 />
               ))}
