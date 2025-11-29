@@ -1,208 +1,261 @@
-// src/components/tableau-kpi-card.tsx
+// src/components/TableauKpiGrid.tsx
 'use client';
 
-import React from 'react';
-import { ExclamationTriangleFill, InfoCircle } from 'react-bootstrap-icons';
-import { ResponsiveContainer, LineChart, Line } from 'recharts';
-import { ChartPoint } from '@/lib/dashboard-shared';
+import React, { useMemo } from 'react';
+import TableauKpiCard from './tableau-kpi-card';
+import { KpiDatum, ChartPoint, ApiErrorStatus } from '@/lib/dashboard-shared';
+import { getRangeLabel, DateRangeOption } from '@/components/DateRangeSelector';
+import { format } from 'date-fns';
+import { de } from 'date-fns/locale';
 
-interface TableauKpiCardProps {
-  title: string;
-  subtitle?: string; 
-  value: number;
-  valueLabel?: string; 
-  change?: number;
-  changeLabel?: string; 
-  isLoading?: boolean;
-  data?: ChartPoint[];
-  color?: string;
-  error?: string | null;
-  className?: string;
-  barComparison?: {
-    current: number;
-    previous: number;
-  };
-  goalMet?: boolean; 
-  formatValue?: (value: number) => string; 
-  description?: string;
+// ✅ EXPORT der Interfaces
+export interface ExtendedKpis {
+  // GSC
+  clicks: KpiDatum;
+  impressions: KpiDatum;
+  
+  // GA4 Traffic
+  sessions: KpiDatum;
+  totalUsers: KpiDatum;
+  newUsers?: KpiDatum;
+  
+  // GA4 Engagement
+  conversions?: KpiDatum;
+  engagementRate?: KpiDatum;
+  bounceRate?: KpiDatum;
+  avgEngagementTime?: KpiDatum;
 }
 
-export default function TableauKpiCard({
-  title,
-  subtitle = 'vs Vorjahr',
-  value,
-  valueLabel = 'Aktueller Monat',
-  change,
-  changeLabel = 'Veränderung',
+export interface TableauKpiGridProps {
+  kpis: ExtendedKpis;
+  isLoading?: boolean;
+  allChartData?: Record<string, ChartPoint[]>;
+  apiErrors?: ApiErrorStatus;
+  dateRange?: string;
+}
+
+export default function TableauKpiGrid({
+  kpis,
   isLoading = false,
-  data,
-  color = '#3b82f6',
-  error = null,
-  className = '',
-  barComparison,
-  goalMet,
-  formatValue = (v) => v.toLocaleString('de-DE'),
-  description
-}: TableauKpiCardProps) {
+  allChartData,
+  apiErrors,
+  dateRange = '30d'
+}: TableauKpiGridProps) {
 
-  const isPositive = change !== undefined && change >= 0;
+  if (!kpis) return null;
 
-  // Kleines Info-Icon mit Tooltip
-  const InfoIcon = () => {
-    if (!description) return null;
-    
-    return (
-      <div className="group relative inline-flex items-center ml-2 align-middle z-20">
-        <InfoCircle 
-          size={14}
-          className="text-gray-400 hover:text-blue-600 cursor-help transition-colors"
-        />
-        {/* Tooltip Box */}
-        <div className="absolute left-1/2 bottom-full mb-2 w-52 -translate-x-1/2 p-3 
-                        bg-gray-800 text-white text-xs leading-snug rounded-md shadow-xl 
-                        opacity-0 invisible group-hover:opacity-100 group-hover:visible 
-                        transition-all duration-200 pointer-events-none text-center font-normal normal-case">
-          {description}
-          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800"></div>
-        </div>
-      </div>
-    );
+  const gscError = apiErrors?.gsc;
+  const ga4Error = apiErrors?.ga4;
+
+  const formatPercent = (v: number) => `${v.toFixed(1)}%`;
+  const formatTime = (v: number) => {
+    const minutes = Math.floor(v / 60);
+    const seconds = Math.floor(v % 60);
+    return `${minutes}m ${seconds}s`;
   };
 
-  // Loading State
-  if (isLoading) {
-    return (
-      <div className={`bg-white rounded-lg border border-gray-200 p-5 ${className}`}>
-        <div className="animate-pulse space-y-4">
-          <div className="h-4 bg-gray-200 rounded w-1/3"></div>
-          <div className="h-3 bg-gray-200 rounded w-1/2"></div>
-          <div className="h-8 bg-gray-200 rounded w-2/3 mt-4"></div>
-          <div className="h-16 bg-gray-100 rounded w-full mt-2"></div>
-        </div>
-      </div>
-    );
-  }
+  const dateSubtitle = useMemo(() => {
+    const dataPoints = allChartData?.sessions || allChartData?.clicks;
+    if (dataPoints && dataPoints.length > 0) {
+      const sorted = [...dataPoints].sort((a, b) => a.date - b.date);
+      const startDate = sorted[0].date;
+      const endDate = sorted[sorted.length - 1].date;
+      try {
+        return `${format(startDate, 'dd.MM.', { locale: de })} - ${format(endDate, 'dd.MM.yyyy', { locale: de })}`;
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return 'Zeitraum';
+  }, [allChartData]);
+
+  const rangeLabel = getRangeLabel(dateRange as DateRangeOption);
+
+  // ✅ HILFSFUNKTION: Berechnet den Vorperioden-Wert dynamisch
+  const getComparison = (kpi: KpiDatum) => {
+    if (!kpi || typeof kpi.value !== 'number' || typeof kpi.change !== 'number') {
+      return undefined;
+    }
+    if (kpi.change === -100) return { current: kpi.value, previous: 0 };
+    
+    const previous = kpi.value / (1 + kpi.change / 100);
+    return {
+      current: kpi.value,
+      previous: previous
+    };
+  };
 
   return (
-    <div className={`bg-white rounded-lg border border-gray-200 p-5 transition-all duration-300 hover:shadow-md relative overflow-visible ${className}`}>
+    <div className="space-y-8">
       
-      {/* Hintergrund-Balken (Tableau Style) */}
-      {barComparison && (
-        <div 
-          className="absolute left-0 top-0 bottom-0 opacity-15 pointer-events-none rounded-l-lg"
-          style={{ 
-            width: `${Math.min((barComparison.current / Math.max(barComparison.current, barComparison.previous)) * 100, 100)}%`,
-            backgroundColor: color 
-          }}
-        />
-      )}
-
-      <div className="relative z-10 flex flex-col h-full justify-between">
-        
-        {/* TOP BEREICH: Titel & Info */}
-        <div className="mb-4">
-          <div className="flex items-center mb-1">
-            <h3 className="text-lg font-bold text-gray-600 tracking-tight leading-none">
-              {title}
-            </h3>
-            <InfoIcon />
-          </div>
+      {/* ZEILE 1: Traffic & Reichweite */}
+      <div>
+        <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 px-1">
+          Traffic & Reichweite
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           
-          <div className="text-sm text-gray-400 font-medium">
-            {subtitle}
-          </div>
+          <TableauKpiCard
+            title="Impressionen"
+            description="Anzahl der Anzeigen Ihrer Website in den Google-Suchergebnissen. Jedes Mal, wenn ein Link zu Ihrer Seite erscheint, wird dies als Impression gezählt."
+            subtitle={dateSubtitle}
+            valueLabel={rangeLabel}
+            changeLabel="Veränderung"
+            value={kpis.impressions.value}
+            change={kpis.impressions.change}
+            data={allChartData?.impressions}
+            color="#8b5cf6"
+            error={gscError}
+            isLoading={isLoading}
+            barComparison={getComparison(kpis.impressions)}
+          />
+
+          <TableauKpiCard
+            title="Google Klicks"
+            description="Anzahl der Klicks aus der Google-Suche auf Ihre Website. Misst die tatsächliche Nutzerinteraktion mit Ihren Suchergebnissen."
+            subtitle={dateSubtitle}
+            valueLabel={rangeLabel}
+            changeLabel="Veränderung"
+            value={kpis.clicks.value}
+            change={kpis.clicks.change}
+            data={allChartData?.clicks}
+            color="#3b82f6"
+            error={gscError}
+            isLoading={isLoading}
+            barComparison={getComparison(kpis.clicks)}
+          />
+
+          {kpis.newUsers && (
+            <TableauKpiCard
+              title="Neue Besucher"
+              description="Erstbesucher Ihrer Website im gewählten Zeitraum. Diese Nutzer haben Ihre Seite zum ersten Mal besucht und sind besonders wertvoll für Wachstum."
+              subtitle={dateSubtitle}
+              valueLabel={rangeLabel}
+              changeLabel="Veränderung"
+              value={kpis.newUsers.value}
+              change={kpis.newUsers.change}
+              data={allChartData?.newUsers}
+              color="#6366f1"
+              error={ga4Error}
+              isLoading={isLoading}
+              barComparison={getComparison(kpis.newUsers)}
+            />
+          )}
+
+          <TableauKpiCard
+            title="Besucher"
+            description="Gesamtzahl eindeutiger Nutzer, die Ihre Website besucht haben. Ein Nutzer wird nur einmal gezählt, unabhängig davon, wie oft er zurückkehrt."
+            subtitle={dateSubtitle}
+            valueLabel={rangeLabel}
+            changeLabel="Veränderung"
+            value={kpis.totalUsers.value}
+            change={kpis.totalUsers.change}
+            data={allChartData?.totalUsers}
+            color="#0ea5e9"
+            error={ga4Error}
+            isLoading={isLoading}
+            barComparison={getComparison(kpis.totalUsers)}
+          />
+
+          <TableauKpiCard
+            title="Sessions"
+            description="Anzahl der Besuche auf Ihrer Website. Ein Nutzer kann mehrere Sessions haben (z.B. morgens und abends). Eine Session endet nach 30 Min. Inaktivität."
+            subtitle={dateSubtitle}
+            valueLabel={rangeLabel}
+            changeLabel="Veränderung"
+            value={kpis.sessions.value}
+            change={kpis.sessions.change}
+            data={allChartData?.sessions}
+            color="#06b6d4"
+            error={ga4Error}
+            isLoading={isLoading}
+            barComparison={getComparison(kpis.sessions)}
+          />
+
         </div>
-
-        {/* Goal Indicator (Optional) */}
-        {goalMet !== undefined && (
-          <div className={`text-[10px] font-bold uppercase tracking-wider mb-2 ${goalMet ? 'text-green-600' : 'text-red-600'}`}>
-            {goalMet ? 'Ziel erreicht' : 'Ziel verfehlt'}
-          </div>
-        )}
-
-        {/* MITTE: Werte & Comparison Bar */}
-        {barComparison && !error && (
-          <div className="flex items-center gap-2 mb-3">
-            <div 
-              className="flex-1 h-7 rounded-sm flex items-center justify-end pr-2 text-white text-sm font-bold shadow-sm"
-              style={{ backgroundColor: color }}
-            >
-              {formatValue(barComparison.current)}
-            </div>
-            <div className="w-px h-7 bg-gray-300"></div>
-            <div className="w-auto min-w-[3rem] text-right text-sm text-gray-500 font-medium">
-              {formatValue(barComparison.previous)}
-            </div>
-          </div>
-        )}
-
-        {error ? (
-          <div className="flex flex-col justify-center py-4">
-            <div className="flex items-center gap-2 text-red-600 mb-1">
-              <ExclamationTriangleFill size={16} />
-              <span className="text-sm font-semibold">Fehler</span>
-            </div>
-            <p className="text-xs text-gray-500">
-              {error}
-            </p>
-          </div>
-        ) : (
-          <div className="mt-auto">
-            {/* Hauptwert */}
-            <div className="mb-2">
-              <div className="text-3xl font-extrabold text-gray-900 tracking-tight">
-                {formatValue(value)}
-              </div>
-              <div className="text-xs text-gray-400 font-medium uppercase tracking-wide">
-                {valueLabel}
-              </div>
-            </div>
-
-            {/* Change Badge */}
-            {change !== undefined && (
-              <div className="flex items-center gap-2 mb-4">
-                <div className={`text-lg font-bold ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
-                  {isPositive ? '+' : ''}{change.toFixed(1)}%
-                </div>
-                <div className="text-xs text-gray-400 uppercase tracking-wide font-medium">
-                  {changeLabel}
-                </div>
-              </div>
-            )}
-
-            {/* ✅ NUR LINIE - Keine Fläche! */}
-            <div className="h-[65px] -mx-2 opacity-90 hover:opacity-100 transition-opacity">
-              {data && data.length > 1 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={data}>
-                    <Line
-                      type="monotone"
-                      dataKey="value"
-                      stroke={color}
-                      strokeWidth={2.5}
-                      dot={false}
-                      animationDuration={1000}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-full flex items-end pb-1 px-2">
-                  <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full rounded-full" 
-                      style={{ 
-                        width: '50%',
-                        backgroundColor: color,
-                        opacity: 0.3
-                      }}
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* ZEILE 2: Qualität & Engagement */}
+      <div>
+        <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 px-1">
+          Qualität & Engagement
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4 gap-4">
+          
+          {kpis.engagementRate && (
+            <TableauKpiCard
+              title="Engagement Rate"
+              description="Anteil der Sitzungen mit aktiver Interaktion. Eine Session gilt als engaged, wenn sie länger als 10 Sekunden dauert, eine Conversion auslöst oder 2+ Seitenaufrufe hat."
+              subtitle={dateSubtitle}
+              valueLabel={rangeLabel}
+              changeLabel="Veränderung"
+              value={kpis.engagementRate.value}
+              change={kpis.engagementRate.change}
+              data={allChartData?.engagementRate}
+              color="#ec4899"
+              error={ga4Error}
+              isLoading={isLoading}
+              formatValue={formatPercent}
+              barComparison={getComparison(kpis.engagementRate)}
+            />
+          )}
+
+          {kpis.conversions && (
+            <TableauKpiCard
+              title="Conversions"
+              description="Anzahl der erreichten Ziele (z.B. Käufe, Formular-Absendungen, Anrufe). Conversions messen den geschäftlichen Erfolg Ihrer Website."
+              subtitle={dateSubtitle}
+              valueLabel={rangeLabel}
+              changeLabel="Veränderung"
+              value={kpis.conversions.value}
+              change={kpis.conversions.change}
+              data={allChartData?.conversions}
+              color="#10b981"
+              error={ga4Error}
+              isLoading={isLoading}
+              barComparison={getComparison(kpis.conversions)}
+            />
+          )}
+
+          {kpis.avgEngagementTime && (
+            <TableauKpiCard
+              title="Ø Verweildauer"
+              description="Durchschnittliche Zeit, die ein Nutzer aktiv auf Ihrer Website verbringt. Längere Verweildauer deutet auf hochwertigen, relevanten Content hin."
+              subtitle={dateSubtitle}
+              valueLabel={rangeLabel}
+              changeLabel="Veränderung"
+              value={kpis.avgEngagementTime.value}
+              change={kpis.avgEngagementTime.change}
+              data={allChartData?.avgEngagementTime}
+              color="#f59e0b"
+              error={ga4Error}
+              isLoading={isLoading}
+              formatValue={formatTime}
+              barComparison={getComparison(kpis.avgEngagementTime)}
+            />
+          )}
+
+          {kpis.bounceRate && (
+            <TableauKpiCard
+              title="Absprungrate"
+              description="Anteil der Besuche ohne Interaktion. Eine hohe Absprungrate kann auf irrelevanten Content oder technische Probleme hinweisen. Niedriger ist meist besser."
+              subtitle={dateSubtitle}
+              valueLabel={rangeLabel}
+              changeLabel="Veränderung"
+              value={kpis.bounceRate.value}
+              change={kpis.bounceRate.change}
+              data={allChartData?.bounceRate}
+              color="#f43f5e"
+              error={ga4Error}
+              isLoading={isLoading}
+              formatValue={formatPercent}
+              barComparison={getComparison(kpis.bounceRate)}
+            />
+          )}
+
+        </div>
+      </div>
+
     </div>
   );
 }
