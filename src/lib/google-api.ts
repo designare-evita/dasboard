@@ -256,22 +256,29 @@ export async function getTopQueries(
       position: row.position || 0,
     }));
   } catch (error: unknown) {
-    console.error("[Top Queries] Fehler:", error);
+    console.error("[GSC] Top Queries Fehler:", error);
     return [];
   }
 }
 
+// ✅ ERWEITERTE GA4 FUNKTION MIT ALLEN 7 METRIKEN
 export async function getAnalyticsData(
   propertyId: string,
   startDate: string,
   endDate: string
 ): Promise<{
-  sessions: { total: number; daily: Array<{ date: number; value: number }> };
-  totalUsers: { total: number; daily: Array<{ date: number; value: number }> };
-  conversions: { total: number; daily: Array<{ date: number; value: number }> };
-  engagementRate: { total: number; daily: Array<{ date: number; value: number }> };
+  sessions: DateRangeData;
+  totalUsers: DateRangeData;
+  conversions: DateRangeData;
+  engagementRate: DateRangeData;
+  bounceRate: DateRangeData;
+  newUsers: DateRangeData;
+  avgEngagementTime: DateRangeData;
 }> {
-  const formattedPropertyId = propertyId.startsWith('properties/') ? propertyId : `properties/${propertyId}`;
+  const formattedPropertyId = propertyId.startsWith('properties/') 
+    ? propertyId 
+    : `properties/${propertyId}`;
+  
   const auth = createAuth();
   const analytics = google.analyticsdata({ version: 'v1beta', auth });
 
@@ -285,108 +292,118 @@ export async function getAnalyticsData(
           { name: 'sessions' },
           { name: 'totalUsers' },
           { name: 'conversions' },
-          { name: 'engagementRate' }
+          { name: 'engagementRate' },
+          { name: 'bounceRate' },
+          { name: 'newUsers' },
+          { name: 'userEngagementDuration' }, // Gesamtdauer in Sekunden
         ],
         orderBys: [{ dimension: { dimensionName: 'date' }, desc: false }],
       },
     });
 
     const rows = response.data.rows || [];
-    const sessionsDaily: Array<{ date: number; value: number }> = [];
-    const usersDaily: Array<{ date: number; value: number }> = [];
-    const conversionsDaily: Array<{ date: number; value: number }> = [];
-    const engagementDaily: Array<{ date: number; value: number }> = [];
     
+    // Daily Arrays
+    const sessionsDaily: DailyDataPoint[] = [];
+    const usersDaily: DailyDataPoint[] = [];
+    const conversionsDaily: DailyDataPoint[] = [];
+    const engagementDaily: DailyDataPoint[] = [];
+    const bounceDaily: DailyDataPoint[] = [];
+    const newUsersDaily: DailyDataPoint[] = [];
+    const avgEngagementDaily: DailyDataPoint[] = [];
+    
+    // Totals
     let totalSessions = 0;
     let totalUsers = 0;
     let totalConversions = 0;
+    let totalNewUsers = 0;
     let weightedEngagement = 0;
+    let weightedBounce = 0;
+    let totalEngagementDuration = 0;
 
     for (const row of rows) {
       const rawDate = row.dimensionValues?.[0]?.value || '';
       const dateStr = formatDateToISO(rawDate);
+      
       const sessions = parseInt(row.metricValues?.[0]?.value || '0', 10);
       const users = parseInt(row.metricValues?.[1]?.value || '0', 10);
-      // Conversions und EngagementRate könnten fehlen wenn Property sie nicht unterstützt
       const conversions = parseInt(row.metricValues?.[2]?.value || '0', 10);
       const engagementRate = parseFloat(row.metricValues?.[3]?.value || '0');
+      const bounceRate = parseFloat(row.metricValues?.[4]?.value || '0');
+      const newUsers = parseInt(row.metricValues?.[5]?.value || '0', 10);
+      const engagementDuration = parseFloat(row.metricValues?.[6]?.value || '0');
 
       const timestamp = new Date(dateStr).getTime();
+      
+      // Daily Data
       sessionsDaily.push({ date: timestamp, value: sessions });
       usersDaily.push({ date: timestamp, value: users });
       conversionsDaily.push({ date: timestamp, value: conversions });
-      engagementDaily.push({ date: timestamp, value: engagementRate * 100 }); // Als Prozent
+      engagementDaily.push({ date: timestamp, value: engagementRate * 100 }); // In Prozent
+      bounceDaily.push({ date: timestamp, value: bounceRate * 100 }); // In Prozent
+      newUsersDaily.push({ date: timestamp, value: newUsers });
       
+      // Avg Engagement Time pro Tag (in Sekunden)
+      const avgTimeForDay = sessions > 0 ? engagementDuration / sessions : 0;
+      avgEngagementDaily.push({ date: timestamp, value: avgTimeForDay });
+      
+      // Accumulate Totals
       totalSessions += sessions;
       totalUsers += users;
       totalConversions += conversions;
+      totalNewUsers += newUsers;
       weightedEngagement += (engagementRate * sessions);
+      weightedBounce += (bounceRate * sessions);
+      totalEngagementDuration += engagementDuration;
     }
 
+    // Calculate Averages
     const avgEngagement = totalSessions > 0 ? (weightedEngagement / totalSessions) : 0;
+    const avgBounce = totalSessions > 0 ? (weightedBounce / totalSessions) : 0;
+    const avgEngagementTimeTotal = totalSessions > 0 ? (totalEngagementDuration / totalSessions) : 0;
 
     return {
-      sessions: { total: totalSessions, daily: sessionsDaily },
-      totalUsers: { total: totalUsers, daily: usersDaily },
-      conversions: { total: totalConversions, daily: conversionsDaily },
-      engagementRate: { total: avgEngagement, daily: engagementDaily }
+      sessions: { 
+        total: totalSessions, 
+        daily: sessionsDaily.sort((a, b) => a.date - b.date) 
+      },
+      totalUsers: { 
+        total: totalUsers, 
+        daily: usersDaily.sort((a, b) => a.date - b.date) 
+      },
+      conversions: { 
+        total: totalConversions, 
+        daily: conversionsDaily.sort((a, b) => a.date - b.date) 
+      },
+      engagementRate: { 
+        total: avgEngagement, // Als Dezimal (0.685 = 68.5%)
+        daily: engagementDaily.sort((a, b) => a.date - b.date) 
+      },
+      bounceRate: { 
+        total: avgBounce, // Als Dezimal (0.423 = 42.3%)
+        daily: bounceDaily.sort((a, b) => a.date - b.date) 
+      },
+      newUsers: { 
+        total: totalNewUsers, 
+        daily: newUsersDaily.sort((a, b) => a.date - b.date) 
+      },
+      avgEngagementTime: { 
+        total: avgEngagementTimeTotal, // In Sekunden
+        daily: avgEngagementDaily.sort((a, b) => a.date - b.date) 
+      }
     };
   } catch (error: unknown) {
-    const err = error as any;
-    console.error('[GA4] Fehler:', err.message);
+    console.error('[GA4] Fehler beim Abrufen der erweiterten Daten:', error);
     
-    // Falls Conversions/EngagementRate nicht verfügbar sind, versuche ohne
-    if (err.message?.includes('INVALID_METRIC') || err.message?.includes('conversions') || err.message?.includes('engagementRate')) {
-      console.warn('[GA4] Conversions/EngagementRate nicht verfügbar, fallback zu Basic Metrics');
-      try {
-        const fallbackResponse = await analytics.properties.runReport({
-          property: formattedPropertyId,
-          requestBody: {
-            dateRanges: [{ startDate, endDate }],
-            dimensions: [{ name: 'date' }],
-            metrics: [
-              { name: 'sessions' },
-              { name: 'totalUsers' }
-            ],
-            orderBys: [{ dimension: { dimensionName: 'date' }, desc: false }],
-          },
-        });
-
-        const rows = fallbackResponse.data.rows || [];
-        const sessionsDaily: Array<{ date: number; value: number }> = [];
-        const usersDaily: Array<{ date: number; value: number }> = [];
-        let totalSessions = 0;
-        let totalUsers = 0;
-
-        for (const row of rows) {
-          const rawDate = row.dimensionValues?.[0]?.value || '';
-          const dateStr = formatDateToISO(rawDate);
-          const sessions = parseInt(row.metricValues?.[0]?.value || '0', 10);
-          const users = parseInt(row.metricValues?.[1]?.value || '0', 10);
-
-          const timestamp = new Date(dateStr).getTime();
-          sessionsDaily.push({ date: timestamp, value: sessions });
-          usersDaily.push({ date: timestamp, value: users });
-          totalSessions += sessions;
-          totalUsers += users;
-        }
-
-        return {
-          sessions: { total: totalSessions, daily: sessionsDaily },
-          totalUsers: { total: totalUsers, daily: usersDaily },
-          conversions: { total: 0, daily: [] },
-          engagementRate: { total: 0, daily: [] }
-        };
-      } catch (fallbackError) {
-        console.error('[GA4] Auch Fallback fehlgeschlagen:', fallbackError);
-      }
-    }
-    
+    // Fallback: Leere Daten zurückgeben
     return {
       sessions: { total: 0, daily: [] },
       totalUsers: { total: 0, daily: [] },
       conversions: { total: 0, daily: [] },
-      engagementRate: { total: 0, daily: [] }
+      engagementRate: { total: 0, daily: [] },
+      bounceRate: { total: 0, daily: [] },
+      newUsers: { total: 0, daily: [] },
+      avgEngagementTime: { total: 0, daily: [] }
     };
   }
 }
@@ -409,7 +426,7 @@ export async function getAiTrafficData(
           dimensions: [{ name: 'sessionSource' }, { name: 'sessionMedium' }],
           metrics: [{ name: 'sessions' }, { name: 'totalUsers' }],
           orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
-          limit: '1000',
+          limit: '10000',
         },
       }),
       analytics.properties.runReport({
