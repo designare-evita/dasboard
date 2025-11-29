@@ -2,7 +2,8 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import TableauKpiCard from './TableauKpiCard';
+// ✅ KORREKTUR: Import muss dem Dateinamen entsprechen (kleingeschrieben)
+import TableauKpiCard from './tableau-kpi-card'; 
 import { KpiDatum, ChartPoint, ApiErrorStatus } from '@/lib/dashboard-shared';
 import { getRangeLabel, DateRangeOption } from '@/components/DateRangeSelector';
 import { format } from 'date-fns';
