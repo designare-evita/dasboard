@@ -19,6 +19,8 @@ export type ChartEntry = {
   name: string;
   value: number;
   fill: string;
+  subValue?: string; // z.B. "55.4%"
+  subLabel?: string; // z.B. "Engagement Rate"
 };
 
 export interface ApiErrorStatus {
