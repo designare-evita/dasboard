@@ -14,244 +14,271 @@ import {
 } from 'recharts';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
-// FIX: Import ChartPoint (Zeitreihe) statt ChartEntry (Kuchendiagramm)
-import { ChartPoint } from '@/lib/dashboard-shared'; 
-import { XCircle, BarChartLine, ArrowLeftRight } from 'react-bootstrap-icons';
+import { ChartPoint, ActiveKpi } from '@/lib/dashboard-shared'; 
+import { ArrowLeftRight, CalendarEvent, Filter } from 'react-bootstrap-icons';
 import { cn } from '@/lib/utils';
 
-// --- KONFIGURATION ---
+// --- KONFIGURATION (Identisch mit TableauKpiGrid & PieChart) ---
 const KPI_CONFIG: Record<string, { label: string; color: string; gradientId: string }> = {
-  clicks: { label: 'Klicks', color: '#4f46e5', gradientId: 'colorClicks' },       // Indigo
-  impressions: { label: 'Impressionen', color: '#8b5cf6', gradientId: 'colorImpressions' }, // Violet
-  sessions: { label: 'Sitzungen', color: '#10b981', gradientId: 'colorSessions' },    // Emerald
-  totalUsers: { label: 'Nutzer', color: '#f59e0b', gradientId: 'colorUsers' },      // Amber
-  bounceRate: { label: 'Absprungrate', color: '#ef4444', gradientId: 'colorBounce' },   // Red
-  avgEngagementTime: { label: 'Engagement Zeit', color: '#06b6d4', gradientId: 'colorEngagement' }, // Cyan
-  // Fallbacks
-  users: { label: 'Nutzer', color: '#f59e0b', gradientId: 'colorUsers' },
-  engagementRate: { label: 'Engagement Rate', color: '#06b6d4', gradientId: 'colorEngagement' },
+  // Traffic
+  sessions: { label: 'Sitzungen', color: '#3b82f6', gradientId: 'gradBlue' },       
+  totalUsers: { label: 'Nutzer', color: '#3b82f6', gradientId: 'gradBlue2' },     
+  newUsers: { label: 'Neue Besucher', color: '#6366f1', gradientId: 'gradIndigo' }, 
+  clicks: { label: 'Klicks', color: '#3b82f6', gradientId: 'gradBlue3' },       
+  impressions: { label: 'Impressionen', color: '#8b5cf6', gradientId: 'gradPurple' }, 
+
+  // Engagement / Qualität
+  conversions: { label: 'Conversions', color: '#10b981', gradientId: 'gradEmerald' },   
+  engagementRate: { label: 'Engagement Rate', color: '#ec4899', gradientId: 'gradPink' },
+  bounceRate: { label: 'Absprungrate', color: '#f59e0b', gradientId: 'gradAmber' },  
+  avgEngagementTime: { label: 'Ø Verweildauer', color: '#06b6d4', gradientId: 'gradCyan' },
 };
 
-const DEFAULT_CONFIG = { label: 'Wert', color: '#6b7280', gradientId: 'colorDefault' };
-
 interface KpiTrendChartProps {
-  activeKpi: string;
+  activeKpi: ActiveKpi | string;
   onKpiChange: (kpi: string) => void;
-  // FIX: Typ angepasst auf ChartPoint[] und optional (undefined)
-  allChartData?: Record<string, ChartPoint[] | undefined>;
+  allChartData?: Record<string, ChartPoint[]>;
+  isLoading?: boolean;
   className?: string;
 }
+
+// --- HELPER ---
+const formatValue = (value: number, kpi: string) => {
+  if (kpi === 'engagementRate' || kpi === 'bounceRate') return `${value.toFixed(1)}%`;
+  if (kpi === 'avgEngagementTime') {
+    const mins = Math.floor(value / 60);
+    const secs = Math.floor(value % 60);
+    return `${mins}m ${secs}s`;
+  }
+  return new Intl.NumberFormat('de-DE').format(value);
+};
+
+const CustomTooltip = ({ active, payload, label, kpi1, kpi2 }: any) => {
+  if (active && payload && payload.length) {
+    const dateLabel = label ? format(new Date(label), 'dd. MMMM yyyy', { locale: de }) : '';
+    
+    return (
+      <div className="bg-white px-3 py-2 rounded-lg shadow-xl border border-gray-200 text-sm z-50">
+        <p className="text-gray-400 font-medium mb-2 border-b border-gray-100 pb-1">{dateLabel}</p>
+        
+        {payload.map((entry: any, index: number) => {
+          const kpiKey = entry.dataKey === 'value' ? kpi1 : kpi2;
+          const conf = KPI_CONFIG[kpiKey] || { label: kpiKey, color: '#888' };
+          
+          return (
+            <div key={index} className="flex items-center gap-3 mb-1 last:mb-0">
+              <div className="flex items-center gap-2 min-w-[120px]">
+                <div 
+                  className="w-2 h-2 rounded-full" 
+                  style={{ backgroundColor: entry.stroke || conf.color }}
+                />
+                <span className="text-gray-600 font-medium">{conf.label}:</span>
+              </div>
+              <span className="font-bold text-gray-900">
+                {formatValue(entry.value, kpiKey)}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+  return null;
+};
 
 export default function KpiTrendChart({
   activeKpi,
   onKpiChange,
   allChartData,
+  isLoading,
   className
 }: KpiTrendChartProps) {
   
-  const [compareKpi, setCompareKpi] = useState<string | null>(null);
+  const [compareKpi, setCompareKpi] = useState<string>('none');
 
-  // 1. Verfügbare KPIs ermitteln
-  const availableKpis = useMemo(() => {
-    if (!allChartData) return [];
-    // Wir casten zu 'any', um sicher über die Keys zu iterieren, falls TypeScript streng ist
-    return Object.keys(allChartData).filter(key => {
-      const data = (allChartData as any)[key];
-      return data && Array.isArray(data) && data.length > 0;
-    });
-  }, [allChartData]);
-
-  // 2. Helper um Config abzurufen
-  const getKpiConfig = (key: string) => KPI_CONFIG[key] || { ...DEFAULT_CONFIG, label: key };
-
-  const activeConfig = getKpiConfig(activeKpi);
-  const compareConfig = compareKpi ? getKpiConfig(compareKpi) : null;
-
-  // 3. Daten zusammenführen (Merge)
+  // Daten aufbereiten
   const chartData = useMemo(() => {
-    // Zugriff per Index-Signatur simulieren
-    const dataRecord = allChartData as Record<string, ChartPoint[] | undefined> | undefined;
-    if (!dataRecord || !dataRecord[activeKpi]) return [];
-
-    const primaryData = dataRecord[activeKpi]!;
+    if (!allChartData) return [];
     
-    // Wenn kein Vergleich aktiv ist
-    if (!compareKpi || !dataRecord[compareKpi]) {
-      return primaryData.map(d => ({
-        date: d.date,
-        value: d.value,
-        compareValue: null
-      }));
+    const primaryData = allChartData[activeKpi] || [];
+    const secondaryData = compareKpi !== 'none' ? allChartData[compareKpi] || [] : [];
+
+    // Map Datum -> Objekt
+    const dataMap = new Map<string, any>();
+
+    primaryData.forEach(p => {
+      const dStr = new Date(p.date).toISOString();
+      dataMap.set(dStr, { date: p.date, value: p.value });
+    });
+
+    if (secondaryData.length > 0) {
+      secondaryData.forEach(p => {
+        const dStr = new Date(p.date).toISOString();
+        const existing = dataMap.get(dStr) || { date: p.date };
+        existing.compareValue = p.value;
+        dataMap.set(dStr, existing);
+      });
     }
 
-    const secondaryData = dataRecord[compareKpi]!;
-    const secondaryMap = new Map(secondaryData.map(d => [d.date, d.value]));
-
-    return primaryData.map(d => ({
-      date: d.date,
-      value: d.value,
-      compareValue: secondaryMap.get(d.date) ?? null
-    }));
+    return Array.from(dataMap.values()).sort((a, b) => 
+      new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
   }, [allChartData, activeKpi, compareKpi]);
 
+  const activeConfig = KPI_CONFIG[activeKpi] || KPI_CONFIG['sessions'];
+  const compareConfig = compareKpi !== 'none' ? KPI_CONFIG[compareKpi] : null;
 
-  // --- ERROR STATE ---
-  // Prüfen, ob Daten für die aktive KPI existieren
-  const hasActiveData = allChartData && (allChartData as any)[activeKpi] && (allChartData as any)[activeKpi].length > 0;
-
-  if (!hasActiveData) {
+  if (isLoading) {
     return (
-      <div className={cn("card-glass p-6 min-h-[400px] flex items-center justify-center text-gray-400", className)}>
-        <div className="text-center">
-          <BarChartLine size={32} className="mx-auto mb-2 opacity-50" />
-          <p>Keine Chart-Daten verfügbar</p>
+      <div className={cn("bg-white rounded-lg shadow-sm border border-gray-200 p-6 h-[400px] animate-pulse flex items-center justify-center", className)}>
+        <div className="flex flex-col items-center gap-2">
+          <div className="h-8 w-8 bg-gray-200 rounded-full animate-bounce"></div>
+          <span className="text-gray-400 text-sm">Lade Trend-Daten...</span>
         </div>
       </div>
     );
   }
 
+  // Y-Achsen Formatierer für das Chart (kurz)
+  const formatYAxis = (val: number) => {
+    if (val >= 1000000) return `${(val / 1000000).toFixed(1)}M`;
+    if (val >= 1000) return `${(val / 1000).toFixed(0)}k`;
+    return String(val);
+  };
+
   return (
-    <div className={cn("card-glass p-6 flex flex-col", className)}>
+    <div className={cn("bg-white rounded-lg shadow-sm border border-gray-200 p-6 transition-all hover:shadow-md", className)}>
       
-      {/* --- HEADER & CONTROLS --- */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-6 border-b border-gray-100 pb-4 sm:pb-0 sm:border-0">
+      {/* HEADER & CONTROLS */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         
-        {/* LINKSEITIG: Primäre KPI Auswahl */}
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-indigo-50 rounded-xl text-indigo-600 shadow-sm">
-             <BarChartLine size={22} />
+        {/* Titel & Icon */}
+        <div className="flex items-center gap-2">
+          <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
+            <CalendarEvent size={18} />
           </div>
-          <div className="flex flex-col">
-             <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider leading-tight">
-               Primäre Analyse
-             </span>
-             <div className="relative group">
-               <select
-                 value={activeKpi}
-                 onChange={(e) => onKpiChange(e.target.value)}
-                 className="appearance-none bg-transparent text-xl font-bold text-gray-900 focus:outline-none cursor-pointer pr-6 hover:text-indigo-600 transition-colors"
-               >
-                 {availableKpis.map(kpi => (
-                   <option key={kpi} value={kpi} disabled={kpi === compareKpi}>
-                     {getKpiConfig(kpi).label}
-                   </option>
-                 ))}
-               </select>
-               <div className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400 group-hover:text-indigo-600">
-                 <ArrowLeftRight size={12} className="rotate-90" />
-               </div>
-             </div>
-          </div>
+          <h3 className="text-lg font-semibold text-gray-900">
+            Verlauf & Analyse
+          </h3>
         </div>
 
-        {/* RECHTSEITIG: Vergleichsauswahl */}
-        <div className="flex items-center gap-2 bg-white/60 border border-gray-200/60 rounded-lg p-1.5 pr-3 shadow-sm backdrop-blur-sm transition-all hover:shadow-md w-full sm:w-auto">
-             <span className="text-xs font-medium text-gray-500 pl-2 whitespace-nowrap">Vergleich mit:</span>
-             <select
-               value={compareKpi || ''}
-               onChange={(e) => setCompareKpi(e.target.value || null)}
-               className="bg-transparent text-sm font-bold text-gray-800 focus:outline-none cursor-pointer py-1 w-full sm:w-auto"
-             >
-               <option value="">-- Keiner --</option>
-               {availableKpis.map(kpi => (
-                 <option key={kpi} value={kpi} disabled={kpi === activeKpi}>
-                   {getKpiConfig(kpi).label}
-                 </option>
-               ))}
-             </select>
-             
-             {compareKpi && (
-               <button 
-                 onClick={() => setCompareKpi(null)}
-                 className="text-gray-400 hover:text-red-500 transition-colors ml-1 p-1 hover:bg-red-50 rounded-full"
-                 title="Vergleich entfernen"
-               >
-                 <XCircle size={14} />
-               </button>
-             )}
+        {/* Filter Controls */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          
+          {/* Primary KPI Select */}
+          <div className="relative group">
+            <select
+              value={activeKpi}
+              onChange={(e) => onKpiChange(e.target.value)}
+              className="appearance-none bg-gray-50 hover:bg-white border border-gray-200 hover:border-gray-300 text-gray-700 text-sm rounded-md focus:ring-blue-500 focus:border-blue-500 block w-full pl-3 pr-10 py-2 cursor-pointer transition-colors"
+            >
+              {Object.keys(KPI_CONFIG).map((key) => (
+                <option key={key} value={key}>
+                  {KPI_CONFIG[key].label}
+                </option>
+              ))}
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-400 group-hover:text-blue-500 transition-colors">
+              <Filter size={12} />
+            </div>
+          </div>
+
+          {/* Comparison Toggle / Select */}
+          <div className="relative group">
+            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+              <ArrowLeftRight size={12} />
+            </div>
+            <select
+              value={compareKpi}
+              onChange={(e) => setCompareKpi(e.target.value)}
+              className="appearance-none bg-white border border-gray-200 hover:border-gray-300 text-gray-600 text-sm rounded-md focus:ring-purple-500 focus:border-purple-500 block w-full pl-9 pr-8 py-2 cursor-pointer transition-colors"
+            >
+              <option value="none">Kein Vergleich</option>
+              {Object.keys(KPI_CONFIG)
+                .filter((k) => k !== activeKpi)
+                .map((key) => (
+                  <option key={key} value={key}>
+                     vs. {KPI_CONFIG[key].label}
+                  </option>
+                ))}
+            </select>
+          </div>
         </div>
       </div>
 
-      {/* --- CHART AREA --- */}
-      <div className="w-full h-[350px] relative">
+      {/* CHART AREA */}
+      <div className="h-[320px] w-full">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
             <defs>
-              <linearGradient id={activeConfig.gradientId} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={activeConfig.color} stopOpacity={0.3}/>
-                <stop offset="95%" stopColor={activeConfig.color} stopOpacity={0}/>
-              </linearGradient>
-              
-              {compareConfig && (
-                <linearGradient id={compareConfig.gradientId} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={compareConfig.color} stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor={compareConfig.color} stopOpacity={0}/>
+              {/* Generiere Gradients für alle Config Farben */}
+              {Object.values(KPI_CONFIG).map((conf) => (
+                <linearGradient key={conf.gradientId} id={conf.gradientId} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={conf.color} stopOpacity={0.3} />
+                  <stop offset="95%" stopColor={conf.color} stopOpacity={0} />
                 </linearGradient>
-              )}
+              ))}
             </defs>
             
-            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+            <CartesianGrid 
+              strokeDasharray="3 3" 
+              vertical={false} 
+              stroke="#f3f4f6" 
+            />
             
             <XAxis
               dataKey="date"
-              tickFormatter={(str) => format(new Date(str), 'd.MM', { locale: de })}
+              tickFormatter={(date) => format(new Date(date), 'd.MMM', { locale: de })}
               tick={{ fontSize: 11, fill: '#6b7280' }}
-              tickMargin={10}
-              minTickGap={30}
               axisLine={false}
               tickLine={false}
+              dy={10}
+              minTickGap={30}
             />
             
             <YAxis
               yAxisId="left"
-              tickFormatter={(val) => new Intl.NumberFormat('de-DE', { notation: 'compact' }).format(val)}
-              tick={{ fontSize: 11, fill: activeConfig.color, fontWeight: 600 }}
+              tickFormatter={formatYAxis}
+              tick={{ fontSize: 11, fill: '#6b7280' }}
               axisLine={false}
               tickLine={false}
-              width={45}
+              dx={-10}
             />
 
-            {compareKpi && (
+            {compareKpi !== 'none' && (
               <YAxis
                 yAxisId="right"
                 orientation="right"
-                tickFormatter={(val) => new Intl.NumberFormat('de-DE', { notation: 'compact' }).format(val)}
-                tick={{ fontSize: 11, fill: compareConfig?.color, fontWeight: 600 }}
+                tickFormatter={formatYAxis}
+                tick={{ fontSize: 11, fill: '#9ca3af' }}
                 axisLine={false}
                 tickLine={false}
-                width={45}
+                dx={10}
               />
             )}
 
-            <Tooltip
-              contentStyle={{ 
-                backgroundColor: 'rgba(255, 255, 255, 0.95)', 
-                borderRadius: '12px', 
-                border: 'none', 
-                boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)',
-                fontSize: '12px',
-                padding: '12px'
-              }}
-              labelFormatter={(label) => format(new Date(label), 'd. MMMM yyyy', { locale: de })}
-              formatter={(value: number, name: string) => {
-                if (name === 'value') return [new Intl.NumberFormat('de-DE').format(value), activeConfig.label];
-                if (name === 'compareValue') return [new Intl.NumberFormat('de-DE').format(value), compareConfig?.label || ''];
-                return [value, name];
-              }}
+            <Tooltip 
+              content={
+                <CustomTooltip 
+                  kpi1={activeKpi} 
+                  kpi2={compareKpi !== 'none' ? compareKpi : undefined} 
+                />
+              } 
             />
 
             <Legend 
               verticalAlign="top" 
               height={36}
               content={({ payload }) => (
-                <div className="flex justify-center gap-6 mb-2">
-                  {payload?.map((entry, index) => {
-                     const isPrimary = entry.value === 'value';
+                <div className="flex justify-center gap-6 mb-4">
+                  {payload?.map((entry: any, index) => {
+                     // Finde die Config basierend auf der Farbe oder dem Namen
+                     const isPrimary = index === 0;
                      const conf = isPrimary ? activeConfig : compareConfig;
                      if (!conf) return null;
-                     
+
                      return (
-                       <div key={index} className="flex items-center gap-2 text-xs font-medium text-gray-600 bg-white px-2 py-1 rounded-full border border-gray-100 shadow-sm">
+                       <div key={index} className="flex items-center gap-2 text-xs font-medium text-gray-600 bg-gray-50 px-2 py-1 rounded-full border border-gray-100">
                          <span 
                            className="w-2.5 h-2.5 rounded-full" 
                            style={{ backgroundColor: conf.color }}
@@ -273,11 +300,11 @@ export default function KpiTrendChart({
               strokeWidth={3}
               fillOpacity={1}
               fill={`url(#${activeConfig.gradientId})`}
-              activeDot={{ r: 6, strokeWidth: 2, stroke: '#fff' }}
+              activeDot={{ r: 6, strokeWidth: 2, stroke: '#fff', fill: activeConfig.color }}
               animationDuration={1000}
             />
 
-            {compareKpi && compareConfig && (
+            {compareKpi !== 'none' && compareConfig && (
               <Area
                 yAxisId="right"
                 type="monotone"
@@ -286,9 +313,8 @@ export default function KpiTrendChart({
                 stroke={compareConfig.color}
                 strokeWidth={2}
                 strokeDasharray="5 5"
-                fillOpacity={0.4}
-                fill={`url(#${compareConfig.gradientId})`}
-                activeDot={{ r: 6, strokeWidth: 2, stroke: '#fff' }}
+                fillOpacity={0} // Secondary meist ohne Fill, um Überlagerung zu vermeiden
+                activeDot={{ r: 5, strokeWidth: 2, stroke: '#fff', fill: compareConfig.color }}
                 animationDuration={1000}
               />
             )}
