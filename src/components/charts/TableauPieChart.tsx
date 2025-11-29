@@ -1,7 +1,7 @@
 // src/components/charts/TableauPieChart.tsx
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   ResponsiveContainer,
   PieChart,
@@ -15,6 +15,17 @@ import { ChartEntry } from '@/lib/dashboard-shared';
 import { cn } from '@/lib/utils';
 import { ArrowRepeat, ExclamationTriangleFill } from 'react-bootstrap-icons';
 
+// ✅ Definiere die exakte Farbpalette der KPI Cards
+const KPI_COLORS = [
+  '#3b82f6', // Blue (Sessions, Users)
+  '#8b5cf6', // Purple (Impressions, Engagement Time)
+  '#10b981', // Emerald (Conversions)
+  '#f59e0b', // Amber (Bounce Rate)
+  '#ec4899', // Pink (Engagement Rate)
+  '#6366f1', // Indigo (New Users)
+  '#06b6d4', // Cyan
+];
+
 interface TableauPieChartProps {
   data?: ChartEntry[];
   title: string;
@@ -25,8 +36,9 @@ interface TableauPieChartProps {
 
 interface TooltipPayload {
   payload: ChartEntry;
-  percent: number;
+  percent?: number;
   value: number;
+  fill?: string;
 }
 
 interface CustomTooltipProps {
@@ -37,154 +49,156 @@ interface CustomTooltipProps {
 const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
+    // Recharts liefert 'percent' im Payload mit (0 bis 1)
     const rawPercent = payload[0].percent;
     
     let percentValue = 0;
     if (typeof rawPercent === 'number' && !isNaN(rawPercent)) {
-      if (rawPercent >= 0 && rawPercent <= 1) {
-        percentValue = rawPercent * 100;
-      } else {
-        percentValue = rawPercent;
-      }
+      percentValue = rawPercent * 100;
     }
     
+    // Nutze die Farbe aus dem Payload (die wir unten zuweisen)
+    const color = payload[0].fill || data.fill;
+
     return (
       <div className="bg-white px-3 py-2 rounded-lg shadow-xl border border-gray-200">
-        <p className="text-sm font-semibold" style={{ color: data.fill }}>
-          {data.name}
-        </p>
-        <p className="text-xs text-gray-700">
-          Sitzungen: {data.value.toLocaleString('de-DE')} ({percentValue.toFixed(1)}%)
-        </p>
+        <div className="flex items-center gap-2 mb-1">
+          <div 
+            className="w-2 h-2 rounded-full" 
+            style={{ backgroundColor: color }}
+          />
+          <span className="text-xs font-medium text-gray-500">{data.name}</span>
+        </div>
+        <div className="flex items-baseline gap-2">
+          <span className="text-lg font-bold text-gray-900">
+            {new Intl.NumberFormat('de-DE').format(data.value)}
+          </span>
+          <span className="text-xs font-medium text-gray-400">
+            ({percentValue.toFixed(1)}%)
+          </span>
+        </div>
       </div>
     );
   }
   return null;
 };
 
-interface LegendPayloadItem {
-  value: string;
-  color: string;
-  payload: ChartEntry;
-}
-
-interface CustomLegendProps {
-  payload?: LegendPayloadItem[];
-}
-
-const CustomLegend = (props: CustomLegendProps) => {
-  const { payload } = props;
-  const total = payload?.reduce((sum, entry) => sum + (entry.payload?.value || 0), 0) || 0;
+// Custom Label, das nur angezeigt wird, wenn das Segment groß genug ist
+const renderCustomLabel = (props: PieLabelRenderProps) => {
+  const { cx, cy, midAngle, innerRadius, outerRadius, percent } = props;
   
+  // Zeige Label nur wenn > 5%
+  if ((percent || 0) < 0.05) return null;
+
+  const RADIAN = Math.PI / 180;
+  // Radius etwas weiter außen für bessere Lesbarkeit
+  const radius = Number(innerRadius) + (Number(outerRadius) - Number(innerRadius)) * 0.6;
+  const x = Number(cx) + radius * Math.cos(-midAngle * RADIAN);
+  const y = Number(cy) + radius * Math.sin(-midAngle * RADIAN);
+
   return (
-    <ul className="flex flex-col gap-1.5 pt-4">
-      {payload?.map((entry: LegendPayloadItem, index: number) => {
-        const percent = total > 0 ? ((entry.payload.value / total) * 100).toFixed(1) : '0';
-        return (
-          <li key={`item-${index}`} className="flex items-center gap-2">
-            <div
-              className="w-3 h-3 rounded-full flex-shrink-0 shadow-sm"
-              style={{ backgroundColor: entry.color }}
-            />
-            <span className="text-xs text-gray-700 truncate">
-              {entry.value} ({entry.payload.value.toLocaleString('de-DE')} - {percent}%)
-            </span>
-          </li>
-        );
-      })}
-    </ul>
+    <text 
+      x={x} 
+      y={y} 
+      fill="white" 
+      textAnchor={x > Number(cx) ? 'start' : 'end'} 
+      dominantBaseline="central"
+      className="text-[10px] font-bold pointer-events-none drop-shadow-md"
+    >
+      {`${((percent || 0) * 100).toFixed(0)}%`}
+    </text>
   );
-};
-
-const renderCustomLabel = (props: PieLabelRenderProps): string => {
-  const rawPercent = props.percent;
-  if (typeof rawPercent === 'number' && !isNaN(rawPercent)) {
-    if (rawPercent >= 0 && rawPercent <= 1) {
-      const percentValue = rawPercent * 100;
-      return `${Math.round(percentValue)}%`;
-    }
-    return `${Math.round(rawPercent)}%`;
-  }
-  
-  if (props.value && props.payload && Array.isArray(props.payload)) {
-    const total = props.payload.reduce((sum: number, item: ChartEntry) => {
-      return sum + (typeof item.value === 'number' ? item.value : 0);
-    }, 0);
-    if (total > 0 && typeof props.value === 'number') {
-      const manualPercent = (props.value / total) * 100;
-      return `${Math.round(manualPercent)}%`;
-    }
-  }
-  return '0%';
 };
 
 export default function TableauPieChart({
   data,
   title,
-  isLoading = false,
+  isLoading,
   className,
-  error = null
+  error
 }: TableauPieChartProps) {
+
+  // ✅ Daten vorbereiten: Farben aus unserer Palette zuweisen
+  const chartData = useMemo(() => {
+    if (!data) return [];
+    return data.map((entry, index) => ({
+      ...entry,
+      // Weise zyklisch eine Farbe aus der KPI-Palette zu
+      fill: KPI_COLORS[index % KPI_COLORS.length]
+    }));
+  }, [data]);
 
   if (isLoading) {
     return (
-      <div className={cn('bg-white rounded-lg shadow-sm border border-gray-200 p-6 flex flex-col h-[350px] justify-center items-center', className)}>
-        <ArrowRepeat className="animate-spin text-indigo-600 mb-2" size={24} />
-        <p className="text-sm text-gray-500">Lade {title}...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className={cn('bg-white rounded-lg shadow-sm border border-gray-200 p-6 flex flex-col h-[350px] justify-center items-center', className)}>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4 absolute top-6 left-6">{title}</h3>
-        <div className="flex flex-col items-center justify-center text-center text-red-700">
-          <ExclamationTriangleFill className="text-red-500 w-8 h-8 mb-3" />
-          <p className="text-sm font-semibold">Fehler bei GA4-Daten</p>
-          <p className="text-xs text-gray-500 mt-1" title={error}>
-            {title} konnten nicht geladen werden.
-          </p>
+      <div className={cn('bg-white rounded-lg shadow-sm border border-gray-200 p-6 flex flex-col h-[350px] animate-pulse', className)}>
+        <div className="h-6 bg-gray-200 rounded w-1/3 mb-4"></div>
+        <div className="flex-grow flex items-center justify-center">
+          <div className="w-48 h-48 bg-gray-200 rounded-full"></div>
         </div>
       </div>
     );
   }
 
-  if (!data || data.length === 0) {
+  if (error) {
+     return (
+      <div className={cn('bg-white rounded-lg shadow-sm border border-gray-200 p-6 flex flex-col h-[350px]', className)}>
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">{title}</h3>
+        <div className="flex-grow flex flex-col items-center justify-center text-red-500 gap-2">
+          <ExclamationTriangleFill size={24} />
+          <p className="text-sm font-medium text-center">{error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!chartData || chartData.length === 0) {
     return (
       <div className={cn('bg-white rounded-lg shadow-sm border border-gray-200 p-6 flex flex-col h-[350px] justify-center items-center', className)}>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">{title}</h3>
-        <p className="text-sm text-gray-500 italic text-center">
-          Keine Daten für {title} verfügbar.
-        </p>
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 self-start">{title}</h3>
+        <div className="flex-grow flex flex-col items-center justify-center text-gray-400">
+           <ArrowRepeat size={24} className="mb-2 opacity-50" />
+           <p className="text-sm italic">Keine Daten verfügbar</p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className={cn('bg-white rounded-lg shadow-sm border border-gray-200 p-6 flex flex-col h-[350px] hover:shadow-md transition-shadow', className)}>
-      <h3 className="text-lg font-semibold text-gray-900 mb-4 flex-shrink-0">
+      <h3 className="text-lg font-semibold text-gray-900 mb-2 flex-shrink-0">
         {title}
       </h3>
-      <div className="flex-grow min-h-0">
+      <div className="flex-grow min-h-0 relative">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
-              data={data}
+              data={chartData}
               dataKey="value"
               nameKey="name"
               cx="50%"
               cy="50%"
-              outerRadius="70%"
+              innerRadius={60} // Donut-Style wirkt oft moderner/übersichtlicher
+              outerRadius={80}
+              paddingAngle={2} // Kleiner Abstand zwischen Segmenten
               labelLine={false}
               label={renderCustomLabel}
             >
-              {data.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.fill} stroke={entry.fill} strokeWidth={2} />
+              {chartData.map((entry, index) => (
+                <Cell 
+                  key={`cell-${index}`} 
+                  fill={entry.fill} 
+                  stroke="#ffffff" // Weißer Rand für saubere Trennung
+                  strokeWidth={2} 
+                />
               ))}
             </Pie>
             <Tooltip content={<CustomTooltip />} />
-            <Legend content={<CustomLegend />} layout="vertical" align="right" verticalAlign="middle" />
+            <Legend 
+              verticalAlign="bottom" 
+              height={36} 
+              iconType="circle"
+              formatter={(value) => <span className="text-xs text-gray-600 font-medium ml-1">{value}</span>}
+            />
           </PieChart>
         </ResponsiveContainer>
       </div>
