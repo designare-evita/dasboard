@@ -46,21 +46,21 @@ export default function TableauKpiCard({
 }: TableauKpiCardProps) {
 
   const isPositive = change !== undefined && change >= 0;
-
-  // Sichere ID für SVG erstellen (Leerzeichen entfernen!)
   const gradientId = `tableau-grad-${title.replace(/\s+/g, '-').toLowerCase()}`;
 
   const InfoIcon = ({ iconClass = "text-gray-400 hover:text-blue-600" }: { iconClass?: string }) => {
     if (!description) return null;
     return (
-      <div className="group relative inline-flex items-center ml-2 align-middle z-20">
+      <div className="group relative inline-flex items-center align-middle z-20">
         <InfoCircle size={14} className={`${iconClass} cursor-help transition-colors`} />
-        <div className="absolute left-1/2 bottom-full mb-2 w-52 -translate-x-1/2 p-3 
+        {/* Tooltip */}
+        <div className="absolute left-0 bottom-full mb-2 w-52 p-3 
                         bg-gray-800 text-white text-xs leading-snug rounded-md shadow-xl 
                         opacity-0 invisible group-hover:opacity-100 group-hover:visible 
                         transition-all duration-200 pointer-events-none text-center font-normal normal-case z-50">
           {description}
-          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800"></div>
+          {/* Pfeil unten */}
+          <div className="absolute top-full left-4 -translate-x-1/2 border-4 border-transparent border-t-gray-800"></div>
         </div>
       </div>
     );
@@ -93,17 +93,20 @@ export default function TableauKpiCard({
         />
       )}
 
-      {/* Content Container - Flex Column für sauberes Layout */}
+      {/* Content Container */}
       <div className="relative z-10 flex flex-col h-full">
         
-        {/* --- OBERER BEREICH (Titel nur anzeigen, wenn kein Balken da ist - Fallback) --- */}
+        {/* --- OBERER BEREICH (Fallback, falls kein Balken da ist) --- */}
         {(error || !barComparison) && (
           <div className="mb-4">
             <div className="flex items-center mb-1">
+              {/* Icon LINKS vor dem Titel */}
+              <div className="mr-2">
+                <InfoIcon />
+              </div>
               <h3 className="text-lg font-bold text-gray-600 tracking-tight leading-none">
                 {title}
               </h3>
-              <InfoIcon />
             </div>
           </div>
         )}
@@ -122,12 +125,16 @@ export default function TableauKpiCard({
               className="flex-1 h-7 rounded-sm flex items-center justify-between pl-2 pr-2 text-white text-sm font-bold shadow-sm"
               style={{ backgroundColor: color }}
             >
-              {/* Titel links im Balken */}
+              {/* Titel LINKS im Balken */}
               <div className="flex items-center">
-                <span className="mr-1">{title}</span>
-                <InfoIcon iconClass="text-white opacity-80 hover:opacity-100 hover:text-white" />
+                {/* Icon ganz links */}
+                <div className="mr-2 flex items-center">
+                   <InfoIcon iconClass="text-white opacity-80 hover:opacity-100 hover:text-white" />
+                </div>
+                <span>{title}</span>
               </div>
-              {/* Wert rechts im Balken */}
+              
+              {/* Wert RECHTS im Balken */}
               <span>{formatValue(barComparison.current)}</span>
             </div>
             
@@ -209,7 +216,6 @@ export default function TableauKpiCard({
         )}
 
         {/* --- FOOTER: DATUM (Subtitle) GANZ UNTEN LINKS --- */}
-        {/* Änderung: text-left statt text-right */}
         <div className="mt-3 pt-2 border-t border-gray-100 text-xs text-gray-400 text-left font-medium">
           {subtitle}
         </div>
