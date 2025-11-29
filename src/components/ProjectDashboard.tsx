@@ -2,6 +2,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { 
   ProjectDashboardData, 
   ActiveKpi, 
@@ -28,7 +29,10 @@ interface ProjectDashboardProps {
   data: ProjectDashboardData;
   isLoading: boolean;
   dateRange: DateRangeOption;
-  onDateRangeChange: (range: DateRangeOption) => void;
+  /** * Optional: Wird primär intern über Router gelöst, 
+   * kann aber für Callback-Logik genutzt werden.
+   */
+  onDateRangeChange?: (range: DateRangeOption) => void;
   projectId?: string;
   domain?: string;
   faviconUrl?: string | null;
@@ -50,7 +54,7 @@ export default function ProjectDashboard({
   data,
   isLoading,
   dateRange,
-  onDateRangeChange,
+  onDateRangeChange, // Wird hier destrukturiert, aber wir nutzen primär den Router
   projectId,
   domain,
   faviconUrl,
@@ -60,6 +64,10 @@ export default function ProjectDashboard({
   onPdfExport,
 }: ProjectDashboardProps) {
   
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
   const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
   
   const apiErrors = data.apiErrors;
@@ -77,6 +85,19 @@ export default function ProjectDashboard({
     newUsers: safeKpi(kpis.newUsers),
     avgEngagementTime: safeKpi(kpis.avgEngagementTime),
   } : undefined;
+
+  // Handler für Datumswechsel: Aktualisiert die URL Search Params
+  const handleDateRangeChange = (range: DateRangeOption) => {
+    // 1. URL aktualisieren (löst Reload in page.tsx aus)
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('dateRange', range);
+    router.push(`${pathname}?${params.toString()}`);
+
+    // 2. Optionalen externen Handler aufrufen (falls vorhanden)
+    if (onDateRangeChange) {
+      onDateRangeChange(range);
+    }
+  };
 
   // Konfigurationen prüfen
   const hasKampagne1Config = !!semrushTrackingId;
@@ -108,7 +129,7 @@ export default function ProjectDashboard({
             projectId={projectId}
             faviconUrl={faviconUrl}
             dateRange={dateRange}
-            onDateRangeChange={onDateRangeChange}
+            onDateRangeChange={handleDateRangeChange} // Hier nutzen wir den neuen Handler
             onPdfExport={onPdfExport || (() => console.warn('PDF Export not implemented'))}
           />
           
@@ -128,7 +149,6 @@ export default function ProjectDashboard({
         )}
 
         {/* ✅ TABLEAU KPI GRID */}
-        {/* WICHTIG: allChartData={data.charts} sorgt für die farbigen Graphen */}
         <div className="mt-6 print-kpi-grid">
           {extendedKpis && (
             <TableauKpiGrid
