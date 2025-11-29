@@ -19,12 +19,15 @@ import { ArrowRepeat, ExclamationTriangleFill } from 'react-bootstrap-icons';
 const KPI_COLORS = [
   '#3b82f6', // Blue (Sessions, Users)
   '#8b5cf6', // Purple (Impressions, Engagement Time)
-  '#10b981', // Emerald (Conversions)
-  '#f59e0b', // Amber (Bounce Rate)
+  '#10b981', // Emerald (Conversions) -> Hell, braucht dunklen Text
+  '#f59e0b', // Amber (Bounce Rate) -> Hell, braucht dunklen Text
   '#ec4899', // Pink (Engagement Rate)
   '#6366f1', // Indigo (New Users)
-  '#06b6d4', // Cyan
+  '#06b6d4', // Cyan -> Hell, braucht dunklen Text
 ];
+
+// Farben, die dunklen Text erfordern
+const LIGHT_COLORS = ['#f59e0b', '#06b6d4', '#10b981', '#fcd34d'];
 
 interface TableauPieChartProps {
   data?: ChartEntry[];
@@ -81,31 +84,36 @@ const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
   return null;
 };
 
-// Custom Label
-const renderCustomLabel = (props: PieLabelRenderProps) => {
-  const { cx, cy, midAngle, innerRadius, outerRadius, percent } = props;
+// Custom Label mit Kontrast-Check
+const renderCustomLabel = (props: PieLabelRenderProps & { index?: number }) => {
+  const { cx, cy, midAngle, innerRadius, outerRadius, percent, index } = props;
 
-  // ✅ FIX: Prüfen, ob midAngle definiert ist
+  // Sicherheitscheck
   if (typeof midAngle !== 'number') return null;
   
-  // Zeige Label nur wenn > 5%
+  // Zeige Label nur wenn > 5% Platz ist
   if ((percent || 0) < 0.05) return null;
 
   const RADIAN = Math.PI / 180;
-  const radius = Number(innerRadius) + (Number(outerRadius) - Number(innerRadius)) * 0.6;
+  // Radius: Mittig im Segment positionieren
+  const radius = Number(innerRadius) + (Number(outerRadius) - Number(innerRadius)) * 0.5;
   
-  // Jetzt ist sicher, dass midAngle eine number ist
   const x = Number(cx) + radius * Math.cos(-midAngle * RADIAN);
   const y = Number(cy) + radius * Math.sin(-midAngle * RADIAN);
+
+  // Farbe ermitteln für Kontrast
+  const fillColor = (typeof index === 'number') ? KPI_COLORS[index % KPI_COLORS.length] : '#000';
+  const textColor = LIGHT_COLORS.includes(fillColor) ? '#0f172a' : '#ffffff';
 
   return (
     <text 
       x={x} 
       y={y} 
-      fill="white" 
-      textAnchor={x > Number(cx) ? 'start' : 'end'} 
+      fill={textColor} 
+      textAnchor="middle" 
       dominantBaseline="central"
-      className="text-[10px] font-bold pointer-events-none drop-shadow-md"
+      className="text-[11px] font-bold pointer-events-none"
+      style={{ textShadow: textColor === '#ffffff' ? '0px 0px 2px rgba(0,0,0,0.3)' : 'none' }}
     >
       {`${((percent || 0) * 100).toFixed(0)}%`}
     </text>
@@ -178,8 +186,9 @@ export default function TableauPieChart({
               nameKey="name"
               cx="50%"
               cy="50%"
-              innerRadius={60} 
-              outerRadius={80}
+              // ✅ Dickerer Ring für bessere Lesbarkeit
+              innerRadius={45} 
+              outerRadius={90}
               paddingAngle={2} 
               labelLine={false}
               label={renderCustomLabel}
