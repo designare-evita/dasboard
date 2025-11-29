@@ -18,20 +18,20 @@ import { ChartPoint, ActiveKpi } from '@/lib/dashboard-shared';
 import { ArrowLeftRight, CalendarEvent, Filter } from 'react-bootstrap-icons';
 import { cn } from '@/lib/utils';
 
-// --- KONFIGURATION (Identisch mit TableauKpiGrid & PieChart) ---
+// --- KONFIGURATION (Angepasst an neue Palette) ---
 const KPI_CONFIG: Record<string, { label: string; color: string; gradientId: string }> = {
-  // Traffic
-  sessions: { label: 'Sitzungen', color: '#3b82f6', gradientId: 'gradBlue' },       
-  totalUsers: { label: 'Nutzer', color: '#3b82f6', gradientId: 'gradBlue2' },     
-  newUsers: { label: 'Neue Besucher', color: '#6366f1', gradientId: 'gradIndigo' }, 
-  clicks: { label: 'Klicks', color: '#3b82f6', gradientId: 'gradBlue3' },       
+  // Traffic (Kühle Palette)
   impressions: { label: 'Impressionen', color: '#8b5cf6', gradientId: 'gradPurple' }, 
-
-  // Engagement / Qualität
-  conversions: { label: 'Conversions', color: '#10b981', gradientId: 'gradEmerald' },   
+  clicks: { label: 'Klicks', color: '#3b82f6', gradientId: 'gradBlue' },       
+  newUsers: { label: 'Neue Besucher', color: '#6366f1', gradientId: 'gradIndigo' }, 
+  totalUsers: { label: 'Besucher', color: '#0ea5e9', gradientId: 'gradSky' },     
+  sessions: { label: 'Sessions', color: '#06b6d4', gradientId: 'gradCyan' },       
+  
+  // Engagement (Warme / Signal Palette)
   engagementRate: { label: 'Engagement Rate', color: '#ec4899', gradientId: 'gradPink' },
-  bounceRate: { label: 'Absprungrate', color: '#f59e0b', gradientId: 'gradAmber' },  
-  avgEngagementTime: { label: 'Ø Verweildauer', color: '#06b6d4', gradientId: 'gradCyan' },
+  conversions: { label: 'Conversions', color: '#10b981', gradientId: 'gradEmerald' },   
+  avgEngagementTime: { label: 'Ø Verweildauer', color: '#f59e0b', gradientId: 'gradAmber' },
+  bounceRate: { label: 'Absprungrate', color: '#f43f5e', gradientId: 'gradRose' },  
 };
 
 interface KpiTrendChartProps {
@@ -42,7 +42,7 @@ interface KpiTrendChartProps {
   className?: string;
 }
 
-// --- HELPER ---
+// ... (Rest bleibt gleich, nur formatValue und CustomTooltip)
 const formatValue = (value: number, kpi: string) => {
   if (kpi === 'engagementRate' || kpi === 'bounceRate') return `${value.toFixed(1)}%`;
   if (kpi === 'avgEngagementTime') {
@@ -96,14 +96,12 @@ export default function KpiTrendChart({
   
   const [compareKpi, setCompareKpi] = useState<string>('none');
 
-  // Daten aufbereiten
   const chartData = useMemo(() => {
     if (!allChartData) return [];
     
     const primaryData = allChartData[activeKpi] || [];
     const secondaryData = compareKpi !== 'none' ? allChartData[compareKpi] || [] : [];
 
-    // Map Datum -> Objekt
     const dataMap = new Map<string, any>();
 
     primaryData.forEach(p => {
@@ -139,7 +137,6 @@ export default function KpiTrendChart({
     );
   }
 
-  // Y-Achsen Formatierer für das Chart (kurz)
   const formatYAxis = (val: number) => {
     if (val >= 1000000) return `${(val / 1000000).toFixed(1)}M`;
     if (val >= 1000) return `${(val / 1000).toFixed(0)}k`;
@@ -151,8 +148,6 @@ export default function KpiTrendChart({
       
       {/* HEADER & CONTROLS */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-        
-        {/* Titel & Icon */}
         <div className="flex items-center gap-2">
           <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
             <CalendarEvent size={18} />
@@ -162,10 +157,7 @@ export default function KpiTrendChart({
           </h3>
         </div>
 
-        {/* Filter Controls */}
         <div className="flex flex-col sm:flex-row gap-3">
-          
-          {/* Primary KPI Select */}
           <div className="relative group">
             <select
               value={activeKpi}
@@ -183,7 +175,6 @@ export default function KpiTrendChart({
             </div>
           </div>
 
-          {/* Comparison Toggle / Select */}
           <div className="relative group">
             <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
               <ArrowLeftRight size={12} />
@@ -211,7 +202,6 @@ export default function KpiTrendChart({
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
             <defs>
-              {/* Generiere Gradients für alle Config Farben */}
               {Object.values(KPI_CONFIG).map((conf) => (
                 <linearGradient key={conf.gradientId} id={conf.gradientId} x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor={conf.color} stopOpacity={0.3} />
@@ -220,11 +210,7 @@ export default function KpiTrendChart({
               ))}
             </defs>
             
-            <CartesianGrid 
-              strokeDasharray="3 3" 
-              vertical={false} 
-              stroke="#f3f4f6" 
-            />
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
             
             <XAxis
               dataKey="date"
@@ -272,7 +258,6 @@ export default function KpiTrendChart({
               content={({ payload }) => (
                 <div className="flex justify-center gap-6 mb-4">
                   {payload?.map((entry: any, index) => {
-                     // Finde die Config basierend auf der Farbe oder dem Namen
                      const isPrimary = index === 0;
                      const conf = isPrimary ? activeConfig : compareConfig;
                      if (!conf) return null;
@@ -313,7 +298,7 @@ export default function KpiTrendChart({
                 stroke={compareConfig.color}
                 strokeWidth={2}
                 strokeDasharray="5 5"
-                fillOpacity={0} // Secondary meist ohne Fill, um Überlagerung zu vermeiden
+                fillOpacity={0}
                 activeDot={{ r: 5, strokeWidth: 2, stroke: '#fff', fill: compareConfig.color }}
                 animationDuration={1000}
               />
