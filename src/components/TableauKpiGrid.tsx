@@ -70,34 +70,47 @@ export default function TableauKpiGrid({
 
   const rangeLabel = getRangeLabel(dateRange as DateRangeOption);
 
+  // ✅ HILFSFUNKTION: Berechnet den Vorperioden-Wert dynamisch
+  // Formel: Aktuell / (1 + (ÄnderungInProzent / 100))
+  const getComparison = (kpi: KpiDatum) => {
+    if (!kpi || typeof kpi.value !== 'number' || typeof kpi.change !== 'number') {
+      return undefined;
+    }
+    // Verhindere Division durch Null bei -100%
+    if (kpi.change === -100) return { current: kpi.value, previous: 0 };
+    
+    const previous = kpi.value / (1 + kpi.change / 100);
+    return {
+      current: kpi.value,
+      previous: previous
+    };
+  };
+
   return (
     <div className="space-y-8">
       
       {/* ZEILE 1: Traffic & Reichweite */}
-      {/* Farben: Kühle Töne (Lila -> Blau -> Cyan) */}
       <div>
         <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 px-1">
           Traffic & Reichweite
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           
-          {/* 1. Impressionen (Lila) */}
           <TableauKpiCard
             title="Impressionen"
-            description="Wie oft ein Link zu Ihrer Webseite in den Google Suchergebnissen angezeigt wurde (auch ohne Klick)."
+            description="Wie oft ein Link zu Ihrer Webseite in den Google Suchergebnissen angezeigt wurde."
             subtitle={dateSubtitle}
             valueLabel={rangeLabel}
             changeLabel="Veränderung"
             value={kpis.impressions.value}
             change={kpis.impressions.change}
             data={allChartData?.impressions}
-            color="#8b5cf6" // Violet
+            color="#8b5cf6"
             error={gscError}
             isLoading={isLoading}
-            barComparison={{ current: 15231, previous: 15007 }}
+            barComparison={getComparison(kpis.impressions)}
           />
 
-          {/* 2. Google Klicks (Blau) */}
           <TableauKpiCard
             title="Google Klicks"
             description="Wie oft Nutzer in der Google Suche auf einen Link zu Ihrer Webseite geklickt haben."
@@ -107,13 +120,12 @@ export default function TableauKpiGrid({
             value={kpis.clicks.value}
             change={kpis.clicks.change}
             data={allChartData?.clicks}
-            color="#3b82f6" // Blue
+            color="#3b82f6"
             error={gscError}
             isLoading={isLoading}
-            barComparison={{ current: 56804, previous: 58172 }}
+            barComparison={getComparison(kpis.clicks)}
           />
 
-          {/* 3. Neue Besucher (Indigo) */}
           {kpis.newUsers && (
             <TableauKpiCard
               title="Neue Besucher"
@@ -124,128 +136,121 @@ export default function TableauKpiGrid({
               value={kpis.newUsers.value}
               change={kpis.newUsers.change}
               data={allChartData?.newUsers}
-              color="#6366f1" // Indigo
+              color="#6366f1"
               error={ga4Error}
               isLoading={isLoading}
-              barComparison={{ current: 1779128, previous: 1438809 }}
+              barComparison={getComparison(kpis.newUsers)}
             />
           )}
 
-          {/* 4. Besucher (Sky Blue) */}
           <TableauKpiCard
             title="Besucher"
-            description="Anzahl der eindeutigen Nutzer, die Ihre Webseite im gewählten Zeitraum besucht haben."
+            description="Anzahl der eindeutigen Nutzer im gewählten Zeitraum."
             subtitle={dateSubtitle}
             valueLabel={rangeLabel}
             changeLabel="Veränderung"
             value={kpis.totalUsers.value}
             change={kpis.totalUsers.change}
             data={allChartData?.totalUsers}
-            color="#0ea5e9" // Sky Blue - Distinct from normal Blue
+            color="#0ea5e9"
             error={ga4Error}
             isLoading={isLoading}
-            barComparison={{ current: 5265447, previous: 3301386 }}
+            barComparison={getComparison(kpis.totalUsers)}
           />
 
-          {/* 5. Sessions (Cyan/Teal) */}
           <TableauKpiCard
             title="Sessions"
-            description="Anzahl der Sitzungen (Besuche) auf Ihrer Webseite. Ein Nutzer kann mehrere Sitzungen generieren."
+            description="Anzahl der Sitzungen (Besuche). Ein Nutzer kann mehrere Sitzungen haben."
             subtitle={dateSubtitle}
             valueLabel={rangeLabel}
             changeLabel="Veränderung"
             value={kpis.sessions.value}
             change={kpis.sessions.change}
             data={allChartData?.sessions}
-            color="#06b6d4" // Cyan
+            color="#06b6d4"
             error={ga4Error}
             isLoading={isLoading}
-            barComparison={{ current: 8838555, previous: 6173228 }}
+            barComparison={getComparison(kpis.sessions)}
           />
 
         </div>
       </div>
 
       {/* ZEILE 2: Qualität & Engagement */}
-      {/* Farben: Warme / Signalfarben (Pink, Grün, Amber, Rose) */}
       <div>
         <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 px-1">
           Qualität & Engagement
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4 gap-4">
           
-          {/* 1. Engagement Rate (Pink) */}
           {kpis.engagementRate && (
             <TableauKpiCard
               title="Engagement Rate"
-              description="Prozentsatz der Sitzungen, die länger als 10s dauerten oder eine Conversion enthielten."
+              description="Anteil der Sitzungen mit Interaktion (länger als 10s oder Conversion)."
               subtitle={dateSubtitle}
               valueLabel={rangeLabel}
               changeLabel="Veränderung"
               value={kpis.engagementRate.value}
               change={kpis.engagementRate.change}
               data={allChartData?.engagementRate}
-              color="#ec4899" // Pink
+              color="#ec4899"
               error={ga4Error}
               isLoading={isLoading}
               formatValue={formatPercent}
-              barComparison={{ current: 4410644, previous: 2459714 }}
+              barComparison={getComparison(kpis.engagementRate)}
             />
           )}
 
-          {/* 2. Conversions (Emerald/Grün) */}
           {kpis.conversions && (
             <TableauKpiCard
               title="Conversions"
-              description="Anzahl der erreichten Ziele (z.B. Käufe, Kontaktanfragen), die als wertvoll definiert wurden."
+              description="Erreichte Ziele (z.B. Käufe, Anfragen)."
               subtitle={dateSubtitle}
               valueLabel={rangeLabel}
               changeLabel="Veränderung"
               value={kpis.conversions.value}
               change={kpis.conversions.change}
               data={allChartData?.conversions}
-              color="#10b981" // Emerald
+              color="#10b981"
               error={ga4Error}
               isLoading={isLoading}
-              barComparison={{ current: 854802, previous: 841672 }}
+              barComparison={getComparison(kpis.conversions)}
             />
           )}
 
-          {/* 3. Ø Verweildauer (Amber/Gelb-Orange) */}
           {kpis.avgEngagementTime && (
             <TableauKpiCard
               title="Ø Verweildauer"
-              description="Durchschnittliche Zeit, die ein aktiver Nutzer auf Ihrer Webseite verbracht hat."
+              description="Durchschnittliche Zeit pro aktivem Nutzer."
               subtitle={dateSubtitle}
               valueLabel={rangeLabel}
               changeLabel="Veränderung"
               value={kpis.avgEngagementTime.value}
               change={kpis.avgEngagementTime.change}
               data={allChartData?.avgEngagementTime}
-              color="#f59e0b" // Amber - Distinct from Traffic colors
+              color="#f59e0b"
               error={ga4Error}
               isLoading={isLoading}
               formatValue={formatTime}
-              barComparison={{ current: 328182, previous: 418105 }}
+              barComparison={getComparison(kpis.avgEngagementTime)}
             />
           )}
 
-          {/* 4. Absprungrate (Rose/Rot) */}
           {kpis.bounceRate && (
             <TableauKpiCard
               title="Absprungrate"
-              description="Prozentsatz der Sitzungen ohne Interaktion. Eine niedrige Rate ist in der Regel besser."
+              description="Sitzungen ohne Interaktion. Niedriger ist meist besser."
               subtitle={dateSubtitle}
               valueLabel={rangeLabel}
               changeLabel="Veränderung"
               value={kpis.bounceRate.value}
               change={kpis.bounceRate.change}
               data={allChartData?.bounceRate}
-              color="#f43f5e" // Rose - Signaling "Exit"
+              color="#f43f5e"
               error={ga4Error}
               isLoading={isLoading}
               formatValue={formatPercent}
-              barComparison={{ current: 306907, previous: 250013 }}
+              barComparison={getComparison(kpis.bounceRate)}
             />
           )}
 
