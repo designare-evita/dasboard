@@ -13,17 +13,17 @@ import {
 } from 'recharts';
 import { ChartEntry } from '@/lib/dashboard-shared';
 import { cn } from '@/lib/utils';
-import { ArrowRepeat, ExclamationTriangleFill } from 'react-bootstrap-icons';
+import { ArrowRepeat, ExclamationTriangleFill, Activity } from 'react-bootstrap-icons'; // Activity Icon für Engagement
 
 // ✅ Definiere die exakte Farbpalette der KPI Cards
 const KPI_COLORS = [
-  '#3b82f6', // Blue (Sessions, Users)
-  '#8b5cf6', // Purple (Impressions, Engagement Time)
-  '#10b981', // Emerald (Conversions) -> Hell, braucht dunklen Text
-  '#f59e0b', // Amber (Bounce Rate) -> Hell, braucht dunklen Text
-  '#ec4899', // Pink (Engagement Rate)
-  '#6366f1', // Indigo (New Users)
-  '#06b6d4', // Cyan -> Hell, braucht dunklen Text
+  '#3b82f6', // Blue
+  '#8b5cf6', // Purple
+  '#10b981', // Emerald
+  '#f59e0b', // Amber
+  '#ec4899', // Pink
+  '#6366f1', // Indigo
+  '#06b6d4', // Cyan
 ];
 
 // Farben, die dunklen Text erfordern
@@ -62,46 +62,58 @@ const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
     const color = payload[0].fill || data.fill;
 
     return (
-      <div className="bg-white px-3 py-2 rounded-lg shadow-xl border border-gray-200">
-        <div className="flex items-center gap-2 mb-1">
+      <div className="bg-white px-3 py-2 rounded-lg shadow-xl border border-gray-200 min-w-[150px]">
+        {/* Header mit Farbe */}
+        <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-100">
           <div 
-            className="w-2 h-2 rounded-full" 
+            className="w-2.5 h-2.5 rounded-full shadow-sm" 
             style={{ backgroundColor: color }}
           />
-          <span className="text-xs font-medium text-gray-500">{data.name}</span>
+          <span className="text-sm font-semibold text-gray-700">{data.name}</span>
         </div>
-        <div className="flex items-baseline gap-2">
-          <span className="text-lg font-bold text-gray-900">
+
+        {/* Hauptwert (Sitzungen) */}
+        <div className="flex justify-between items-center mb-1 gap-4">
+          <span className="text-xs text-gray-500">Anteil:</span>
+          <span className="text-xs font-bold text-gray-900">{percentValue.toFixed(1)}%</span>
+        </div>
+        <div className="flex justify-between items-center mb-2 gap-4">
+          <span className="text-xs text-gray-500">Sitzungen:</span>
+          <span className="text-sm font-bold text-gray-900">
             {new Intl.NumberFormat('de-DE').format(data.value)}
           </span>
-          <span className="text-xs font-medium text-gray-400">
-            ({percentValue.toFixed(1)}%)
-          </span>
         </div>
+
+        {/* ✅ NEU: Sekundärwert (Engagement Rate) falls vorhanden */}
+        {data.subValue && (
+          <div className="mt-2 pt-2 border-t border-gray-100 flex justify-between items-center bg-gray-50 -mx-3 px-3 py-1">
+            <div className="flex items-center gap-1.5">
+              <Activity size={12} className="text-purple-500" />
+              <span className="text-xs font-medium text-gray-600">{data.subLabel || 'Rate'}:</span>
+            </div>
+            <span className="text-xs font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100">
+              {data.subValue}
+            </span>
+          </div>
+        )}
       </div>
     );
   }
   return null;
 };
 
-// Custom Label mit Kontrast-Check
+// Custom Label mit Kontrast-Check (unverändert)
 const renderCustomLabel = (props: PieLabelRenderProps & { index?: number }) => {
   const { cx, cy, midAngle, innerRadius, outerRadius, percent, index } = props;
 
-  // Sicherheitscheck
   if (typeof midAngle !== 'number') return null;
-  
-  // Zeige Label nur wenn > 5% Platz ist
   if ((percent || 0) < 0.05) return null;
 
   const RADIAN = Math.PI / 180;
-  // Radius: Mittig im Segment positionieren
   const radius = Number(innerRadius) + (Number(outerRadius) - Number(innerRadius)) * 0.5;
-  
   const x = Number(cx) + radius * Math.cos(-midAngle * RADIAN);
   const y = Number(cy) + radius * Math.sin(-midAngle * RADIAN);
 
-  // Farbe ermitteln für Kontrast
   const fillColor = (typeof index === 'number') ? KPI_COLORS[index % KPI_COLORS.length] : '#000';
   const textColor = LIGHT_COLORS.includes(fillColor) ? '#0f172a' : '#ffffff';
 
@@ -186,7 +198,6 @@ export default function TableauPieChart({
               nameKey="name"
               cx="50%"
               cy="50%"
-              // ✅ Dickerer Ring für bessere Lesbarkeit
               innerRadius={45} 
               outerRadius={90}
               paddingAngle={2} 
