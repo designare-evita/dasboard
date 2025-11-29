@@ -1,21 +1,24 @@
-// src/lib/semrush-api.ts (FINALE KORREKTUR DER URL)
-import axios from 'axios';
+// src/lib/semrush-api.ts
+import axios, { AxiosError } from 'axios';
 
 const apiKey = process.env.SEMRUSH_API_KEY;
 
-// (Interfaces bleiben gleich)
-interface SemrushApiKeywordData {
-  Ph?: string;
-  Fi?: Record<string, number | string>;
-  Be?: Record<string, number | string>;
-  Nq?: string;
-  Lu?: Record<string, string | Record<string, string>>;
-  Tr?: Record<string, number | Record<string, number>>;
+// --- Interfaces für Typensicherheit ---
+
+interface SemrushKeywordData {
+  Ph?: string;                                      // Keyword Phrase
+  Fi?: Record<string, number | string>;             // Position (Dictionary Key = Date)
+  Be?: Record<string, number | string>;             // Previous Position
+  Nq?: string;                                      // Search Volume
+  Lu?: Record<string, string | Record<string, string>>; // Landing Page URL
+  Tr?: Record<string, number | Record<string, number>>; // Traffic %
 }
+
 interface SemrushApiResponse {
-  data?: Record<string, SemrushApiKeywordData>;
+  data?: Record<string, SemrushKeywordData>;
 }
-interface ProcessedKeyword {
+
+export interface ProcessedKeyword {
   keyword: string;
   position: number;
   previousPosition: number | null;
@@ -24,253 +27,163 @@ interface ProcessedKeyword {
   trafficPercent: number;
 }
 
+interface SemrushResult {
+  keywords: ProcessedKeyword[];
+  error: string | null;
+}
+
+// --- Hauptfunktion ---
 
 export async function getSemrushKeywords(
   campaignId: string,
   domainOrContext?: string | Record<string, unknown>
-) {
+): Promise<SemrushResult> {
+  // 1. Validierung
   if (!apiKey) {
-    console.error('[Semrush] SEMRUSH_API_KEY is not set');
-    return { keywords: [], error: 'Semrush API key is not set' };
+    console.error('[Semrush] ❌ API Key fehlt in Environment Variables.');
+    return { keywords: [], error: 'Configuration Error: API Key missing' };
   }
 
-  if (!campaignId || !campaignId.includes('_')) {
-    console.warn('[Semrush] Invalid campaign ID provided, expected projectID_trackingID');
-    return { keywords: [], error: 'Invalid campaign ID format' };
+  if (!campaignId) {
+    console.warn('[Semrush] ⚠️ Keine Campaign ID übergeben.');
+    return { keywords: [], error: 'Invalid Project ID' };
   }
 
-  console.log('[Semrush] Fetching keywords for campaign ID:', campaignId);
-  
-  // HINWEIS: campaignId IST BEREITS "projectID_trackingID"
-  // Wir müssen sie NICHT mehr in parts zerlegen
-
-  let domain = domainOrContext;
-
-  // (Domain-Extraktion bleibt gleich)
-  if (typeof domainOrContext === 'object' && domainOrContext !== null) {
+  // Domain extrahieren und säubern
+  let domain = 'example.com';
+  if (typeof domainOrContext === 'string') {
+    domain = domainOrContext;
+  } else if (typeof domainOrContext === 'object' && domainOrContext !== null) {
     const obj = domainOrContext as Record<string, unknown>;
-    domain = (obj.domain || obj.Domain || obj.url) as string;
-  }
-  if (!domain) {
-    console.warn('[Semrush] No domain provided, request will likely fail');
-    domain = 'example.com'; 
+    domain = (obj.domain || obj.Domain || obj.url || 'example.com') as string;
   }
 
-  // (Domain-Normalisierung bleibt gleich)
-  let normalizedDomain = String(domain);
-  if (normalizedDomain.startsWith('www.')) {
-    normalizedDomain = normalizedDomain.substring(4);
-  }
-  if (normalizedDomain.startsWith('https://')) {
-    normalizedDomain = normalizedDomain.substring(8);
-  } else if (normalizedDomain.startsWith('http://')) {
-    normalizedDomain = normalizedDomain.substring(7);
-  }
+  // Domain Normalisierung: "https://www.google.com" -> "google.com"
+  const cleanDomain = domain
+    .replace(/^(?:https?:\/\/)?(?:www\.)?/i, '')
+    .split('/')[0];
 
-  // KORREKTUR: Die URL MUSS die *gesamte* campaignId enthalten
-  const url = `https://api.semrush.com/reports/v1/projects/${campaignId}/tracking/`;
+  console.log(`[Semrush] 🚀 Starte Abfrage für Projekt: ${campaignId} (Domain: ${cleanDomain})`);
 
-  // KORREKTUR: 'tracking_id' wird aus allen Strategien ENTFERNT
-  const strategies = [
-    {
-      name: 'Strategy 1: Mit subdomain wildcard und /',
-      params: {
-        key: apiKey,
-        type: 'tracking_position_organic',
-        action: 'report',
-        // tracking_id: trackingId, // ENTFERNT
-        url: `*.${normalizedDomain}/*`,
-        display_limit: '50'
+  // 2. Request Konfiguration (Single Source of Truth)
+  // Wir nutzen die Wildcard-Strategie (*.domain/*), da diese Rankings für
+  // Root, WWW und Subdomains einfängt. Das ist der Standard für SEO-Dashboards.
+  const endpoint = `https://api.semrush.com/reports/v1/projects/${campaignId}/tracking/`;
+  
+  const params = {
+    key: apiKey,
+    type: 'tracking_position_organic',
+    action: 'report',
+    url: `*.${cleanDomain}/*`, // Wildcard Strategy (Best Practice)
+    display_limit: '50',
+    sort_field: 'position',    // Direkt sortiert von API holen
+    sort_order: 'asc'
+  };
+
+  try {
+    const response = await axios.get<SemrushApiResponse>(endpoint, {
+      params,
+      timeout: 10000, // 10s Timeout
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'DataPeak Dashboard/1.0'
       }
-    },
-    {
-      name: 'Strategy 2: Mit einfacher Domain',
-      params: {
-        key: apiKey,
-        type: 'tracking_position_organic',
-        action: 'report',
-        // tracking_id: trackingId, // ENTFERNT
-        url: normalizedDomain,
-        display_limit: '50'
-      }
-    },
-    {
-      name: 'Strategy 3: Mit www prefix',
-      params: {
-        key: apiKey,
-        type: 'tracking_position_organic',
-        action: 'report',
-        // tracking_id: trackingId, // ENTFERNT
-        url: `www.${normalizedDomain}`,
-        display_limit: '50'
-      }
-    },
-    {
-      name: 'Strategy 4: Mit domain_name statt url (Alternative)',
-      params: {
-        key: apiKey,
-        type: 'tracking_position_organic',
-        action: 'report',
-        // tracking_id: trackingId, // ENTFERNT
-        domain_name: normalizedDomain,
-        display_limit: '50'
-      }
-    },
-    {
-      name: 'Strategy 5: Mit report_type',
-      params: {
-        key: apiKey,
-        type: 'tracking_position_organic',
-        action: 'report',
-        // tracking_id: trackingId, // ENTFERNT
-        url: normalizedDomain,
-        report_type: 'organic_keywords',
-        display_limit: '50'
-      }
+    });
+
+    const data = response.data;
+
+    // API liefert manchmal leeres "data" Objekt oder null
+    if (!data?.data || Object.keys(data.data).length === 0) {
+      console.warn(`[Semrush] ℹ️ Keine Keywords für ${cleanDomain} gefunden (oder Projekt leer).`);
+      return { keywords: [], error: null }; // Kein Fehler, einfach keine Daten
     }
-  ];
 
-  console.log('[Semrush] Testing strategies for domain:', normalizedDomain);
-  console.log('[Semrush] Using Correct API URL Endpoint:', url);
+    // 3. Datenverarbeitung
+    const keywords: ProcessedKeyword[] = [];
+    const today = new Date();
+    // Semrush Keys sind oft YYYYMMDD
+    const dateKey = today.toISOString().slice(0, 10).replace(/-/g, '');
 
-  let lastError: string | null = null;
+    for (const kwData of Object.values(data.data)) {
+      const keyword = kwData.Ph;
+      if (!keyword) continue;
 
-  for (let attemptIndex = 0; attemptIndex < strategies.length; attemptIndex++) {
-    const strategy = strategies[attemptIndex];
-    console.log(`\n[Semrush] ===== ${strategy.name} =====`);
-
-    try {
-      // (Debug URL bleibt gleich)
-      const urlParams = new URLSearchParams();
-      for (const [key, value] of Object.entries(strategy.params)) {
-        urlParams.set(key, String(value));
+      // Position parsen
+      let currentPosition = 0;
+      if (kwData.Fi) {
+        // Nimm den neuesten verfügbaren Wert
+        const posValues = Object.values(kwData.Fi);
+        const latestPos = posValues[posValues.length - 1]; // Letzter Eintrag ist meist aktuell
+        currentPosition = typeof latestPos === 'number' ? latestPos : parseFloat(String(latestPos));
       }
-      const debugUrl = `${url}?${urlParams.toString()}`;
-      console.log('[Semrush] Full URL:', debugUrl.substring(0, 150) + '...');
 
-      // (Axios-Request bleibt gleich)
-      const response = await axios.get<SemrushApiResponse>(url, {
-        params: strategy.params,
-        timeout: 15000,
-        headers: {
-          'Accept': 'application/json',
-          'User-Agent': 'Mozilla/5.0 (Semrush Keyword Tracker)'
-        }
+      // Filter: Nur Rankings in Top 100 und gültig
+      if (!currentPosition || isNaN(currentPosition) || currentPosition > 100) continue;
+
+      // Vorherige Position
+      let previousPosition: number | null = null;
+      if (kwData.Be) {
+         const prevValues = Object.values(kwData.Be);
+         const latestPrev = prevValues[prevValues.length - 1];
+         previousPosition = typeof latestPrev === 'number' ? latestPrev : parseFloat(String(latestPrev));
+      }
+
+      // Suchvolumen
+      const searchVolume = kwData.Nq ? parseInt(kwData.Nq, 10) : 0;
+
+      // Landing Page URL extrahieren
+      let landingUrl = '';
+      if (kwData.Lu) {
+        // Versuche erst exaktes Datum, sonst ersten verfügbaren Wert
+        const urls = kwData.Lu as Record<string, any>;
+        const urlVal = urls[dateKey] || Object.values(urls)[0];
+        if (typeof urlVal === 'string') landingUrl = urlVal;
+        else if (typeof urlVal === 'object') landingUrl = Object.values(urlVal)[0] as string;
+      }
+
+      // Traffic %
+      let trafficPercent = 0;
+      if (kwData.Tr) {
+        const tr = kwData.Tr as Record<string, any>;
+        const trVal = tr[dateKey] || Object.values(tr)[0];
+        const numVal = typeof trVal === 'object' ? Object.values(trVal)[0] : trVal;
+        if (typeof numVal === 'number') trafficPercent = numVal * 100;
+      }
+
+      keywords.push({
+        keyword,
+        position: currentPosition,
+        previousPosition,
+        searchVolume,
+        url: landingUrl,
+        trafficPercent
       });
-
-      const data = response.data;
-
-      if (!data?.data || typeof data.data !== 'object' || Object.keys(data.data).length === 0) {
-        console.warn('[Semrush] Strategy', attemptIndex + 1, '- No keywords returned');
-        lastError = 'No keywords found';
-        continue;
-      }
-
-      console.log('[Semrush] ✅ SUCCESS! Strategy', attemptIndex + 1, 'works! Got', Object.keys(data.data).length, 'keywords');
-
-      // (Keyword-Verarbeitung bleibt gleich)
-      const keywords: ProcessedKeyword[] = [];
-      const today = new Date();
-      const dateKey = today.toISOString().slice(0, 10).replace(/-/g, '');
-
-      for (const keywordData of Object.values(data.data)) {
-        const keyword = keywordData.Ph || '';
-        if (!keyword) continue;
-
-        let currentPosition = 0;
-        if (keywordData.Fi && typeof keywordData.Fi === 'object') {
-          const positions = Object.values(keywordData.Fi);
-          if (positions.length > 0) {
-            const pos = positions[0];
-            currentPosition = typeof pos === 'number' ? pos : (pos !== '-' ? parseFloat(String(pos)) : 0);
-          }
-        }
-        if (currentPosition === 0 || isNaN(currentPosition) || currentPosition > 100) continue;
-
-        let previousPosition: number | null = null;
-        if (keywordData.Be && typeof keywordData.Be === 'object') {
-          const positions = Object.values(keywordData.Be);
-          if (positions.length > 0) {
-            const pos = positions[0];
-            previousPosition = typeof pos === 'number' ? pos : (pos !== '-' ? parseFloat(String(pos)) : null);
-          }
-        }
-
-        const searchVolume = keywordData.Nq ? parseInt(keywordData.Nq) : 0;
-
-        let landingUrl = '';
-        if (keywordData.Lu && typeof keywordData.Lu === 'object') {
-          const urls = keywordData.Lu as Record<string, string | Record<string, string>>;
-          if (dateKey && urls[dateKey]) {
-            const dateUrls = urls[dateKey];
-            const urlValues = typeof dateUrls === 'object' ? Object.values(dateUrls) : [dateUrls];
-            if (urlValues.length > 0) landingUrl = String(urlValues[0]);
-          } else {
-            for (const value of Object.values(urls)) {
-              const urlValues = typeof value === 'object' ? Object.values(value) : [value];
-              if (urlValues.length > 0) {
-                landingUrl = String(urlValues[0]);
-                break;
-              }
-            }
-          }
-        }
-
-        let trafficPercent = 0;
-        if (keywordData.Tr && typeof keywordData.Tr === 'object') {
-          const traffic = keywordData.Tr as Record<string, number | Record<string, number>>;
-          if (dateKey && traffic[dateKey]) {
-            const dateTraffic = traffic[dateKey];
-            const trafficValues = typeof dateTraffic === 'object' ? Object.values(dateTraffic) : [dateTraffic];
-            if (trafficValues.length > 0 && typeof trafficValues[0] === 'number') {
-              trafficPercent = trafficValues[0] * 100;
-            }
-          } else {
-            for (const value of Object.values(traffic)) {
-              const trafficValues = typeof value === 'object' ? Object.values(value) : [value];
-              if (trafficValues.length > 0 && typeof trafficValues[0] === 'number') {
-                trafficPercent = trafficValues[0] * 100;
-                break;
-              }
-            }
-          }
-        }
-
-        keywords.push({
-          keyword,
-          position: currentPosition,
-          previousPosition,
-          searchVolume,
-          url: landingUrl,
-          trafficPercent
-        });
-      }
-
-      keywords.sort((a, b) => a.position - b.position);
-      const top20 = keywords.slice(0, 20);
-
-      console.log('[Semrush] ✅ Processed', top20.length, 'keywords');
-      return { keywords: top20, error: null };
-
-    } catch (error: unknown) {
-      // (Fehlerbehandlung bleibt gleich)
-      if (axios.isAxiosError(error)) {
-        console.error('[Semrush] Strategy', attemptIndex + 1, '- Status:', error.response?.status);
-        if (error.response?.data) {
-          const errorData = error.response.data as Record<string, unknown>;
-          console.error('[Semrush] Error Data:', JSON.stringify(errorData));
-          lastError = (errorData.error as string) || JSON.stringify(errorData);
-        } else if (error.message) {
-          console.error('[Semrush] Error Message:', error.message);
-          lastError = error.message;
-        }
-      } else {
-        console.error('[Semrush] Strategy', attemptIndex + 1, '- Error:', error);
-        lastError = String(error);
-      }
     }
-  }
 
-  console.error('[Semrush] ❌ All strategies failed!');
-  return { keywords: [], error: `Could not fetch Semrush keywords. Last error: ${lastError}` };
+    // Sortierung sicherstellen (falls API Sortierung nicht griff)
+    keywords.sort((a, b) => a.position - b.position);
+
+    console.log(`[Semrush] ✅ Erfolg! ${keywords.length} Keywords geladen.`);
+    return { keywords: keywords.slice(0, 50), error: null }; // Limit sicherstellen
+
+  } catch (error: unknown) {
+    let errorMessage = 'Unknown Semrush Error';
+    
+    if (axios.isAxiosError(error)) {
+      const status = error.response?.status;
+      const apiMsg = (error.response?.data as any)?.message || JSON.stringify(error.response?.data);
+      
+      if (status === 403) errorMessage = 'API Key ungültig oder abgelaufen.';
+      else if (status === 404) errorMessage = 'Projekt-ID nicht gefunden (Überprüfe Konfiguration).';
+      else if (status === 429) errorMessage = 'Rate Limit erreicht (Zu viele Anfragen).';
+      else errorMessage = `API Fehler (${status}): ${apiMsg}`;
+      
+      console.error(`[Semrush] ❌ Axios Fehler: ${errorMessage}`);
+    } else {
+      console.error('[Semrush] ❌ Code Fehler:', error);
+      errorMessage = error instanceof Error ? error.message : String(error);
+    }
+
+    return { keywords: [], error: errorMessage };
+  }
 }
