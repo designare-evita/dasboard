@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import TableauKpiCard from '@/components/TableauKpiCard';
+import TableauKpiCard from './TableauKpiCard';
 import { KpiDatum, ChartPoint, ApiErrorStatus } from '@/lib/dashboard-shared';
 import { getRangeLabel, DateRangeOption } from '@/components/DateRangeSelector';
 import { format } from 'date-fns';
