@@ -71,12 +71,10 @@ export default function TableauKpiGrid({
   const rangeLabel = getRangeLabel(dateRange as DateRangeOption);
 
   // ✅ HILFSFUNKTION: Berechnet den Vorperioden-Wert dynamisch
-  // Formel: Aktuell / (1 + (ÄnderungInProzent / 100))
   const getComparison = (kpi: KpiDatum) => {
     if (!kpi || typeof kpi.value !== 'number' || typeof kpi.change !== 'number') {
       return undefined;
     }
-    // Verhindere Division durch Null bei -100%
     if (kpi.change === -100) return { current: kpi.value, previous: 0 };
     
     const previous = kpi.value / (1 + kpi.change / 100);
@@ -98,7 +96,7 @@ export default function TableauKpiGrid({
           
           <TableauKpiCard
             title="Impressionen"
-            description="Wie oft ein Link zu Ihrer Webseite in den Google Suchergebnissen angezeigt wurde."
+            description="Anzahl der Anzeigen Ihrer Website in den Google-Suchergebnissen. Jedes Mal, wenn ein Link zu Ihrer Seite erscheint, wird dies als Impression gezählt."
             subtitle={dateSubtitle}
             valueLabel={rangeLabel}
             changeLabel="Veränderung"
@@ -113,7 +111,7 @@ export default function TableauKpiGrid({
 
           <TableauKpiCard
             title="Google Klicks"
-            description="Wie oft Nutzer in der Google Suche auf einen Link zu Ihrer Webseite geklickt haben."
+            description="Anzahl der Klicks aus der Google-Suche auf Ihre Website. Misst die tatsächliche Nutzerinteraktion mit Ihren Suchergebnissen."
             subtitle={dateSubtitle}
             valueLabel={rangeLabel}
             changeLabel="Veränderung"
@@ -129,7 +127,7 @@ export default function TableauKpiGrid({
           {kpis.newUsers && (
             <TableauKpiCard
               title="Neue Besucher"
-              description="Anzahl der Nutzer, die Ihre Webseite zum allerersten Mal besucht haben."
+              description="Erstbesucher Ihrer Website im gewählten Zeitraum. Diese Nutzer haben Ihre Seite zum ersten Mal besucht und sind besonders wertvoll für Wachstum."
               subtitle={dateSubtitle}
               valueLabel={rangeLabel}
               changeLabel="Veränderung"
@@ -145,7 +143,7 @@ export default function TableauKpiGrid({
 
           <TableauKpiCard
             title="Besucher"
-            description="Anzahl der eindeutigen Nutzer im gewählten Zeitraum."
+            description="Gesamtzahl eindeutiger Nutzer, die Ihre Website besucht haben. Ein Nutzer wird nur einmal gezählt, unabhängig davon, wie oft er zurückkehrt."
             subtitle={dateSubtitle}
             valueLabel={rangeLabel}
             changeLabel="Veränderung"
@@ -160,7 +158,7 @@ export default function TableauKpiGrid({
 
           <TableauKpiCard
             title="Sessions"
-            description="Anzahl der Sitzungen (Besuche). Ein Nutzer kann mehrere Sitzungen haben."
+            description="Anzahl der Besuche auf Ihrer Website. Ein Nutzer kann mehrere Sessions haben (z.B. morgens und abends). Eine Session endet nach 30 Min. Inaktivität."
             subtitle={dateSubtitle}
             valueLabel={rangeLabel}
             changeLabel="Veränderung"
@@ -186,7 +184,7 @@ export default function TableauKpiGrid({
           {kpis.engagementRate && (
             <TableauKpiCard
               title="Engagement Rate"
-              description="Anteil der Sitzungen mit Interaktion (länger als 10s oder Conversion)."
+              description="Anteil der Sitzungen mit aktiver Interaktion. Eine Session gilt als engaged, wenn sie länger als 10 Sekunden dauert, eine Conversion auslöst oder 2+ Seitenaufrufe hat."
               subtitle={dateSubtitle}
               valueLabel={rangeLabel}
               changeLabel="Veränderung"
@@ -204,7 +202,7 @@ export default function TableauKpiGrid({
           {kpis.conversions && (
             <TableauKpiCard
               title="Conversions"
-              description="Erreichte Ziele (z.B. Käufe, Anfragen)."
+              description="Anzahl der erreichten Ziele (z.B. Käufe, Formular-Absendungen, Anrufe). Conversions messen den geschäftlichen Erfolg Ihrer Website."
               subtitle={dateSubtitle}
               valueLabel={rangeLabel}
               changeLabel="Veränderung"
@@ -221,7 +219,7 @@ export default function TableauKpiGrid({
           {kpis.avgEngagementTime && (
             <TableauKpiCard
               title="Ø Verweildauer"
-              description="Durchschnittliche Zeit pro aktivem Nutzer."
+              description="Durchschnittliche Zeit, die ein Nutzer aktiv auf Ihrer Website verbringt. Längere Verweildauer deutet auf hochwertigen, relevanten Content hin."
               subtitle={dateSubtitle}
               valueLabel={rangeLabel}
               changeLabel="Veränderung"
@@ -239,7 +237,7 @@ export default function TableauKpiGrid({
           {kpis.bounceRate && (
             <TableauKpiCard
               title="Absprungrate"
-              description="Sitzungen ohne Interaktion. Niedriger ist meist besser."
+              description="Anteil der Besuche ohne Interaktion. Eine hohe Absprungrate kann auf irrelevanten Content oder technische Probleme hinweisen. Niedriger ist meist besser."
               subtitle={dateSubtitle}
               valueLabel={rangeLabel}
               changeLabel="Veränderung"
