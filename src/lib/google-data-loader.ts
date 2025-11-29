@@ -18,53 +18,37 @@ import type { TopQueryData, ChartPoint } from '@/types/dashboard';
 
 const CACHE_DURATION_HOURS = 48; 
 
+// Interface für interne Datenhaltung (statt 'any')
+interface RawApiData {
+  clicks: { total: number; daily: ChartPoint[] };
+  impressions: { total: number; daily: ChartPoint[] };
+  sessions: { total: number; daily: ChartPoint[] };
+  totalUsers: { total: number; daily: ChartPoint[] };
+  conversions: { total: number; daily: ChartPoint[] };
+  engagementRate: { total: number; daily: ChartPoint[] };
+  bounceRate: { total: number; daily: ChartPoint[] };
+  newUsers: { total: number; daily: ChartPoint[] };
+  avgEngagementTime: { total: number; daily: ChartPoint[] };
+}
+
 // Hilfsfunktion: Berechnet Veränderung sicher
 function calculateChange(current: number, previous: number): number {
   if (!previous || previous === 0) return current > 0 ? 100 : 0;
   return ((current - previous) / previous) * 100;
 }
 
-// Hilfsfunktion: Channels mit Engagement Rate
-async function getChannelDataWithEngagement(
-  propertyId: string,
-  startDate: string,
-  endDate: string
-): Promise<ChartEntry[]> {
-  try {
-    const channelSessions = await getGa4DimensionReport(propertyId, startDate, endDate, 'sessionDefaultChannelGroup');
-    
-    // Server-Side Import um Build-Fehler zu vermeiden
-    const { BetaAnalyticsDataClient } = require('@google-analytics/data');
-    const analyticsDataClient = new BetaAnalyticsDataClient();
-    
-    const [engagementResponse] = await analyticsDataClient.runReport({
-      property: `properties/${propertyId}`,
-      dateRanges: [{ startDate, endDate }],
-      dimensions: [{ name: 'sessionDefaultChannelGroup' }],
-      metrics: [{ name: 'engagementRate' }],
-    });
-
-    const engagementMap = new Map<string, number>();
-    if (engagementResponse?.rows) {
-      for (const row of engagementResponse.rows) {
-        const channelName = row.dimensionValues?.[0]?.value || 'Unknown';
-        const engagementRate = parseFloat(row.metricValues?.[0]?.value || '0');
-        engagementMap.set(channelName, engagementRate * 100);
-      }
-    }
-
-    return channelSessions.map((item, index) => ({
-      ...item,
-      fill: `hsl(var(--chart-${(index % 5) + 1}))`,
-      subValue: engagementMap.has(item.name) ? `${engagementMap.get(item.name)!.toFixed(1)}%` : undefined,
-      subLabel: 'Engagement'
-    }));
-  } catch (error) {
-    console.error('[Channel Engagement] Fallback:', error);
-    const fallback = await getGa4DimensionReport(propertyId, startDate, endDate, 'sessionDefaultChannelGroup');
-    return fallback.map((item, index) => ({ ...item, fill: `hsl(var(--chart-${(index % 5) + 1}))` }));
-  }
-}
+// Initialer State für leere Daten (verhindert 'undefined' Fehler)
+const INITIAL_DATA: RawApiData = {
+  clicks: { total: 0, daily: [] },
+  impressions: { total: 0, daily: [] },
+  sessions: { total: 0, daily: [] },
+  totalUsers: { total: 0, daily: [] },
+  conversions: { total: 0, daily: [] },
+  engagementRate: { total: 0, daily: [] },
+  bounceRate: { total: 0, daily: [] },
+  newUsers: { total: 0, daily: [] },
+  avgEngagementTime: { total: 0, daily: [] }
+};
 
 export async function getOrFetchGoogleData(
   user: User,
@@ -120,20 +104,9 @@ export async function getOrFetchGoogleData(
   const prevStartStr = prevStart.toISOString().split('T')[0];
   const prevEndStr = prevEnd.toISOString().split('T')[0];
 
-  // Default-Werte um Abstürze zu vermeiden
-  let gscData: any = { clicks: { total: 0, daily: [] }, impressions: { total: 0, daily: [] } };
-  let gscPrev: any = { clicks: { total: 0 }, impressions: { total: 0 } };
-  
-  let gaData: any = {
-    sessions: { total: 0, daily: [] },
-    totalUsers: { total: 0, daily: [] },
-    conversions: { total: 0, daily: [] },
-    engagementRate: { total: 0, daily: [] },
-    bounceRate: { total: 0, daily: [] },
-    newUsers: { total: 0, daily: [] },
-    avgEngagementTime: { total: 0, daily: [] }
-  };
-  let gaPrev: any = { ...gaData }; // Copy structure
+  // Datencontainer mit Default-Werten initialisieren
+  let currentData: RawApiData = { ...INITIAL_DATA };
+  let prevData: RawApiData = { ...INITIAL_DATA };
 
   let topQueries: TopQueryData[] = [];
   let aiTraffic: AiTrafficData | undefined;
@@ -146,17 +119,20 @@ export async function getOrFetchGoogleData(
   if (user.gsc_site_url) {
     try {
       const gscRaw = await getSearchConsoleData(user.gsc_site_url, startDateStr, endDateStr);
-      // Sicherstellen, dass daily arrays existieren
-      gscData = {
+      // Merge GSC Data
+      currentData = {
+        ...currentData,
         clicks: { total: gscRaw.clicks?.total || 0, daily: gscRaw.clicks?.daily || [] },
         impressions: { total: gscRaw.impressions?.total || 0, daily: gscRaw.impressions?.daily || [] }
       };
       
       const gscPrevRaw = await getSearchConsoleData(user.gsc_site_url, prevStartStr, prevEndStr);
-      gscPrev = {
-        clicks: { total: gscPrevRaw.clicks?.total || 0 },
-        impressions: { total: gscPrevRaw.impressions?.total || 0 }
+      prevData = {
+        ...prevData,
+        clicks: { ...prevData.clicks, total: gscPrevRaw.clicks?.total || 0 },
+        impressions: { ...prevData.impressions, total: gscPrevRaw.impressions?.total || 0 }
       };
+
       topQueries = await getTopQueries(user.gsc_site_url, startDateStr, endDateStr);
     } catch (e: any) {
       console.error('[GSC Error]', e);
@@ -168,24 +144,38 @@ export async function getOrFetchGoogleData(
   if (user.ga4_property_id) {
     try {
       const propertyId = user.ga4_property_id.trim();
+      
+      // Hauptdaten (KPIs & Charts)
       const gaCurrent = await getAnalyticsData(propertyId, startDateStr, endDateStr);
       const gaPrevious = await getAnalyticsData(propertyId, prevStartStr, prevEndStr);
       
-      // Übernehme Daten sicher (Fallback auf Default falls API was vergisst)
-      gaData = { ...gaData, ...gaCurrent };
-      gaPrev = { ...gaPrev, ...gaPrevious };
+      // Merge GA4 Data
+      currentData = { ...currentData, ...gaCurrent };
+      prevData = { ...prevData, ...gaPrevious };
 
-      try { aiTraffic = await getAiTrafficData(propertyId, startDateStr, endDateStr); } catch (e) {}
+      // AI Traffic
+      try { 
+        aiTraffic = await getAiTrafficData(propertyId, startDateStr, endDateStr); 
+      } catch (e) {
+        console.warn('[AI Traffic] Fehler (ignoriert):', e);
+      }
       
+      // Dimensionen (Charts)
       try {
+        // Country
         const rawCountry = await getGa4DimensionReport(propertyId, startDateStr, endDateStr, 'country');
         countryData = rawCountry.map((item, index) => ({ ...item, fill: `hsl(var(--chart-${(index % 5) + 1}))` }));
         
-        channelData = await getChannelDataWithEngagement(propertyId, startDateStr, endDateStr);
+        // Channel (Optimiert: Keine zweite Abfrage nötig, getGa4DimensionReport liefert bereits Engagement!)
+        const rawChannel = await getGa4DimensionReport(propertyId, startDateStr, endDateStr, 'sessionDefaultChannelGroup');
+        channelData = rawChannel.map((item, index) => ({ ...item, fill: `hsl(var(--chart-${(index % 5) + 1}))` }));
         
+        // Device
         const rawDevice = await getGa4DimensionReport(propertyId, startDateStr, endDateStr, 'deviceCategory');
         deviceData = rawDevice.map((item, index) => ({ ...item, fill: `hsl(var(--chart-${(index % 5) + 1}))` }));
-      } catch (e) { console.error('[GA4 Dimensions Error]', e); }
+      } catch (e) { 
+        console.error('[GA4 Dimensions Error]', e); 
+      }
 
     } catch (e: any) {
       console.error('[GA4 Error]', e);
@@ -194,42 +184,49 @@ export async function getOrFetchGoogleData(
   }
 
   // AI Anteil berechnen
-  const aiTrafficPercentage = (aiTraffic && gaData.sessions.total > 0)
-    ? (aiTraffic.totalSessions / gaData.sessions.total) * 100
+  const aiTrafficPercentage = (aiTraffic && currentData.sessions.total > 0)
+    ? (aiTraffic.totalSessions / currentData.sessions.total) * 100
     : 0;
 
   // --- DATEN ZUSAMMENBAUEN ---
   const freshData: ProjectDashboardData = {
     kpis: {
       // GSC
-      clicks: { value: gscData.clicks.total, change: calculateChange(gscData.clicks.total, gscPrev.clicks.total) },
-      impressions: { value: gscData.impressions.total, change: calculateChange(gscData.impressions.total, gscPrev.impressions.total) },
+      clicks: { value: currentData.clicks.total, change: calculateChange(currentData.clicks.total, prevData.clicks.total) },
+      impressions: { value: currentData.impressions.total, change: calculateChange(currentData.impressions.total, prevData.impressions.total) },
       
       // GA4
       sessions: { 
-        value: gaData.sessions.total, 
-        change: calculateChange(gaData.sessions.total, gaPrev.sessions.total),
+        value: currentData.sessions.total, 
+        change: calculateChange(currentData.sessions.total, prevData.sessions.total),
         aiTraffic: aiTraffic ? { value: aiTraffic.totalSessions, percentage: aiTrafficPercentage } : undefined
       },
-      totalUsers: { value: gaData.totalUsers.total, change: calculateChange(gaData.totalUsers.total, gaPrev.totalUsers.total) },
-      conversions: { value: gaData.conversions.total, change: calculateChange(gaData.conversions.total, gaPrev.conversions.total) },
-      engagementRate: { value: parseFloat((gaData.engagementRate.total * 100).toFixed(2)), change: calculateChange(gaData.engagementRate.total, gaPrev.engagementRate.total) },
-      bounceRate: { value: parseFloat((gaData.bounceRate.total * 100).toFixed(2)), change: calculateChange(gaData.bounceRate.total, gaPrev.bounceRate.total) },
-      newUsers: { value: gaData.newUsers.total, change: calculateChange(gaData.newUsers.total, gaPrev.newUsers.total) },
-      avgEngagementTime: { value: gaData.avgEngagementTime.total, change: calculateChange(gaData.avgEngagementTime.total, gaPrev.avgEngagementTime.total) }
+      totalUsers: { value: currentData.totalUsers.total, change: calculateChange(currentData.totalUsers.total, prevData.totalUsers.total) },
+      conversions: { value: currentData.conversions.total, change: calculateChange(currentData.conversions.total, prevData.conversions.total) },
+      // Runden auf 2 Nachkommastellen für saubere Anzeige
+      engagementRate: { 
+        value: parseFloat((currentData.engagementRate.total * 100).toFixed(2)), 
+        change: calculateChange(currentData.engagementRate.total, prevData.engagementRate.total) 
+      },
+      bounceRate: { 
+        value: parseFloat((currentData.bounceRate.total * 100).toFixed(2)), 
+        change: calculateChange(currentData.bounceRate.total, prevData.bounceRate.total) 
+      },
+      newUsers: { value: currentData.newUsers.total, change: calculateChange(currentData.newUsers.total, prevData.newUsers.total) },
+      avgEngagementTime: { value: currentData.avgEngagementTime.total, change: calculateChange(currentData.avgEngagementTime.total, prevData.avgEngagementTime.total) }
     },
     
-    // ✅ CRITICAL FIX: Hier verwenden wir ?. und || [], damit NIEMALS undefined übergeben wird
+    // Charts (Typ-sicher)
     charts: {
-      clicks: gscData.clicks?.daily || [],
-      impressions: gscData.impressions?.daily || [],
-      sessions: gaData.sessions?.daily || [],
-      totalUsers: gaData.totalUsers?.daily || [],
-      conversions: gaData.conversions?.daily || [],
-      engagementRate: gaData.engagementRate?.daily || [],
-      bounceRate: gaData.bounceRate?.daily || [],
-      newUsers: gaData.newUsers?.daily || [],
-      avgEngagementTime: gaData.avgEngagementTime?.daily || []
+      clicks: currentData.clicks.daily || [],
+      impressions: currentData.impressions.daily || [],
+      sessions: currentData.sessions.daily || [],
+      totalUsers: currentData.totalUsers.daily || [],
+      conversions: currentData.conversions.daily || [],
+      engagementRate: currentData.engagementRate.daily || [],
+      bounceRate: currentData.bounceRate.daily || [],
+      newUsers: currentData.newUsers.daily || [],
+      avgEngagementTime: currentData.avgEngagementTime.daily || []
     },
     topQueries,
     aiTraffic,
@@ -239,7 +236,7 @@ export async function getOrFetchGoogleData(
     apiErrors: Object.keys(apiErrors).length > 0 ? apiErrors : undefined
   };
 
-  // Cache speichern (auch wenn Daten unvollständig sind, besser als Absturz)
+  // Cache speichern
   try {
     await sql`
       INSERT INTO google_data_cache (user_id, date_range, data, last_fetched)
