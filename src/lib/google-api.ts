@@ -2,12 +2,12 @@
 
 import { google } from 'googleapis';
 import { JWT } from 'google-auth-library';
-import { ChartEntry } from '@/lib/dashboard-shared'; // Import für ChartEntry
+import { ChartEntry } from '@/lib/dashboard-shared';
 
 // --- Typdefinitionen ---
 
 interface DailyDataPoint {
-  date: number; // ✅ Timestamp (number) für Recharts
+  date: number; // ✅ Timestamp
   value: number;
 }
 
@@ -41,7 +41,7 @@ export interface AiTrafficData {
     percentage: number;
   }>;
   trend: Array<{
-    date: number; // ✅ Timestamp
+    date: number; 
     sessions: number;
   }>;
 }
@@ -58,7 +58,7 @@ function createAuth(): JWT {
         scopes: [
           'https://www.googleapis.com/auth/webmasters.readonly',
           'https://www.googleapis.com/auth/analytics.readonly',
-          'https://www.googleapis.com/auth/spreadsheets.readonly' // Falls benötigt
+          'https://www.googleapis.com/auth/spreadsheets.readonly'
         ],
       });
     } catch (e) {
@@ -66,7 +66,63 @@ function createAuth(): JWT {
       throw new Error('Google Credentials invalid');
     }
   }
-  throw new Error('GOOGLE_CREDENTIALS not set');
+  
+  // Fallback für alte Env Vars
+  const privateKeyBase64 = process.env.GOOGLE_PRIVATE_KEY_BASE64;
+  const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+
+  if (!privateKeyBase64 || !clientEmail) {
+    throw new Error('Google API Credentials fehlen.');
+  }
+
+  try {
+    const privateKey = Buffer.from(privateKeyBase64, 'base64').toString('utf-8');
+    return new JWT({
+      email: clientEmail,
+      key: privateKey,
+      scopes: [
+        'https://www.googleapis.com/auth/webmasters.readonly',
+        'https://www.googleapis.com/auth/analytics.readonly',
+        'https://www.googleapis.com/auth/spreadsheets.readonly', 
+      ],
+    });
+  } catch (error) {
+    throw new Error("Fehler beim Initialisieren der Google API Authentifizierung.");
+  }
+}
+
+// --- Sheet API (Wieder hinzugefügt für Build Fix) ---
+export async function getGoogleSheetData(sheetId: string): Promise<any[]> {
+  const auth = createAuth();
+  const sheets = google.sheets({ version: 'v4', auth });
+
+  try {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: sheetId,
+      range: 'A1:Z2000', 
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length === 0) return [];
+
+    const headers = rows[0];
+    const data = rows.slice(1).map(row => {
+      const obj: Record<string, string> = {};
+      headers.forEach((header, index) => {
+        const key = header?.trim();
+        const val = row[index] ? row[index].toString().trim() : '';
+        if (key) {
+          obj[key] = val;
+        }
+      });
+      return obj;
+    });
+
+    return data;
+  } catch (error: unknown) {
+    console.error('[Sheets API] Fehler:', error);
+    throw new Error('Konnte Google Sheet nicht lesen.');
+  }
 }
 
 // --- Helper ---
@@ -76,7 +132,6 @@ function parseGscDate(dateString: string): number {
 }
 
 function parseGa4Date(dateString: string): number {
-  // GA4 liefert YYYYMMDD
   const year = parseInt(dateString.substring(0, 4), 10);
   const month = parseInt(dateString.substring(4, 6), 10) - 1;
   const day = parseInt(dateString.substring(6, 8), 10);
@@ -105,8 +160,6 @@ export async function getSearchConsoleData(
     });
 
     const rows = res.data.rows || [];
-    
-    // Sortieren nach Datum aufsteigend für Charts
     rows.sort((a, b) => (a.keys?.[0] || '').localeCompare(b.keys?.[0] || ''));
 
     const clicksDaily: DailyDataPoint[] = [];
@@ -115,7 +168,7 @@ export async function getSearchConsoleData(
     let totalImpressions = 0;
 
     for (const row of rows) {
-      const dateStr = row.keys?.[0]; // YYYY-MM-DD
+      const dateStr = row.keys?.[0]; 
       if (!dateStr) continue;
 
       const dateTs = parseGscDate(dateStr);
@@ -154,7 +207,7 @@ export async function getTopQueries(
         startDate,
         endDate,
         dimensions: ['query'],
-        rowLimit: 20, // Top 20 Queries
+        rowLimit: 20, 
       },
     });
 
@@ -172,7 +225,6 @@ export async function getTopQueries(
   }
 }
 
-// Hilfsfunktion für Landingpages (verwendet in CronJob)
 export type GscPageData = {
   clicks: number;
   clicks_prev: number;
@@ -193,62 +245,6 @@ export async function getGscDataForPagesWithComparison(
   const auth = createAuth();
   const searchconsole = google.searchconsole({ version: 'v1', auth });
 
-  // Funktion für interne Abfrage
-  const queryGscDataForPages = async (url: string, start: string, end: string, pages: string[]) => {
-    try {
-      const res = await searchconsole.searchanalytics.query({
-        siteUrl: url,
-        requestBody: {
-          startDate: start,
-          endDate: end,
-          dimensions: ['page'],
-          dimensionFilterGroups: [{
-            filters: [{
-              dimension: 'page',
-              operator: 'equals', // Wir holen exact matches via Loop Filter oder hier 'contains'? 
-              // GSC API 'equals' filtert auf genaue URL. 'contains' kann zu viele Ergebnisse liefern.
-              // Besser: Abfrage OHNE Filter für alle Pages und wir filtern im Memory,
-              // ODER wenn die Liste klein ist, iterieren.
-              // Hier für Performance bei vielen Pages: Abfrage aller Pages (rowLimit hoch) und filtern.
-              expression: '/', // Hol alles
-            }]
-          }],
-          rowLimit: 25000 
-        }
-      });
-      
-      // Map bauen
-      const map = new Map<string, { clicks: number; impressions: number; position: number }>();
-      const rows = res.data.rows || [];
-      
-      for (const row of rows) {
-        const pUrl = row.keys?.[0];
-        if (pUrl && pages.includes(pUrl)) {
-           map.set(pUrl, { 
-             clicks: row.clicks || 0, 
-             impressions: row.impressions || 0,
-             position: row.position || 0
-           });
-        }
-      }
-      return map;
-    } catch (e) {
-      console.warn('GSC Page Query Error', e);
-      return new Map();
-    }
-  };
-  
-  // Parallele Abfrage für aktuellen und vorherigen Zeitraum
-  // Hinweis: Bei SEHR vielen Landingpages könnte der obige Ansatz (alles laden) ineffizient sein.
-  // Falls Filter auf bestimmte Pages nötig ist:
-  // GSC API erlaubt "operator: equals" und "expression: URL". Aber nur EINE expression pro filter.
-  // Man kann Filterschleifen bauen oder batching.
-  // Hier nehmen wir an, wir laden die Top Pages der Domain und matchen im Speicher.
-  // Um sicherzugehen, dass wir DEINE pages erwischen, fragen wir lieber OHNE Filter ab und hoffen, sie sind in den Top 25k.
-  
-  // Verbesserter Ansatz: Query ohne expliziten Page-Filter (außer "page" dimension), um Daten für ALLE Seiten zu bekommen
-  // und dann lokal zu matchen.
-  
   const queryAllPages = async (sDate: string, eDate: string) => {
     const res = await searchconsole.searchanalytics.query({
       siteUrl,
@@ -282,15 +278,13 @@ export async function getGscDataForPagesWithComparison(
 
     let posChange = 0;
     if (currentPos > 0 && prevPos > 0) {
-      posChange = prevPos - currentPos; // Positive Änderung ist gut (kleinere Position) -> hier Positiv = Verbesserung? 
-      // Üblich: (Prev - Curr). Bsp: Prev 10, Curr 5 -> 5 Plätze verbessert.
+      posChange = prevPos - currentPos; 
     } else if (currentPos > 0 && prevPos === 0) {
-      posChange = 0; // Neu im Ranking
+      posChange = 0; 
     } else if (currentPos === 0 && prevPos > 0) {
-      posChange = 0; // Verloren
+      posChange = 0; 
     }
     
-    // Runden
     const roundedPosChange = Math.round(posChange * 100) / 100;
 
     resultMap.set(url, {
@@ -313,22 +307,14 @@ export async function getGscDataForPagesWithComparison(
 
 // --- Google Analytics 4 (GA4) ---
 
-// Typ für die erweiterten Daten
 export type Ga4ExtendedData = {
-  // Basics
   sessions: DateRangeData;
   totalUsers: DateRangeData;
   newUsers: DateRangeData;
-  
-  // Engagement
   bounceRate: DateRangeData;
   engagementRate: DateRangeData;
   avgEngagementTime: DateRangeData;
-  
-  // Conversions
   conversions: DateRangeData;
-  
-  // Clicks/Impressions (nur Placeholder, da GA4 diese nicht liefert, sondern GSC)
   clicks: DateRangeData; 
   impressions: DateRangeData;
 }
@@ -354,7 +340,7 @@ export async function getAnalyticsData(
           { name: 'newUsers' },
           { name: 'bounceRate' },
           { name: 'engagementRate' },
-          { name: 'userEngagementDuration' }, // Summe in Sekunden
+          { name: 'userEngagementDuration' },
           { name: 'conversions' }
         ],
         orderBys: [{ dimension: { dimensionName: 'date' } }],
@@ -363,7 +349,6 @@ export async function getAnalyticsData(
 
     const rows = response.data.rows || [];
     
-    // Daten-Arrays initialisieren
     const sessionsDaily: DailyDataPoint[] = [];
     const usersDaily: DailyDataPoint[] = [];
     const newUsersDaily: DailyDataPoint[] = [];
@@ -372,17 +357,10 @@ export async function getAnalyticsData(
     const avgTimeDaily: DailyDataPoint[] = [];
     const conversionsDaily: DailyDataPoint[] = [];
 
-    // Totals
     let totalSessions = 0;
     let totalUsers = 0;
     let totalNewUsers = 0;
     let totalConversions = 0;
-    // Für Rates: Wir berechnen den gewichteten Durchschnitt über die Totals am Ende nicht aus Tagessummen
-    // Aber die API liefert auch Totals in row count? Nein, response.data.totals
-    
-    // API liefert Totals meist in response.data.totals oder maximums.
-    // Wir summieren hier manuell oder nutzen die Totals der API.
-    // Bei Raten (BounceRate) dürfen wir NICHT summieren.
     
     const metricHeaders = response.data.metricHeaders || [];
     const getMetricIndex = (name: string) => metricHeaders.findIndex(h => h.name === name);
@@ -396,11 +374,9 @@ export async function getAnalyticsData(
     const idxConv = getMetricIndex('conversions');
 
     let sumDuration = 0;
-    let sumBounceWeighted = 0; // BounceRate * Sessions
-    let sumEngRateWeighted = 0; // EngRate * Sessions
 
     for (const row of rows) {
-      const dateStr = row.dimensionValues?.[0]?.value; // YYYYMMDD
+      const dateStr = row.dimensionValues?.[0]?.value; 
       if (!dateStr) continue;
       const dateTs = parseGa4Date(dateStr);
 
@@ -412,41 +388,24 @@ export async function getAnalyticsData(
       const dur = parseFloat(row.metricValues?.[idxDuration]?.value || '0');
       const conv = parseInt(row.metricValues?.[idxConv]?.value || '0', 10);
 
-      // Daily Arrays
       sessionsDaily.push({ date: dateTs, value: sess });
       usersDaily.push({ date: dateTs, value: usrs });
       newUsersDaily.push({ date: dateTs, value: newU });
       bounceRateDaily.push({ date: dateTs, value: bounce });
       engagementRateDaily.push({ date: dateTs, value: engRate });
       
-      // Avg Time Daily = Duration / ActiveUsers (oder Sessions? GA4 Standard ist meist per User oder Session)
-      // userEngagementDuration ist die Gesamtsumme. 
-      // Average Engagement Time = userEngagementDuration / activeUsers. 
-      // Hier vereinfacht / Sessions oder wir nehmen den Wert direkt wenn wir avg hätten.
-      // Wir speichern hier die Duration pro Session für den Daily Chart? 
-      // Üblich im Chart: Durchschnitt. 
-      const avgTimeDay = sess > 0 ? (dur / sess) : 0; // Annäherung
+      const avgTimeDay = sess > 0 ? (dur / sess) : 0; 
       avgTimeDaily.push({ date: dateTs, value: avgTimeDay });
       
       conversionsDaily.push({ date: dateTs, value: conv });
 
-      // Totals Accumulation
       totalSessions += sess;
-      totalUsers += usrs; // Achtung: User summieren ist statistisch falsch (Unique Users), aber ohne separate Query schwer. 
-      // Besser: Wir nehmen die Totals aus dem API Response Header, wenn verfügbar.
-      // GA4 API property 'totals' in RunReportResponse liefert Aggregate.
-      
+      totalUsers += usrs; 
       totalNewUsers += newU;
       totalConversions += conv;
-      
       sumDuration += dur;
-      // Rates gewichten für Durchschnitt
-      // BounceRate ist sessionsbasiert? Nein, GA4 BounceRate ist (1 - EngagementRate).
-      // EngagementRate = EngagedSessions / Sessions.
-      // Wir haben engaged sessions nicht direkt hier, aber wir können die API Totals nutzen.
     }
 
-    // Totals aus API Response holen (Genauer für User Metrics)
     const totalsRow = response.data.totals?.[0];
     
     if (totalsRow) {
@@ -457,10 +416,8 @@ export async function getAnalyticsData(
       
       const totalBounce = parseFloat(totalsRow.metricValues?.[idxBounce]?.value || '0');
       const totalEngRate = parseFloat(totalsRow.metricValues?.[idxEngRate]?.value || '0');
-      const totalDuration = parseFloat(totalsRow.metricValues?.[idxDuration]?.value || '0'); // Summe Sekunden
+      const totalDuration = parseFloat(totalsRow.metricValues?.[idxDuration]?.value || '0');
       
-      // Avg Engagement Time = Total Duration / Total Active Users (oft näherungsweise Total Users)
-      // GA4 UI berechnet: User Engagement Duration / Active Users.
       const avgEngagementTimeVal = totalUsers > 0 ? (totalDuration / totalUsers) : 0;
 
       return {
@@ -471,14 +428,11 @@ export async function getAnalyticsData(
         bounceRate: { total: totalBounce, daily: bounceRateDaily },
         engagementRate: { total: totalEngRate, daily: engagementRateDaily },
         avgEngagementTime: { total: avgEngagementTimeVal, daily: avgTimeDaily },
-        
-        // Placeholders für Typ-Sicherheit
         clicks: { total: 0, daily: [] },
         impressions: { total: 0, daily: [] }
       };
     }
     
-    // Fallback falls keine Totals (selten)
     const fallbackAvgTime = totalUsers > 0 ? (sumDuration / totalUsers) : 0;
     
     return {
@@ -486,10 +440,9 @@ export async function getAnalyticsData(
       totalUsers: { total: totalUsers, daily: usersDaily },
       newUsers: { total: totalNewUsers, daily: newUsersDaily },
       conversions: { total: totalConversions, daily: conversionsDaily },
-      bounceRate: { total: 0, daily: bounceRateDaily }, // Fallback 0
+      bounceRate: { total: 0, daily: bounceRateDaily }, 
       engagementRate: { total: 0, daily: engagementRateDaily },
       avgEngagementTime: { total: fallbackAvgTime, daily: avgTimeDaily },
-      
       clicks: { total: 0, daily: [] },
       impressions: { total: 0, daily: [] }
     };
@@ -515,9 +468,9 @@ export async function getAiTrafficData(
       requestBody: {
         dateRanges: [{ startDate, endDate }],
         dimensions: [
-          { name: 'sessionSource' }, // Quelle
-          { name: 'sessionMedium' }, // Medium (um referral zu prüfen)
-          { name: 'date' }           // Datum für Trend
+          { name: 'sessionSource' }, 
+          { name: 'sessionMedium' }, 
+          { name: 'date' }           
         ],
         metrics: [
           { name: 'sessions' },
@@ -534,7 +487,6 @@ export async function getAiTrafficData(
     const sourceStats: Record<string, { sessions: number; users: number }> = {};
     const dailyTrend: Record<number, number> = {};
 
-    // Bekannte AI Patterns
     const aiPatterns = [
       /chatgpt/i, /openai/i, /bing/i, /copilot/i, /gemini/i, /bard/i, 
       /claude/i, /anthropic/i, /perplexity/i, /ai_search/i
@@ -542,27 +494,23 @@ export async function getAiTrafficData(
 
     for (const row of rows) {
       const source = row.dimensionValues?.[0]?.value || '';
-      // const medium = row.dimensionValues?.[1]?.value || '';
-      const dateStr = row.dimensionValues?.[2]?.value; // YYYYMMDD
+      const dateStr = row.dimensionValues?.[2]?.value; 
       
       const sess = parseInt(row.metricValues?.[0]?.value || '0', 10);
       const usrs = parseInt(row.metricValues?.[1]?.value || '0', 10);
 
-      // Check if source is AI
       const isAi = aiPatterns.some(pattern => pattern.test(source));
 
       if (isAi) {
         totalAiSessions += sess;
         totalAiUsers += usrs;
 
-        // Source Stats
         if (!sourceStats[source]) {
           sourceStats[source] = { sessions: 0, users: 0 };
         }
         sourceStats[source].sessions += sess;
         sourceStats[source].users += usrs;
 
-        // Trend
         if (dateStr) {
           const dateTs = parseGa4Date(dateStr);
           dailyTrend[dateTs] = (dailyTrend[dateTs] || 0) + sess;
@@ -570,7 +518,6 @@ export async function getAiTrafficData(
       }
     }
 
-    // Top Sources sortieren
     const topAiSources = Object.entries(sourceStats)
       .map(([source, stats]) => ({
         source,
@@ -581,7 +528,6 @@ export async function getAiTrafficData(
       .sort((a, b) => b.sessions - a.sessions)
       .slice(0, 5);
 
-    // Trend Array
     const trend = Object.entries(dailyTrend)
       .map(([date, sessions]) => ({
         date: parseInt(date, 10),
@@ -592,7 +538,7 @@ export async function getAiTrafficData(
     return {
       totalSessions: totalAiSessions,
       totalUsers: totalAiUsers,
-      sessionsBySource: {}, // Deprecated, use topAiSources
+      sessionsBySource: {}, 
       topAiSources,
       trend
     };
@@ -609,7 +555,7 @@ export async function getAiTrafficData(
   }
 }
 
-// ✅ HIER ANGEPASST: Holt jetzt auch Conversions und mappt Labels
+// ✅ KORRIGIERT: Holt Conversions und setzt "Interaktionsrate"
 export async function getGa4DimensionReport(
   propertyId: string,
   startDate: string,
@@ -626,7 +572,7 @@ export async function getGa4DimensionReport(
       requestBody: {
         dateRanges: [{ startDate, endDate }],
         dimensions: [{ name: dimensionName }],
-        // Wir holen Sessions, EngagementRate UND Conversions
+        // ✅ Metrics: Sessions, EngagementRate, Conversions
         metrics: [
           { name: 'sessions' }, 
           { name: 'engagementRate' }, 
@@ -649,10 +595,10 @@ export async function getGa4DimensionReport(
       results.push({ 
         name, 
         value: sessions,
-        // ✅ Interaktionsrate
+        // ✅ Label Interaktionsrate
         subValue: `${(rate * 100).toFixed(1)}%`,
         subLabel: 'Interaktionsrate',
-        // ✅ Conversions (subValue2)
+        // ✅ Value Conversions
         subValue2: conversions,
         subLabel2: 'Conversions'
       });
@@ -679,41 +625,5 @@ export async function getGa4DimensionReport(
   } catch (error) {
     console.error(`GA4 Dimension Report Error (${dimensionName}):`, error);
     return [];
-  }
-}
-
-// ✅ NEUE FUNKTION: Google Sheets Daten abrufen
-export async function getGoogleSheetData(sheetId: string): Promise<any[]> {
-  const auth = createAuth();
-  const sheets = google.sheets({ version: 'v4', auth });
-
-  try {
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: sheetId,
-      range: 'A1:Z1000', // Liest die ersten 1000 Zeilen
-    });
-
-    const rows = response.data.values;
-    if (!rows || rows.length === 0) {
-      return [];
-    }
-
-    // Konvertiere Array-of-Arrays in Array-of-Objects
-    const headers = rows[0].map((header: string) => header.toLowerCase().trim());
-    const data = rows.slice(1).map((row) => {
-      const obj: Record<string, string> = {};
-      row.forEach((cell: string, index: number) => {
-        if (headers[index]) {
-          obj[headers[index]] = cell; // Keine .trim() hier, um Datenintegrität zu wahren (trim passiert später)
-        }
-      });
-      return obj;
-    });
-
-    return data;
-
-  } catch (error) {
-    console.error('Google Sheets API Error:', error);
-    throw new Error('Fehler beim Laden des Google Sheets. Ist das Sheet für den Service-Account freigegeben?');
   }
 }
