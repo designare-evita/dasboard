@@ -1,62 +1,62 @@
-// src/components/GlobalHeader.tsx
 'use client';
 
-import React from 'react';
-import { Download, Globe } from 'react-bootstrap-icons';
-import { Button } from "@/components/ui/button";
+import { House, ChevronRight, InfoCircle } from 'react-bootstrap-icons';
+import Link from 'next/link';
+import { NotificationBell } from '@/components/NotificationBell';
+import DateRangeSelector, { DateRangeOption } from '@/components/DateRangeSelector';
 
 interface GlobalHeaderProps {
   domain?: string;
   projectId?: string;
-  onPdfExport: () => void;
+  dateRange: DateRangeOption;
+  onDateRangeChange: (range: DateRangeOption) => void;
 }
 
-export default function GlobalHeader({
-  domain,
-  projectId,
-  onPdfExport
+export default function GlobalHeader({ 
+  domain, 
+  projectId, 
+  dateRange, 
+  onDateRangeChange 
 }: GlobalHeaderProps) {
-
   return (
-    // ÄNDERUNG: 'card-glass' statt 'bg-white shadow-md border...'
-    <div className="card-glass p-6 mb-6 print:hidden">
-      <div className="flex items-center justify-between">
+    <div className="flex flex-col gap-4 mb-8 animate-in fade-in slide-in-from-top-2 duration-500">
+      
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         
-        {/* LINKE SEITE */}
-        <div className="flex items-center gap-5">
-          <div className="flex items-center gap-2 text-indigo-600 bg-indigo-50/80 p-3 rounded-xl backdrop-blur-sm">
-             <Globe size={28} />
-          </div>
-          
-          <div className="h-12 w-px bg-gray-200/60 mx-1 hidden sm:block"></div>
+        {/* Linke Seite: Breadcrumbs & Info */}
+        <div className="space-y-1">
+          <nav className="flex items-center gap-2 text-sm text-gray-500">
+            <Link 
+              href="/" 
+              className="hover:text-indigo-600 transition-colors flex items-center gap-1"
+            >
+              <House size={14} />
+              <span>Übersicht</span>
+            </Link>
+            
+            {domain && (
+              <>
+                <ChevronRight size={10} className="text-gray-300" />
+                <span className="font-medium text-gray-900 bg-white px-2 py-0.5 rounded-md shadow-sm border border-gray-100">
+                  {domain}
+                </span>
+              </>
+            )}
+          </nav>
 
-          <div className="flex flex-col justify-center">
-             <h1 className="text-2xl font-bold text-gray-900 leading-none tracking-tight">
-               {domain || 'Projekt Dashboard'}
-             </h1>
-             {projectId && (
-               <div className="flex items-center gap-1.5 mt-1.5">
-                 <span className="text-xs font-bold text-gray-400">ID:</span>
-                 <span className="text-xs font-mono text-gray-500 tracking-wide select-all">
-                   {projectId}
-                 </span>
-               </div>
-             )}
+          {/* Info Text unter der ID */}
+          <div className="flex items-center gap-2 text-[10px] text-gray-400">
+            <InfoCircle size={10} />
+            <span>GOOGLE Datenaktualisierung alle 48 Stunden | SEMRUSH Datenaktualisierung alle 14 Tage</span>
           </div>
         </div>
 
-        {/* RECHTE SEITE */}
-        <div>
-          <Button
-            onClick={onPdfExport}
-            variant="default"
-            className="h-10 px-5 gap-2.5 bg-[#188BDB] hover:bg-[#1479BF] text-white shadow-sm text-sm font-medium rounded-lg"
-          >
-            <Download size={16} />
-            <span>PDF Download</span>
-          </Button>
+        {/* Rechte Seite: Date Picker & Glocke */}
+        <div className="flex items-center gap-3 self-end md:self-auto">
+           <DateRangeSelector value={dateRange} onChange={onDateRangeChange} />
+           <div className="h-8 w-px bg-gray-200 mx-1"></div>
+           <NotificationBell />
         </div>
-
       </div>
     </div>
   );
