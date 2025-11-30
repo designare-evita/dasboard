@@ -164,16 +164,16 @@ export async function getOrFetchGoogleData(
       }
       
       // ✅ FIX: Daten mappen, um String -> Number Konflikt zu lösen
-      try {
+try {
         const rawPages = await getTopConvertingPages(propertyId, startDateStr, endDateStr);
         
         topConvertingPages = rawPages.map((p: any) => ({
           path: p.path,
           conversions: p.conversions,
-          // Hier erzwingen wir die Umwandlung in eine Zahl
           conversionRate: typeof p.conversionRate === 'string' 
             ? parseFloat(p.conversionRate) 
-            : Number(p.conversionRate)
+            : Number(p.conversionRate),
+          engagementRate: p.engagementRate // ✅ NEU: Einfach durchreichen
         }));
       } catch (e) {
         console.warn('[GA4] Konnte Top-Pages nicht laden:', e);
