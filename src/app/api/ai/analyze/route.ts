@@ -90,6 +90,11 @@ export async function POST(req: NextRequest) {
     const topKeywords = data.topQueries?.slice(0, 5)
       .map((q: any) => `- "${q.query}" (Pos: ${q.position.toFixed(1)}, Klicks: ${q.clicks})`)
       .join('\n') || 'Keine Keywords';
+
+    // ✅ NEU: Conversion-Daten formatieren für Prompt
+    const topConverters = data.topConvertingPages
+      ?.map((p: any) => `- Pfad: "${p.path}" -> ${p.conversions} Conversions (Rate: ${p.conversionRate})`)
+      .join('\n') || 'Keine Conversion-Daten verfügbar.';
       
     const topChannels = data.channelData?.slice(0, 3)
       .map(c => `${c.name} (${fmt(c.value)})`)
@@ -112,8 +117,11 @@ export async function POST(req: NextRequest) {
       - Engagement Rate: ${fmt(kpis.engagementRate?.value)}%
       - KI-Anteil am Traffic: ${aiShare}%
       
-      TOP KEYWORDS:
+      TOP KEYWORDS (Traffic):
       ${topKeywords}
+
+      TOP CONVERSION TREIBER (LANDINGPAGES):
+      ${topConverters}
       
       KANÄLE:
       ${topChannels}
@@ -197,6 +205,7 @@ export async function POST(req: NextRequest) {
         SPALTE 2 (Analyse):
         1. <h4...>Status-Analyse:</h4> Kritische Analyse.
         2. <h4...>Handlungsempfehlung:</h4> Technische Schritte.
+        3. <h4...>Conversion Analyse:</h4> Welche Seiten bringen Umsatz?
       `;
     } else {
       // === KUNDEN MODUS ===
@@ -216,7 +225,7 @@ export async function POST(req: NextRequest) {
         SPALTE 2 (Performance Analyse):
         1. Anrede: <p class="mb-4 font-medium">Sehr geehrte Kundin, sehr geehrter Kunde,</p>
         2. <h4...>Zusammenfassung:</h4> Fließtext über Erfolge (Conversions hervorheben).
-        3. <h4...>Top Keywords & Relevanz:</h4> Analyse der Keywords.
+        3. <h4...>Top Seiten (Umsatz):</h4> Nenne lobend die Seiten mit den meisten Conversions.
       `;
     }
 
