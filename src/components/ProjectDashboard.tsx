@@ -15,7 +15,7 @@ import { type DateRangeOption } from '@/components/DateRangeSelector';
 import TopQueriesList from '@/components/TopQueriesList';
 import SemrushTopKeywords from '@/components/SemrushTopKeywords';
 import SemrushTopKeywords02 from '@/components/SemrushTopKeywords02';
-import DashboardHeader from '@/components/DashboardHeader';
+// DashboardHeader wird nicht mehr benötigt, da GlobalHeader die Steuerung übernimmt
 import GlobalHeader from '@/components/GlobalHeader';
 import ProjectTimelineWidget from '@/components/ProjectTimelineWidget'; 
 import AiAnalysisWidget from '@/components/AiAnalysisWidget';
@@ -48,11 +48,9 @@ export default function ProjectDashboard({
   onDateRangeChange,
   projectId,
   domain,
-  faviconUrl,
   semrushTrackingId,
   semrushTrackingId02,
   projectTimelineActive = false,
-  onPdfExport,
 }: ProjectDashboardProps) {
   
   const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
@@ -83,55 +81,31 @@ export default function ProjectDashboard({
       
       <div className="flex-grow w-full px-4 sm:px-6 lg:px-8 py-6">
         
-        {/* ============================================================ */}
-        {/* NEUES LAYOUT: 50% Header / 50% Data Max                      */}
-        {/* ============================================================ */}
-        <div className="flex flex-col lg:flex-row gap-6 mb-8 items-stretch">
-          
-          {/* LINKS (50%): Global Header (Breadcrumbs + Glocke) */}
-          <div className="w-full lg:w-1/2 flex flex-col justify-center">
-            <GlobalHeader 
-              domain={domain}
-              projectId={projectId}
-              // ❌ FEHLER BEHOBEN: dateRange entfernt, da GlobalHeader es nicht mehr braucht
-              onPdfExport={onPdfExport || (() => console.warn('PDF Export not implemented'))}
-            />
-          </div>
-
-          {/* RECHTS (50%): Data Max Widget */}
-          {projectId && (
-            <div className="w-full lg:w-1/2">
-              {/* Wir setzen margin-bottom auf 0, da das Grid den Abstand regelt */}
-              <div className="[&>div]:mb-0 h-full">
-                <AiAnalysisWidget projectId={projectId} dateRange={dateRange} />
-              </div>
-            </div>
-          )}
-          
+        {/* 1. GLOBAL HEADER (100% Breite) */}
+        <div className="mb-6">
+          <GlobalHeader 
+            domain={domain}
+            projectId={projectId}
+            dateRange={dateRange}
+            onDateRangeChange={handleDateRangeChange}
+          />
         </div>
-        {/* ============================================================ */}
 
+        {/* 2. DATA MAX (100% Breite) */}
+        {projectId && (
+          <div className="mb-8">
+            <AiAnalysisWidget projectId={projectId} dateRange={dateRange} />
+          </div>
+        )}
 
-        {/* 2. TIMELINE WIDGET */}
+        {/* 3. TIMELINE WIDGET */}
         {projectId && projectTimelineActive && (
-          <div className="mb-6 print-timeline">
+          <div className="mb-8 print-timeline">
             <ProjectTimelineWidget 
               projectId={projectId} 
             />
           </div>
         )}
-
-        {/* 3. DASHBOARD HEADER (Titel + Datum) */}
-        <div className="print-header mb-6">
-          <DashboardHeader 
-            domain={domain}
-            projectId={projectId}
-            faviconUrl={faviconUrl}
-            dateRange={dateRange}
-            onDateRangeChange={handleDateRangeChange}
-            onPdfExport={onPdfExport || (() => console.warn('PDF Export not implemented'))}
-          />
-        </div>
 
         {/* 4. KPI CARDS */}
         <div className="mt-6 print-kpi-grid">
