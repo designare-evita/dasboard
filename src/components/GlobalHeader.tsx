@@ -2,7 +2,6 @@
 
 import { House, ChevronRight, InfoCircle } from 'react-bootstrap-icons';
 import Link from 'next/link';
-import { NotificationBell } from '@/components/NotificationBell';
 import DateRangeSelector, { DateRangeOption } from '@/components/DateRangeSelector';
 
 interface GlobalHeaderProps {
@@ -10,11 +9,12 @@ interface GlobalHeaderProps {
   projectId?: string;
   dateRange: DateRangeOption;
   onDateRangeChange: (range: DateRangeOption) => void;
+  // onPdfExport kann entfernt werden, da es hier nicht mehr genutzt wird
+  onPdfExport?: () => void; 
 }
 
 export default function GlobalHeader({ 
   domain, 
-  projectId, 
   dateRange, 
   onDateRangeChange 
 }: GlobalHeaderProps) {
@@ -45,17 +45,15 @@ export default function GlobalHeader({
           </nav>
 
           {/* Info Text unter der ID */}
-          <div className="flex items-center gap-2 text-[10px] text-gray-400">
+          <div className="flex items-center gap-2 text-[10px] text-gray-400 pl-1">
             <InfoCircle size={10} />
             <span>GOOGLE Datenaktualisierung alle 48 Stunden | SEMRUSH Datenaktualisierung alle 14 Tage</span>
           </div>
         </div>
 
-        {/* Rechte Seite: Date Picker & Glocke */}
-        <div className="flex items-center gap-3 self-end md:self-auto">
+        {/* Rechte Seite: NUR Date Picker */}
+        <div className="self-end md:self-auto">
            <DateRangeSelector value={dateRange} onChange={onDateRangeChange} />
-           <div className="h-8 w-px bg-gray-200 mx-1"></div>
-           <NotificationBell />
         </div>
       </div>
     </div>
