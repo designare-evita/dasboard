@@ -13,7 +13,6 @@ import {
 } from 'recharts';
 import { ChartEntry } from '@/lib/dashboard-shared';
 import { cn } from '@/lib/utils';
-// +++ KORREKTUR: Icons für Laden & Fehler importiert +++
 import { ArrowRepeat, ExclamationTriangleFill } from 'react-bootstrap-icons';
 
 // Props für das wiederverwendbare Diagramm
@@ -22,7 +21,7 @@ interface KpiPieChartProps {
   title: string;
   isLoading?: boolean;
   className?: string;
-  error?: string | null; // +++ KORREKTUR: error-Prop hinzugefügt +++
+  error?: string | null;
 }
 
 // Typen für Tooltip
@@ -37,7 +36,7 @@ interface CustomTooltipProps {
   payload?: TooltipPayload[];
 }
 
-// Benutzerdefinierter Tooltip (bleibt gleich)
+// Benutzerdefinierter Tooltip
 const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
@@ -78,7 +77,7 @@ interface CustomLegendProps {
   payload?: LegendPayloadItem[];
 }
 
-// Benutzerdefiniertes Legend (bleibt gleich)
+// Benutzerdefiniertes Legend
 const CustomLegend = (props: CustomLegendProps) => {
   const { payload } = props;
   const total = payload?.reduce((sum, entry) => sum + (entry.payload?.value || 0), 0) || 0;
@@ -103,7 +102,7 @@ const CustomLegend = (props: CustomLegendProps) => {
   );
 };
 
-// Label-Rendering (bleibt gleich)
+// Label-Rendering
 const renderCustomLabel = (props: PieLabelRenderProps): string => {
   const rawPercent = props.percent;
   if (typeof rawPercent === 'number' && !isNaN(rawPercent)) {
@@ -131,20 +130,20 @@ export default function KpiPieChart({
   title,
   isLoading = false,
   className,
-  error = null // +++ KORREKTUR: error-Prop empfangen +++
+  error = null
 }: KpiPieChartProps) {
   
-  // (Debug-Log bleibt gleich)
+  // Debug-Log / Calculation Effect
   React.useEffect(() => {
     if (data && data.length > 0) {
       const total = data.reduce((sum, item) => sum + item.value, 0);
       data.forEach(item => {
+        // Berechnungslogik (falls nötig)
         const percent = (item.value / total) * 100;
       });
     }
   }, [data]);
   
-  // (isLoading-Zustand bleibt gleich)
   if (isLoading) {
     return (
       <div
@@ -159,7 +158,6 @@ export default function KpiPieChart({
     );
   }
 
-  // +++ KORREKTUR: Fehlerzustand hinzugefügt +++
   if (error) {
     return (
       <div
@@ -180,7 +178,6 @@ export default function KpiPieChart({
     );
   }
 
-  // (Leer-Zustand bleibt gleich)
   if (!data || data.length === 0) {
     return (
       <div
@@ -197,7 +194,6 @@ export default function KpiPieChart({
     );
   }
 
-  // (Erfolgs-Zustand bleibt gleich)
   return (
     <div
       className={cn(
@@ -212,7 +208,7 @@ export default function KpiPieChart({
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
-              data={data}
+              data={data as any} // ✅ HIER: Fix für TypeScript Fehler
               dataKey="value"
               nameKey="name"
               cx="50%"
