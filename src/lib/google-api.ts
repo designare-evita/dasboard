@@ -627,3 +627,62 @@ export async function getGa4DimensionReport(
     return [];
   }
 }
+
+export interface ConvertingPageData {
+  path: string;
+  conversions: number;
+  sessions: number;
+  conversionRate: string; // String für "1.5%"
+}
+
+// ✅ NEUE FUNKTION
+export async function getTopConvertingPages(
+  propertyId: string,
+  startDate: string,
+  endDate: string
+): Promise<ConvertingPageData[]> {
+  const formattedPropertyId = propertyId.startsWith('properties/') ? propertyId : `properties/${propertyId}`;
+  const auth = createAuth();
+  const analytics = google.analyticsdata({ version: 'v1beta', auth });
+
+  try {
+    const response = await analytics.properties.runReport({
+      property: formattedPropertyId,
+      requestBody: {
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: 'landingPagePlusQueryString' }], // Oder 'pagePath' für sauberere URLs
+        metrics: [
+          { name: 'conversions' },
+          { name: 'sessions' },
+          { name: 'engagementRate' }
+        ],
+        orderBys: [
+          { metric: { metricName: 'conversions' }, desc: true } // Wichtig: Nach Conversions sortieren
+        ],
+        limit: '5', // Top 5 reichen für die AI
+      },
+    });
+
+    const rows = response.data.rows || [];
+
+    return rows.map(row => {
+      const conversions = parseInt(row.metricValues?.[0]?.value || '0', 10);
+      const sessions = parseInt(row.metricValues?.[1]?.value || '0', 10);
+      
+      // Conversion Rate berechnen (falls Sessions > 0)
+      const rate = sessions > 0 ? ((conversions / sessions) * 100).toFixed(2) + '%' : '0%';
+
+      return {
+        path: row.dimensionValues?.[0]?.value || '(not set)',
+        conversions,
+        sessions,
+        conversionRate: rate
+      };
+    // Filtern: Nur Seiten anzeigen, die auch wirklich Conversions hatten (optional)
+    }).filter(p => p.conversions > 0); 
+
+  } catch (error) {
+    console.error('Error fetching Top Converting Pages:', error);
+    return [];
+  }
+}
