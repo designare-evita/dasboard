@@ -1,4 +1,4 @@
-// src/components/ProjectDashboard.tsx
+ // src/components/ProjectDashboard.tsx
 'use client';
 
 import { useState } from 'react';
@@ -109,10 +109,12 @@ export default function ProjectDashboard({
       
       <div className="flex-grow w-full px-4 sm:px-6 lg:px-8 py-6">
         
+        {/* ✅ GLOBAL HEADER - ANGEPASST mit dateRange und onDateRangeChange */}
         <GlobalHeader 
           domain={domain}
           projectId={projectId}
-          onPdfExport={onPdfExport || (() => console.warn('PDF Export not implemented'))}
+          dateRange={dateRange}
+          onDateRangeChange={handleDateRangeChange}
         />
         
         {/* TIMELINE WIDGET */}
@@ -129,7 +131,7 @@ export default function ProjectDashboard({
             projectId={projectId}
             faviconUrl={faviconUrl}
             dateRange={dateRange}
-            onDateRangeChange={handleDateRangeChange} // Hier nutzen wir den neuen Handler
+            onDateRangeChange={handleDateRangeChange}
             onPdfExport={onPdfExport || (() => console.warn('PDF Export not implemented'))}
           />
           
