@@ -15,7 +15,7 @@ export type { KpiDatum, ChartPoint, TopQueryData, AiTrafficData };
 // Wir erweitern den ActiveKpi Typ um alle neuen Metriken
 export type ActiveKpi = BaseActiveKpi | 'conversions' | 'engagementRate' | 'bounceRate' | 'newUsers' | 'avgEngagementTime';
 
-// ✅ HIER HINZUGEFÜGT: Metadaten für KPI Tabs (Farben & Labels)
+// Metadaten für KPI Tabs (Farben & Labels)
 export const KPI_TAB_META: Record<string, { label: string; color: string }> = {
   clicks: { label: 'Klicks', color: '#3b82f6' },          // Blue
   impressions: { label: 'Impressionen', color: '#8b5cf6' }, // Violet
@@ -28,7 +28,6 @@ export const KPI_TAB_META: Record<string, { label: string; color: string }> = {
   avgEngagementTime: { label: 'Ø Zeit', color: '#6366f1' }, // Indigo
 };
 
-// ✅ HIER GEÄNDERT: Neue Felder für Conversions (subValue2)
 export interface ChartEntry {
   name: string;
   value: number;
@@ -47,6 +46,13 @@ export interface ApiErrorStatus {
   gsc?: string;
   ga4?: string;
   semrush?: string;
+}
+
+// ✅ NEU: Definition für die Top Converting Pages
+export interface ConvertingPageData {
+  path: string;
+  conversions: number;
+  conversionRate: number; // oder string, je nachdem wie es von der API kommt
 }
 
 export interface ProjectDashboardData {
@@ -75,6 +81,10 @@ export interface ProjectDashboardData {
     avgEngagementTime?: ChartPoint[];
   };
   topQueries?: TopQueryData[];
+  
+  // ✅ NEU: Das Feld, das gefehlt hat
+  topConvertingPages?: ConvertingPageData[];
+  
   aiTraffic?: AiTrafficData;
   countryData?: ChartEntry[];
   channelData?: ChartEntry[];
