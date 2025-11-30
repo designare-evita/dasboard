@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter, usePathname, useSearchParams } from 'next/navigation'; // ✅ NEU
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { 
   ProjectDashboardData, 
   ActiveKpi, 
@@ -28,7 +28,7 @@ interface ProjectDashboardProps {
   data: ProjectDashboardData;
   isLoading: boolean;
   dateRange: DateRangeOption;
-  onDateRangeChange?: (range: DateRangeOption) => void; // ✅ OPTIONAL GEMACHT
+  onDateRangeChange?: (range: DateRangeOption) => void;
   projectId?: string;
   domain?: string;
   faviconUrl?: string | null;
@@ -45,7 +45,7 @@ export default function ProjectDashboard({
   data,
   isLoading,
   dateRange,
-  onDateRangeChange, // Kann undefined sein
+  onDateRangeChange,
   projectId,
   domain,
   faviconUrl,
@@ -57,17 +57,14 @@ export default function ProjectDashboard({
   
   const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
   
-  // ✅ NEU: Router Logic für Date Change (wenn kein Handler übergeben wurde)
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // Interner Handler
   const handleDateRangeChange = (newRange: DateRangeOption) => {
     if (onDateRangeChange) {
       onDateRangeChange(newRange);
     } else {
-      // Fallback: URL Parameter aktualisieren und Seite neu laden (Server Fetch)
       const params = new URLSearchParams(searchParams.toString());
       params.set('dateRange', newRange);
       router.push(`${pathname}?${params.toString()}`);
@@ -87,16 +84,16 @@ export default function ProjectDashboard({
       <div className="flex-grow w-full px-4 sm:px-6 lg:px-8 py-6">
         
         {/* ============================================================ */}
-        {/* 50% Header / 50% Data Max                                    */}
+        {/* NEUES LAYOUT: 50% Header / 50% Data Max                      */}
         {/* ============================================================ */}
         <div className="flex flex-col lg:flex-row gap-6 mb-8 items-stretch">
           
-          {/* LINKS (50%): Global Header */}
+          {/* LINKS (50%): Global Header (Breadcrumbs + Glocke) */}
           <div className="w-full lg:w-1/2 flex flex-col justify-center">
             <GlobalHeader 
               domain={domain}
               projectId={projectId}
-              dateRange={dateRange}
+              // ❌ FEHLER BEHOBEN: dateRange entfernt, da GlobalHeader es nicht mehr braucht
               onPdfExport={onPdfExport || (() => console.warn('PDF Export not implemented'))}
             />
           </div>
@@ -104,6 +101,7 @@ export default function ProjectDashboard({
           {/* RECHTS (50%): Data Max Widget */}
           {projectId && (
             <div className="w-full lg:w-1/2">
+              {/* Wir setzen margin-bottom auf 0, da das Grid den Abstand regelt */}
               <div className="[&>div]:mb-0 h-full">
                 <AiAnalysisWidget projectId={projectId} dateRange={dateRange} />
               </div>
@@ -130,7 +128,6 @@ export default function ProjectDashboard({
             projectId={projectId}
             faviconUrl={faviconUrl}
             dateRange={dateRange}
-            // ✅ KORREKTUR: Hier nutzen wir den internen Handler
             onDateRangeChange={handleDateRangeChange}
             onPdfExport={onPdfExport || (() => console.warn('PDF Export not implemented'))}
           />
