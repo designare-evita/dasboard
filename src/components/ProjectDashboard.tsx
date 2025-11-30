@@ -1,3 +1,4 @@
+// src/components/ProjectDashboard.tsx
 'use client';
 
 import { useState } from 'react';
@@ -5,29 +6,32 @@ import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { 
   ProjectDashboardData, 
   ActiveKpi, 
-  normalizeFlatKpis,
   ChartEntry
 } from '@/lib/dashboard-shared';
-import KpiCardsGrid from '@/components/KpiCardsGrid';
+
+// ✅ Import von Tableau-Komponenten
+import TableauKpiGrid from '@/components/TableauKpiGrid';
+import TableauPieChart from '@/components/charts/TableauPieChart';
+
 import KpiTrendChart from '@/components/charts/KpiTrendChart';
 import AiTrafficCard from '@/components/AiTrafficCard';
 import { type DateRangeOption } from '@/components/DateRangeSelector';
 import TopQueriesList from '@/components/TopQueriesList';
 import SemrushTopKeywords from '@/components/SemrushTopKeywords';
 import SemrushTopKeywords02 from '@/components/SemrushTopKeywords02';
-// DashboardHeader wird nicht mehr benötigt, da GlobalHeader die Steuerung übernimmt
+import DashboardHeader from '@/components/DashboardHeader';
 import GlobalHeader from '@/components/GlobalHeader';
 import ProjectTimelineWidget from '@/components/ProjectTimelineWidget'; 
 import AiAnalysisWidget from '@/components/AiAnalysisWidget';
-
-import CountryChart from './CountryChart';
-import ChannelChart from './ChannelChart';
-import DeviceChart from './DeviceChart';
+import CacheRefreshButton from '@/components/CacheRefreshButton';
 
 interface ProjectDashboardProps {
   data: ProjectDashboardData;
   isLoading: boolean;
   dateRange: DateRangeOption;
+  /** * Optional: Wird primär intern über Router gelöst, 
+   * kann aber für Callback-Logik genutzt werden.
+   */
   onDateRangeChange?: (range: DateRangeOption) => void;
   projectId?: string;
   domain?: string;
@@ -41,37 +45,61 @@ interface ProjectDashboardProps {
   deviceData?: ChartEntry[];
 }
 
+// Helper für KPI Normalisierung
+function safeKpi(kpi: any) {
+  return kpi || { value: 0, change: 0 };
+}
+
 export default function ProjectDashboard({
   data,
   isLoading,
   dateRange,
-  onDateRangeChange,
+  onDateRangeChange, // Wird hier destrukturiert, aber wir nutzen primär den Router
   projectId,
   domain,
+  faviconUrl,
   semrushTrackingId,
   semrushTrackingId02,
   projectTimelineActive = false,
+  onPdfExport,
 }: ProjectDashboardProps) {
-  
-  const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
   
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const handleDateRangeChange = (newRange: DateRangeOption) => {
+  const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
+  
+  const apiErrors = data.apiErrors;
+  const kpis = data.kpis;
+
+  // Erstelle das erweiterte KPI Objekt für das Tableau Grid
+  const extendedKpis = kpis ? {
+    clicks: safeKpi(kpis.clicks),
+    impressions: safeKpi(kpis.impressions),
+    sessions: safeKpi(kpis.sessions),
+    totalUsers: safeKpi(kpis.totalUsers),
+    conversions: safeKpi(kpis.conversions),
+    engagementRate: safeKpi(kpis.engagementRate),
+    bounceRate: safeKpi(kpis.bounceRate),
+    newUsers: safeKpi(kpis.newUsers),
+    avgEngagementTime: safeKpi(kpis.avgEngagementTime),
+  } : undefined;
+
+  // Handler für Datumswechsel: Aktualisiert die URL Search Params
+  const handleDateRangeChange = (range: DateRangeOption) => {
+    // 1. URL aktualisieren (löst Reload in page.tsx aus)
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('dateRange', range);
+    router.push(`${pathname}?${params.toString()}`);
+
+    // 2. Optionalen externen Handler aufrufen (falls vorhanden)
     if (onDateRangeChange) {
-      onDateRangeChange(newRange);
-    } else {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set('dateRange', newRange);
-      router.push(`${pathname}?${params.toString()}`);
+      onDateRangeChange(range);
     }
   };
-  
-  const normalizedKpis = normalizeFlatKpis(data.kpis);
-  const apiErrors = data.apiErrors;
-  
+
+  // Konfigurationen prüfen
   const hasKampagne1Config = !!semrushTrackingId;
   const hasKampagne2Config = !!semrushTrackingId02;
   const hasSemrushConfig = hasKampagne1Config || hasKampagne2Config;
@@ -81,43 +109,59 @@ export default function ProjectDashboard({
       
       <div className="flex-grow w-full px-4 sm:px-6 lg:px-8 py-6">
         
-        {/* 1. GLOBAL HEADER (100% Breite) */}
-        <div className="mb-6">
-          <GlobalHeader 
+        <GlobalHeader 
+          domain={domain}
+          projectId={projectId}
+          onPdfExport={onPdfExport || (() => console.warn('PDF Export not implemented'))}
+        />
+        
+        {/* TIMELINE WIDGET */}
+        {projectId && projectTimelineActive && (
+          <div className="mb-6 print-timeline">
+            <ProjectTimelineWidget projectId={projectId} />
+          </div>
+        )}
+
+        {/* DASHBOARD HEADER */}
+        <div className="print-header">
+          <DashboardHeader 
             domain={domain}
             projectId={projectId}
+            faviconUrl={faviconUrl}
             dateRange={dateRange}
-            onDateRangeChange={handleDateRangeChange}
+            onDateRangeChange={handleDateRangeChange} // Hier nutzen wir den neuen Handler
+            onPdfExport={onPdfExport || (() => console.warn('PDF Export not implemented'))}
           />
+          
+          {/* ✅ CACHE REFRESH BUTTON (nur für Admins/Development) */}
+          {projectId && (
+            <div className="mt-4 flex justify-end">
+              <CacheRefreshButton projectId={projectId} />
+            </div>
+          )}
         </div>
 
-        {/* 2. DATA MAX (100% Breite) */}
+        {/* AI ANALYSE WIDGET */}
         {projectId && (
-          <div className="mb-8">
+          <div className="mt-6 print:hidden">
             <AiAnalysisWidget projectId={projectId} dateRange={dateRange} />
           </div>
         )}
 
-        {/* 3. TIMELINE WIDGET */}
-        {projectId && projectTimelineActive && (
-          <div className="mb-8 print-timeline">
-            <ProjectTimelineWidget 
-              projectId={projectId} 
-            />
-          </div>
-        )}
-
-        {/* 4. KPI CARDS */}
+        {/* ✅ TABLEAU KPI GRID */}
         <div className="mt-6 print-kpi-grid">
-          <KpiCardsGrid
-            kpis={normalizedKpis}
-            isLoading={isLoading}
-            allChartData={data.charts} 
-            apiErrors={apiErrors}
-          />
+          {extendedKpis && (
+            <TableauKpiGrid
+              kpis={extendedKpis}
+              isLoading={isLoading}
+              allChartData={data.charts as any} 
+              apiErrors={apiErrors}
+              dateRange={dateRange} 
+            />
+          )}
         </div>
 
-        {/* 5. TREND CHART */}
+        {/* TREND CHART */}
         <div className="mt-6 print-trend-chart">
           <KpiTrendChart 
             activeKpi={activeKpi}
@@ -126,7 +170,7 @@ export default function ProjectDashboard({
           />
         </div>
 
-        {/* 6. AI TRAFFIC & TOP QUERIES */}
+        {/* AI TRAFFIC & TOP QUERIES */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mt-6 print-traffic-grid">
           <div className="xl:col-span-1 print-ai-card">
             <AiTrafficCard 
@@ -158,26 +202,32 @@ export default function ProjectDashboard({
           </div>
         </div>
 
-        {/* 7. PIE CHARTS */}
+        {/* PIE CHARTS: Channel → Country → Device */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6 print-pie-grid">
-          <CountryChart 
-            data={data.countryData} 
-            isLoading={isLoading} 
-            error={apiErrors?.ga4}
-          />
-          <ChannelChart 
+          
+          <TableauPieChart 
             data={data.channelData} 
+            title="Zugriffe nach Channel"
             isLoading={isLoading} 
             error={apiErrors?.ga4}
           />
-          <DeviceChart 
+          
+          <TableauPieChart 
+            data={data.countryData} 
+            title="Zugriffe nach Land"
+            isLoading={isLoading} 
+            error={apiErrors?.ga4}
+          />
+          
+          <TableauPieChart 
             data={data.deviceData} 
+            title="Zugriffe nach Endgerät"
             isLoading={isLoading} 
             error={apiErrors?.ga4}
           />
         </div>
         
-        {/* 8. SEMRUSH KEYWORDS */}
+        {/* SEMRUSH KEYWORDS */}
         {hasSemrushConfig && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6 print-semrush-grid">
             {hasKampagne1Config && (
