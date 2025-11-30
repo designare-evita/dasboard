@@ -121,6 +121,29 @@ export interface TimelineData {
 }
 
 // ============================================
+// KPI METADATA & CONSTANTS
+// ============================================
+
+export type ActiveKpi = 'clicks' | 'impressions' | 'sessions' | 'totalUsers' | 'conversions' | 'engagementRate';
+
+export interface KpiMetadata {
+  title: string;
+  color: string;
+}
+
+/**
+ * KPI_TAB_META - Metadaten für alle KPI Tabs
+ */
+export const KPI_TAB_META: Record<ActiveKpi, KpiMetadata> = {
+  clicks: { title: 'Klicks', color: '#3b82f6' },
+  impressions: { title: 'Impressionen', color: '#8b5cf6' },
+  sessions: { title: 'Sitzungen', color: '#10b981' },
+  totalUsers: { title: 'Nutzer', color: '#f59e0b' },
+  conversions: { title: 'Conversions', color: '#f59e0b' },
+  engagementRate: { title: 'Interaktionsrate', color: '#ec4899' },
+};
+
+// ============================================
 // RE-EXPORTS (für einfacheren Import)
 // ============================================
 
