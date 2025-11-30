@@ -52,7 +52,8 @@ export interface ApiErrorStatus {
 export interface ConvertingPageData {
   path: string;
   conversions: number;
-  conversionRate: number; // oder string, je nachdem wie es von der API kommt
+  conversionRate: number;
+  engagementRate?: number;
 }
 
 export interface ProjectDashboardData {
