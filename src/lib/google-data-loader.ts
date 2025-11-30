@@ -7,14 +7,14 @@ import {
   getTopQueries,
   getAiTrafficData,
   getGa4DimensionReport,
-  getTopConvertingPages, // ✅ NEU Importiert
+  getTopConvertingPages, 
   type AiTrafficData
 } from '@/lib/google-api';
 import { 
   ProjectDashboardData, 
   ChartEntry, 
   ApiErrorStatus,
-  ConvertingPageData // ✅ NEU Importiert
+  ConvertingPageData 
 } from '@/lib/dashboard-shared';
 import type { TopQueryData, ChartPoint } from '@/types/dashboard';
 
@@ -39,7 +39,7 @@ function calculateChange(current: number, previous: number): number {
   return ((current - previous) / previous) * 100;
 }
 
-// Initialer State für leere Daten (verhindert 'undefined' Fehler)
+// Initialer State für leere Daten
 const INITIAL_DATA: RawApiData = {
   clicks: { total: 0, daily: [] },
   impressions: { total: 0, daily: [] },
@@ -111,7 +111,7 @@ export async function getOrFetchGoogleData(
   let prevData: RawApiData = { ...INITIAL_DATA };
 
   let topQueries: TopQueryData[] = [];
-  let topConvertingPages: ConvertingPageData[] = []; // ✅ NEU Variable
+  let topConvertingPages: ConvertingPageData[] = []; 
   let aiTraffic: AiTrafficData | undefined;
   let countryData: ChartEntry[] = [];
   let channelData: ChartEntry[] = [];
@@ -163,9 +163,18 @@ export async function getOrFetchGoogleData(
         console.warn('[AI Traffic] Fehler (ignoriert):', e);
       }
       
-      // ✅ NEU: Top Converting Pages laden
+      // ✅ FIX: Daten mappen, um String -> Number Konflikt zu lösen
       try {
-        topConvertingPages = await getTopConvertingPages(propertyId, startDateStr, endDateStr);
+        const rawPages = await getTopConvertingPages(propertyId, startDateStr, endDateStr);
+        
+        topConvertingPages = rawPages.map((p: any) => ({
+          path: p.path,
+          conversions: p.conversions,
+          // Hier erzwingen wir die Umwandlung in eine Zahl
+          conversionRate: typeof p.conversionRate === 'string' 
+            ? parseFloat(p.conversionRate) 
+            : Number(p.conversionRate)
+        }));
       } catch (e) {
         console.warn('[GA4] Konnte Top-Pages nicht laden:', e);
       }
@@ -213,7 +222,6 @@ export async function getOrFetchGoogleData(
       },
       totalUsers: { value: currentData.totalUsers.total, change: calculateChange(currentData.totalUsers.total, prevData.totalUsers.total) },
       conversions: { value: currentData.conversions.total, change: calculateChange(currentData.conversions.total, prevData.conversions.total) },
-      // Runden auf 2 Nachkommastellen für saubere Anzeige
       engagementRate: { 
         value: parseFloat((currentData.engagementRate.total * 100).toFixed(2)), 
         change: calculateChange(currentData.engagementRate.total, prevData.engagementRate.total) 
@@ -239,8 +247,7 @@ export async function getOrFetchGoogleData(
       avgEngagementTime: currentData.avgEngagementTime.daily || []
     },
     topQueries,
-    // ✅ NEU: Übergeben an Dashboard Data
-    topConvertingPages,
+    topConvertingPages, // Jetzt typ-sicher (Number statt String)
     aiTraffic,
     countryData,
     channelData,
