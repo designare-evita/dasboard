@@ -31,10 +31,11 @@ export default function AiAnalysisWidget({ projectId, dateRange }: Props) {
   const generateTeaser = (range: string) => {
     const teasers = [
       `Der Datensatz für ${range} ist vollständig importiert und wartet auf Sie. Soll ich die Auswertung jetzt starten?`,
-      `Ich habe alle relevanten Metriken für ${range} gesammelt. Darf ich die wichtigsten Erkenntnisse für Sie zusammenfassen?`,
+      `Wollen wir herausfinden, welche Themengebiete nicht nur Besucher anlocken, sondern sie auch zu Kunden machen?`,
       `Die Zahlen für ${range} sind bereit zur Verknüpfung. Sollen wir die Analyse beginnen, um Ursache und Wirkung zu verstehen?`,
       `Die Performance-Daten für ${range} halten neue Insights bereit. Wollen Sie wissen, welche Maßnahmen am besten gegriffen haben?`,
-      `Die Daten sind komplett. Zeit für neue Insights?`
+      `Soll ich prüfen, bei welchen Suchanfragen die Besucher am längsten auf Ihrer Seite verweilen und wirklich lesen?`,
+      `Die Daten liegen vor. Soll ich identifizieren, welche Landingpages das Interesse der Google-Nutzer am besten in Handlungen verwandeln?`
     ];
     return teasers[Math.floor(Math.random() * teasers.length)];
   };
