@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
 
     // ✅ NEU: Conversion-Daten formatieren für Prompt
     const topConverters = data.topConvertingPages
-      ?.map((p: any) => `- Pfad: "${p.path}" -> ${p.conversions} Conversions (Rate: ${p.conversionRate})`)
+?.map((p: any) => `- Pfad: "${p.path}" -> ${p.conversions} Conversions (Rate: ${p.conversionRate}%)`)
       .join('\n') || 'Keine Conversion-Daten verfügbar.';
       
     // ✅ FIX: (c: any) hinzugefügt, um den Build-Fehler zu beheben
