@@ -13,9 +13,8 @@ import {
 } from 'recharts';
 import { ChartEntry } from '@/lib/dashboard-shared';
 import { cn } from '@/lib/utils';
-// ✅ Icons aktualisiert: ArrowRepeat entfernt, da wir NoDataState nutzen
-import { ExclamationTriangleFill, GraphUp } from 'react-bootstrap-icons'; 
-// ✅ Import der neuen Komponente
+// ✅ NEU: 'CheckCircleFill' für Conversions importiert
+import { ExclamationTriangleFill, GraphUp, CheckCircleFill } from 'react-bootstrap-icons'; 
 import NoDataState from '@/components/NoDataState';
 
 // Farben definieren
@@ -64,7 +63,7 @@ const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
     const color = payload[0].fill || data.fill;
 
     return (
-      <div className="bg-white px-3 py-2 rounded-lg shadow-xl border border-gray-200 min-w-[150px]">
+      <div className="bg-white px-3 py-2 rounded-lg shadow-xl border border-gray-200 min-w-[160px]">
         {/* Header */}
         <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-100">
           <div 
@@ -74,7 +73,7 @@ const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
           <span className="text-sm font-semibold text-gray-700">{data.name}</span>
         </div>
 
-        {/* Werte */}
+        {/* Standard Werte */}
         <div className="flex justify-between items-center mb-1 gap-4">
           <span className="text-xs text-gray-500">Anteil:</span>
           <span className="text-xs font-bold text-gray-900">{percentValue.toFixed(1)}%</span>
@@ -86,18 +85,35 @@ const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
           </span>
         </div>
 
-        {/* Engagement Rate mit GraphUp Icon */}
-        {data.subValue && (
-          <div className="mt-2 pt-2 border-t border-gray-100 flex justify-between items-center bg-gray-50 -mx-3 px-3 py-1">
-            <div className="flex items-center gap-1.5">
-              <GraphUp size={12} className="text-purple-500" />
-              <span className="text-xs font-medium text-gray-600">{data.subLabel || 'Rate'}:</span>
+        {/* Footer Bereich für Extra Metrics */}
+        <div className="mt-2 pt-2 border-t border-gray-100 bg-gray-50 -mx-3 px-3 py-1 space-y-1.5">
+          
+          {/* 1. Interaktionsrate */}
+          {data.subValue && (
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-1.5">
+                <GraphUp size={11} className="text-purple-500" />
+                <span className="text-[11px] font-medium text-gray-600">{data.subLabel}:</span>
+              </div>
+              <span className="text-[11px] font-bold text-purple-700">
+                {data.subValue}
+              </span>
             </div>
-            <span className="text-xs font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100">
-              {data.subValue}
-            </span>
-          </div>
-        )}
+          )}
+
+          {/* 2. Conversions (Neu!) */}
+          {data.subValue2 !== undefined && (
+             <div className="flex justify-between items-center">
+              <div className="flex items-center gap-1.5">
+                <CheckCircleFill size={11} className="text-emerald-600" />
+                <span className="text-[11px] font-medium text-gray-600">{data.subLabel2}:</span>
+              </div>
+              <span className="text-[11px] font-bold text-emerald-700">
+                {new Intl.NumberFormat('de-DE').format(data.subValue2)}
+              </span>
+            </div>
+          )}
+        </div>
       </div>
     );
   }
@@ -143,7 +159,6 @@ export default function TableauPieChart({
 
   const chartData = useMemo(() => {
     if (!data) return [];
-    // Filtern von 0-Werten, damit leere Segmente das Chart nicht kaputt machen
     const validData = data.filter(d => d.value > 0);
     return validData.map((entry, index) => ({
       ...entry,
@@ -151,7 +166,6 @@ export default function TableauPieChart({
     }));
   }, [data]);
 
-  // Loading State
   if (isLoading) {
     return (
       <div className={cn('bg-white rounded-lg shadow-sm border border-gray-200 p-6 flex flex-col h-[350px] animate-pulse', className)}>
@@ -163,7 +177,6 @@ export default function TableauPieChart({
     );
   }
 
-  // Error State
   if (error) {
      return (
       <div className={cn('bg-white rounded-lg shadow-sm border border-gray-200 p-6 flex flex-col h-[350px]', className)}>
@@ -176,20 +189,17 @@ export default function TableauPieChart({
     );
   }
 
-  // ✅ Empty State: Jetzt mit unserer neuen Komponente
   if (!chartData || chartData.length === 0) {
     return (
       <div className={cn('bg-white rounded-lg shadow-sm border border-gray-200 p-6 flex flex-col h-[350px]', className)}>
         <h3 className="text-lg font-semibold text-gray-900 mb-4 self-start">{title}</h3>
         <div className="flex-grow">
-           {/* Hier nutzen wir die neue Komponente */}
            <NoDataState message="Keine Daten für diesen Zeitraum" />
         </div>
       </div>
     );
   }
 
-  // Normaler Chart State
   return (
     <div className={cn('bg-white rounded-lg shadow-sm border border-gray-200 p-6 flex flex-col h-[350px] hover:shadow-md transition-shadow', className)}>
       <h3 className="text-lg font-semibold text-gray-900 mb-2 flex-shrink-0">
