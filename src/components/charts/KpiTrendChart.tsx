@@ -28,7 +28,7 @@ const KPI_CONFIG: Record<string, { label: string; color: string; gradientId: str
   sessions: { label: 'Sessions', color: '#06b6d4', gradientId: 'gradCyan' },       
   
   // Engagement (Warme / Signal Palette)
-  engagementRate: { label: 'Engagement Rate', color: '#ec4899', gradientId: 'gradPink' },
+  engagementRate: { label: 'Interaktionsrate', color: '#ec4899', gradientId: 'gradPink' },
   conversions: { label: 'Conversions', color: '#10b981', gradientId: 'gradEmerald' },   
   avgEngagementTime: { label: 'Ø Verweildauer', color: '#f59e0b', gradientId: 'gradAmber' },
   bounceRate: { label: 'Absprungrate', color: '#f43f5e', gradientId: 'gradRose' },  
