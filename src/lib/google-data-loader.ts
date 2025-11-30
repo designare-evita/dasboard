@@ -7,12 +7,14 @@ import {
   getTopQueries,
   getAiTrafficData,
   getGa4DimensionReport,
+  getTopConvertingPages, // ✅ NEU Importiert
   type AiTrafficData
 } from '@/lib/google-api';
 import { 
   ProjectDashboardData, 
   ChartEntry, 
   ApiErrorStatus,
+  ConvertingPageData // ✅ NEU Importiert
 } from '@/lib/dashboard-shared';
 import type { TopQueryData, ChartPoint } from '@/types/dashboard';
 
@@ -109,6 +111,7 @@ export async function getOrFetchGoogleData(
   let prevData: RawApiData = { ...INITIAL_DATA };
 
   let topQueries: TopQueryData[] = [];
+  let topConvertingPages: ConvertingPageData[] = []; // ✅ NEU Variable
   let aiTraffic: AiTrafficData | undefined;
   let countryData: ChartEntry[] = [];
   let channelData: ChartEntry[] = [];
@@ -160,13 +163,20 @@ export async function getOrFetchGoogleData(
         console.warn('[AI Traffic] Fehler (ignoriert):', e);
       }
       
+      // ✅ NEU: Top Converting Pages laden
+      try {
+        topConvertingPages = await getTopConvertingPages(propertyId, startDateStr, endDateStr);
+      } catch (e) {
+        console.warn('[GA4] Konnte Top-Pages nicht laden:', e);
+      }
+
       // Dimensionen (Charts)
       try {
         // Country
         const rawCountry = await getGa4DimensionReport(propertyId, startDateStr, endDateStr, 'country');
         countryData = rawCountry.map((item, index) => ({ ...item, fill: `hsl(var(--chart-${(index % 5) + 1}))` }));
         
-        // Channel (Optimiert: Keine zweite Abfrage nötig, getGa4DimensionReport liefert bereits Engagement!)
+        // Channel
         const rawChannel = await getGa4DimensionReport(propertyId, startDateStr, endDateStr, 'sessionDefaultChannelGroup');
         channelData = rawChannel.map((item, index) => ({ ...item, fill: `hsl(var(--chart-${(index % 5) + 1}))` }));
         
@@ -229,6 +239,8 @@ export async function getOrFetchGoogleData(
       avgEngagementTime: currentData.avgEngagementTime.daily || []
     },
     topQueries,
+    // ✅ NEU: Übergeben an Dashboard Data
+    topConvertingPages,
     aiTraffic,
     countryData,
     channelData,
