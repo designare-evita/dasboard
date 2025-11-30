@@ -15,6 +15,19 @@ export type { KpiDatum, ChartPoint, TopQueryData, AiTrafficData };
 // Wir erweitern den ActiveKpi Typ um alle neuen Metriken
 export type ActiveKpi = BaseActiveKpi | 'conversions' | 'engagementRate' | 'bounceRate' | 'newUsers' | 'avgEngagementTime';
 
+// ✅ HIER HINZUGEFÜGT: Metadaten für KPI Tabs (Farben & Labels)
+export const KPI_TAB_META: Record<string, { label: string; color: string }> = {
+  clicks: { label: 'Klicks', color: '#3b82f6' },          // Blue
+  impressions: { label: 'Impressionen', color: '#8b5cf6' }, // Violet
+  sessions: { label: 'Sitzungen', color: '#10b981' },      // Emerald
+  totalUsers: { label: 'Nutzer', color: '#f97316' },       // Orange
+  conversions: { label: 'Conversions', color: '#f59e0b' }, // Amber
+  engagementRate: { label: 'Engagement Rate', color: '#ec4899' }, // Pink
+  bounceRate: { label: 'Bounce Rate', color: '#ef4444' },  // Red
+  newUsers: { label: 'Neue Nutzer', color: '#06b6d4' },    // Cyan
+  avgEngagementTime: { label: 'Ø Zeit', color: '#6366f1' }, // Indigo
+};
+
 // ✅ HIER GEÄNDERT: Neue Felder für Conversions (subValue2)
 export interface ChartEntry {
   name: string;
