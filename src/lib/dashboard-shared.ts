@@ -128,6 +128,7 @@ export type ActiveKpi = 'clicks' | 'impressions' | 'sessions' | 'totalUsers' | '
 
 export interface KpiMetadata {
   title: string;
+  label: string;
   color: string;
 }
 
@@ -135,12 +136,12 @@ export interface KpiMetadata {
  * KPI_TAB_META - Metadaten für alle KPI Tabs
  */
 export const KPI_TAB_META: Record<ActiveKpi, KpiMetadata> = {
-  clicks: { title: 'Klicks', color: '#3b82f6' },
-  impressions: { title: 'Impressionen', color: '#8b5cf6' },
-  sessions: { title: 'Sitzungen', color: '#10b981' },
-  totalUsers: { title: 'Nutzer', color: '#f59e0b' },
-  conversions: { title: 'Conversions', color: '#f59e0b' },
-  engagementRate: { title: 'Interaktionsrate', color: '#ec4899' },
+  clicks: { title: 'Klicks', label: 'Klicks', color: '#3b82f6' },
+  impressions: { title: 'Impressionen', label: 'Impressionen', color: '#8b5cf6' },
+  sessions: { title: 'Sitzungen', label: 'Sitzungen', color: '#10b981' },
+  totalUsers: { title: 'Nutzer', label: 'Nutzer', color: '#f59e0b' },
+  conversions: { title: 'Conversions', label: 'Conversions', color: '#f59e0b' },
+  engagementRate: { title: 'Interaktionsrate', label: 'Interaktionsrate', color: '#ec4899' },
 };
 
 // ============================================
