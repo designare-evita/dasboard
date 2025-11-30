@@ -13,8 +13,10 @@ import {
 } from 'recharts';
 import { ChartEntry } from '@/lib/dashboard-shared';
 import { cn } from '@/lib/utils';
-// ✅ KORREKTUR: 'GraphUp' statt 'Activity' importiert
-import { ArrowRepeat, ExclamationTriangleFill, GraphUp } from 'react-bootstrap-icons'; 
+// ✅ Icons aktualisiert: ArrowRepeat entfernt, da wir NoDataState nutzen
+import { ExclamationTriangleFill, GraphUp } from 'react-bootstrap-icons'; 
+// ✅ Import der neuen Komponente
+import NoDataState from '@/components/NoDataState';
 
 // Farben definieren
 const KPI_COLORS = [
@@ -84,11 +86,10 @@ const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
           </span>
         </div>
 
-        {/* ✅ NEU: Engagement Rate mit GraphUp Icon */}
+        {/* Engagement Rate mit GraphUp Icon */}
         {data.subValue && (
           <div className="mt-2 pt-2 border-t border-gray-100 flex justify-between items-center bg-gray-50 -mx-3 px-3 py-1">
             <div className="flex items-center gap-1.5">
-              {/* Hier GraphUp verwenden */}
               <GraphUp size={12} className="text-purple-500" />
               <span className="text-xs font-medium text-gray-600">{data.subLabel || 'Rate'}:</span>
             </div>
@@ -142,12 +143,15 @@ export default function TableauPieChart({
 
   const chartData = useMemo(() => {
     if (!data) return [];
-    return data.map((entry, index) => ({
+    // Filtern von 0-Werten, damit leere Segmente das Chart nicht kaputt machen
+    const validData = data.filter(d => d.value > 0);
+    return validData.map((entry, index) => ({
       ...entry,
       fill: KPI_COLORS[index % KPI_COLORS.length]
     }));
   }, [data]);
 
+  // Loading State
   if (isLoading) {
     return (
       <div className={cn('bg-white rounded-lg shadow-sm border border-gray-200 p-6 flex flex-col h-[350px] animate-pulse', className)}>
@@ -159,6 +163,7 @@ export default function TableauPieChart({
     );
   }
 
+  // Error State
   if (error) {
      return (
       <div className={cn('bg-white rounded-lg shadow-sm border border-gray-200 p-6 flex flex-col h-[350px]', className)}>
@@ -171,18 +176,20 @@ export default function TableauPieChart({
     );
   }
 
+  // ✅ Empty State: Jetzt mit unserer neuen Komponente
   if (!chartData || chartData.length === 0) {
     return (
-      <div className={cn('bg-white rounded-lg shadow-sm border border-gray-200 p-6 flex flex-col h-[350px] justify-center items-center', className)}>
+      <div className={cn('bg-white rounded-lg shadow-sm border border-gray-200 p-6 flex flex-col h-[350px]', className)}>
         <h3 className="text-lg font-semibold text-gray-900 mb-4 self-start">{title}</h3>
-        <div className="flex-grow flex flex-col items-center justify-center text-gray-400">
-           <ArrowRepeat size={24} className="mb-2 opacity-50" />
-           <p className="text-sm italic">Keine Daten verfügbar</p>
+        <div className="flex-grow">
+           {/* Hier nutzen wir die neue Komponente */}
+           <NoDataState message="Keine Daten für diesen Zeitraum" />
         </div>
       </div>
     );
   }
 
+  // Normaler Chart State
   return (
     <div className={cn('bg-white rounded-lg shadow-sm border border-gray-200 p-6 flex flex-col h-[350px] hover:shadow-md transition-shadow', className)}>
       <h3 className="text-lg font-semibold text-gray-900 mb-2 flex-shrink-0">
