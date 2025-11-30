@@ -1,151 +1,113 @@
 // src/lib/dashboard-shared.ts
-// ============================================
-// ZENTRALE TYPE-DEFINITIONEN FÜR DAS DASHBOARD
-// NUR Types - KEINE Implementierungen!
-// ============================================
+import { DateRangeOption } from "@/components/DateRangeSelector";
+import type { 
+  KpiDatum, 
+  ChartPoint, 
+  TopQueryData, 
+  ActiveKpi as BaseActiveKpi 
+} from '@/types/dashboard';
 
-import type { ChartPoint, TopQueryData, KpiDatum } from '@/types/dashboard';
 import type { AiTrafficData } from '@/types/ai-traffic';
 
-// ============================================
-// CHART TYPES
-// ============================================
+// Re-exportiere die Basis-Typen
+export type { KpiDatum, ChartPoint, TopQueryData, AiTrafficData };
 
-/**
- * ChartEntry - Für Pie/Bar Charts (Länder, Kanäle, Geräte)
- */
+// Wir erweitern den ActiveKpi Typ um alle neuen Metriken
+export type ActiveKpi = BaseActiveKpi | 'conversions' | 'engagementRate' | 'bounceRate' | 'newUsers' | 'avgEngagementTime';
+
+// ✅ HIER HINZUGEFÜGT: Metadaten für KPI Tabs (Farben & Labels)
+export const KPI_TAB_META: Record<string, { label: string; color: string }> = {
+  clicks: { label: 'Klicks', color: '#3b82f6' },          // Blue
+  impressions: { label: 'Impressionen', color: '#8b5cf6' }, // Violet
+  sessions: { label: 'Sitzungen', color: '#10b981' },      // Emerald
+  totalUsers: { label: 'Nutzer', color: '#f97316' },       // Orange
+  conversions: { label: 'Conversions', color: '#f59e0b' }, // Amber
+  engagementRate: { label: 'Engagement Rate', color: '#ec4899' }, // Pink
+  bounceRate: { label: 'Bounce Rate', color: '#ef4444' },  // Red
+  newUsers: { label: 'Neue Nutzer', color: '#06b6d4' },    // Cyan
+  avgEngagementTime: { label: 'Ø Zeit', color: '#6366f1' }, // Indigo
+};
+
+// ✅ HIER GEÄNDERT: Neue Felder für Conversions (subValue2)
 export interface ChartEntry {
   name: string;
   value: number;
   fill?: string;
-  subValue?: string | number;
+  
+  // Für Engagement/Interaktionsrate
+  subValue?: string;
   subLabel?: string;
-  subValue2?: string | number;
+  
+  // Neu für Conversions
+  subValue2?: number;
   subLabel2?: string;
 }
 
-// ============================================
-// CONVERTING PAGES (für AI Analyse)
-// ============================================
-
-/**
- * ConvertingPageData - Top Seiten die Conversions generieren
- */
-export interface ConvertingPageData {
-  path: string;
-  conversions: number;
-  sessions: number;
-  conversionRate: string; // z.B. "2.5%"
-}
-
-// ============================================
-// API ERROR STATUS
-// ============================================
-
-/**
- * ApiErrorStatus - Tracking von API Fehlern
- */
 export interface ApiErrorStatus {
   gsc?: string;
   ga4?: string;
   semrush?: string;
 }
 
-// ============================================
-// MAIN DASHBOARD DATA STRUCTURE
-// ============================================
-
-/**
- * ProjectDashboardData - Haupt-Datenstruktur für das Dashboard
- */
 export interface ProjectDashboardData {
-  // KPIs mit Change-Werten
-  kpis: {
-    // GSC Metriken
-    clicks: KpiDatum;
-    impressions: KpiDatum;
+  kpis?: {
+    clicks?: KpiDatum;
+    impressions?: KpiDatum;
+    sessions?: KpiDatum;
+    totalUsers?: KpiDatum;
     
-    // GA4 Metriken
-    sessions: KpiDatum;
-    totalUsers: KpiDatum;
-    conversions: KpiDatum;
-    engagementRate: KpiDatum;
-    bounceRate: KpiDatum;
-    newUsers: KpiDatum;
-    avgEngagementTime: KpiDatum;
+    // Erweiterte GA4 Metriken
+    conversions?: KpiDatum;     
+    engagementRate?: KpiDatum; 
+    bounceRate?: KpiDatum;        
+    newUsers?: KpiDatum;          
+    avgEngagementTime?: KpiDatum; 
   };
-  
-  // Chart-Daten (Zeitreihen)
-  charts: {
-    clicks: ChartPoint[];
-    impressions: ChartPoint[];
-    sessions: ChartPoint[];
-    totalUsers: ChartPoint[];
-    conversions: ChartPoint[];
-    engagementRate: ChartPoint[];
-    bounceRate: ChartPoint[];
-    newUsers: ChartPoint[];
-    avgEngagementTime: ChartPoint[];
+  charts?: {
+    clicks?: ChartPoint[];
+    impressions?: ChartPoint[];
+    sessions?: ChartPoint[];
+    totalUsers?: ChartPoint[];
+    conversions?: ChartPoint[];
+    engagementRate?: ChartPoint[];
+    bounceRate?: ChartPoint[];
+    newUsers?: ChartPoint[];
+    avgEngagementTime?: ChartPoint[];
   };
-  
-  // Top Keywords aus GSC
-  topQueries: TopQueryData[];
-  
-  // Top Converting Pages (für AI)
-  topConvertingPages: ConvertingPageData[];
-  
-  // AI Traffic Daten (optional)
+  topQueries?: TopQueryData[];
   aiTraffic?: AiTrafficData;
+  countryData?: ChartEntry[];
+  channelData?: ChartEntry[];
+  deviceData?: ChartEntry[];
   
-  // Chart-Daten nach Dimensionen
-  countryData: ChartEntry[];
-  channelData: ChartEntry[];
-  deviceData: ChartEntry[];
-  
-  // Fehler-Status
   apiErrors?: ApiErrorStatus;
-  
-  // Cache-Flag
   fromCache?: boolean;
 }
 
-// ============================================
-// HELPER TYPES
-// ============================================
+// Default Werte Helper
+export const ZERO_KPI: KpiDatum = { value: 0, change: 0 };
 
-export type DateRange = '7d' | '30d' | '3m' | '6m' | '12m';
-
-export interface TimelineData {
-  date: number; // Timestamp
-  value: number;
+export function normalizeFlatKpis(input?: ProjectDashboardData['kpis']) {
+  return {
+    clicks: input?.clicks ?? ZERO_KPI,
+    impressions: input?.impressions ?? ZERO_KPI,
+    sessions: input?.sessions ?? ZERO_KPI,
+    totalUsers: input?.totalUsers ?? ZERO_KPI,
+    
+    conversions: input?.conversions ?? ZERO_KPI,
+    engagementRate: input?.engagementRate ?? ZERO_KPI,
+    bounceRate: input?.bounceRate ?? ZERO_KPI,
+    newUsers: input?.newUsers ?? ZERO_KPI,
+    avgEngagementTime: input?.avgEngagementTime ?? ZERO_KPI,
+  };
 }
 
-// ============================================
-// KPI METADATA & CONSTANTS
-// ============================================
+export function hasDashboardData(data: ProjectDashboardData): boolean {
+  if (data.apiErrors?.gsc && data.apiErrors?.ga4) return false;
 
-export type ActiveKpi = 'clicks' | 'impressions' | 'sessions' | 'totalUsers' | 'conversions' | 'engagementRate';
+  const k = normalizeFlatKpis(data.kpis);
+  // Einfacher Check: Haben wir Klicks oder Sessions > 0?
+  if (k.clicks.value > 0 || k.sessions.value > 0) return true;
 
-export interface KpiMetadata {
-  title: string;
-  label: string;
-  color: string;
+  return false;
 }
-
-/**
- * KPI_TAB_META - Metadaten für alle KPI Tabs
- */
-export const KPI_TAB_META: Record<ActiveKpi, KpiMetadata> = {
-  clicks: { title: 'Klicks', label: 'Klicks', color: '#3b82f6' },
-  impressions: { title: 'Impressionen', label: 'Impressionen', color: '#8b5cf6' },
-  sessions: { title: 'Sitzungen', label: 'Sitzungen', color: '#10b981' },
-  totalUsers: { title: 'Nutzer', label: 'Nutzer', color: '#f59e0b' },
-  conversions: { title: 'Conversions', label: 'Conversions', color: '#f59e0b' },
-  engagementRate: { title: 'Interaktionsrate', label: 'Interaktionsrate', color: '#ec4899' },
-};
-
-// ============================================
-// RE-EXPORTS (für einfacheren Import)
-// ============================================
-
-export type { ChartPoint, TopQueryData, KpiDatum, AiTrafficData };
