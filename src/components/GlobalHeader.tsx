@@ -2,23 +2,24 @@
 'use client';
 
 import React from 'react';
-import { Download, Globe } from 'react-bootstrap-icons';
-import { Button } from "@/components/ui/button";
+import { Globe } from 'react-bootstrap-icons';
+import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector';
 
 interface GlobalHeaderProps {
   domain?: string;
   projectId?: string;
-  onPdfExport: () => void;
+  dateRange: DateRangeOption;
+  onDateRangeChange: (range: DateRangeOption) => void;
 }
 
 export default function GlobalHeader({
   domain,
   projectId,
-  onPdfExport
+  dateRange,
+  onDateRangeChange
 }: GlobalHeaderProps) {
 
   return (
-    // ÄNDERUNG: 'card-glass' statt 'bg-white shadow-md border...'
     <div className="card-glass p-6 mb-6 print:hidden">
       <div className="flex items-center justify-between">
         
@@ -35,10 +36,15 @@ export default function GlobalHeader({
                {domain || 'Projekt Dashboard'}
              </h1>
              {projectId && (
-               <div className="flex items-center gap-1.5 mt-1.5">
-                 <span className="text-xs font-bold text-gray-400">ID:</span>
-                 <span className="text-xs font-mono text-gray-500 tracking-wide select-all">
-                   {projectId}
+               <div className="flex flex-col gap-1">
+                 <div className="flex items-center gap-1.5">
+                   <span className="text-xs font-bold text-gray-400">ID:</span>
+                   <span className="text-xs font-mono text-gray-500 tracking-wide select-all">
+                     {projectId}
+                   </span>
+                 </div>
+                 <span className="text-gray-500 text-xs">
+                   GOOGLE Datenaktualisierung alle 48 Stunden | SEMRUSH Datenaktualisierung alle 14 Tage.
                  </span>
                </div>
              )}
@@ -47,14 +53,11 @@ export default function GlobalHeader({
 
         {/* RECHTE SEITE */}
         <div>
-          <Button
-            onClick={onPdfExport}
-            variant="default"
-            className="h-10 px-5 gap-2.5 bg-[#188BDB] hover:bg-[#1479BF] text-white shadow-sm text-sm font-medium rounded-lg"
-          >
-            <Download size={16} />
-            <span>PDF Download</span>
-          </Button>
+          <DateRangeSelector
+            value={dateRange}
+            onChange={onDateRangeChange}
+            className="w-full sm:w-auto"
+          />
         </div>
 
       </div>
