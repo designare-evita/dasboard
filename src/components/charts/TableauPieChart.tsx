@@ -13,7 +13,6 @@ import {
 } from 'recharts';
 import { ChartEntry } from '@/lib/dashboard-shared';
 import { cn } from '@/lib/utils';
-// ✅ NEU: 'CheckCircleFill' für Conversions importiert
 import { ExclamationTriangleFill, GraphUp, CheckCircleFill } from 'react-bootstrap-icons'; 
 import NoDataState from '@/components/NoDataState';
 
@@ -48,16 +47,20 @@ interface TooltipPayload {
 interface CustomTooltipProps {
   active?: boolean;
   payload?: TooltipPayload[];
+  totalValue?: number; // ✅ NEU: Gesamt-Wert für manuelle %-Berechnung
 }
 
-const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
+const CustomTooltip = ({ active, payload, totalValue }: CustomTooltipProps) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
-    const rawPercent = payload[0].percent;
     
+    // ✅ FIX: Prozentsatz sicher selbst berechnen
     let percentValue = 0;
-    if (typeof rawPercent === 'number' && !isNaN(rawPercent)) {
-      percentValue = rawPercent * 100;
+    if (totalValue && totalValue > 0) {
+      percentValue = (data.value / totalValue) * 100;
+    } else if (typeof payload[0].percent === 'number') {
+      // Fallback auf Recharts Wert (falls vorhanden)
+      percentValue = payload[0].percent * 100;
     }
     
     const color = payload[0].fill || data.fill;
@@ -101,7 +104,7 @@ const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
             </div>
           )}
 
-          {/* 2. Conversions (Neu!) */}
+          {/* 2. Conversions */}
           {data.subValue2 !== undefined && (
              <div className="flex justify-between items-center">
               <div className="flex items-center gap-1.5">
@@ -166,6 +169,11 @@ export default function TableauPieChart({
     }));
   }, [data]);
 
+  // ✅ NEU: Gesamtwert berechnen für %-Berechnung im Tooltip
+  const totalValue = useMemo(() => {
+    return chartData.reduce((acc, curr) => acc + curr.value, 0);
+  }, [chartData]);
+
   if (isLoading) {
     return (
       <div className={cn('bg-white rounded-lg shadow-sm border border-gray-200 p-6 flex flex-col h-[350px] animate-pulse', className)}>
@@ -229,7 +237,8 @@ export default function TableauPieChart({
                 />
               ))}
             </Pie>
-            <Tooltip content={<CustomTooltip />} />
+            {/* ✅ FIX: totalValue an Tooltip übergeben */}
+            <Tooltip content={<CustomTooltip totalValue={totalValue} />} />
             <Legend 
               verticalAlign="bottom" 
               height={36} 
