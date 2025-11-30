@@ -43,6 +43,14 @@ export interface ChartEntry {
   subLabel2?: string;
 }
 
+// ✅ NEU: Interface für Top Converting Pages
+export interface ConvertingPageData {
+  path: string;
+  conversions: number;
+  sessions: number;
+  conversionRate: string;
+}
+
 export interface ApiErrorStatus {
   gsc?: string;
   ga4?: string;
@@ -75,6 +83,8 @@ export interface ProjectDashboardData {
     avgEngagementTime?: ChartPoint[];
   };
   topQueries?: TopQueryData[];
+  // ✅ NEU: Feld für Landingpages
+  topConvertingPages?: ConvertingPageData[];
   aiTraffic?: AiTrafficData;
   countryData?: ChartEntry[];
   channelData?: ChartEntry[];
