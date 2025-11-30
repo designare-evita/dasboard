@@ -650,16 +650,18 @@ export async function getTopConvertingPages(
       property: formattedPropertyId,
       requestBody: {
         dateRanges: [{ startDate, endDate }],
-        dimensions: [{ name: 'landingPagePlusQueryString' }], // Oder 'pagePath' für sauberere URLs
+        dimensions: [{ name: 'landingPagePlusQueryString' }],
         metrics: [
           { name: 'conversions' },
           { name: 'sessions' },
-          { name: 'engagementRate' }
+          { name: 'engagementRate' } // Wir holen die Rate bereits!
         ],
+        // Wir sortieren primär nach Conversions, aber wir holen trotzdem alles
         orderBys: [
-          { metric: { metricName: 'conversions' }, desc: true } // Wichtig: Nach Conversions sortieren
+          { metric: { metricName: 'conversions' }, desc: true },
+          { metric: { metricName: 'sessions' }, desc: true } // Fallback: Traffic
         ],
-        limit: '5', // Top 5 reichen für die AI
+        limit: '10', // Wir holen etwas mehr, um filtern zu können
       },
     });
 
@@ -668,18 +670,23 @@ export async function getTopConvertingPages(
     return rows.map(row => {
       const conversions = parseInt(row.metricValues?.[0]?.value || '0', 10);
       const sessions = parseInt(row.metricValues?.[1]?.value || '0', 10);
-      
-      // Conversion Rate berechnen (falls Sessions > 0)
-      const rate = sessions > 0 ? ((conversions / sessions) * 100).toFixed(2) + '%' : '0%';
+      const engagementRate = parseFloat(row.metricValues?.[2]?.value || '0'); // ✅ NEU: Auslesen
+
+      // Conversion Rate berechnen
+      const convRate = sessions > 0 ? ((conversions / sessions) * 100).toFixed(2) : '0';
 
       return {
         path: row.dimensionValues?.[0]?.value || '(not set)',
         conversions,
         sessions,
-        conversionRate: rate
+        conversionRate: convRate, // Achtung: Hier ggf. Typ anpassen in Interface, wir senden hier String, Loader macht Number draus
+        engagementRate: parseFloat((engagementRate * 100).toFixed(2)) // ✅ NEU: Als saubere Prozentzahl (z.B. 55.5)
       };
-    // Filtern: Nur Seiten anzeigen, die auch wirklich Conversions hatten (optional)
-    }).filter(p => p.conversions > 0); 
+    })
+    // ✅ FILTER GEÄNDERT: Wir lassen auch Seiten durch, die viel Traffic haben (>5 Sessions), 
+    // auch wenn sie keine Conversions haben. So sehen wir "Engagement-Gewinner".
+    .filter(p => p.conversions > 0 || p.sessions > 5)
+    .slice(0, 5); // Am Ende nehmen wir die Top 5
 
   } catch (error) {
     console.error('Error fetching Top Converting Pages:', error);
