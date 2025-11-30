@@ -118,13 +118,8 @@ export default function KpiMultiLineChart({ allChartData }: KpiMultiLineChartPro
     const processKpi = (kpiData: ChartDataPoint[] | undefined, kpiName: KpiKey) => {
       if (!kpiData) return;
       for (const point of kpiData) {
-        
-        // ✅ KORREKTUR: Die explizite Typ-Annotation wurde entfernt.
-        // TypeScript leitet den Typ von 'entry' jetzt korrekt selbst ab.
         const entry = dataMap.get(point.date) || { date: point.date };
-        
         entry[kpiName] = point.value; 
-        
         dataMap.set(point.date, entry);
       }
     };
@@ -177,7 +172,7 @@ export default function KpiMultiLineChart({ allChartData }: KpiMultiLineChartPro
             <Line 
               type="monotone" 
               dataKey="clicks" 
-              name={KPI_TAB_META.clicks.title}
+              name={KPI_TAB_META.clicks.label} 
               stroke={KPI_TAB_META.clicks.color}
               strokeWidth={2}
               dot={false}
@@ -187,7 +182,7 @@ export default function KpiMultiLineChart({ allChartData }: KpiMultiLineChartPro
             <Line 
               type="monotone" 
               dataKey="impressions" 
-              name={KPI_TAB_META.impressions.title}
+              name={KPI_TAB_META.impressions.label}
               stroke={KPI_TAB_META.impressions.color}
               strokeWidth={2}
               dot={false}
@@ -197,7 +192,7 @@ export default function KpiMultiLineChart({ allChartData }: KpiMultiLineChartPro
             <Line 
               type="monotone" 
               dataKey="sessions" 
-              name={KPI_TAB_META.sessions.title}
+              name={KPI_TAB_META.sessions.label}
               stroke={KPI_TAB_META.sessions.color}
               strokeWidth={2}
               dot={false}
@@ -207,7 +202,7 @@ export default function KpiMultiLineChart({ allChartData }: KpiMultiLineChartPro
             <Line 
               type="monotone" 
               dataKey="totalUsers" 
-              name={KPI_TAB_META.totalUsers.title}
+              name={KPI_TAB_META.totalUsers.label}
               stroke={KPI_TAB_META.totalUsers.color}
               strokeWidth={2}
               dot={false}
