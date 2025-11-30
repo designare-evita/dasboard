@@ -6,7 +6,7 @@ import { getOrFetchGoogleData } from '@/lib/google-data-loader';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { streamText } from 'ai';
 import crypto from 'node:crypto';
-import type { User } from '@/lib/schemas'; // ✅ Typ importieren
+import type { User } from '@/lib/schemas'; 
 
 const google = createGoogleGenerativeAI({
   apiKey: process.env.GEMINI_API_KEY || '',
@@ -42,7 +42,6 @@ export async function POST(req: NextRequest) {
     }
 
     // 1. Daten laden
-    // ✅ KORREKTUR: SELECT * verwenden, damit gsc_site_url & ga4_property_id dabei sind
     const { rows } = await sql`
       SELECT *
       FROM users WHERE id::text = ${projectId}
@@ -50,7 +49,7 @@ export async function POST(req: NextRequest) {
 
     if (rows.length === 0) return NextResponse.json({ message: 'Projekt nicht gefunden' }, { status: 404 });
     
-    // ✅ KORREKTUR: Expliziter Cast zu User, um TypeScript zufrieden zu stellen
+    // Expliziter Cast zu User
     const project = rows[0] as unknown as User;
 
     const data = await getOrFetchGoogleData(project, dateRange);
@@ -96,8 +95,9 @@ export async function POST(req: NextRequest) {
       ?.map((p: any) => `- Pfad: "${p.path}" -> ${p.conversions} Conversions (Rate: ${p.conversionRate})`)
       .join('\n') || 'Keine Conversion-Daten verfügbar.';
       
+    // ✅ FIX: (c: any) hinzugefügt, um den Build-Fehler zu beheben
     const topChannels = data.channelData?.slice(0, 3)
-      .map(c => `${c.name} (${fmt(c.value)})`)
+      .map((c: any) => `${c.name} (${fmt(c.value)})`)
       .join(', ') || 'Keine Kanal-Daten';
 
     const summaryData = `
