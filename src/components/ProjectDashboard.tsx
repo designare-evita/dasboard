@@ -78,6 +78,8 @@ export default function ProjectDashboard({
             <GlobalHeader 
               domain={domain}
               projectId={projectId}
+              // ✅ FIX: onPdfExport übergeben (Fallback falls undefined)
+              onPdfExport={onPdfExport || (() => console.warn('PDF Export not implemented'))}
             />
           </div>
 
