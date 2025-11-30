@@ -124,25 +124,7 @@ export default function ProjectDashboard({
           </div>
         )}
 
-        {/* DASHBOARD HEADER */}
-        <div className="print-header">
-          <DashboardHeader 
-            domain={domain}
-            projectId={projectId}
-            faviconUrl={faviconUrl}
-            dateRange={dateRange}
-            onDateRangeChange={handleDateRangeChange}
-            onPdfExport={onPdfExport || (() => console.warn('PDF Export not implemented'))}
-          />
-          
-          {/* ✅ CACHE REFRESH BUTTON (nur für Admins/Development) */}
-          {projectId && (
-            <div className="mt-4 flex justify-end">
-              <CacheRefreshButton projectId={projectId} />
-            </div>
-          )}
-        </div>
-
+    
         {/* AI ANALYSE WIDGET */}
         {projectId && (
           <div className="mt-6 print:hidden">
