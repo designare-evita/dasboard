@@ -90,10 +90,19 @@ export async function POST(req: NextRequest) {
       .map((q: any) => `- "${q.query}" (Pos: ${q.position.toFixed(1)}, Klicks: ${q.clicks})`)
       .join('\n') || 'Keine Keywords';
 
-    // ✅ NEU: Conversion-Daten formatieren für Prompt
+    // ✅ NEU: Conversion-Daten UND Engagement für Prompt formatieren
     const topConverters = data.topConvertingPages
-?.map((p: any) => `- Pfad: "${p.path}" -> ${p.conversions} Conversions (Rate: ${p.conversionRate}%)`)
-      .join('\n') || 'Keine Conversion-Daten verfügbar.';
+      ?.map((p: any) => {
+         // Wir bauen einen smarten String:
+         // Wenn Conversions da sind -> Fokus Conversion
+         // Wenn KEINE Conversions da sind -> Fokus Engagement
+         if (p.conversions > 0) {
+           return `- "${p.path}": ${p.conversions} Conv. (Rate: ${p.conversionRate}%, Eng: ${p.engagementRate}%)`;
+         } else {
+           return `- "${p.path}": ${p.engagementRate}% Engagement (bei 0 Conversions)`;
+         }
+      })
+      .join('\n') || 'Keine Daten verfügbar.';
       
     // ✅ FIX: (c: any) hinzugefügt, um den Build-Fehler zu beheben
     const topChannels = data.channelData?.slice(0, 3)
