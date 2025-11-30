@@ -207,7 +207,7 @@ export async function getTopQueries(
         startDate,
         endDate,
         dimensions: ['query'],
-        rowLimit: 20, 
+        rowLimit: 100, 
       },
     });
 
