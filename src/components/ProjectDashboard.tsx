@@ -109,11 +109,31 @@ export default function ProjectDashboard({
       
       <div className="flex-grow w-full px-4 sm:px-6 lg:px-8 py-6">
         
-        <GlobalHeader 
-          domain={domain}
-          projectId={projectId}
-          onPdfExport={onPdfExport || (() => console.warn('PDF Export not implemented'))}
-        />
+{/* ============================================================ */}
+        {/* NEUES LAYOUT: 50% Header / 50% Data Max                      */}
+        {/* ============================================================ */}
+        <div className="flex flex-col lg:flex-row gap-6 mb-8 items-stretch">
+          
+          {/* LINKS (50%): Global Header (Breadcrumbs + Glocke) */}
+          <div className="w-full lg:w-1/2 flex flex-col justify-center">
+            <GlobalHeader 
+              domain={domain}
+              projectId={projectId}
+            />
+          </div>
+
+          {/* RECHTS (50%): Data Max Widget */}
+          {projectId && (
+            <div className="w-full lg:w-1/2">
+              {/* Wir setzen margin-bottom auf 0, da das Grid den Abstand regelt */}
+              <div className="[&>div]:mb-0 h-full">
+                <AiAnalysisWidget projectId={projectId} dateRange={dateRange} />
+              </div>
+            </div>
+          )}
+          
+        </div>
+        {/* ============================================================ */}
         
         {/* TIMELINE WIDGET */}
         {projectId && projectTimelineActive && (
