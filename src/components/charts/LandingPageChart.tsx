@@ -48,15 +48,15 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
 
   return (
     <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-[18px] font-semibold text-gray-900 flex items-center gap-2">
           <FileEarmarkText className="text-indigo-500" size={18} />
-          {title}
+          Top Landingpages (Conversions & Interaktion)
         </h3>
       </div>
 
       {/* Kompakte Stacked Bar Visualisierung */}
-      <div className="space-y-1.5">
+      <div className="space-y-2.5">
         {sortedData.map((page, i) => {
           // Berechne Breiten basierend auf Metriken
           const maxValue = Math.max(...sortedData.map(p => (p.sessions || 0) + (p.conversions || 0) * 10));
@@ -68,7 +68,7 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
           return (
             <div key={i} className="group">
               {/* Stacked Bar mit allen Daten drin */}
-              <div className="h-9 flex rounded-lg overflow-hidden shadow-sm hover:shadow transition-shadow relative">
+              <div className="h-9 flex rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow relative">
                 
                 {/* Segment 1: Rank & Page */}
                 <div className="bg-gray-700 flex items-center px-3 gap-2 flex-shrink-0" style={{ minWidth: '200px' }}>
@@ -81,20 +81,20 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
                 {/* Segment 2: Neue Besucher */}
                 <div 
                   className="flex items-center justify-center px-2"
-                  style={{ minWidth: '80px', flex: `0 0 ${Math.max(newUsersWidth, 10)}%`, backgroundColor: '#188BDB' }}
+                  style={{ minWidth: '130px', flex: `0 0 ${Math.max(newUsersWidth, 10)}%`, backgroundColor: '#188BDB' }}
                 >
                   <span className="text-[14px] font-bold text-white whitespace-nowrap">
-                    {page.newUsers || 0} neu
+                    {page.newUsers || 0} Neue Besucher
                   </span>
                 </div>
                 
                 {/* Segment 3: Total Sessions */}
                 <div 
                   className="bg-teal-600 flex items-center justify-center px-2"
-                  style={{ minWidth: '90px', flex: `0 0 ${Math.max(sessionsWidth, 12)}%` }}
+                  style={{ minWidth: '130px', flex: `0 0 ${Math.max(sessionsWidth, 12)}%` }}
                 >
                   <span className="text-[14px] font-bold text-white whitespace-nowrap">
-                    {page.sessions || 0} total
+                    {page.sessions || 0} Total Sessions
                   </span>
                 </div>
                 
