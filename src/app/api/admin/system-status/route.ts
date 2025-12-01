@@ -92,14 +92,15 @@ export async function GET() {
        status.cron.message = e.message;
     }
 
-    // --- ✅ TEST 6: LIVE DATEN-FLUSS (GSC & GA4) ---
-    // Wir suchen einen "Test-User" aus der Datenbank
+// --- ✅ TEST 6: LIVE DATEN-FLUSS (GSC & GA4) ---
+    // Wir suchen einen ZUFÄLLIGEN User aus der Datenbank, um nicht immer den gleichen zu testen.
     try {
       const { rows } = await sql`
         SELECT gsc_site_url, ga4_property_id 
         FROM users 
         WHERE role = 'BENUTZER' 
           AND (gsc_site_url IS NOT NULL OR ga4_property_id IS NOT NULL)
+        ORDER BY RANDOM()  -- << 🎲 WICHTIG: Zufällige Auswahl
         LIMIT 1
       `;
       
@@ -109,7 +110,7 @@ export async function GET() {
          status.gscApi = { status: 'warning', message: 'Kein User mit GSC gefunden.' };
          status.ga4Api = { status: 'warning', message: 'Kein User mit GA4 gefunden.' };
       } else {
-         // Datum berechnen (GSC hat 2 Tage Latenz, GA4 ist schneller)
+         // Datum berechnen (GSC hat 2 Tage Latenz)
          const today = new Date();
          
          // GSC Datum (vor 4 Tagen, um sicher zu sein)
@@ -125,14 +126,14 @@ export async function GET() {
          // A) GSC TEST
          if (testUser.gsc_site_url) {
             try {
-               // Wir rufen nur EINEN Tag ab -> minimaler Aufwand
                await getSearchConsoleData(testUser.gsc_site_url, gscDateStr, gscDateStr);
                status.gscApi = { status: 'ok', message: 'Daten-Abruf erfolgreich.' };
             } catch (e: any) {
-               status.gscApi = { status: 'error', message: 'API Fehler: ' + e.message };
+               // Wenn ein einzelner User fehlschlägt, ist das eine Warnung, kein Systemausfall
+               status.gscApi = { status: 'warning', message: 'Test fehlgeschlagen (User-spezifisch?): ' + e.message };
             }
          } else {
-            status.gscApi = { status: 'warning', message: 'Test-User hat kein GSC.' };
+            status.gscApi = { status: 'pending', message: 'Zufalls-User hat kein GSC.' };
          }
 
          // B) GA4 TEST
@@ -141,10 +142,10 @@ export async function GET() {
                await getAnalyticsData(testUser.ga4_property_id, gaDateStr, gaDateStr);
                status.ga4Api = { status: 'ok', message: 'Daten-Abruf erfolgreich.' };
             } catch (e: any) {
-               status.ga4Api = { status: 'error', message: 'API Fehler: ' + e.message };
+               status.ga4Api = { status: 'warning', message: 'Test fehlgeschlagen (User-spezifisch?): ' + e.message };
             }
          } else {
-            status.ga4Api = { status: 'warning', message: 'Test-User hat kein GA4.' };
+            status.ga4Api = { status: 'pending', message: 'Zufalls-User hat kein GA4.' };
          }
       }
     } catch (e: any) {
