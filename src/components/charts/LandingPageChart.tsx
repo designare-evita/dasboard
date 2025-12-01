@@ -50,7 +50,7 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
     <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-          <FileEarmarkText className="text-indigo-500" size={16} />
+          <FileEarmarkText className="text-indigo-500" size={18} />
           {title}
         </h3>
       </div>
