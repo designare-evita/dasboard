@@ -10,7 +10,8 @@ interface GlobalHeaderProps {
   projectId?: string;
   dateRange: DateRangeOption;
   onDateRangeChange: (range: DateRangeOption) => void;
-  userRole?: string; // ✅ NEU: Rolle für Sichtbarkeits-Logik
+  userRole?: string;
+  userEmail?: string; // ✅ NEU: E-Mail für "Betreut durch"
 }
 
 export default function GlobalHeader({
@@ -18,10 +19,10 @@ export default function GlobalHeader({
   projectId,
   dateRange,
   onDateRangeChange,
-  userRole = 'USER' // Default Fallback
+  userRole = 'USER',
+  userEmail = '' // ✅ NEU: Default
 }: GlobalHeaderProps) {
 
-  // Prüfung: Ist der User ein Admin?
   const isAdmin = userRole === 'ADMIN' || userRole === 'SUPERADMIN';
 
   return (
@@ -42,19 +43,21 @@ export default function GlobalHeader({
                  {domain || 'Projekt Dashboard'}
                </h1>
                
-               {/* ✅ NEU: Badge "Betreut durch..." */}
-               <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-gradient-to-r from-emerald-50 to-teal-50 text-emerald-700 border border-emerald-100/80 shadow-sm">
-                  <span className="relative flex h-1.5 w-1.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
-                  </span>
-                  Betreut durch Designare
-               </div>
+               {/* ✅ KORRIGIERT: Dynamische E-Mail statt statischem Text */}
+               {userEmail && (
+                 <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-gradient-to-r from-emerald-50 to-teal-50 text-emerald-700 border border-emerald-100/80 shadow-sm">
+                    <span className="relative flex h-1.5 w-1.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                    </span>
+                    Betreut durch: {userEmail}
+                 </div>
+               )}
              </div>
 
              <div className="flex flex-col gap-1">
                
-               {/* ✅ LOGIK: ID nur anzeigen, wenn Admin */}
+               {/* ID nur für Admins sichtbar */}
                {isAdmin && projectId && (
                  <div className="flex items-center gap-1.5 animate-in fade-in duration-300">
                    <ShieldLock size={10} className="text-gray-400" />
