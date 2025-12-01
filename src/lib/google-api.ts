@@ -654,7 +654,8 @@ export async function getTopConvertingPages(
         metrics: [
           { name: 'conversions' },
           { name: 'sessions' },
-          { name: 'engagementRate' } // Wir holen die Rate bereits!
+          { name: 'engagementRate' }, 
+          { name: 'newUsers' } 
         ],
         // Wir sortieren primär nach Conversions, aber wir holen trotzdem alles
         orderBys: [
@@ -671,6 +672,7 @@ export async function getTopConvertingPages(
       const conversions = parseInt(row.metricValues?.[0]?.value || '0', 10);
       const sessions = parseInt(row.metricValues?.[1]?.value || '0', 10);
       const engagementRate = parseFloat(row.metricValues?.[2]?.value || '0'); // ✅ NEU: Auslesen
+      const newUsers = parseInt(row.metricValues?.[3]?.value || '0', 10); // ✅ NEU
 
       // Conversion Rate berechnen
       const convRate = sessions > 0 ? ((conversions / sessions) * 100).toFixed(2) : '0';
@@ -679,6 +681,7 @@ export async function getTopConvertingPages(
         path: row.dimensionValues?.[0]?.value || '(not set)',
         conversions,
         sessions,
+        newUsers, // ✅ NEU
         conversionRate: convRate, // Achtung: Hier ggf. Typ anpassen in Interface, wir senden hier String, Loader macht Number draus
         engagementRate: parseFloat((engagementRate * 100).toFixed(2)) // ✅ NEU: Als saubere Prozentzahl (z.B. 55.5)
       };
