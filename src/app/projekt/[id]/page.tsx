@@ -14,11 +14,12 @@ import { DashboardSkeleton } from '@/components/skeletons/DashboardSkeleton';
 interface ExtendedUser extends User {
   assigned_admins?: string;
   creator_email?: string;
-  settings_show_landingpages?: boolean;
+  // ❌ GELÖSCHT: settings_show_landingpages?: boolean; 
+  // (Es wird jetzt automatisch korrekt aus 'User' geerbt)
 }
 
 async function loadData(projectId: string, dateRange: string) {
-  // ✅ UPDATE: Komplexe Query mit JOINs für Admin-Daten (wie in der Projekt-Übersicht)
+  // Komplexe Query mit JOINs für Admin-Daten
   const { rows } = await sql`
     SELECT
       u.id::text as id, 
@@ -95,10 +96,7 @@ export default async function ProjectPage({
 
   const { projectUser, dashboardData } = data;
 
-  // ✅ LOGIK: Ermittle die richtige Betreuer-E-Mail
-  // 1. Priorität: Zugewiesene Admins
-  // 2. Priorität: Ersteller des Projekts
-  // 3. Fallback: Leerer String (Badge wird ausgeblendet)
+  // LOGIK: Ermittle die richtige Betreuer-E-Mail
   const supportEmail = projectUser.assigned_admins || projectUser.creator_email || '';
 
   return (
@@ -118,7 +116,8 @@ export default async function ProjectPage({
         deviceData={dashboardData.deviceData}
         
         userRole={session.user.role}
-        supportEmail={supportEmail} // ✅ Dynamische Admin-Mail übergeben
+        supportEmail={supportEmail} 
+        // Hier greifen wir auf das geerbte Feld zu
         showLandingPagesToCustomer={projectUser.settings_show_landingpages ?? false}
       />
     </Suspense>
