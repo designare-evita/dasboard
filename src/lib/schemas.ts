@@ -32,6 +32,9 @@ export const UserSchema = z.object({
   project_start_date: z.date().nullable().optional(), // Postgres Date objekt
   project_duration_months: z.number().nullable().optional(),
   createdAt: z.date().nullable().optional(),
+  
+  // Einstellungen
+  settings_show_landingpages: z.boolean().nullable().optional().default(false),
 });
 
 // Schema für die Projekt-Übersicht (User + KPIs)
