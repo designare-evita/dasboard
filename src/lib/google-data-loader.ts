@@ -173,7 +173,9 @@ try {
           conversionRate: typeof p.conversionRate === 'string' 
             ? parseFloat(p.conversionRate) 
             : Number(p.conversionRate),
-          engagementRate: p.engagementRate // ✅ NEU: Einfach durchreichen
+          engagementRate: p.engagementRate, // ✅ NEU: Einfach durchreichen
+          sessions: p.sessions, // ✅ NEU: Durchreichen
+          newUsers: p.newUsers  // ✅ NEU: Durchreichen
         }));
       } catch (e) {
         console.warn('[GA4] Konnte Top-Pages nicht laden:', e);
