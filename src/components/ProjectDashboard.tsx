@@ -161,6 +161,7 @@ export default function ProjectDashboard({
           projectId={projectId}
           dateRange={dateRange}
           onDateRangeChange={handleDateRangeChange}
+          userRole={userRole} // ✅ HIER EINFÜGEN: Rolle übergeben
         />
         
         {/* TIMELINE WIDGET */}
