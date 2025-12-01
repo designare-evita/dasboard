@@ -1,4 +1,4 @@
- // src/components/ProjectDashboard.tsx
+// src/components/ProjectDashboard.tsx
 'use client';
 
 import { useState } from 'react';
@@ -24,6 +24,9 @@ import GlobalHeader from '@/components/GlobalHeader';
 import ProjectTimelineWidget from '@/components/ProjectTimelineWidget'; 
 import AiAnalysisWidget from '@/components/AiAnalysisWidget';
 import CacheRefreshButton from '@/components/CacheRefreshButton';
+
+// ✅ NEU: Import der Landingpage Chart
+import LandingPageChart from '@/components/charts/LandingPageChart';
 
 interface ProjectDashboardProps {
   data: ProjectDashboardData;
@@ -184,6 +187,16 @@ export default function ProjectDashboard({
               error={apiErrors?.gsc}
             />
           </div>
+        </div>
+
+        {/* ✅ NEU: TOP LANDINGPAGES (Horizontal Chart) */}
+        {/* Wir fügen dies direkt NACH dem Traffic Grid ein */}
+        <div className="mt-6 print-landing-chart">
+           <LandingPageChart 
+             data={data.topConvertingPages} 
+             isLoading={isLoading}
+             title="Top Landingpages (Conversions & Engagement)" 
+           />
         </div>
 
         {/* PIE CHARTS: Channel → Country → Device */}
