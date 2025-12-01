@@ -1,4 +1,3 @@
-// src/components/charts/LandingPageChart.tsx
 'use client';
 
 import React from 'react';
@@ -21,101 +20,107 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
     return <div className="h-[400px] w-full bg-gray-50 rounded-xl flex items-center justify-center text-gray-400">Keine Daten verfügbar</div>;
   }
 
+  // ✅ Debug: Daten in Konsole ausgeben
+  console.log('[LandingPageChart] Rohdaten:', data);
+  console.log('[LandingPageChart] Erstes Objekt:', data[0]);
+  console.log('[LandingPageChart] Keys:', data[0] ? Object.keys(data[0]) : 'keine Daten');
+
   // ✅ Sortiere nach Neuen Nutzern und filtere ungültige Einträge
   const sortedData = [...data]
     .filter(item => item.newUsers !== undefined && item.newUsers !== null) // Nur valide Daten
     .sort((a, b) => (b.newUsers || 0) - (a.newUsers || 0))
     .slice(0, 10); // Top 10
 
-  // Max-Werte für die Berechnung der Balken-Länge (damit der größte Balken 100% füllt)
-  const maxNewUsers = Math.max(...sortedData.map(d => d.newUsers || 0), 1);
-  const maxSessions = Math.max(...sortedData.map(d => d.sessions || 0), 1);
-  // Engagement und Conversions sind oft kleiner, daher eigene Skalierung oder fix 100% wenn es Raten sind
-  // Hier nehmen wir an, dass Engagement eine Rate (0-100) ist.
-  // Conversions sind absolute Zahlen, also auch max-basiert.
-  const maxConversions = Math.max(...sortedData.map(d => d.conversions || 0), 1);
+  console.log('[LandingPageChart] Sortierte Daten:', sortedData);
+  console.log('[LandingPageChart] Anzahl sortierter Einträge:', sortedData.length);
+
+  // ✅ Fallback wenn keine validen Daten
+  if (sortedData.length === 0) {
+    return (
+      <div className="h-[400px] w-full bg-gray-50 rounded-xl flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-gray-400 mb-2">Keine validen Landing Page Daten</p>
+          <p className="text-xs text-gray-300">newUsers oder sessions fehlen in den Daten</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="w-full bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-      <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-          <FileEarmarkText className="text-indigo-500" />
-          {title}
+    <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-[18px] font-semibold text-gray-900 flex items-center gap-2">
+          <FileEarmarkText className="text-indigo-500" size={18} />
+          Top Landingpages (Conversions & Interaktion)
         </h3>
       </div>
 
-      <div className="space-y-6">
-        {sortedData.map((item, index) => {
-          // Prozentuale Breite berechnen
-          const percentNewUsers = ((item.newUsers || 0) / maxNewUsers) * 100;
-          const percentSessions = ((item.sessions || 0) / maxSessions) * 100;
-          const percentEngagement = item.engagementRate || 0; // Ist meist schon Prozent
-          const percentConversions = ((item.conversions || 0) / maxConversions) * 100;
-
+      {/* Kompakte Stacked Bar Visualisierung */}
+      <div className="space-y-2.5">
+        {sortedData.map((page, i) => {
+          // Berechne Breiten basierend auf Metriken
+          const maxValue = Math.max(...sortedData.map(p => (p.sessions || 0) + (p.conversions || 0) * 10));
+          const newUsersWidth = ((page.newUsers || 0) / maxValue) * 100;
+          const sessionsWidth = (((page.sessions || 0) - (page.newUsers || 0)) / maxValue) * 100;
+          const engagementWidth = ((page.engagementRate || 0) / 100) * 15; // Max 15% Breite
+          const conversionWidth = ((page.conversions || 0) / maxValue) * 100 * 10;
+          
           return (
-            <div key={index} className="flex flex-col gap-2">
-              {/* Titel & Pfad */}
-              <div className="flex justify-between items-end text-xs">
-                 <span className="font-medium text-gray-700 truncate max-w-[70%]" title={item.path}>
-                    {index + 1}. {item.path}
-                 </span>
-              </div>
-
-              {/* Balken-Container */}
-              <div className="flex flex-col gap-1 w-full bg-gray-50 rounded-lg p-1.5 border border-gray-100">
+            <div key={i} className="group">
+              {/* Stacked Bar mit allen Daten drin */}
+              <div className="h-9 flex rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow relative">
                 
-                {/* 1. Neue Besucher (Blau) */}
-                <div className="w-full h-5 bg-gray-200 rounded overflow-hidden relative">
-                    <div
-                      className="h-full bg-[#188BDB] rounded relative group transition-all duration-300 hover:brightness-110"
-                      style={{ width: `${Math.max(percentNewUsers, 1)}%` }} // Mindestens 1% Breite
-                    >
-                      {/* ÄNDERUNG: justify-start pl-2 (Linksbündig) */}
-                      <span className="absolute inset-0 flex items-center justify-start pl-2 text-[10px] text-white font-medium opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10 drop-shadow-md">
-                        {item.newUsers?.toLocaleString('de-DE')} Neue Besucher
-                      </span>
-                    </div>
+                {/* Segment 1: Rank & Page */}
+                <div className="bg-gray-700 flex items-center px-3 gap-2 flex-shrink-0" style={{ minWidth: '200px' }}>
+                  <span className="text-[10px] font-black text-gray-400">#{i+1}</span>
+                  <span className="text-[14px] font-medium text-white truncate" title={page.path}>
+                    {page.path}
+                  </span>
                 </div>
-
-                {/* 2. Total Sessions (Teal) */}
-                <div className="w-full h-5 bg-gray-200 rounded overflow-hidden relative">
-                    <div
-                      className="h-full bg-teal-600 rounded relative group transition-all duration-300 hover:brightness-110"
-                      style={{ width: `${Math.max(percentSessions, 1)}%` }}
-                    >
-                       {/* ÄNDERUNG: justify-start pl-2 */}
-                       <span className="absolute inset-0 flex items-center justify-start pl-2 text-[10px] text-white font-medium opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10 drop-shadow-md">
-                        {item.sessions?.toLocaleString('de-DE')} Sessions
-                      </span>
-                    </div>
+                
+                {/* Segment 2: Neue Besucher */}
+                <div 
+                  className="flex items-center justify-center px-2"
+                  style={{ minWidth: '130px', flex: `0 0 ${Math.max(newUsersWidth, 10)}%`, backgroundColor: '#188BDB' }}
+                >
+                  <span className="text-[14px] font-bold text-white whitespace-nowrap">
+                    {page.newUsers || 0} Neue Besucher
+                  </span>
                 </div>
-
-                {/* 3. Interaktionsrate (Emerald) */}
-                <div className="w-full h-5 bg-gray-200 rounded overflow-hidden relative">
-                    <div
-                      className="h-full bg-emerald-500 rounded relative group transition-all duration-300 hover:brightness-110"
-                      style={{ width: `${Math.max(percentEngagement, 1)}%` }}
-                    >
-                       {/* ÄNDERUNG: justify-start pl-2 */}
-                       <span className="absolute inset-0 flex items-center justify-start pl-2 text-[10px] text-white font-medium opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10 drop-shadow-md">
-                        ⚡ {item.engagementRate?.toFixed(2)}% Rate
-                      </span>
-                    </div>
+                
+                {/* Segment 3: Total Sessions */}
+                <div 
+                  className="bg-teal-600 flex items-center justify-center px-2"
+                  style={{ minWidth: '130px', flex: `0 0 ${Math.max(sessionsWidth, 12)}%` }}
+                >
+                  <span className="text-[14px] font-bold text-white whitespace-nowrap">
+                    {page.sessions || 0} Total Sessions
+                  </span>
                 </div>
-
-                 {/* 4. Conversions (Violett) */}
-                 <div className="w-full h-5 bg-gray-200 rounded overflow-hidden relative">
-                    <div
-                      className="h-full bg-violet-500 rounded relative group transition-all duration-300 hover:brightness-110"
-                      style={{ width: `${Math.max(percentConversions, 1)}%` }}
-                    >
-                       {/* ÄNDERUNG: justify-start pl-2 */}
-                       <span className="absolute inset-0 flex items-center justify-start pl-2 text-[10px] text-white font-medium opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10 drop-shadow-md">
-                        {item.conversions} ★ Conversions
-                      </span>
-                    </div>
-                 </div>
-
+                
+                {/* Segment 4: Interaktionsrate */}
+                <div 
+                  className={`flex items-center justify-center px-2 ${
+                    (page.engagementRate || 0) > 60 ? 'bg-emerald-500' : 
+                    (page.engagementRate || 0) > 40 ? 'bg-blue-500' : 
+                    'bg-gray-400'
+                  }`}
+                  style={{ minWidth: '95px', flex: `0 0 ${Math.max(engagementWidth, 12)}%` }}
+                >
+                  <span className="text-[14px] font-bold text-white whitespace-nowrap">
+                    ⚡ {(page.engagementRate || 0).toFixed(2)}%
+                  </span>
+                </div>
+                
+                {/* Segment 5: Conversions */}
+                <div 
+                  className="bg-amber-500 flex items-center justify-center px-2"
+                  style={{ minWidth: '80px', flex: `0 0 ${Math.max(conversionWidth, 10)}%` }}
+                >
+                  <span className="text-[14px] font-bold text-white whitespace-nowrap">
+                    {page.conversions || 0} ★
+                  </span>
+                </div>
               </div>
             </div>
           );
@@ -131,6 +136,10 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
       {/* Legende */}
       <div className="flex flex-wrap items-center gap-4 mt-4 pt-3 border-t border-gray-100 text-[10px]">
         <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded bg-gray-700"></div>
+          <span className="text-gray-600 font-medium">Seite</span>
+        </div>
+        <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded" style={{ backgroundColor: '#188BDB' }}></div>
           <span className="text-gray-600 font-medium">Neue Besucher</span>
         </div>
@@ -143,7 +152,7 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
           <span className="text-gray-600 font-medium">Interaktionsrate</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded bg-violet-500"></div>
+          <div className="w-3 h-3 rounded bg-amber-500"></div>
           <span className="text-gray-600 font-medium">Conversions</span>
         </div>
       </div>
