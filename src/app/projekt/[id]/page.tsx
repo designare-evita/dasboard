@@ -19,7 +19,8 @@ async function loadData(projectId: string, dateRange: string) {
       id::text as id, email, role, domain,
       gsc_site_url, ga4_property_id,
       semrush_project_id, semrush_tracking_id, semrush_tracking_id_02,
-      favicon_url, project_timeline_active, project_start_date, project_duration_months
+      favicon_url, project_timeline_active, project_start_date, project_duration_months,
+      settings_show_landingpages -- ✅ NEU: Einstellung laden
     FROM users
     WHERE id::text = ${projectId}
   `;
@@ -89,6 +90,10 @@ export default async function ProjectPage({
         countryData={dashboardData.countryData}
         channelData={dashboardData.channelData}
         deviceData={dashboardData.deviceData}
+        
+        // ✅ NEU: Props für Admin-Steuerung
+        userRole={session.user.role}
+        showLandingPagesToCustomer={projectUser.settings_show_landingpages ?? false}
       />
     </Suspense>
   );
