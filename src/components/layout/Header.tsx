@@ -16,7 +16,8 @@ import {
   ShieldLock, 
   Speedometer2, 
   BoxArrowRight, 
-  BoxArrowInRight 
+  BoxArrowInRight,
+  HddNetwork // ✅ NEU: Icon für System
 } from 'react-bootstrap-icons';
 
 export default function Header() {
@@ -25,10 +26,12 @@ export default function Header() {
   
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
+  // Rollen-Checks
   const isAdmin = session?.user?.role === 'ADMIN' || session?.user?.role === 'SUPERADMIN'; 
+  const isSuperAdmin = session?.user?.role === 'SUPERADMIN'; // ✅ NEU
   const isUser = session?.user?.role === 'BENUTZER'; 
 
-  // ✅ Logo-Logik
+  // Logo-Logik
   const defaultLogo = "/logo-data-peak.webp";
   const logoSrc = session?.user?.logo_url || defaultLogo;
   const priorityLoad = logoSrc === defaultLogo;
@@ -42,153 +45,160 @@ export default function Header() {
   };
 
   return (
-    <header className="bg-white shadow-md relative">
+    <header className="bg-white shadow-md relative z-50">
       <nav className="w-full px-6 py-3 flex justify-between items-center">
-
-        {/* Linke Seite: Logo und Begrüßung */}
-        <div className="flex items-center space-x-4">
-          <Link href="/" onClick={handleLinkClick}>
-            <div className="relative h-[45px] w-[180px]">
-              <Image
-                src={logoSrc}
-                alt="Dashboard Logo"
-                fill
+        
+        {/* LOGO BEREICH */}
+        <div className="flex items-center gap-4">
+          <Link href="/" className="flex items-center gap-2 transition-opacity hover:opacity-80">
+            <div className="relative h-10 w-auto aspect-[3/1]">
+              <Image 
+                src={logoSrc} 
+                alt="Logo" 
+                width={120} 
+                height={40} 
+                className="object-contain object-left"
                 priority={priorityLoad}
-                onError={(e) => { 
-                  if (logoSrc !== defaultLogo) {
-                    (e.target as HTMLImageElement).src = defaultLogo;
-                  }
-                }}
-                className="object-contain"
-                sizes="180px"
               />
             </div>
           </Link>
-
-          {status === 'authenticated' && (
-            <>
-              <span className="text-gray-600 underline underline-offset-6 hidden md:block">
-                Hallo, {session.user?.name ?? session.user?.email}
-              </span>
-            </>
-          )}
         </div>
 
-        {/* Rechte Seite (Desktop) */}
-        <div className="hidden md:flex items-center space-x-4">
-          {status === 'authenticated' && (
-            <>
-              <NotificationBell />
-              {isAdmin && (
-                <Link href="/" passHref>
-                  <Button variant={pathname === '/' ? 'default' : 'outline'} className="gap-2">
-                    <Briefcase size={16} />
-                    Projekte
-                  </Button>
-                </Link>
-              )}
-              {isAdmin && (
-                <Link href="/admin/redaktionsplan" passHref>
-                  <Button variant={pathname === '/admin/redaktionsplan' ? 'default' : 'outline'} className="gap-2">
-                    <CalendarCheck size={16} />
-                    Redaktionspläne
-                  </Button>
-                </Link>
-              )}
-              {isAdmin && (
-                <Link href="/admin" passHref>
-                  <Button variant={pathname === '/admin' ? 'default' : 'outline'} className="gap-2">
-                    <ShieldLock size={16} />
-                    Admin-Bereich
-                  </Button>
-                </Link>
-              )}
-              {isUser && (
-                <Link href="/" passHref>
-                  <Button variant={pathname === '/' ? 'default' : 'outline'} className="gap-2">
-                    <Speedometer2 size={16} />
-                    Dashboard
-                  </Button>
-                </Link>
-              )}
-              {isUser && (
-                <Link href="/dashboard/freigabe" passHref>
-                  <Button variant={pathname === '/dashboard/freigabe' ? 'default' : 'outline'} className="gap-2">
-                    <CalendarCheck size={16} />
-                    Redaktionsplan
-                  </Button>
-                </Link>
-              )}
-              <Button variant="outline" onClick={() => signOut({ callbackUrl: '/login' })} className="gap-2">
-                <BoxArrowRight size={16} />
-                Abmelden
-              </Button>
-            </>
-          )}
-          {status === 'unauthenticated' && (
-             <Link href="/login" passHref>
-               <Button variant="default" className="gap-2">
-                 <BoxArrowInRight size={16} />
-                 Anmelden
-               </Button>
-             </Link>
-          )}
-        </div>
-
-        {/* Hamburger-Button (Mobilgeräte) */}
-        <div className="md:hidden flex items-center">
-          {status === 'authenticated' && <NotificationBell />}
+        {/* DESKTOP NAVIGATION */}
+        <div className="hidden md:flex items-center gap-3">
           
-          <button
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="text-gray-600 hover:text-gray-900 p-2 ml-2"
-            aria-label="Menü umschalten"
+          {/* Admin Links */}
+          {isAdmin && (
+            <>
+              <Link href="/" passHref>
+                <Button variant={pathname === '/' ? 'default' : 'ghost'} className="gap-2">
+                  <Briefcase size={16} />
+                  <span className="hidden lg:inline">Projekte</span>
+                </Button>
+              </Link>
+              <Link href="/admin/redaktionsplan" passHref>
+                <Button variant={pathname.startsWith('/admin/redaktionsplan') ? 'default' : 'ghost'} className="gap-2">
+                  <CalendarCheck size={16} />
+                  <span className="hidden lg:inline">Redaktionspläne</span>
+                </Button>
+              </Link>
+              <Link href="/admin" passHref>
+                <Button variant={pathname === '/admin' ? 'default' : 'ghost'} className="gap-2">
+                  <ShieldLock size={16} />
+                  <span className="hidden lg:inline">Admin</span>
+                </Button>
+              </Link>
+            </>
+          )}
+
+          {/* User Links */}
+          {isUser && (
+            <>
+              <Link href="/" passHref>
+                <Button variant={pathname === '/' ? 'default' : 'ghost'} className="gap-2">
+                  <Speedometer2 size={16} />
+                  <span className="hidden lg:inline">Dashboard</span>
+                </Button>
+              </Link>
+              <Link href="/dashboard/freigabe" passHref>
+                <Button variant={pathname === '/dashboard/freigabe' ? 'default' : 'ghost'} className="gap-2">
+                  <CalendarCheck size={16} />
+                  <span className="hidden lg:inline">Redaktionsplan</span>
+                </Button>
+              </Link>
+            </>
+          )}
+
+          <div className="h-6 w-px bg-gray-200 mx-1"></div>
+
+          {/* ✅ NEU: SYSTEM STATUS BUTTON (Nur Superadmin) */}
+          {isSuperAdmin && (
+            <Link href="/admin/system" passHref>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className={`text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 ${pathname === '/admin/system' ? 'bg-indigo-50 text-indigo-600' : ''}`}
+                title="System Status & Cache"
+              >
+                <HddNetwork size={18} />
+              </Button>
+            </Link>
+          )}
+
+          {/* Notification Bell */}
+          <NotificationBell />
+
+          {/* Logout */}
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={() => signOut({ callbackUrl: '/login' })}
+            className="text-gray-500 hover:text-red-600 hover:bg-red-50"
+            title="Abmelden"
           >
-            {isMobileMenuOpen ? <X size={28} /> : <List size={28} />}
+            <BoxArrowRight size={18} />
+          </Button>
+        </div>
+
+        {/* MOBILE MENU BUTTON */}
+        <div className="md:hidden flex items-center gap-4">
+          <NotificationBell />
+          <button 
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            {isMobileMenuOpen ? <X size={24} /> : <List size={24} />}
           </button>
         </div>
       </nav>
 
-      {/* Mobiles Dropdown-Menü */}
-      {isMobileMenuOpen && status === 'authenticated' && (
-        <div 
-          className="md:hidden absolute top-full left-0 w-full bg-white shadow-lg border-t border-gray-100 z-50"
-          onClick={handleLinkClick}
-        >
-          <div className="flex flex-col space-y-2 p-4">
+      {/* MOBILE MENU DROPDOWN */}
+      {isMobileMenuOpen && (
+        <div className="md:hidden absolute top-full left-0 right-0 bg-white border-t border-gray-100 shadow-lg p-4 animate-in slide-in-from-top-2">
+          <div className="flex flex-col gap-2">
             
             {isAdmin && (
               <>
-                <Link href="/" passHref>
+                <Link href="/" passHref onClick={handleLinkClick}>
                   <Button variant={pathname === '/' ? 'default' : 'outline'} className="w-full justify-start gap-2">
                     <Briefcase size={16} />
-                    Projekte
+                    Projekte Übersicht
                   </Button>
                 </Link>
-                <Link href="/admin/redaktionsplan" passHref>
-                  <Button variant={pathname === '/admin/redaktionsplan' ? 'default' : 'outline'} className="w-full justify-start gap-2">
+                <Link href="/admin/redaktionsplan" passHref onClick={handleLinkClick}>
+                  <Button variant={pathname.startsWith('/admin/redaktionsplan') ? 'default' : 'outline'} className="w-full justify-start gap-2">
                     <CalendarCheck size={16} />
                     Redaktionspläne
                   </Button>
                 </Link>
-                <Link href="/admin" passHref>
+                <Link href="/admin" passHref onClick={handleLinkClick}>
                   <Button variant={pathname === '/admin' ? 'default' : 'outline'} className="w-full justify-start gap-2">
                     <ShieldLock size={16} />
                     Admin-Bereich
                   </Button>
                 </Link>
+                
+                {/* ✅ NEU: Mobile System Link */}
+                {isSuperAdmin && (
+                  <Link href="/admin/system" passHref onClick={handleLinkClick}>
+                    <Button variant={pathname === '/admin/system' ? 'default' : 'outline'} className="w-full justify-start gap-2 text-indigo-700 border-indigo-200 bg-indigo-50">
+                      <HddNetwork size={16} />
+                      System Status
+                    </Button>
+                  </Link>
+                )}
               </>
             )}
 
             {isUser && (
               <>
-                <Link href="/" passHref>
+                <Link href="/" passHref onClick={handleLinkClick}>
                   <Button variant={pathname === '/' ? 'default' : 'outline'} className="w-full justify-start gap-2">
                     <Speedometer2 size={16} />
                     Dashboard
                   </Button>
                 </Link>
-                <Link href="/dashboard/freigabe" passHref>
+                <Link href="/dashboard/freigabe" passHref onClick={handleLinkClick}>
                   <Button variant={pathname === '/dashboard/freigabe' ? 'default' : 'outline'} className="w-full justify-start gap-2">
                     <CalendarCheck size={16} />
                     Redaktionsplan
@@ -199,7 +209,7 @@ export default function Header() {
             
             <hr className="my-2" />
 
-            <Button variant="outline" className="w-full justify-start gap-2" onClick={() => signOut({ callbackUrl: '/login' })}>
+            <Button variant="outline" className="w-full justify-start gap-2 text-red-600 hover:bg-red-50 hover:border-red-200" onClick={() => signOut({ callbackUrl: '/login' })}>
               <BoxArrowRight size={16} />
               Abmelden
             </Button>
