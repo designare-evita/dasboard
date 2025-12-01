@@ -57,6 +57,8 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
 
   // ✅ Debug: Daten in Konsole ausgeben
   console.log('[LandingPageChart] Rohdaten:', data);
+  console.log('[LandingPageChart] Erstes Objekt:', data[0]);
+  console.log('[LandingPageChart] Keys:', data[0] ? Object.keys(data[0]) : 'keine Daten');
 
   // ✅ Sortiere nach Neuen Nutzern und filtere ungültige Einträge
   const sortedData = [...data]
@@ -65,6 +67,7 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
     .slice(0, 7);
 
   console.log('[LandingPageChart] Sortierte Daten:', sortedData);
+  console.log('[LandingPageChart] Anzahl sortierter Einträge:', sortedData.length);
 
   // ✅ Fallback wenn keine validen Daten
   if (sortedData.length === 0) {
@@ -90,13 +93,13 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
         </div>
       </div>
 
-      <div className="flex-grow w-full min-h-[300px]">
+      <div className="flex-grow w-full" style={{ minHeight: '350px', height: '350px' }}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             layout="vertical"
             data={sortedData}
             margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
-            barSize={24} // Schlankere Balken
+            barSize={28}
           >
             <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
             
@@ -104,20 +107,24 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
             <YAxis 
               dataKey="path" 
               type="category" 
-              width={140}
+              width={150}
               tick={{ fontSize: 11, fill: '#6b7280' }}
-              tickFormatter={(value) => truncatePath(value)}
+              tickFormatter={(value) => truncatePath(value, 35)}
             />
             
             {/* X-Achse (Neue Nutzer) */}
-            <XAxis type="number" hide />
+            <XAxis 
+              type="number" 
+              tick={{ fontSize: 10, fill: '#9ca3af' }}
+              tickFormatter={(value) => `${value}`}
+            />
 
             <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f3f4f6' }} />
 
             {/* Balken für Neue Nutzer */}
-            <Bar dataKey="newUsers" radius={[0, 4, 4, 0]}>
+            <Bar dataKey="newUsers" radius={[0, 6, 6, 0]} fill="#6366f1">
               {sortedData.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill="#6366f1" /> // Indigo
+                <Cell key={`cell-${index}`} fill="#6366f1" />
               ))}
             </Bar>
           </BarChart>
