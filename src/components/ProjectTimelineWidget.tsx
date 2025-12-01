@@ -275,6 +275,39 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
             </div>
           </div>
 
+          {/* NEU: KI Trend & GSC Trend Icons mit Zahlen und Change Badge */}
+          <div className="grid grid-cols-2 gap-3 pt-2">
+            {/* GSC Summary */}
+            <div className="bg-blue-50/50 rounded-xl p-3 border border-blue-100 shadow-sm">
+               <div className="flex items-center gap-2 mb-2 text-blue-600">
+                  <Search size={14} />
+                  <span className="text-xs font-bold uppercase tracking-wide opacity-80">GSC Impr.</span>
+               </div>
+               <div className="flex items-end gap-2">
+                  <div className="mb-1"><TrendIcon direction={gscTrend} colorClass="text-blue-600" /></div>
+                  <span className="text-xl font-bold text-gray-900 leading-none">
+                    {new Intl.NumberFormat('de-DE', { notation: 'compact', maximumFractionDigits: 1 }).format(totalGscImpressions)}
+                  </span>
+                  <ChangeBadge change={gscChangePercent} />
+               </div>
+            </div>
+
+            {/* KI Summary */}
+            <div className="bg-purple-50/50 rounded-xl p-3 border border-purple-100 shadow-sm">
+               <div className="flex items-center gap-2 mb-2 text-purple-600">
+                  <Cpu size={14} />
+                  <span className="text-xs font-bold uppercase tracking-wide opacity-80">KI Traffic</span>
+               </div>
+               <div className="flex items-end gap-2">
+                  <div className="mb-1"><TrendIcon direction={aiTrend} colorClass="text-purple-600" /></div>
+                  <span className="text-xl font-bold text-gray-900 leading-none">
+                    {new Intl.NumberFormat('de-DE', { notation: 'compact', maximumFractionDigits: 1 }).format(totalAiSessions)}
+                  </span>
+                  <ChangeBadge change={aiChangePercent} />
+               </div>
+            </div>
+          </div>
+
         </div>
 
         {/* SPALTE 2: Top Movers */}
@@ -306,39 +339,6 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
           ) : (
             <div className="flex-grow flex items-center justify-center text-gray-400 text-xs italic border border-dashed border-gray-200 rounded-lg bg-gray-50">Keine Daten</div>
           )}
-        </div>
-
-        {/* NEU: KI Trend & GSC Trend Icons mit Zahlen und Change Badge - ÜBER Zeitachse */}
-        <div className="grid grid-cols-2 gap-3 pb-6 lg:px-6">
-          {/* GSC Summary */}
-          <div className="bg-blue-50/50 rounded-xl p-3 border border-blue-100 shadow-sm">
-             <div className="flex items-center gap-2 mb-2 text-blue-600">
-                <Search size={14} />
-                <span className="text-xs font-bold uppercase tracking-wide opacity-80">GSC Impr.</span>
-             </div>
-             <div className="flex items-end gap-2">
-                <div className="mb-1"><TrendIcon direction={gscTrend} colorClass="text-blue-600" /></div>
-                <span className="text-xl font-bold text-gray-900 leading-none">
-                  {new Intl.NumberFormat('de-DE', { notation: 'compact', maximumFractionDigits: 1 }).format(totalGscImpressions)}
-                </span>
-                <ChangeBadge change={gscChangePercent} />
-             </div>
-          </div>
-
-          {/* KI Summary */}
-          <div className="bg-purple-50/50 rounded-xl p-3 border border-purple-100 shadow-sm">
-             <div className="flex items-center gap-2 mb-2 text-purple-600">
-                <Cpu size={14} />
-                <span className="text-xs font-bold uppercase tracking-wide opacity-80">KI Traffic</span>
-             </div>
-             <div className="flex items-end gap-2">
-                <div className="mb-1"><TrendIcon direction={aiTrend} colorClass="text-purple-600" /></div>
-                <span className="text-xl font-bold text-gray-900 leading-none">
-                  {new Intl.NumberFormat('de-DE', { notation: 'compact', maximumFractionDigits: 1 }).format(totalAiSessions)}
-                </span>
-                <ChangeBadge change={aiChangePercent} />
-             </div>
-          </div>
         </div>
 
         {/* SPALTE 3: Reichweite Chart */}
