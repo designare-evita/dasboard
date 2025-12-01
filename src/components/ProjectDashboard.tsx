@@ -3,39 +3,30 @@
 
 import { useState } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
-import { Eye, EyeSlash } from 'react-bootstrap-icons'; // ✅ NEU: Icons für Schalter
+import { Eye, EyeSlash } from 'react-bootstrap-icons'; 
 import { 
   ProjectDashboardData, 
   ActiveKpi, 
   ChartEntry
 } from '@/lib/dashboard-shared';
 
-// Tableau-Komponenten
 import TableauKpiGrid from '@/components/TableauKpiGrid';
 import TableauPieChart from '@/components/charts/TableauPieChart';
-
 import KpiTrendChart from '@/components/charts/KpiTrendChart';
 import AiTrafficCard from '@/components/AiTrafficCard';
 import { type DateRangeOption } from '@/components/DateRangeSelector';
 import TopQueriesList from '@/components/TopQueriesList';
 import SemrushTopKeywords from '@/components/SemrushTopKeywords';
 import SemrushTopKeywords02 from '@/components/SemrushTopKeywords02';
-import DashboardHeader from '@/components/DashboardHeader'; // (Wird ggf. nicht mehr genutzt wenn GlobalHeader aktiv ist, aber Import bleibt sicherheitshalber)
 import GlobalHeader from '@/components/GlobalHeader';
 import ProjectTimelineWidget from '@/components/ProjectTimelineWidget'; 
 import AiAnalysisWidget from '@/components/AiAnalysisWidget';
-import CacheRefreshButton from '@/components/CacheRefreshButton';
-
-// Landingpage Chart
 import LandingPageChart from '@/components/charts/LandingPageChart';
 
 interface ProjectDashboardProps {
   data: ProjectDashboardData;
   isLoading: boolean;
   dateRange: DateRangeOption;
-  /** * Optional: Wird primär intern über Router gelöst, 
-   * kann aber für Callback-Logik genutzt werden.
-   */
   onDateRangeChange?: (range: DateRangeOption) => void;
   projectId?: string;
   domain?: string;
@@ -48,12 +39,12 @@ interface ProjectDashboardProps {
   channelData?: ChartEntry[];
   deviceData?: ChartEntry[];
   
-  // ✅ NEUE PROPS FÜR ADMIN STEUERUNG
+  // Props für Admin/User Steuerung
   userRole?: string; 
+  userEmail?: string; // ✅ NEU
   showLandingPagesToCustomer?: boolean; 
 }
 
-// Helper für KPI Normalisierung
 function safeKpi(kpi: any) {
   return kpi || { value: 0, change: 0 };
 }
@@ -71,8 +62,8 @@ export default function ProjectDashboard({
   projectTimelineActive = false,
   onPdfExport,
   
-  // ✅ Destructuring der neuen Props mit Defaults
   userRole = 'USER', 
+  userEmail = '', // ✅ NEU: Default
   showLandingPagesToCustomer = false, 
 }: ProjectDashboardProps) {
   
@@ -82,15 +73,13 @@ export default function ProjectDashboard({
 
   const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
 
-  // ✅ STATE für den Admin-Schalter
-  // Wir initialisieren den State mit dem Wert aus der Datenbank
+  // Admin Toggle State
   const [isLandingPagesVisible, setIsLandingPagesVisible] = useState(showLandingPagesToCustomer);
   const [isToggling, setIsToggling] = useState(false);
   
   const apiErrors = data.apiErrors;
   const kpis = data.kpis;
 
-  // Erstelle das erweiterte KPI Objekt für das Tableau Grid
   const extendedKpis = kpis ? {
     clicks: safeKpi(kpis.clicks),
     impressions: safeKpi(kpis.impressions),
@@ -103,7 +92,6 @@ export default function ProjectDashboard({
     avgEngagementTime: safeKpi(kpis.avgEngagementTime),
   } : undefined;
 
-  // Handler für Datumswechsel: Aktualisiert die URL Search Params
   const handleDateRangeChange = (range: DateRangeOption) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set('dateRange', range);
@@ -114,38 +102,29 @@ export default function ProjectDashboard({
     }
   };
 
-  // ✅ ADMIN LOGIK: Toggle Handler
   const toggleLandingPageVisibility = async () => {
     if (!projectId) return;
     
     const newValue = !isLandingPagesVisible;
-    setIsLandingPagesVisible(newValue); // Optimistisches Update für sofortiges Feedback
+    setIsLandingPagesVisible(newValue);
     setIsToggling(true);
 
     try {
-      // API Aufruf an unsere neue Route
       await fetch(`/api/projects/${projectId}/settings`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ showLandingPages: newValue }),
       });
-      // Kein weiteres Handeln nötig, Wert ist gespeichert
     } catch (error) {
-      console.error('Fehler beim Speichern der Einstellung:', error);
-      setIsLandingPagesVisible(!newValue); // Rollback bei Fehler
-      alert("Fehler beim Speichern. Bitte erneut versuchen.");
+      console.error('Fehler beim Speichern:', error);
+      setIsLandingPagesVisible(!newValue);
     } finally {
       setIsToggling(false);
     }
   };
 
-  // ✅ LOGIK: Wer darf was sehen?
   const isAdmin = userRole === 'ADMIN' || userRole === 'SUPERADMIN';
-  
-  // Chart rendern, wenn man Admin ist ODER wenn sie freigeschaltet ist
   const shouldRenderChart = isAdmin || isLandingPagesVisible;
-
-  // Konfigurationen prüfen
   const hasKampagne1Config = !!semrushTrackingId;
   const hasKampagne2Config = !!semrushTrackingId02;
   const hasSemrushConfig = hasKampagne1Config || hasKampagne2Config;
@@ -161,24 +140,25 @@ export default function ProjectDashboard({
           projectId={projectId}
           dateRange={dateRange}
           onDateRangeChange={handleDateRangeChange}
-          userRole={userRole} // ✅ HIER EINFÜGEN: Rolle übergeben
+          userRole={userRole}
+          userEmail={userEmail} // ✅ NEU: Weitergeben
         />
         
-        {/* TIMELINE WIDGET */}
+        {/* TIMELINE */}
         {projectId && projectTimelineActive && (
           <div className="mb-6 print-timeline">
             <ProjectTimelineWidget projectId={projectId} />
           </div>
         )}
 
-        {/* AI ANALYSE WIDGET */}
+        {/* AI ANALYSE */}
         {projectId && (
           <div className="mt-6 print:hidden">
             <AiAnalysisWidget projectId={projectId} dateRange={dateRange} />
           </div>
         )}
 
-        {/* TABLEAU KPI GRID */}
+        {/* KPI GRID */}
         <div className="mt-6 print-kpi-grid">
           {extendedKpis && (
             <TableauKpiGrid
@@ -200,7 +180,7 @@ export default function ProjectDashboard({
           />
         </div>
 
-        {/* AI TRAFFIC & TOP QUERIES */}
+        {/* TRAFFIC & QUERIES */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mt-6 print-traffic-grid">
           <div className="xl:col-span-1 print-ai-card">
             <AiTrafficCard 
@@ -232,26 +212,22 @@ export default function ProjectDashboard({
           </div>
         </div>
 
-        {/* ✅ LANDINGPAGE CHART MIT ADMIN SCHALTER */}
+        {/* LANDINGPAGE CHART MIT SCHALTER */}
         {shouldRenderChart && (
           <div className={`mt-6 transition-all duration-300 ${!isLandingPagesVisible && isAdmin ? 'opacity-70 grayscale-[0.5]' : ''}`}>
             
-            {/* ADMIN CONTROLS: Nur für Admins sichtbar */}
             {isAdmin && (
                <div className="flex items-center justify-end mb-2 print:hidden">
                  <div className="bg-white/90 backdrop-blur-sm border border-gray-200 rounded-lg p-1.5 flex items-center gap-3 shadow-sm">
                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider pl-1 select-none">
                      Kundensicht
                    </span>
-                   
-                   {/* Toggle Button */}
                    <button
                      onClick={toggleLandingPageVisibility}
                      disabled={isToggling}
                      className={`
-                       relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2
+                       relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none
                        ${isLandingPagesVisible ? 'bg-emerald-500' : 'bg-gray-300'}
-                       ${isToggling ? 'opacity-50 cursor-wait' : ''}
                      `}
                    >
                      <span
@@ -262,8 +238,6 @@ export default function ProjectDashboard({
                        `}
                      />
                    </button>
-                   
-                   {/* Status Text */}
                    <div className="text-xs w-20 text-center font-medium text-gray-700 select-none">
                      {isLandingPagesVisible ? (
                        <span className="flex items-center justify-center gap-1.5 text-emerald-700"><Eye size={12}/> Sichtbar</span>
@@ -275,15 +249,12 @@ export default function ProjectDashboard({
                </div>
             )}
 
-            {/* DIE CHART */}
             <div className="print-landing-chart relative">
                <LandingPageChart 
                  data={data.topConvertingPages} 
                  isLoading={isLoading}
                  title="Top Landingpages (Conversions & Engagement)" 
                />
-               
-               {/* Overlay Hinweis für Admin, wenn ausgeblendet */}
                {!isLandingPagesVisible && isAdmin && (
                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                    <div className="bg-gray-900/10 backdrop-blur-[1px] px-4 py-2 rounded-lg border border-gray-900/20 text-gray-800 text-xs font-semibold shadow-sm">
@@ -295,44 +266,18 @@ export default function ProjectDashboard({
           </div>
         )}
 
-        {/* PIE CHARTS: Channel → Country → Device */}
+        {/* PIE CHARTS */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6 print-pie-grid">
-          
-          <TableauPieChart 
-            data={data.channelData} 
-            title="Zugriffe nach Channel"
-            isLoading={isLoading} 
-            error={apiErrors?.ga4}
-          />
-          
-          <TableauPieChart 
-            data={data.countryData} 
-            title="Zugriffe nach Land"
-            isLoading={isLoading} 
-            error={apiErrors?.ga4}
-          />
-          
-          <TableauPieChart 
-            data={data.deviceData} 
-            title="Zugriffe nach Endgerät"
-            isLoading={isLoading} 
-            error={apiErrors?.ga4}
-          />
+          <TableauPieChart data={data.channelData} title="Zugriffe nach Channel" isLoading={isLoading} error={apiErrors?.ga4} />
+          <TableauPieChart data={data.countryData} title="Zugriffe nach Land" isLoading={isLoading} error={apiErrors?.ga4} />
+          <TableauPieChart data={data.deviceData} title="Zugriffe nach Endgerät" isLoading={isLoading} error={apiErrors?.ga4} />
         </div>
         
-        {/* SEMRUSH KEYWORDS */}
+        {/* SEMRUSH */}
         {hasSemrushConfig && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6 print-semrush-grid">
-            {hasKampagne1Config && (
-              <div className="card-glass p-4 sm:p-6">
-                <SemrushTopKeywords projectId={projectId} />
-              </div>
-            )}
-            {hasKampagne2Config && (
-              <div className="card-glass p-4 sm:p-6">
-                <SemrushTopKeywords02 projectId={projectId} />
-              </div>
-            )}
+            {hasKampagne1Config && <div className="card-glass p-4 sm:p-6"><SemrushTopKeywords projectId={projectId} /></div>}
+            {hasKampagne2Config && <div className="card-glass p-4 sm:p-6"><SemrushTopKeywords02 projectId={projectId} /></div>}
           </div>
         )}
       </div>
