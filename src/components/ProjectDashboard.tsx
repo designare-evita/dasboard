@@ -3,13 +3,14 @@
 
 import { useState } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
+import { Eye, EyeSlash } from 'react-bootstrap-icons'; // ✅ NEU: Icons für Schalter
 import { 
   ProjectDashboardData, 
   ActiveKpi, 
   ChartEntry
 } from '@/lib/dashboard-shared';
 
-// ✅ Import von Tableau-Komponenten
+// Tableau-Komponenten
 import TableauKpiGrid from '@/components/TableauKpiGrid';
 import TableauPieChart from '@/components/charts/TableauPieChart';
 
@@ -19,13 +20,13 @@ import { type DateRangeOption } from '@/components/DateRangeSelector';
 import TopQueriesList from '@/components/TopQueriesList';
 import SemrushTopKeywords from '@/components/SemrushTopKeywords';
 import SemrushTopKeywords02 from '@/components/SemrushTopKeywords02';
-import DashboardHeader from '@/components/DashboardHeader';
+import DashboardHeader from '@/components/DashboardHeader'; // (Wird ggf. nicht mehr genutzt wenn GlobalHeader aktiv ist, aber Import bleibt sicherheitshalber)
 import GlobalHeader from '@/components/GlobalHeader';
 import ProjectTimelineWidget from '@/components/ProjectTimelineWidget'; 
 import AiAnalysisWidget from '@/components/AiAnalysisWidget';
 import CacheRefreshButton from '@/components/CacheRefreshButton';
 
-// ✅ NEU: Import der Landingpage Chart
+// Landingpage Chart
 import LandingPageChart from '@/components/charts/LandingPageChart';
 
 interface ProjectDashboardProps {
@@ -46,6 +47,10 @@ interface ProjectDashboardProps {
   countryData?: ChartEntry[];
   channelData?: ChartEntry[];
   deviceData?: ChartEntry[];
+  
+  // ✅ NEUE PROPS FÜR ADMIN STEUERUNG
+  userRole?: string; 
+  showLandingPagesToCustomer?: boolean; 
 }
 
 // Helper für KPI Normalisierung
@@ -57,7 +62,7 @@ export default function ProjectDashboard({
   data,
   isLoading,
   dateRange,
-  onDateRangeChange, // Wird hier destrukturiert, aber wir nutzen primär den Router
+  onDateRangeChange, 
   projectId,
   domain,
   faviconUrl,
@@ -65,6 +70,10 @@ export default function ProjectDashboard({
   semrushTrackingId02,
   projectTimelineActive = false,
   onPdfExport,
+  
+  // ✅ Destructuring der neuen Props mit Defaults
+  userRole = 'USER', 
+  showLandingPagesToCustomer = false, 
 }: ProjectDashboardProps) {
   
   const router = useRouter();
@@ -72,6 +81,11 @@ export default function ProjectDashboard({
   const searchParams = useSearchParams();
 
   const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
+
+  // ✅ STATE für den Admin-Schalter
+  // Wir initialisieren den State mit dem Wert aus der Datenbank
+  const [isLandingPagesVisible, setIsLandingPagesVisible] = useState(showLandingPagesToCustomer);
+  const [isToggling, setIsToggling] = useState(false);
   
   const apiErrors = data.apiErrors;
   const kpis = data.kpis;
@@ -91,16 +105,45 @@ export default function ProjectDashboard({
 
   // Handler für Datumswechsel: Aktualisiert die URL Search Params
   const handleDateRangeChange = (range: DateRangeOption) => {
-    // 1. URL aktualisieren (löst Reload in page.tsx aus)
     const params = new URLSearchParams(searchParams.toString());
     params.set('dateRange', range);
     router.push(`${pathname}?${params.toString()}`);
 
-    // 2. Optionalen externen Handler aufrufen (falls vorhanden)
     if (onDateRangeChange) {
       onDateRangeChange(range);
     }
   };
+
+  // ✅ ADMIN LOGIK: Toggle Handler
+  const toggleLandingPageVisibility = async () => {
+    if (!projectId) return;
+    
+    const newValue = !isLandingPagesVisible;
+    setIsLandingPagesVisible(newValue); // Optimistisches Update für sofortiges Feedback
+    setIsToggling(true);
+
+    try {
+      // API Aufruf an unsere neue Route
+      await fetch(`/api/projects/${projectId}/settings`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ showLandingPages: newValue }),
+      });
+      // Kein weiteres Handeln nötig, Wert ist gespeichert
+    } catch (error) {
+      console.error('Fehler beim Speichern der Einstellung:', error);
+      setIsLandingPagesVisible(!newValue); // Rollback bei Fehler
+      alert("Fehler beim Speichern. Bitte erneut versuchen.");
+    } finally {
+      setIsToggling(false);
+    }
+  };
+
+  // ✅ LOGIK: Wer darf was sehen?
+  const isAdmin = userRole === 'ADMIN' || userRole === 'SUPERADMIN';
+  
+  // Chart rendern, wenn man Admin ist ODER wenn sie freigeschaltet ist
+  const shouldRenderChart = isAdmin || isLandingPagesVisible;
 
   // Konfigurationen prüfen
   const hasKampagne1Config = !!semrushTrackingId;
@@ -112,7 +155,7 @@ export default function ProjectDashboard({
       
       <div className="flex-grow w-full px-4 sm:px-6 lg:px-8 py-6">
         
-        {/* ✅ GLOBAL HEADER - ANGEPASST mit dateRange und onDateRangeChange */}
+        {/* GLOBAL HEADER */}
         <GlobalHeader 
           domain={domain}
           projectId={projectId}
@@ -127,7 +170,6 @@ export default function ProjectDashboard({
           </div>
         )}
 
-    
         {/* AI ANALYSE WIDGET */}
         {projectId && (
           <div className="mt-6 print:hidden">
@@ -135,7 +177,7 @@ export default function ProjectDashboard({
           </div>
         )}
 
-        {/* ✅ TABLEAU KPI GRID */}
+        {/* TABLEAU KPI GRID */}
         <div className="mt-6 print-kpi-grid">
           {extendedKpis && (
             <TableauKpiGrid
@@ -189,15 +231,68 @@ export default function ProjectDashboard({
           </div>
         </div>
 
-        {/* ✅ NEU: TOP LANDINGPAGES (Horizontal Chart) */}
-        {/* Wir fügen dies direkt NACH dem Traffic Grid ein */}
-        <div className="mt-6 print-landing-chart">
-           <LandingPageChart 
-             data={data.topConvertingPages} 
-             isLoading={isLoading}
-             title="Top Landingpages (Conversions & Engagement)" 
-           />
-        </div>
+        {/* ✅ LANDINGPAGE CHART MIT ADMIN SCHALTER */}
+        {shouldRenderChart && (
+          <div className={`mt-6 transition-all duration-300 ${!isLandingPagesVisible && isAdmin ? 'opacity-70 grayscale-[0.5]' : ''}`}>
+            
+            {/* ADMIN CONTROLS: Nur für Admins sichtbar */}
+            {isAdmin && (
+               <div className="flex items-center justify-end mb-2 print:hidden">
+                 <div className="bg-white/90 backdrop-blur-sm border border-gray-200 rounded-lg p-1.5 flex items-center gap-3 shadow-sm">
+                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider pl-1 select-none">
+                     Kundensicht
+                   </span>
+                   
+                   {/* Toggle Button */}
+                   <button
+                     onClick={toggleLandingPageVisibility}
+                     disabled={isToggling}
+                     className={`
+                       relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2
+                       ${isLandingPagesVisible ? 'bg-emerald-500' : 'bg-gray-300'}
+                       ${isToggling ? 'opacity-50 cursor-wait' : ''}
+                     `}
+                   >
+                     <span
+                       aria-hidden="true"
+                       className={`
+                         pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out
+                         ${isLandingPagesVisible ? 'translate-x-4' : 'translate-x-0'}
+                       `}
+                     />
+                   </button>
+                   
+                   {/* Status Text */}
+                   <div className="text-xs w-20 text-center font-medium text-gray-700 select-none">
+                     {isLandingPagesVisible ? (
+                       <span className="flex items-center justify-center gap-1.5 text-emerald-700"><Eye size={12}/> Sichtbar</span>
+                     ) : (
+                       <span className="flex items-center justify-center gap-1.5 text-gray-500"><EyeSlash size={12}/> Versteckt</span>
+                     )}
+                   </div>
+                 </div>
+               </div>
+            )}
+
+            {/* DIE CHART */}
+            <div className="print-landing-chart relative">
+               <LandingPageChart 
+                 data={data.topConvertingPages} 
+                 isLoading={isLoading}
+                 title="Top Landingpages (Conversions & Engagement)" 
+               />
+               
+               {/* Overlay Hinweis für Admin, wenn ausgeblendet */}
+               {!isLandingPagesVisible && isAdmin && (
+                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                   <div className="bg-gray-900/10 backdrop-blur-[1px] px-4 py-2 rounded-lg border border-gray-900/20 text-gray-800 text-xs font-semibold shadow-sm">
+                     🚫 Für Kunden ausgeblendet
+                   </div>
+                 </div>
+               )}
+            </div>
+          </div>
+        )}
 
         {/* PIE CHARTS: Channel → Country → Device */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6 print-pie-grid">
