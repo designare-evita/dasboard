@@ -92,7 +92,17 @@ export async function POST(req: NextRequest) {
 
     // ✅ NEU: Conversion-Daten UND Engagement für Prompt formatieren
     const topConverters = data.topConvertingPages
-      ?.map((p: any) => {
+      // --- FIX: Filter für Danke-Seiten ---
+      ?.filter((p: any) => {
+         const path = p.path.toLowerCase();
+         // Schließt typische Bestätigungsseiten aus
+         return !path.includes('danke') && 
+                !path.includes('thank') && 
+                !path.includes('success') && 
+                !path.includes('confirmation');
+      })
+      // --- ENDE FIX ---
+      .map((p: any) => {
          // Wir bauen einen smarten String:
          // Wenn Conversions da sind -> Fokus Conversion
          // Wenn KEINE Conversions da sind -> Fokus Engagement
@@ -123,7 +133,7 @@ export async function POST(req: NextRequest) {
       - Klicks: ${fmt(kpis.clicks?.value)} (${change(kpis.clicks?.change)}%)
       - Sitzungen: ${fmt(kpis.sessions?.value)} (${change(kpis.sessions?.change)}%)
       - Conversions: ${fmt(kpis.conversions?.value)} (${change(kpis.conversions?.change)}%)
-      - Engagement Rate: ${fmt(kpis.engagementRate?.value)}%
+      - Interaktionsrate: ${fmt(kpis.engagementRate?.value)}%
       - KI-Anteil am Traffic: ${aiShare}%
       
       TOP KEYWORDS (Traffic):
