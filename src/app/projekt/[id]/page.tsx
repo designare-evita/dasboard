@@ -8,19 +8,16 @@ import { sql } from '@vercel/postgres';
 import { User } from '@/lib/schemas';
 import ProjectDashboard from '@/components/ProjectDashboard';
 import { DateRangeOption } from '@/components/DateRangeSelector';
-// ✅ NEU: Import des Skeleton Loaders
 import { DashboardSkeleton } from '@/components/skeletons/DashboardSkeleton';
 
-// Diese Funktion lädt die Daten direkt auf dem Server (Serverseitig)
 async function loadData(projectId: string, dateRange: string) {
-  // 1. Projekt-Infos aus der DB laden
   const { rows } = await sql`
     SELECT
       id::text as id, email, role, domain,
       gsc_site_url, ga4_property_id,
       semrush_project_id, semrush_tracking_id, semrush_tracking_id_02,
       favicon_url, project_timeline_active, project_start_date, project_duration_months,
-      settings_show_landingpages -- ✅ NEU: Einstellung laden
+      settings_show_landingpages
     FROM users
     WHERE id::text = ${projectId}
   `;
@@ -28,14 +25,11 @@ async function loadData(projectId: string, dateRange: string) {
   if (rows.length === 0) return null;
 
   const projectUser = rows[0] as unknown as User;
-
-  // 2. Google Daten laden (GSC, GA4, Semrush via Cache/API)
   const dashboardData = await getOrFetchGoogleData(projectUser, dateRange);
 
   return { projectUser, dashboardData };
 }
 
-// Die Hauptkomponente ist ASYNC (Server Component)
 export default async function ProjectPage({
   params,
   searchParams
@@ -45,24 +39,19 @@ export default async function ProjectPage({
 }) {
   const session = await auth();
 
-  // Redirect wenn nicht eingeloggt
   if (!session?.user) {
     redirect('/login');
   }
 
   const projectId = params.id;
-  // Datum aus URL lesen oder Default '30d' nutzen
   const dateRange = (searchParams.dateRange as DateRangeOption) || '30d';
 
-  // Berechtigungsprüfung (Security)
   if (session.user.role === 'BENUTZER' && session.user.id !== projectId) {
     redirect('/');
   }
 
-  // Datenabruf auf dem Server (blockiert bis Daten da sind -> Suspense zeigt Skeleton)
   const data = await loadData(projectId, dateRange);
 
-  // Fallback, wenn Projekt nicht existiert
   if (!data || !data.dashboardData) {
     return (
       <div className="flex justify-center items-center min-h-screen bg-gray-50">
@@ -74,13 +63,11 @@ export default async function ProjectPage({
   const { projectUser, dashboardData } = data;
 
   return (
-    // ✅ UX-UPGRADE: Skeleton Loading statt Spinner
     <Suspense fallback={<DashboardSkeleton />}>
       <ProjectDashboard
         data={dashboardData}
-        isLoading={false} // Daten sind durch Server-Wait bereits da
+        isLoading={false}
         dateRange={dateRange}
-        // Keine Funktionen mehr übergeben! (onDateRangeChange entfernt)
         projectId={projectUser.id}
         domain={projectUser.domain || ''}
         faviconUrl={projectUser.favicon_url}
@@ -91,8 +78,9 @@ export default async function ProjectPage({
         channelData={dashboardData.channelData}
         deviceData={dashboardData.deviceData}
         
-        // ✅ NEU: Props für Admin-Steuerung
+        // ✅ NEU: E-Mail & Rolle übergeben
         userRole={session.user.role}
+        userEmail={projectUser.email} 
         showLandingPagesToCustomer={projectUser.settings_show_landingpages ?? false}
       />
     </Suspense>
