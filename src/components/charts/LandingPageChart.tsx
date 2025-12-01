@@ -29,7 +29,7 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
   const sortedData = [...data]
     .filter(item => item.newUsers !== undefined && item.newUsers !== null) // Nur valide Daten
     .sort((a, b) => (b.newUsers || 0) - (a.newUsers || 0))
-    .slice(0, 7);
+    .slice(0, 10); // Top 10
 
   console.log('[LandingPageChart] Sortierte Daten:', sortedData);
   console.log('[LandingPageChart] Anzahl sortierter Einträge:', sortedData.length);
@@ -73,17 +73,17 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
                 {/* Segment 1: Rank & Page */}
                 <div className="bg-gray-700 flex items-center px-3 gap-2 flex-shrink-0" style={{ minWidth: '200px' }}>
                   <span className="text-[10px] font-black text-gray-400">#{i+1}</span>
-                  <span className="text-[11px] font-medium text-white truncate" title={page.path}>
+                  <span className="text-[14px] font-medium text-white truncate" title={page.path}>
                     {page.path}
                   </span>
                 </div>
                 
                 {/* Segment 2: Neue Besucher */}
                 <div 
-                  className="bg-indigo-500 flex items-center justify-center px-2"
-                  style={{ minWidth: '80px', flex: `0 0 ${Math.max(newUsersWidth, 10)}%` }}
+                  className="flex items-center justify-center px-2"
+                  style={{ minWidth: '80px', flex: `0 0 ${Math.max(newUsersWidth, 10)}%`, backgroundColor: '#188BDB' }}
                 >
-                  <span className="text-[11px] font-bold text-white whitespace-nowrap">
+                  <span className="text-[14px] font-bold text-white whitespace-nowrap">
                     {page.newUsers || 0} neu
                   </span>
                 </div>
@@ -93,12 +93,12 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
                   className="bg-teal-600 flex items-center justify-center px-2"
                   style={{ minWidth: '90px', flex: `0 0 ${Math.max(sessionsWidth, 12)}%` }}
                 >
-                  <span className="text-[11px] font-bold text-white whitespace-nowrap">
+                  <span className="text-[14px] font-bold text-white whitespace-nowrap">
                     {page.sessions || 0} total
                   </span>
                 </div>
                 
-                {/* Segment 4: Engagement Rate */}
+                {/* Segment 4: Interaktionsrate */}
                 <div 
                   className={`flex items-center justify-center px-2 ${
                     (page.engagementRate || 0) > 60 ? 'bg-emerald-500' : 
@@ -107,7 +107,7 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
                   }`}
                   style={{ minWidth: '95px', flex: `0 0 ${Math.max(engagementWidth, 12)}%` }}
                 >
-                  <span className="text-[11px] font-bold text-white whitespace-nowrap">
+                  <span className="text-[14px] font-bold text-white whitespace-nowrap">
                     ⚡ {(page.engagementRate || 0).toFixed(2)}%
                   </span>
                 </div>
@@ -117,7 +117,7 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
                   className="bg-amber-500 flex items-center justify-center px-2"
                   style={{ minWidth: '80px', flex: `0 0 ${Math.max(conversionWidth, 10)}%` }}
                 >
-                  <span className="text-[11px] font-bold text-white whitespace-nowrap">
+                  <span className="text-[14px] font-bold text-white whitespace-nowrap">
                     {page.conversions || 0} ★
                   </span>
                 </div>
@@ -140,7 +140,7 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
           <span className="text-gray-600 font-medium">Seite</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded bg-indigo-500"></div>
+          <div className="w-3 h-3 rounded" style={{ backgroundColor: '#188BDB' }}></div>
           <span className="text-gray-600 font-medium">Neue Besucher</span>
         </div>
         <div className="flex items-center gap-1.5">
@@ -149,7 +149,7 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded bg-emerald-500"></div>
-          <span className="text-gray-600 font-medium">Engagement</span>
+          <span className="text-gray-600 font-medium">Interaktionsrate</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded bg-amber-500"></div>
