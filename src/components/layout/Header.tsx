@@ -17,7 +17,7 @@ import {
   Speedometer2, 
   BoxArrowRight, 
   BoxArrowInRight,
-  HddNetwork // ✅ NEU: Icon für System
+  HddNetwork // ✅ NEU: Icon importiert
 } from 'react-bootstrap-icons';
 
 export default function Header() {
@@ -26,12 +26,11 @@ export default function Header() {
   
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Rollen-Checks
   const isAdmin = session?.user?.role === 'ADMIN' || session?.user?.role === 'SUPERADMIN'; 
   const isSuperAdmin = session?.user?.role === 'SUPERADMIN'; // ✅ NEU
   const isUser = session?.user?.role === 'BENUTZER'; 
 
-  // Logo-Logik
+  // ✅ Logo-Logik
   const defaultLogo = "/logo-data-peak.webp";
   const logoSrc = session?.user?.logo_url || defaultLogo;
   const priorityLoad = logoSrc === defaultLogo;
@@ -45,7 +44,7 @@ export default function Header() {
   };
 
   return (
-    <header className="bg-white shadow-md relative z-50">
+    <header className="bg-white shadow-md relative">
       <nav className="w-full px-6 py-3 flex justify-between items-center">
         
         {/* LOGO BEREICH */}
@@ -111,14 +110,14 @@ export default function Header() {
 
           <div className="h-6 w-px bg-gray-200 mx-1"></div>
 
-          {/* ✅ NEU: SYSTEM STATUS BUTTON (Nur Superadmin) */}
+          {/* ✅ NEU: System Button (Nur Superadmin) */}
           {isSuperAdmin && (
             <Link href="/admin/system" passHref>
               <Button 
                 variant="ghost" 
-                size="icon" 
-                className={`text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 ${pathname === '/admin/system' ? 'bg-indigo-50 text-indigo-600' : ''}`}
-                title="System Status & Cache"
+                size="icon"
+                className={`text-gray-500 hover:text-indigo-600 ${pathname === '/admin/system' ? 'bg-indigo-50 text-indigo-600' : ''}`}
+                title="System Status"
               >
                 <HddNetwork size={18} />
               </Button>
@@ -177,11 +176,11 @@ export default function Header() {
                     Admin-Bereich
                   </Button>
                 </Link>
-                
-                {/* ✅ NEU: Mobile System Link */}
+
+                {/* ✅ NEU: Mobile Link für Superadmin */}
                 {isSuperAdmin && (
                   <Link href="/admin/system" passHref onClick={handleLinkClick}>
-                    <Button variant={pathname === '/admin/system' ? 'default' : 'outline'} className="w-full justify-start gap-2 text-indigo-700 border-indigo-200 bg-indigo-50">
+                    <Button variant={pathname === '/admin/system' ? 'default' : 'outline'} className="w-full justify-start gap-2 text-indigo-600 border-indigo-200 bg-indigo-50">
                       <HddNetwork size={16} />
                       System Status
                     </Button>
@@ -209,7 +208,7 @@ export default function Header() {
             
             <hr className="my-2" />
 
-            <Button variant="outline" className="w-full justify-start gap-2 text-red-600 hover:bg-red-50 hover:border-red-200" onClick={() => signOut({ callbackUrl: '/login' })}>
+            <Button variant="outline" className="w-full justify-start gap-2" onClick={() => signOut({ callbackUrl: '/login' })}>
               <BoxArrowRight size={16} />
               Abmelden
             </Button>
