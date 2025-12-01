@@ -80,44 +80,44 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
                 
                 {/* Segment 2: Neue Besucher */}
                 <div 
-                  className="flex items-center justify-center px-2"
+                  className="flex items-center px-2"
                   style={{ minWidth: '130px', flex: `0 0 ${Math.max(newUsersWidth, 10)}%`, backgroundColor: '#188BDB' }}
                 >
-                  <span className="text-[14px] font-bold text-white whitespace-nowrap">
+                  <span className="text-[14px] text-white whitespace-nowrap">
                     {page.newUsers || 0} Neue Besucher
                   </span>
                 </div>
                 
                 {/* Segment 3: Total Sessions */}
                 <div 
-                  className="bg-teal-600 flex items-center justify-center px-2"
+                  className="bg-teal-600 flex items-center px-2"
                   style={{ minWidth: '130px', flex: `0 0 ${Math.max(sessionsWidth, 12)}%` }}
                 >
-                  <span className="text-[14px] font-bold text-white whitespace-nowrap">
+                  <span className="text-[14px] text-white whitespace-nowrap">
                     {page.sessions || 0} Total Sessions
                   </span>
                 </div>
                 
                 {/* Segment 4: Interaktionsrate */}
                 <div 
-                  className={`flex items-center justify-center px-2 ${
+                  className={`flex items-center px-2 ${
                     (page.engagementRate || 0) > 60 ? 'bg-emerald-500' : 
                     (page.engagementRate || 0) > 40 ? 'bg-blue-500' : 
                     'bg-gray-400'
                   }`}
                   style={{ minWidth: '95px', flex: `0 0 ${Math.max(engagementWidth, 12)}%` }}
                 >
-                  <span className="text-[14px] font-bold text-white whitespace-nowrap">
+                  <span className="text-[14px] text-white whitespace-nowrap">
                     ⚡ {(page.engagementRate || 0).toFixed(2)}%
                   </span>
                 </div>
                 
                 {/* Segment 5: Conversions */}
                 <div 
-                  className="bg-amber-500 flex items-center justify-center px-2"
+                  className="bg-amber-500 flex items-center px-2"
                   style={{ minWidth: '80px', flex: `0 0 ${Math.max(conversionWidth, 10)}%` }}
                 >
-                  <span className="text-[14px] font-bold text-white whitespace-nowrap">
+                  <span className="text-[14px] text-white whitespace-nowrap">
                     {page.conversions || 0} ★
                   </span>
                 </div>
