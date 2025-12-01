@@ -83,67 +83,109 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
 
   return (
     <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm h-full flex flex-col">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <h3 className="font-bold text-gray-900 flex items-center gap-2">
           <FileEarmarkText className="text-indigo-500" />
           {title}
         </h3>
-        <div className="text-xs text-gray-400 text-right hidden sm:block">
-          Balken: Neue Besucher<br/>Werte: Engagement | Conv.
+        <div className="text-xs text-gray-400 hidden sm:block">
+          Sortiert nach neuen Besuchern
         </div>
       </div>
 
-      <div className="flex-grow w-full" style={{ minHeight: '350px', height: '350px' }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart
-            layout="vertical"
-            data={sortedData}
-            margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
-            barSize={28}
-          >
-            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
-            
-            {/* Y-Achse (Pfade) */}
-            <YAxis 
-              dataKey="path" 
-              type="category" 
-              width={150}
-              tick={{ fontSize: 11, fill: '#6b7280' }}
-              tickFormatter={(value) => truncatePath(value, 35)}
-            />
-            
-            {/* X-Achse (Neue Nutzer) */}
-            <XAxis 
-              type="number" 
-              tick={{ fontSize: 10, fill: '#9ca3af' }}
-              tickFormatter={(value) => `${value}`}
-            />
+      {/* Chart Bereich - nur wenn mehr als 1 Eintrag */}
+      {sortedData.length > 1 && (
+        <div className="w-full mb-4" style={{ height: '300px' }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              layout="vertical"
+              data={sortedData}
+              margin={{ top: 5, right: 20, left: 5, bottom: 5 }}
+              barSize={32}
+            >
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e5e7eb" />
+              
+              {/* Y-Achse (Pfade) */}
+              <YAxis 
+                dataKey="path" 
+                type="category" 
+                width={180}
+                tick={{ fontSize: 12, fill: '#4b5563' }}
+                tickFormatter={(value) => truncatePath(value, 40)}
+              />
+              
+              {/* X-Achse (Neue Nutzer) */}
+              <XAxis 
+                type="number" 
+                tick={{ fontSize: 11, fill: '#9ca3af' }}
+                label={{ value: 'Neue Besucher', position: 'insideBottom', offset: -5, style: { fontSize: 11, fill: '#6b7280' } }}
+              />
 
-            <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f3f4f6' }} />
+              <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f9fafb' }} />
 
-            {/* Balken für Neue Nutzer */}
-            <Bar dataKey="newUsers" radius={[0, 6, 6, 0]} fill="#6366f1">
-              {sortedData.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill="#6366f1" />
+              {/* Balken für Neue Nutzer */}
+              <Bar dataKey="newUsers" radius={[0, 8, 8, 0]} fill="#6366f1" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Detail-Tabelle */}
+      <div className="mt-2">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-200">
+                <th className="text-left py-2 px-2 text-xs font-semibold text-gray-500 w-8">#</th>
+                <th className="text-left py-2 px-2 text-xs font-semibold text-gray-500">Seite</th>
+                <th className="text-right py-2 px-2 text-xs font-semibold text-gray-500 w-20">Neue</th>
+                <th className="text-right py-2 px-2 text-xs font-semibold text-gray-500 w-24">Sessions</th>
+                <th className="text-right py-2 px-2 text-xs font-semibold text-gray-500 w-24">Engagement</th>
+                <th className="text-right py-2 px-2 text-xs font-semibold text-gray-500 w-20">Conv.</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedData.map((page, i) => (
+                <tr key={i} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
+                  <td className="py-2.5 px-2 text-gray-400 font-medium">#{i+1}</td>
+                  <td className="py-2.5 px-2 text-gray-700 font-medium truncate max-w-xs" title={page.path}>
+                    {page.path}
+                  </td>
+                  <td className="py-2.5 px-2 text-right">
+                    <span className="inline-flex items-center gap-1 text-indigo-600 font-bold">
+                      {page.newUsers || 0}
+                    </span>
+                  </td>
+                  <td className="py-2.5 px-2 text-right text-gray-600 font-medium">
+                    {page.sessions || 0}
+                  </td>
+                  <td className="py-2.5 px-2 text-right">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                      (page.engagementRate || 0) > 60 
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                        : (page.engagementRate || 0) > 40 
+                          ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                          : 'bg-gray-50 text-gray-600 border border-gray-200'
+                    }`}>
+                      {page.engagementRate || 0}%
+                    </span>
+                  </td>
+                  <td className="py-2.5 px-2 text-right">
+                    <span className="inline-flex items-center gap-1 text-amber-600 font-bold">
+                      {page.conversions || 0} ★
+                    </span>
+                  </td>
+                </tr>
               ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-
-      {/* Detail-Tabelle unter dem Chart für die genauen Raten */}
-      <div className="mt-4 grid grid-cols-1 gap-1">
-         {sortedData.map((page, i) => (
-           <div key={i} className="flex items-center justify-between text-xs py-1 border-b border-gray-50 last:border-0">
-              <span className="text-gray-500 w-8">#{i+1}</span>
-              <span className="truncate flex-1 text-gray-700 mr-2" title={page.path}>{page.path}</span>
-              <div className="flex gap-3 text-right">
-                 <span className="w-12 text-indigo-600 font-medium">{page.newUsers || 0} Neu</span>
-                 <span className={`w-12 font-medium ${page.engagementRate && page.engagementRate > 60 ? 'text-emerald-600' : 'text-gray-600'}`}>{page.engagementRate || 0}% Eng.</span>
-                 <span className="w-8 text-amber-600 font-bold">{page.conversions || 0} ★</span>
-              </div>
-           </div>
-         ))}
+            </tbody>
+          </table>
+        </div>
+        
+        {sortedData.length === 0 && (
+          <div className="text-center py-8 text-gray-400 text-sm">
+            Keine Landing Pages mit Daten gefunden
+          </div>
+        )}
       </div>
     </div>
   );
