@@ -59,7 +59,6 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
                  <span className="font-medium text-gray-700 truncate max-w-[70%]" title={item.path}>
                     {index + 1}. {item.path}
                  </span>
-                 <span className="text-gray-400 text-[10px]">{item.pageTitle?.substring(0, 30)}...</span>
               </div>
 
               {/* Balken-Container */}
