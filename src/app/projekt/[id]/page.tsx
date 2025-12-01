@@ -10,21 +10,54 @@ import ProjectDashboard from '@/components/ProjectDashboard';
 import { DateRangeOption } from '@/components/DateRangeSelector';
 import { DashboardSkeleton } from '@/components/skeletons/DashboardSkeleton';
 
+// Erweiterter Typ für unsere Query-Ergebnisse
+interface ExtendedUser extends User {
+  assigned_admins?: string;
+  creator_email?: string;
+  settings_show_landingpages?: boolean;
+}
+
 async function loadData(projectId: string, dateRange: string) {
+  // ✅ UPDATE: Komplexe Query mit JOINs für Admin-Daten (wie in der Projekt-Übersicht)
   const { rows } = await sql`
     SELECT
-      id::text as id, email, role, domain,
-      gsc_site_url, ga4_property_id,
-      semrush_project_id, semrush_tracking_id, semrush_tracking_id_02,
-      favicon_url, project_timeline_active, project_start_date, project_duration_months,
-      settings_show_landingpages
-    FROM users
-    WHERE id::text = ${projectId}
+      u.id::text as id, 
+      u.email, 
+      u.role, 
+      u.domain,
+      u.gsc_site_url, 
+      u.ga4_property_id,
+      u.semrush_project_id, 
+      u.semrush_tracking_id, 
+      u.semrush_tracking_id_02,
+      u.favicon_url, 
+      u.project_timeline_active, 
+      u.project_start_date, 
+      u.project_duration_months,
+      u.settings_show_landingpages,
+      
+      -- E-Mail des Erstellers holen
+      creator.email as creator_email,
+      
+      -- Alle zugewiesenen Admins als String zusammenfassen (Komma getrennt)
+      (
+        SELECT STRING_AGG(DISTINCT admins.email, ', ')
+        FROM project_assignments pa_sub
+        JOIN users admins ON pa_sub.user_id = admins.id
+        WHERE pa_sub.project_id = u.id
+      ) as assigned_admins
+
+    FROM users u
+    LEFT JOIN users creator ON u."createdByAdminId" = creator.id
+    WHERE u.id::text = ${projectId}
   `;
 
   if (rows.length === 0) return null;
 
-  const projectUser = rows[0] as unknown as User;
+  // Typensicherer Cast
+  const projectUser = rows[0] as unknown as ExtendedUser;
+  
+  // Daten von Google laden
   const dashboardData = await getOrFetchGoogleData(projectUser, dateRange);
 
   return { projectUser, dashboardData };
@@ -62,6 +95,12 @@ export default async function ProjectPage({
 
   const { projectUser, dashboardData } = data;
 
+  // ✅ LOGIK: Ermittle die richtige Betreuer-E-Mail
+  // 1. Priorität: Zugewiesene Admins
+  // 2. Priorität: Ersteller des Projekts
+  // 3. Fallback: Leerer String (Badge wird ausgeblendet)
+  const supportEmail = projectUser.assigned_admins || projectUser.creator_email || '';
+
   return (
     <Suspense fallback={<DashboardSkeleton />}>
       <ProjectDashboard
@@ -78,9 +117,8 @@ export default async function ProjectPage({
         channelData={dashboardData.channelData}
         deviceData={dashboardData.deviceData}
         
-        // ✅ NEU: E-Mail & Rolle übergeben
         userRole={session.user.role}
-        userEmail={projectUser.email} 
+        supportEmail={supportEmail} // ✅ Dynamische Admin-Mail übergeben
         showLandingPagesToCustomer={projectUser.settings_show_landingpages ?? false}
       />
     </Suspense>
