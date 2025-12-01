@@ -52,8 +52,10 @@ export interface ApiErrorStatus {
 export interface ConvertingPageData {
   path: string;
   conversions: number;
-  conversionRate: number;
+  conversionRate: number; 
   engagementRate?: number;
+  sessions?: number; // ✅ NEU
+  newUsers?: number; // ✅ NEU
 }
 
 export interface ProjectDashboardData {
