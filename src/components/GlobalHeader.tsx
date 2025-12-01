@@ -42,17 +42,6 @@ export default function GlobalHeader({
                <h1 className="text-2xl font-bold text-gray-900 leading-none tracking-tight">
                  {domain || 'Projekt Dashboard'}
                </h1>
-               
-               {/* ✅ KORRIGIERT: Dynamische E-Mail statt statischem Text */}
-               {userEmail && (
-                 <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-gradient-to-r from-emerald-50 to-teal-50 text-emerald-700 border border-emerald-100/80 shadow-sm">
-                    <span className="relative flex h-1.5 w-1.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
-                    </span>
-                    Betreut durch: {userEmail}
-                 </div>
-               )}
              </div>
 
              <div className="flex flex-col gap-1">
@@ -73,6 +62,18 @@ export default function GlobalHeader({
                  <span className="text-gray-300">•</span>
                  <span>Semrush Updates: 14 Tage</span>
                </span>
+               
+               {/* ✅ Badge unter Update-Info verschoben */}
+               {userEmail && (
+                 <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider bg-gradient-to-r from-emerald-50 to-teal-50 text-emerald-700 border border-emerald-100/80 shadow-sm w-fit">
+                    <span className="relative flex h-1.5 w-1.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                    </span>
+                    <span className="uppercase">Betreut durch:</span>
+                    <span className="lowercase font-medium">{userEmail}</span>
+                 </div>
+               )}
              </div>
           </div>
         </div>
