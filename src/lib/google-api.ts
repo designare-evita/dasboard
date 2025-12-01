@@ -662,7 +662,7 @@ export async function getTopConvertingPages(
           { metric: { metricName: 'conversions' }, desc: true },
           { metric: { metricName: 'sessions' }, desc: true } // Fallback: Traffic
         ],
-        limit: '10', // Wir holen etwas mehr, um filtern zu können
+        limit: '20', // Wir holen mehr, um nach Filterung genug zu haben
       },
     });
 
@@ -689,7 +689,7 @@ export async function getTopConvertingPages(
     // ✅ FILTER GEÄNDERT: Wir lassen auch Seiten durch, die viel Traffic haben (>5 Sessions), 
     // auch wenn sie keine Conversions haben. So sehen wir "Engagement-Gewinner".
     .filter(p => p.conversions > 0 || p.sessions > 5)
-    .slice(0, 5); // Am Ende nehmen wir die Top 5
+    .slice(0, 10); // ✅ Top 10
 
   } catch (error) {
     console.error('Error fetching Top Converting Pages:', error);
