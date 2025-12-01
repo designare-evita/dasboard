@@ -116,7 +116,7 @@ export default async function ProjectPage({
         deviceData={dashboardData.deviceData}
         
         userRole={session.user.role}
-        supportEmail={supportEmail} 
+        userEmail={supportEmail} 
         // Hier greifen wir auf das geerbte Feld zu
         showLandingPagesToCustomer={projectUser.settings_show_landingpages ?? false}
       />
