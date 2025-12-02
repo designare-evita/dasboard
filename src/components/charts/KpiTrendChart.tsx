@@ -18,16 +18,16 @@ import { ChartPoint, ActiveKpi } from '@/lib/dashboard-shared';
 import { ArrowLeftRight, CalendarEvent, Filter } from 'react-bootstrap-icons';
 import { cn } from '@/lib/utils';
 
-// --- KONFIGURATION (Angepasst an neue Palette) ---
+// --- KONFIGURATION ---
 const KPI_CONFIG: Record<string, { label: string; color: string; gradientId: string }> = {
-  // Traffic (Kühle Palette)
+  // Traffic
   impressions: { label: 'Impressionen', color: '#8b5cf6', gradientId: 'gradPurple' }, 
   clicks: { label: 'Klicks', color: '#3b82f6', gradientId: 'gradBlue' },       
   newUsers: { label: 'Neue Besucher', color: '#6366f1', gradientId: 'gradIndigo' }, 
   totalUsers: { label: 'Besucher', color: '#0ea5e9', gradientId: 'gradSky' },     
   sessions: { label: 'Sessions', color: '#06b6d4', gradientId: 'gradCyan' },       
   
-  // Engagement (Warme / Signal Palette)
+  // Engagement
   engagementRate: { label: 'Interaktionsrate', color: '#ec4899', gradientId: 'gradPink' },
   conversions: { label: 'Conversions', color: '#10b981', gradientId: 'gradEmerald' },   
   avgEngagementTime: { label: 'Ø Verweildauer', color: '#f59e0b', gradientId: 'gradAmber' },
@@ -42,9 +42,11 @@ interface KpiTrendChartProps {
   className?: string;
 }
 
-// ... (Rest bleibt gleich, nur formatValue und CustomTooltip)
+// Helper: Prüfen ob KPI ein Prozentwert ist
+const isPercentageKpi = (kpi: string) => ['engagementRate', 'bounceRate'].includes(kpi);
+
 const formatValue = (value: number, kpi: string) => {
-  if (kpi === 'engagementRate' || kpi === 'bounceRate') return `${value.toFixed(1)}%`;
+  if (isPercentageKpi(kpi)) return `${value.toFixed(1)}%`;
   if (kpi === 'avgEngagementTime') {
     const mins = Math.floor(value / 60);
     const secs = Math.floor(value % 60);
@@ -104,16 +106,34 @@ export default function KpiTrendChart({
 
     const dataMap = new Map<string, any>();
 
+    // ✅ FIX: Werte für Raten mit 100 multiplizieren, falls sie < 1 sind (API liefert oft 0.5 für 50%)
+    // Oder generell multiplizieren, wenn es eine Rate ist und der Wert klein scheint.
+    // Am sichersten: Einfach für Raten x100 rechnen, da die Google API Rohdaten liefert.
+    
     primaryData.forEach(p => {
       const dStr = new Date(p.date).toISOString();
-      dataMap.set(dStr, { date: p.date, value: p.value });
+      let val = p.value;
+      
+      // Korrektur für Prozentwerte
+      if (isPercentageKpi(activeKpi) && val <= 1) {
+        val = val * 100;
+      }
+      
+      dataMap.set(dStr, { date: p.date, value: val });
     });
 
     if (secondaryData.length > 0) {
       secondaryData.forEach(p => {
         const dStr = new Date(p.date).toISOString();
         const existing = dataMap.get(dStr) || { date: p.date };
-        existing.compareValue = p.value;
+        
+        let compVal = p.value;
+        // Korrektur für Prozentwerte
+        if (isPercentageKpi(compareKpi) && compVal <= 1) {
+          compVal = compVal * 100;
+        }
+
+        existing.compareValue = compVal;
         dataMap.set(dStr, existing);
       });
     }
@@ -126,6 +146,17 @@ export default function KpiTrendChart({
   const activeConfig = KPI_CONFIG[activeKpi] || KPI_CONFIG['sessions'];
   const compareConfig = compareKpi !== 'none' ? KPI_CONFIG[compareKpi] : null;
 
+  // ✅ NEU: Formatierung der Y-Achse mit Kontext (z.B. Prozentzeichen)
+  const formatYAxis = (val: number, kpiContext: string) => {
+    if (val >= 1000000) return `${(val / 1000000).toFixed(1)}M`;
+    if (val >= 1000) return `${(val / 1000).toFixed(0)}k`;
+    
+    // Wenn es eine Rate ist, hängen wir ein % an, damit die Achse klarer ist
+    if (isPercentageKpi(kpiContext)) return `${val}%`;
+    
+    return String(val);
+  };
+
   if (isLoading) {
     return (
       <div className={cn("bg-white rounded-lg shadow-sm border border-gray-200 p-6 h-[400px] animate-pulse flex items-center justify-center", className)}>
@@ -136,12 +167,6 @@ export default function KpiTrendChart({
       </div>
     );
   }
-
-  const formatYAxis = (val: number) => {
-    if (val >= 1000000) return `${(val / 1000000).toFixed(1)}M`;
-    if (val >= 1000) return `${(val / 1000).toFixed(0)}k`;
-    return String(val);
-  };
 
   return (
     <div className={cn("bg-white rounded-lg shadow-sm border border-gray-200 p-6 transition-all hover:shadow-md", className)}>
@@ -224,7 +249,7 @@ export default function KpiTrendChart({
             
             <YAxis
               yAxisId="left"
-              tickFormatter={formatYAxis}
+              tickFormatter={(val) => formatYAxis(val, activeKpi)}
               tick={{ fontSize: 11, fill: '#6b7280' }}
               axisLine={false}
               tickLine={false}
@@ -235,7 +260,7 @@ export default function KpiTrendChart({
               <YAxis
                 yAxisId="right"
                 orientation="right"
-                tickFormatter={formatYAxis}
+                tickFormatter={(val) => formatYAxis(val, compareKpi)}
                 tick={{ fontSize: 11, fill: '#9ca3af' }}
                 axisLine={false}
                 tickLine={false}
