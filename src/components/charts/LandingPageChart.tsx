@@ -47,7 +47,7 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
       return true;
     })
     .sort((a, b) => (b.newUsers || 0) - (a.newUsers || 0))
-    .slice(0, 5); // Nur die Top 5 anzeigen
+    .slice(0, 5); // Nur die Top 5 anzeigen (wie im Original)
 
   return (
     <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm h-full flex flex-col">
@@ -58,11 +58,11 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
         </div>
         <div>
            <h3 className="font-semibold text-gray-900">{title}</h3>
-           <p className="text-xs text-gray-500">Seiten mit den meisten neuen Besuchern (ohne Danke-Seiten)</p>
+           <p className="text-xs text-gray-500">Seiten mit den meisten neuen Besuchern (bereinigt)</p>
         </div>
       </div>
 
-      {/* Liste der Balken */}
+      {/* Liste der Balken - URSPRÜNGLICHES LAYOUT */}
       <div className="space-y-5 flex-1 overflow-y-auto pr-2 custom-scrollbar">
         {sortedData.map((item, idx) => {
           // Maximale Breite für Balken berechnen (basierend auf höchstem Wert in der Liste)
@@ -71,6 +71,7 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
 
           return (
             <div key={idx} className="group">
+              {/* Text Zeile: Pfad & Wert */}
               <div className="flex justify-between text-sm mb-1.5">
                 <div className="font-medium text-gray-900 truncate max-w-[70%]" title={item.path}>
                   {item.path}
@@ -82,12 +83,12 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
               
               {/* Balken Hintergrund */}
               <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
-                {/* Balken Füllung */}
+                {/* Balken Füllung (Klassisches Blau) */}
                 <div 
                   className="h-full rounded-full transition-all duration-500 ease-out group-hover:brightness-95"
                   style={{ 
                     width: `${percentage}%`,
-                    backgroundColor: '#188BDB' // Konsistentes Blau
+                    backgroundColor: '#188BDB' 
                   }}
                 />
               </div>
