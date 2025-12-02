@@ -344,6 +344,8 @@ export async function getAnalyticsData(
           { name: 'conversions' }
         ],
         orderBys: [{ dimension: { dimensionName: 'date' } }],
+        // ✅ NEU: Explizit Totals anfordern für korrekte Aggregation
+        metricAggregations: ['TOTAL'],
       },
     });
 
@@ -361,6 +363,10 @@ export async function getAnalyticsData(
     let totalUsers = 0;
     let totalNewUsers = 0;
     let totalConversions = 0;
+    
+    // ✅ NEU: Für gewichtete Durchschnittsberechnung als Fallback
+    let weightedBounceSum = 0;
+    let weightedEngagementSum = 0;
     
     const metricHeaders = response.data.metricHeaders || [];
     const getMetricIndex = (name: string) => metricHeaders.findIndex(h => h.name === name);
@@ -404,6 +410,10 @@ export async function getAnalyticsData(
       totalNewUsers += newU;
       totalConversions += conv;
       sumDuration += dur;
+      
+      // ✅ NEU: Gewichtete Summen für Raten (gewichtet nach Sessions)
+      weightedBounceSum += bounce * sess;
+      weightedEngagementSum += engRate * sess;
     }
 
     const totalsRow = response.data.totals?.[0];
@@ -435,13 +445,29 @@ export async function getAnalyticsData(
     
     const fallbackAvgTime = totalUsers > 0 ? (sumDuration / totalUsers) : 0;
     
+    // ✅ FIX: Berechne gewichtete Durchschnitte für Raten
+    const calculatedBounceRate = totalSessions > 0 
+      ? weightedBounceSum / totalSessions 
+      : 0;
+    
+    const calculatedEngagementRate = totalSessions > 0 
+      ? weightedEngagementSum / totalSessions 
+      : 0;
+
+    console.log('[GA4] Calculated totals (fallback):', { 
+      sessions: totalSessions, 
+      bounceRate: calculatedBounceRate, 
+      engagementRate: calculatedEngagementRate 
+    });
+    
     return {
       sessions: { total: totalSessions, daily: sessionsDaily },
       totalUsers: { total: totalUsers, daily: usersDaily },
       newUsers: { total: totalNewUsers, daily: newUsersDaily },
       conversions: { total: totalConversions, daily: conversionsDaily },
-      bounceRate: { total: 0, daily: bounceRateDaily }, 
-      engagementRate: { total: 0, daily: engagementRateDaily },
+      // ✅ FIX: Gewichtete Durchschnitte statt 0
+      bounceRate: { total: calculatedBounceRate, daily: bounceRateDaily }, 
+      engagementRate: { total: calculatedEngagementRate, daily: engagementRateDaily },
       avgEngagementTime: { total: fallbackAvgTime, daily: avgTimeDaily },
       clicks: { total: 0, daily: [] },
       impressions: { total: 0, daily: [] }
