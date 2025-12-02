@@ -11,7 +11,7 @@ interface GlobalHeaderProps {
   dateRange: DateRangeOption;
   onDateRangeChange: (range: DateRangeOption) => void;
   userRole?: string;
-  userEmail?: string; // ✅ NEU: E-Mail für "Betreut durch"
+  userEmail?: string;
 }
 
 export default function GlobalHeader({
@@ -20,13 +20,15 @@ export default function GlobalHeader({
   dateRange,
   onDateRangeChange,
   userRole = 'USER',
-  userEmail = '' // ✅ NEU: Default
+  userEmail = ''
 }: GlobalHeaderProps) {
 
   const isAdmin = userRole === 'ADMIN' || userRole === 'SUPERADMIN';
 
   return (
-    <div className="card-glass p-6 mb-6 print:hidden">
+    // ✅ ÄNDERUNG: sticky, top-0, z-50 hinzugefügt. 
+    // bg-white/95 sorgt dafür, dass durchscrollender Inhalt nicht stört (passend zum Glass-Look).
+    <div className="sticky top-0 z-50 card-glass p-6 mb-6 print:hidden bg-white/95 backdrop-blur-sm transition-all duration-200 border-b border-gray-100">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         
         {/* LINKE SEITE */}
@@ -37,24 +39,20 @@ export default function GlobalHeader({
           
           <div className="h-12 w-px bg-gray-200/60 mx-1 hidden sm:block"></div>
 
-          <div className="flex flex-col justify-center">
-             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-1">
-               <h1 className="text-2xl font-bold text-gray-900 leading-none tracking-tight">
-                 {domain || 'Projekt Dashboard'}
-               </h1>
+          <div>
+             <div className="flex items-center gap-2 mb-1">
+               <h1 className="text-xl font-bold text-gray-900 tracking-tight">{domain || 'Projekt Dashboard'}</h1>
+               {isAdmin && (
+                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-gray-100 text-gray-600 border border-gray-200">
+                   <ShieldLock size={10} />
+                   <span>Admin</span>
+                 </span>
+               )}
              </div>
 
              <div className="flex flex-col gap-1">
-               
-               {/* ID nur für Admins sichtbar */}
-               {isAdmin && projectId && (
-                 <div className="flex items-center gap-1.5 animate-in fade-in duration-300">
-                   <ShieldLock size={10} className="text-gray-400" />
-                   <span className="text-xs font-bold text-gray-400">ID:</span>
-                   <span className="text-xs font-mono text-gray-500 tracking-wide select-all bg-gray-50 px-1 rounded border border-gray-100">
-                     {projectId}
-                   </span>
-                 </div>
+               {projectId && (
+                  <span className="text-[10px] text-gray-400 font-mono tracking-wide">ID: {projectId}</span>
                )}
                
                <span className="text-gray-500 text-xs flex items-center gap-1">
@@ -63,9 +61,8 @@ export default function GlobalHeader({
                  <span>Semrush Updates: 14 Tage</span>
                </span>
                
-               {/* ✅ Badge unter Update-Info verschoben */}
                {userEmail && (
-                 <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider bg-gradient-to-r from-emerald-50 to-teal-50 text-emerald-700 border border-emerald-100/80 shadow-sm w-fit">
+                 <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 mt-1 rounded-full text-[10px] font-bold tracking-wider bg-gradient-to-r from-emerald-50 to-teal-50 text-emerald-700 border border-emerald-100/80 shadow-sm w-fit">
                     <span className="relative flex h-1.5 w-1.5">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                       <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
