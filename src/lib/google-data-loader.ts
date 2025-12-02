@@ -152,9 +152,28 @@ export async function getOrFetchGoogleData(
       const gaCurrent = await getAnalyticsData(propertyId, startDateStr, endDateStr);
       const gaPrevious = await getAnalyticsData(propertyId, prevStartStr, prevEndStr);
       
-      // Merge GA4 Data
-      currentData = { ...currentData, ...gaCurrent };
-      prevData = { ...prevData, ...gaPrevious };
+      // ✅ FIX: GA4 Daten gezielt mergen, damit GSC (clicks/impressions) nicht überschrieben wird!
+      currentData = { 
+        ...currentData,
+        sessions: gaCurrent.sessions,
+        totalUsers: gaCurrent.totalUsers,
+        conversions: gaCurrent.conversions,
+        engagementRate: gaCurrent.engagementRate,
+        bounceRate: gaCurrent.bounceRate,
+        newUsers: gaCurrent.newUsers,
+        avgEngagementTime: gaCurrent.avgEngagementTime
+      };
+
+      prevData = { 
+        ...prevData,
+        sessions: gaPrevious.sessions,
+        totalUsers: gaPrevious.totalUsers,
+        conversions: gaPrevious.conversions,
+        engagementRate: gaPrevious.engagementRate,
+        bounceRate: gaPrevious.bounceRate,
+        newUsers: gaPrevious.newUsers,
+        avgEngagementTime: gaPrevious.avgEngagementTime
+      };
 
       // AI Traffic
       try { 
@@ -163,8 +182,8 @@ export async function getOrFetchGoogleData(
         console.warn('[AI Traffic] Fehler (ignoriert):', e);
       }
       
-      // ✅ FIX: Daten mappen, um String -> Number Konflikt zu lösen
-try {
+      // FIX: Daten mappen
+      try {
         const rawPages = await getTopConvertingPages(propertyId, startDateStr, endDateStr);
         
         topConvertingPages = rawPages.map((p: any) => ({
@@ -173,9 +192,9 @@ try {
           conversionRate: typeof p.conversionRate === 'string' 
             ? parseFloat(p.conversionRate) 
             : Number(p.conversionRate),
-          engagementRate: p.engagementRate, // ✅ NEU: Einfach durchreichen
-          sessions: p.sessions, // ✅ NEU: Durchreichen
-          newUsers: p.newUsers  // ✅ NEU: Durchreichen
+          engagementRate: p.engagementRate, 
+          sessions: p.sessions, 
+          newUsers: p.newUsers  
         }));
       } catch (e) {
         console.warn('[GA4] Konnte Top-Pages nicht laden:', e);
@@ -212,7 +231,7 @@ try {
   // --- DATEN ZUSAMMENBAUEN ---
   const freshData: ProjectDashboardData = {
     kpis: {
-      // GSC
+      // GSC (bleiben erhalten, wenn GA4 sie nicht überschreibt)
       clicks: { value: currentData.clicks.total, change: calculateChange(currentData.clicks.total, prevData.clicks.total) },
       impressions: { value: currentData.impressions.total, change: calculateChange(currentData.impressions.total, prevData.impressions.total) },
       
@@ -236,7 +255,7 @@ try {
       avgEngagementTime: { value: currentData.avgEngagementTime.total, change: calculateChange(currentData.avgEngagementTime.total, prevData.avgEngagementTime.total) }
     },
     
-    // Charts (Typ-sicher)
+    // Charts
     charts: {
       clicks: currentData.clicks.daily || [],
       impressions: currentData.impressions.daily || [],
@@ -249,7 +268,7 @@ try {
       avgEngagementTime: currentData.avgEngagementTime.daily || []
     },
     topQueries,
-    topConvertingPages, // Jetzt typ-sicher (Number statt String)
+    topConvertingPages,
     aiTraffic,
     countryData,
     channelData,
