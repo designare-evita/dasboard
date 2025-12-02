@@ -54,6 +54,30 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
           <FileEarmarkText className="text-indigo-500" size={18} />
           Top Landingpages (Conversions & Interaktion)
         </h3>
+
+        {/* Legende (Rechts ausgerichtet im Header) */}
+        <div className="flex flex-wrap items-center gap-4 text-[10px]">
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded bg-gray-700"></div>
+            <span className="text-gray-600 font-medium">Seite</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#188BDB' }}></div>
+            <span className="text-gray-600 font-medium">Neue Besucher</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded bg-teal-600"></div>
+            <span className="text-gray-600 font-medium">Total Sessions</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded bg-emerald-500"></div>
+            <span className="text-gray-600 font-medium">Interaktionsrate</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded bg-amber-500"></div>
+            <span className="text-gray-600 font-medium">Conversions</span>
+          </div>
+        </div>
       </div>
 
       {/* Kompakte Stacked Bar Visualisierung */}
@@ -133,30 +157,6 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
           Keine Landing Pages mit Daten gefunden
         </div>
       )}
-      
-      {/* Legende */}
-      <div className="flex flex-wrap items-center gap-4 mt-4 pt-3 border-t border-gray-100 text-[10px]">
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded bg-gray-700"></div>
-          <span className="text-gray-600 font-medium">Seite</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded" style={{ backgroundColor: '#188BDB' }}></div>
-          <span className="text-gray-600 font-medium">Neue Besucher</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded bg-teal-600"></div>
-          <span className="text-gray-600 font-medium">Total Sessions</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded bg-emerald-500"></div>
-          <span className="text-gray-600 font-medium">Interaktionsrate</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded bg-amber-500"></div>
-          <span className="text-gray-600 font-medium">Conversions</span>
-        </div>
-      </div>
     </div>
   );
 }
