@@ -7,12 +7,25 @@ import { sql } from '@vercel/postgres';
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    // KORREKTUR: Robusteres Parsing des Request-Bodies.
+    // Verhindert Absturz ("SyntaxError"), wenn das Frontend keinen Body sendet.
+    let body: any = {};
+    try {
+      const text = await request.text();
+      if (text && text.trim().length > 0) {
+        body = JSON.parse(text);
+      }
+    } catch (e) {
+      console.warn('[Clear Cache] Warnung: Kein valider JSON-Body empfangen. Fahre mit Standardwerten fort.');
+      // Wir machen weiter mit einem leeren Objekt -> das führt unten zum Löschen des gesamten Caches (Default-Verhalten)
+    }
+
     const { dateRange, userId } = body;
 
-    // Falls keine User ID übergeben: ALLE User-Caches löschen (Superadmin!)
+    // Fall 1: Keine User ID übergeben -> ALLE User-Caches löschen (Superadmin!)
     if (!userId) {
       if (dateRange) {
+        // Nur bestimmten Zeitraum für ALLE löschen
         const result = await sql`
           DELETE FROM google_data_cache 
           WHERE date_range = ${dateRange}
@@ -25,6 +38,7 @@ export async function POST(request: NextRequest) {
           rowsDeleted: result.rowCount
         });
       } else {
+        // ALLES löschen
         const result = await sql`
           DELETE FROM google_data_cache
         `;
@@ -38,7 +52,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Spezifischer User
+    // Fall 2: Spezifischer User
     console.log(`[Clear Cache] Request für User ${userId}, dateRange: ${dateRange || 'ALL'}`);
 
     if (dateRange) {
@@ -70,7 +84,7 @@ export async function POST(request: NextRequest) {
     }
 
   } catch (error: any) {
-    console.error('[Clear Cache] Error:', error);
+    console.error('[Clear Cache] CRITICAL Error:', error);
     return NextResponse.json(
       { error: 'Cache konnte nicht gelöscht werden', details: error.message },
       { status: 500 }
