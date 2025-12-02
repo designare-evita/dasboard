@@ -1,4 +1,3 @@
-// src/app/admin/system/page.tsx
 'use client';
 
 import React, { useEffect, useState } from 'react';
@@ -12,8 +11,8 @@ import {
   ExclamationTriangleFill,
   HddNetwork,
   ClockHistory,
-  Search,       // <-- GSC Icon
-  BarChartLine  // <-- GA4 Icon
+  Search,
+  BarChartLine
 } from 'react-bootstrap-icons';
 import LoginLogbook from '@/app/admin/LoginLogbook';
 
@@ -41,15 +40,35 @@ export default function SystemHealthPage() {
     fetchStatus();
   }, []);
 
+  // KORRIGIERTE FUNKTION
   const handleClearCache = async () => {
-    if(!confirm("Sind Sie sicher? ...")) return;
+    if(!confirm("Sind Sie sicher? Dies löscht den gesamten Google Data Cache für ALLE User.")) return;
+    
     setIsClearingCache(true);
     try {
-      await fetch('/api/clear-cache', { method: 'POST' });
-      alert("Cache geleert.");
+      // WICHTIG: Leeres JSON-Objekt senden und Content-Type Header setzen
+      const res = await fetch('/api/clear-cache', { 
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({}) 
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.details || `Server Fehler: ${res.status}`);
+      }
+
+      const data = await res.json();
+      console.log('Cache gelöscht:', data);
+      
+      alert(`Erfolg: ${data.message || 'Cache geleert.'}`);
       window.location.reload();
-    } catch (e) {
-      alert("Fehler.");
+      
+    } catch (e: any) {
+      console.error("Fehler beim Löschen:", e);
+      alert(`Fehler: ${e.message}`);
     } finally {
       setIsClearingCache(false);
     }
@@ -120,7 +139,7 @@ export default function SystemHealthPage() {
               {status.cron?.lastRun && <div className="mt-2 text-[10px] text-gray-400">Zuletzt: {new Date(status.cron.lastRun).toLocaleDateString()}</div>}
             </div>
 
-            {/* ✅ NEU: GSC LIVE CHECK */}
+            {/* GSC LIVE CHECK */}
             <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
               <div className="flex justify-between items-start mb-4">
                 <div className="p-2 bg-indigo-50 rounded-lg"><Search className="text-indigo-600 text-xl" /></div>
@@ -130,7 +149,7 @@ export default function SystemHealthPage() {
               <p className="text-xs text-gray-500 mt-1 break-words">{status.gscApi?.message || 'Wird geprüft...'}</p>
             </div>
 
-            {/* ✅ NEU: GA4 LIVE CHECK */}
+            {/* GA4 LIVE CHECK */}
             <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
               <div className="flex justify-between items-start mb-4">
                 <div className="p-2 bg-yellow-50 rounded-lg"><BarChartLine className="text-yellow-600 text-xl" /></div>
