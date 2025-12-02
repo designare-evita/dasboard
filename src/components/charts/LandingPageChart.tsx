@@ -30,7 +30,7 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
     .filter(item => item.newUsers !== undefined && item.newUsers !== null) // Nur valide Daten
     .filter(item => !item.path?.toLowerCase().includes('danke')) // Danke-Seiten ausschließen (case-insensitive)
     .sort((a, b) => (b.newUsers || 0) - (a.newUsers || 0))
-    .slice(0, 10); // Top 10
+    .slice(0, 50); // Top 50
 
   console.log('[LandingPageChart] Sortierte Daten:', sortedData);
   console.log('[LandingPageChart] Anzahl sortierter Einträge:', sortedData.length);
@@ -81,7 +81,7 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
       </div>
 
       {/* Kompakte Stacked Bar Visualisierung */}
-      <div className="space-y-2.5">
+      <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-2">
         {sortedData.map((page, i) => {
           // Berechne Breiten basierend auf Metriken
           const maxValue = Math.max(...sortedData.map(p => (p.sessions || 0) + (p.conversions || 0) * 10));
