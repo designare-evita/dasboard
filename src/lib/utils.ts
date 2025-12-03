@@ -1,4 +1,3 @@
-// src/lib/utils.ts
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { ConvertingPageData } from "@/lib/dashboard-shared"
@@ -8,31 +7,43 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Fasst Landingpages zusammen, indem URL-Parameter (wie fbclid) entfernt werden.
- * Werte wie Sessions und Conversions werden addiert, Raten neu berechnet.
+ * Fasst Landingpages zusammen:
+ * 1. Entfernt URL-Parameter (wie fbclid)
+ * 2. Entfernt "(not set)" Einträge
+ * 3. Wandelt "/" in "Startseite" um
+ * 4. Addiert Werte für gleiche Pfade
  */
 export function aggregateLandingPages(pages: ConvertingPageData[]): ConvertingPageData[] {
   const pageMap = new Map<string, ConvertingPageData>();
 
   pages.forEach((page) => {
-    // 1. Alles ab dem Fragezeichen abschneiden (z.B. /angebot?fbclid=123 -> /angebot)
-    const cleanPath = page.path.split('?')[0];
+    // 1. Alles ab dem Fragezeichen abschneiden
+    let cleanPath = page.path.split('?')[0];
+
+    // 2. Herausfiltern von "(not set)" und leeren Pfaden
+    if (!cleanPath || cleanPath === '(not set)' || cleanPath.trim() === '') {
+      return; 
+    }
+
+    // 3. ✅ NEU: "/" in "Startseite" umbenennen für bessere Lesbarkeit
+    if (cleanPath === '/') {
+      cleanPath = 'Startseite';
+    }
 
     if (pageMap.has(cleanPath)) {
-      // 2. Wenn der saubere Pfad schon existiert: Werte zusammenführen
+      // 4. Wenn der saubere Pfad schon existiert: Werte zusammenführen
       const existing = pageMap.get(cleanPath)!;
       
-      // Metriken addieren
       const totalSessions = (existing.sessions || 0) + (page.sessions || 0);
       const totalConversions = existing.conversions + page.conversions;
       const totalNewUsers = (existing.newUsers || 0) + (page.newUsers || 0);
 
-      // Conversion Rate basierend auf neuen Summen berechnen
+      // Conversion Rate neu berechnen
       const newConversionRate = totalSessions > 0 
         ? (totalConversions / totalSessions) * 100 
         : 0;
         
-      // Engagement Rate gewichtet berechnen (damit Seiten mit viel Traffic stärker zählen)
+      // Engagement Rate gewichtet berechnen
       let newEngagementRate = 0;
       if (totalSessions > 0) {
         const weightExisting = existing.sessions || 0;
@@ -42,7 +53,6 @@ export function aggregateLandingPages(pages: ConvertingPageData[]): ConvertingPa
         
         newEngagementRate = ((rateExisting * weightExisting) + (ratePage * weightPage)) / totalSessions;
       } else {
-        // Fallback: Einfacher Durchschnitt, wenn keine Sessions da sind
         newEngagementRate = ((existing.engagementRate || 0) + (page.engagementRate || 0)) / 2;
       }
 
@@ -52,11 +62,11 @@ export function aggregateLandingPages(pages: ConvertingPageData[]): ConvertingPa
         conversions: totalConversions,
         newUsers: totalNewUsers,
         conversionRate: newConversionRate,
-        engagementRate: parseFloat(newEngagementRate.toFixed(2)) // Runden für saubere Daten
+        engagementRate: parseFloat(newEngagementRate.toFixed(2))
       });
 
     } else {
-      // 3. Neuer Eintrag für diesen Pfad (noch nicht in Map)
+      // 5. Neuer Eintrag
       pageMap.set(cleanPath, {
         ...page,
         path: cleanPath
@@ -64,7 +74,6 @@ export function aggregateLandingPages(pages: ConvertingPageData[]): ConvertingPa
     }
   });
 
-  // Array zurückgeben und nach Conversions sortieren (höchste zuerst)
   return Array.from(pageMap.values())
     .sort((a, b) => b.conversions - a.conversions);
 }
