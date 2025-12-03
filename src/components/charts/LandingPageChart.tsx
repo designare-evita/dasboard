@@ -12,14 +12,14 @@ interface Props {
 }
 
 export default function LandingPageChart({ data, isLoading, title = "Top Landingpages" }: Props) {
-  // Ladezustand auch mit 70vh Höhe
+  // Ladezustand - Höhe angepasst auf 50vh
   if (isLoading) {
-    return <div className="h-[70vh] w-full bg-gray-50 rounded-xl animate-pulse flex items-center justify-center text-gray-400">Lade Daten...</div>;
+    return <div className="h-[50vh] w-full bg-gray-50 rounded-xl animate-pulse flex items-center justify-center text-gray-400">Lade Daten...</div>;
   }
 
-  // Leerer Zustand auch mit 70vh Höhe
+  // Leerer Zustand - Höhe angepasst auf 50vh
   if (!data || data.length === 0) {
-    return <div className="h-[70vh] w-full bg-gray-50 rounded-xl flex items-center justify-center text-gray-400">Keine Daten verfügbar</div>;
+    return <div className="h-[50vh] w-full bg-gray-50 rounded-xl flex items-center justify-center text-gray-400">Keine Daten verfügbar</div>;
   }
 
   // Daten filtern und sortieren
@@ -31,7 +31,7 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
 
   if (sortedData.length === 0) {
     return (
-      <div className="h-[70vh] w-full bg-gray-50 rounded-xl flex items-center justify-center text-gray-400">
+      <div className="h-[50vh] w-full bg-gray-50 rounded-xl flex items-center justify-center text-gray-400">
         Keine validen Daten
       </div>
     );
@@ -42,18 +42,14 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
   
   const firstScore = getScore(sortedData[0]);
   const secondScore = sortedData.length > 1 ? getScore(sortedData[1]) : 0;
-
-  // Prüfen, ob der erste Platz ein extremer Ausreißer ist
   const isOutlier = secondScore > 0 && firstScore > (secondScore * 2);
-
-  // Wenn Ausreißer: Skaliere Basis auf den ZWEITEN Platz (+20% Puffer)
   const scaleMax = isOutlier ? secondScore * 1.2 : firstScore;
 
   return (
-    // ✅ UPDATE: Feste Höhe von 70vh für den gesamten Container
-    <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex flex-col h-[70vh]">
+    // ✅ UPDATE: Feste Höhe von 50vh
+    <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex flex-col h-[50vh]">
       
-      {/* Header Bereich (fixiert, scrollt nicht mit) */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-4 flex-shrink-0">
         <h3 className="text-[18px] font-semibold text-gray-900 flex items-center gap-2">
           <FileEarmarkText className="text-indigo-500" size={18} />
@@ -85,7 +81,7 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
         </div>
       </div>
 
-      {/* ✅ UPDATE: Scrollbarer Bereich nimmt den restlichen Platz ein */}
+      {/* Scrollbarer Bereich */}
       <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
         <div className="space-y-2.5">
           {sortedData.map((page, i) => {
@@ -99,23 +95,26 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
 
             const rawNewUsers = page.newUsers || 0;
             const rawSessions = page.sessions || 0;
+
+            // Breitenverhältnis innerhalb des variablen Bereichs (Users/Sessions)
+            // Wir müssen sicherstellen, dass nicht durch 0 geteilt wird
+            const totalVariableValue = rawSessions || 1; 
             
             return (
               <div key={i} className="group relative">
-                {/* Break-Symbol für den Ausreißer (Platz 1) */}
+                {/* Break-Symbol für den Ausreißer */}
                 {isThisTheOutlier && (
                    <div 
                      className="absolute top-0 bottom-0 z-20 flex items-center justify-center pointer-events-none" 
                      style={{ left: '50%' }}
                    >
-                     {/* Weisser Blitz/Bruch */}
                      <div className="h-full w-3 bg-white skew-x-[-20deg] border-l-2 border-r-2 border-white/50 shadow-[0_0_10px_rgba(255,255,255,0.8)]"></div>
                    </div>
                 )}
 
                 <div className="h-9 flex rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow relative bg-gray-50 w-full">
                   
-                  {/* 1. Label (Seite) - Fixe Breite */}
+                  {/* Label (Seite) */}
                   <div className="bg-gray-700 flex items-center px-3 gap-2 flex-shrink-0 z-30 relative" style={{ width: '200px' }}>
                     <span className="text-[10px] font-black text-gray-400 w-5">#{i+1}</span>
                     <span className="text-[13px] font-medium text-white truncate" title={page.path}>
@@ -123,14 +122,29 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
                     </span>
                   </div>
                   
-                  {/* Der eigentliche Daten-Balken Bereich */}
+                  {/* Daten-Balken Bereich */}
                   <div className="flex flex-1 relative bg-gray-100 min-w-0">
-                    <div className="flex h-full transition-all duration-500 ease-out" style={{ width: `${totalWidthPercent}%` }}>
+                    
+                    {/* Container für den Balken. 
+                        minWidth sorgt dafür, dass Rate & Conv immer reinpassen, auch wenn der Balken rechnerisch (totalWidthPercent) winzig wäre.
+                    */}
+                    <div 
+                      className="flex h-full transition-all duration-500 ease-out" 
+                      style={{ 
+                        width: `${totalWidthPercent}%`,
+                        minWidth: '260px' // ✅ Platz reservieren für die rechten Blöcke (Rate + Conv)
+                      }}
+                    >
+                      
+                      {/* --- Variable Breite (Users & Sessions) --- */}
                       
                       {/* Neue Besucher */}
                       <div 
                         className="bg-[#188BDB] flex items-center px-2 overflow-hidden"
-                        style={{ width: `${(rawNewUsers / currentScore) * 100}%` }}
+                        style={{ 
+                          width: `${(rawNewUsers / totalVariableValue) * 100}%`,
+                          minWidth: rawNewUsers > 0 ? '40px' : '0px' // Mindestbreite nur wenn Daten da sind
+                        }}
                       >
                          <span className="text-[12px] text-white whitespace-nowrap truncate">
                            {rawNewUsers.toLocaleString()} Neu
@@ -140,31 +154,34 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
                       {/* Total Sessions (Rest) */}
                       <div 
                         className="bg-teal-600 flex items-center px-2 overflow-hidden"
-                        style={{ width: `${((rawSessions - rawNewUsers) / currentScore) * 100}%` }}
+                        style={{ 
+                          // Den Rest des verfügbaren Platzes im "Variable-Teil" nehmen
+                          flex: 1,
+                          minWidth: '40px'
+                        }}
                       >
                          <span className="text-[12px] text-white whitespace-nowrap truncate">
                            {rawSessions.toLocaleString()} Sess.
                          </span>
                       </div>
 
-                      {/* Interaktionsrate (Fester Anteil für Visualisierung) */}
+
+                      {/* --- Feste Breite (Text passt immer) --- */}
+
+                      {/* Interaktionsrate - ✅ Immer Emerald, Feste Breite für Text */}
                        <div 
-                        className={`flex items-center px-2 overflow-hidden ${
-                          (page.engagementRate || 0) > 60 ? 'bg-emerald-500' : 
-                          (page.engagementRate || 0) > 40 ? 'bg-blue-500' : 
-                          'bg-gray-400'
-                        }`}
-                        style={{ width: '15%' }} // Feste relative Breite im Stack
+                        className="bg-emerald-500 flex items-center px-2 overflow-hidden flex-shrink-0"
+                        style={{ width: '120px' }} // Breit genug für "XX% Interaktionsrate"
                       >
                         <span className="text-[12px] text-white whitespace-nowrap truncate">
                           {(page.engagementRate || 0).toFixed(0)}% Rate
                         </span>
                       </div>
 
-                      {/* Conversions */}
+                      {/* Conversions - ✅ Immer Amber, Feste Breite für Text */}
                       <div 
-                        className="bg-amber-500 flex items-center px-2 overflow-hidden"
-                        style={{ flex: 1 }} 
+                        className="bg-amber-500 flex items-center px-2 overflow-hidden flex-shrink-0"
+                        style={{ width: '130px' }} // Breit genug für "XXX Conversions"
                       >
                         <span className="text-[12px] text-white whitespace-nowrap truncate">
                           {page.conversions || 0} Conv.
