@@ -21,22 +21,17 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
     return <div className="h-[400px] w-full bg-gray-50 rounded-xl flex items-center justify-center text-gray-400">Keine Daten verfügbar</div>;
   }
 
-  // ✅ Debug: Daten in Konsole ausgeben
-  console.log('[LandingPageChart] Rohdaten:', data);
-  console.log('[LandingPageChart] Erstes Objekt:', data[0]);
-  console.log('[LandingPageChart] Keys:', data[0] ? Object.keys(data[0]) : 'keine Daten');
+  // Debug: Daten prüfen
+  // console.log('[LandingPageChart] Rohdaten:', data);
 
-  // ✅ Sortiere nach Neuen Nutzern und filtere ungültige Einträge
+  // Sortiere nach Neuen Nutzern und filtere ungültige Einträge
   const sortedData = [...data]
-    .filter(item => item.newUsers !== undefined && item.newUsers !== null) // Nur valide Daten
-    .filter(item => !item.path?.toLowerCase().includes('danke')) // Danke-Seiten ausschließen (case-insensitive)
+    .filter(item => item.newUsers !== undefined && item.newUsers !== null) 
+    .filter(item => !item.path?.toLowerCase().includes('danke')) 
     .sort((a, b) => (b.newUsers || 0) - (a.newUsers || 0))
-    .slice(0, 50); // Top 50
+    .slice(0, 50); 
 
-  console.log('[LandingPageChart] Sortierte Daten:', sortedData);
-  console.log('[LandingPageChart] Anzahl sortierter Einträge:', sortedData.length);
-
-  // ✅ Fallback wenn keine validen Daten
+  // Fallback wenn keine validen Daten
   if (sortedData.length === 0) {
     return (
       <div className="h-[400px] w-full bg-gray-50 rounded-xl flex items-center justify-center">
@@ -49,15 +44,15 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
   }
 
   return (
-    <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-      <div className="flex items-center justify-between mb-4">
+    <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex flex-col h-full">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-4">
         <h3 className="text-[18px] font-semibold text-gray-900 flex items-center gap-2">
           <FileEarmarkText className="text-indigo-500" size={18} />
-          Top Landingpages (Conversions & Interaktion)
+          {title}
         </h3>
 
-        {/* Legende (Rechts ausgerichtet im Header) - Schriftgröße angepasst (text-xs) */}
-        <div className="flex flex-wrap items-center gap-4 text-xs">
+        {/* Legende */}
+        <div className="flex flex-wrap items-center gap-3 text-xs">
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded bg-gray-700"></div>
             <span className="text-gray-600 font-medium">Seite</span>
@@ -81,78 +76,104 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
         </div>
       </div>
 
-      {/* Kompakte Stacked Bar Visualisierung */}
-      <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-2">
-        {sortedData.map((page, i) => {
-          // Berechne Breiten basierend auf Metriken
-          const maxValue = Math.max(...sortedData.map(p => (p.sessions || 0) + (p.conversions || 0) * 10));
-          const newUsersWidth = ((page.newUsers || 0) / maxValue) * 100;
-          const sessionsWidth = (((page.sessions || 0) - (page.newUsers || 0)) / maxValue) * 100;
-          const engagementWidth = ((page.engagementRate || 0) / 100) * 15; // Max 15% Breite
-          const conversionWidth = ((page.conversions || 0) / maxValue) * 100 * 10;
-          
-          return (
-            <div key={i} className="group">
-              {/* Stacked Bar mit allen Daten drin */}
-              <div className="h-9 flex rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow relative">
-                
-                {/* Segment 1: Rank & Page */}
-                <div className="bg-gray-700 flex items-center px-3 gap-2 flex-shrink-0" style={{ minWidth: '200px' }}>
-                  <span className="text-[10px] font-black text-gray-400">#{i+1}</span>
-                  <span className="text-[14px] font-medium text-white truncate" title={page.path}>
-                    {page.path}
-                  </span>
-                </div>
-                
-                {/* Segment 2: Neue Besucher */}
-                <div 
-                  className="flex items-center px-2"
-                  style={{ minWidth: '130px', flex: `0 0 ${Math.max(newUsersWidth, 10)}%`, backgroundColor: '#188BDB' }}
-                >
-                  <span className="text-[14px] text-white whitespace-nowrap">
-                    {page.newUsers || 0} Neue Besucher
-                  </span>
-                </div>
-                
-                {/* Segment 3: Total Sessions */}
-                <div 
-                  className="bg-teal-600 flex items-center px-2"
-                  style={{ minWidth: '130px', flex: `0 0 ${Math.max(sessionsWidth, 12)}%` }}
-                >
-                  <span className="text-[14px] text-white whitespace-nowrap">
-                    {page.sessions || 0} Total Sessions
-                  </span>
-                </div>
-                
-                {/* Segment 4: Interaktionsrate */}
-                <div 
-                  className={`flex items-center px-2 ${
-                    (page.engagementRate || 0) > 60 ? 'bg-emerald-500' : 
-                    (page.engagementRate || 0) > 40 ? 'bg-blue-500' : 
-                    'bg-gray-400'
-                  }`}
-                  // MinWidth erhöht, damit "Interaktionsrate" Platz hat
-                  style={{ minWidth: '170px', flex: `0 0 ${Math.max(engagementWidth, 12)}%` }}
-                >
-                  <span className="text-[14px] text-white whitespace-nowrap">
-                    {(page.engagementRate || 0).toFixed(2)}% Interaktionsrate
-                  </span>
-                </div>
-                
-                {/* Segment 5: Conversions */}
-                <div 
-                  className="bg-amber-500 flex items-center px-2"
-                  // MinWidth leicht erhöht für "Conversions"
-                  style={{ minWidth: '110px', flex: `0 0 ${Math.max(conversionWidth, 10)}%` }}
-                >
-                  <span className="text-[14px] text-white whitespace-nowrap">
-                    {page.conversions || 0} Conversions
-                  </span>
+      {/* ✅ UPDATE: Scrollbarer Container für die Balken */}
+      <div className="overflow-x-auto pb-2 flex-1">
+        {/* Min-Width erzwingt, dass die Balken nicht gequetscht werden -> Scrollbar erscheint */}
+        <div className="space-y-2.5 min-w-[900px]">
+          {sortedData.map((page, i) => {
+            
+            // Berechnungsgrundlage: MaxValue = Sessions + (Conversions * 10)
+            const maxValue = Math.max(...sortedData.map(p => (p.sessions || 0) + (p.conversions || 0) * 10));
+            
+            // Verhindert Division durch Null
+            const safeMax = maxValue > 0 ? maxValue : 1;
+
+            const newUsers = page.newUsers || 0;
+            const sessions = page.sessions || 0;
+            
+            // Sichere Berechnung der Breiten
+            const newUsersWidth = (newUsers / safeMax) * 100;
+            
+            // Sessions-Balken ist der Rest (Total - Neue)
+            // Math.max(0, ...) verhindert negative Werte bei Datenfehlern
+            const sessionsWidth = (Math.max(0, sessions - newUsers) / safeMax) * 100;
+            
+            const engagementWidth = ((page.engagementRate || 0) / 100) * 15; 
+            const conversionWidth = ((page.conversions || 0) / safeMax) * 100 * 10;
+            
+            return (
+              <div key={i} className="group">
+                <div className="h-9 flex rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow relative bg-gray-50">
+                  
+                  {/* 1. Seite */}
+                  <div className="bg-gray-700 flex items-center px-3 gap-2 flex-shrink-0" style={{ width: '220px' }}>
+                    <span className="text-[10px] font-black text-gray-400 w-5">#{i+1}</span>
+                    <span className="text-[13px] font-medium text-white truncate" title={page.path}>
+                      {page.path}
+                    </span>
+                  </div>
+                  
+                  {/* 2. Neue Besucher */}
+                  <div 
+                    className="flex items-center px-2 transition-all hover:brightness-110"
+                    style={{ 
+                      flex: `0 0 ${Math.max(newUsersWidth, 1)}%`, 
+                      minWidth: '140px', // Etwas mehr Platz für Text
+                      backgroundColor: '#188BDB' 
+                    }}
+                  >
+                    <span className="text-[13px] text-white whitespace-nowrap">
+                      {newUsers.toLocaleString()} Neue Besucher
+                    </span>
+                  </div>
+                  
+                  {/* 3. Total Sessions (Rest) */}
+                  <div 
+                    className="bg-teal-600 flex items-center px-2 transition-all hover:brightness-110"
+                    style={{ 
+                      flex: `0 0 ${Math.max(sessionsWidth, 1)}%`,
+                      minWidth: '140px' 
+                    }}
+                  >
+                    <span className="text-[13px] text-white whitespace-nowrap">
+                      {sessions.toLocaleString()} Total Sessions
+                    </span>
+                  </div>
+                  
+                  {/* 4. Interaktionsrate */}
+                  <div 
+                    className={`flex items-center px-2 transition-all hover:brightness-110 ${
+                      (page.engagementRate || 0) > 60 ? 'bg-emerald-500' : 
+                      (page.engagementRate || 0) > 40 ? 'bg-blue-500' : 
+                      'bg-gray-400'
+                    }`}
+                    style={{ 
+                      flex: `0 0 ${Math.max(engagementWidth, 1)}%`,
+                      minWidth: '180px' // Genug Platz für "55.20% Interaktionsrate"
+                    }}
+                  >
+                    <span className="text-[13px] text-white whitespace-nowrap">
+                      {(page.engagementRate || 0).toFixed(2)}% Interaktionsrate
+                    </span>
+                  </div>
+                  
+                  {/* 5. Conversions */}
+                  <div 
+                    className="bg-amber-500 flex items-center px-2 transition-all hover:brightness-110"
+                    style={{ 
+                      flex: `0 0 ${Math.max(conversionWidth, 1)}%`,
+                      minWidth: '120px'
+                    }}
+                  >
+                    <span className="text-[13px] text-white whitespace-nowrap font-medium">
+                      {page.conversions || 0} Conversions
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
 
       {sortedData.length === 0 && (
