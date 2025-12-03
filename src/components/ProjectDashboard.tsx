@@ -1,8 +1,9 @@
+// src/components/ProjectDashboard.tsx
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
-import { Eye, EyeSlash } from 'react-bootstrap-icons'; 
+import { Eye, EyeSlash, ArrowRepeat } from 'react-bootstrap-icons'; 
 import { 
   ProjectDashboardData, 
   ActiveKpi, 
@@ -74,7 +75,16 @@ export default function ProjectDashboard({
   // Admin Toggle State
   const [isLandingPagesVisible, setIsLandingPagesVisible] = useState(showLandingPagesToCustomer);
   const [isToggling, setIsToggling] = useState(false);
+
+  // ✅ NEU: Lokaler Loading-State für die Lightbox
+  const [isUpdating, setIsUpdating] = useState(false);
   
+  // ✅ NEU: Überwachen, wann die Daten fertig geladen sind
+  useEffect(() => {
+    // Wenn sich die Daten oder der Zeitraum geändert haben, Loading beenden
+    setIsUpdating(false);
+  }, [dateRange, data, isLoading]);
+
   const apiErrors = data.apiErrors;
   const kpis = data.kpis;
 
@@ -90,7 +100,6 @@ export default function ProjectDashboard({
     avgEngagementTime: safeKpi(kpis.avgEngagementTime),
   } : undefined;
 
-  // ✅ NEU: Kombiniere Standard-Charts mit AI-Trend-Daten
   const allChartData = {
     ...(data.charts || {}),
     aiTraffic: (data.aiTraffic?.trend ?? []).map(item => ({
@@ -100,6 +109,12 @@ export default function ProjectDashboard({
   };
 
   const handleDateRangeChange = (range: DateRangeOption) => {
+    // Verhindere Reload, wenn der gleiche Zeitraum geklickt wird
+    if (range === dateRange) return;
+
+    // ✅ NEU: Lightbox aktivieren
+    setIsUpdating(true);
+
     const params = new URLSearchParams(searchParams.toString());
     params.set('dateRange', range);
     router.push(`${pathname}?${params.toString()}`);
@@ -137,7 +152,23 @@ export default function ProjectDashboard({
   const hasSemrushConfig = hasKampagne1Config || hasKampagne2Config;
 
   return (
-    <div className="min-h-screen flex flex-col dashboard-gradient">
+    <div className="min-h-screen flex flex-col dashboard-gradient relative">
+      
+      {/* ✅ NEU: Lightbox Overlay */}
+      {isUpdating && (
+        <div className="fixed inset-0 z-[9999] bg-black/40 backdrop-blur-[2px] flex items-center justify-center transition-opacity duration-300">
+          <div className="bg-white px-8 py-6 rounded-xl shadow-2xl flex flex-col items-center gap-4 animate-in fade-in zoom-in duration-200">
+            <div className="relative">
+              <div className="w-12 h-12 border-4 border-blue-100 rounded-full"></div>
+              <div className="absolute top-0 left-0 w-12 h-12 border-4 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
+            </div>
+            <div className="text-center">
+              <h4 className="text-gray-900 font-semibold mb-1">Daten werden aktualisiert</h4>
+              <p className="text-gray-500 text-sm">Bitte einen Moment Geduld...</p>
+            </div>
+          </div>
+        </div>
+      )}
       
       <div className="flex-grow w-full px-4 sm:px-6 lg:px-8 py-6">
         
@@ -170,7 +201,7 @@ export default function ProjectDashboard({
           {extendedKpis && (
             <TableauKpiGrid
               kpis={extendedKpis}
-              isLoading={isLoading}
+              isLoading={isLoading} // Hier lassen wir isLoading für die Skeletons, falls gewünscht
               allChartData={data.charts as any} 
               apiErrors={apiErrors}
               dateRange={dateRange} 
@@ -183,7 +214,7 @@ export default function ProjectDashboard({
           <KpiTrendChart 
             activeKpi={activeKpi}
             onKpiChange={(kpi) => setActiveKpi(kpi as ActiveKpi)}
-            allChartData={allChartData} // ✅ UPDATE: Hier die erweiterten Daten übergeben
+            allChartData={allChartData}
           />
         </div>
 
