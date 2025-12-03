@@ -80,7 +80,6 @@ export default function ProjectDashboard({
       <GlobalHeader 
         userRole={userRole} 
         userEmail={userEmail}
-        showDateSelector={true}
         dateRange={dateRange}
         onDateRangeChange={onDateRangeChange || (() => {})}
       />
