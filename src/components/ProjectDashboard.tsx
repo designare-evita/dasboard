@@ -82,8 +82,11 @@ export default function ProjectDashboard({
   // Lokaler Loading-State für die Lightbox
   const [isUpdating, setIsUpdating] = useState(false);
   
-  // ✅ NEU: Ref für den Chart (für PDF Export)
+  // ✅ PDF EXPORT: Refs für Charts
   const chartRef = useRef<HTMLDivElement>(null);
+  const pieChartCountryRef = useRef<HTMLDivElement>(null);
+  const pieChartChannelRef = useRef<HTMLDivElement>(null);
+  const pieChartDeviceRef = useRef<HTMLDivElement>(null);
   
   // Überwachen, wann die Daten fertig geladen sind
   useEffect(() => {
@@ -117,6 +120,22 @@ export default function ProjectDashboard({
   const cleanLandingPages = useMemo(() => {
     return aggregateLandingPages(data.topConvertingPages || []);
   }, [data.topConvertingPages]);
+
+  // ✅ PDF EXPORT: KPI Daten formatieren
+  const formattedKpis = useMemo(() => {
+    if (!extendedKpis) return [];
+    
+    return [
+      { label: 'Klicks', value: extendedKpis.clicks.value.toLocaleString('de-DE'), change: extendedKpis.clicks.change },
+      { label: 'Impressionen', value: extendedKpis.impressions.value.toLocaleString('de-DE'), change: extendedKpis.impressions.change },
+      { label: 'Sitzungen', value: extendedKpis.sessions.value.toLocaleString('de-DE'), change: extendedKpis.sessions.change },
+      { label: 'Nutzer', value: extendedKpis.totalUsers.value.toLocaleString('de-DE'), change: extendedKpis.totalUsers.change },
+      { label: 'Conversions', value: extendedKpis.conversions.value.toLocaleString('de-DE'), change: extendedKpis.conversions.change },
+      { label: 'Engagement Rate', value: extendedKpis.engagementRate.value.toFixed(1), change: extendedKpis.engagementRate.change, unit: '%' },
+      { label: 'Bounce Rate', value: extendedKpis.bounceRate.value.toFixed(1), change: extendedKpis.bounceRate.change, unit: '%' },
+      { label: 'Neue Nutzer', value: extendedKpis.newUsers.value.toLocaleString('de-DE'), change: extendedKpis.newUsers.change },
+    ];
+  }, [extendedKpis]);
 
   const handleDateRangeChange = (range: DateRangeOption) => {
     if (range === dateRange) return;
@@ -205,6 +224,12 @@ export default function ProjectDashboard({
               projectId={projectId} 
               dateRange={dateRange}
               chartRef={chartRef}
+              pieChartsRefs={{
+                country: pieChartCountryRef,
+                channel: pieChartChannelRef,
+                device: pieChartDeviceRef
+              }}
+              kpis={formattedKpis}
             />
           </div>
         )}
@@ -320,9 +345,15 @@ export default function ProjectDashboard({
 
         {/* PIE CHARTS */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6 print-pie-grid">
-          <TableauPieChart data={data.channelData} title="Zugriffe nach Channel" isLoading={isLoading} error={apiErrors?.ga4} />
-          <TableauPieChart data={data.countryData} title="Zugriffe nach Land" isLoading={isLoading} error={apiErrors?.ga4} />
-          <TableauPieChart data={data.deviceData} title="Zugriffe nach Endgerät" isLoading={isLoading} error={apiErrors?.ga4} />
+          <div ref={pieChartChannelRef}>
+            <TableauPieChart data={data.channelData} title="Zugriffe nach Channel" isLoading={isLoading} error={apiErrors?.ga4} />
+          </div>
+          <div ref={pieChartCountryRef}>
+            <TableauPieChart data={data.countryData} title="Zugriffe nach Land" isLoading={isLoading} error={apiErrors?.ga4} />
+          </div>
+          <div ref={pieChartDeviceRef}>
+            <TableauPieChart data={data.deviceData} title="Zugriffe nach Endgerät" isLoading={isLoading} error={apiErrors?.ga4} />
+          </div>
         </div>
         
         {/* SEMRUSH */}
