@@ -1,4 +1,3 @@
-// src/lib/dashboard-shared.ts
 import { DateRangeOption } from "@/components/DateRangeSelector";
 import type { 
   KpiDatum, 
@@ -12,32 +11,28 @@ import type { AiTrafficData } from '@/types/ai-traffic';
 // Re-exportiere die Basis-Typen
 export type { KpiDatum, ChartPoint, TopQueryData, AiTrafficData };
 
-// Wir erweitern den ActiveKpi Typ um alle neuen Metriken
-export type ActiveKpi = BaseActiveKpi | 'conversions' | 'engagementRate' | 'bounceRate' | 'newUsers' | 'avgEngagementTime';
+// ✅ UPDATE: 'aiTraffic' zur ActiveKpi Union hinzufügen
+export type ActiveKpi = BaseActiveKpi | 'conversions' | 'engagementRate' | 'bounceRate' | 'newUsers' | 'avgEngagementTime' | 'aiTraffic';
 
 // Metadaten für KPI Tabs (Farben & Labels)
 export const KPI_TAB_META: Record<string, { label: string; color: string }> = {
-  clicks: { label: 'Klicks', color: '#3b82f6' },          // Blue
-  impressions: { label: 'Impressionen', color: '#8b5cf6' }, // Violet
-  sessions: { label: 'Sitzungen', color: '#10b981' },      // Emerald
-  totalUsers: { label: 'Nutzer', color: '#f97316' },       // Orange
-  conversions: { label: 'Conversions', color: '#f59e0b' }, // Amber
-  engagementRate: { label: 'Engagement Rate', color: '#ec4899' }, // Pink
-  bounceRate: { label: 'Bounce Rate', color: '#ef4444' },  // Red
-  newUsers: { label: 'Neue Nutzer', color: '#06b6d4' },    // Cyan
-  avgEngagementTime: { label: 'Ø Zeit', color: '#6366f1' }, // Indigo
+  clicks: { label: 'Klicks', color: '#3b82f6' },          
+  impressions: { label: 'Impressionen', color: '#8b5cf6' }, 
+  sessions: { label: 'Sitzungen', color: '#10b981' },      
+  totalUsers: { label: 'Nutzer', color: '#f97316' },       
+  conversions: { label: 'Conversions', color: '#f59e0b' }, 
+  engagementRate: { label: 'Engagement Rate', color: '#ec4899' }, 
+  bounceRate: { label: 'Bounce Rate', color: '#ef4444' },  
+  newUsers: { label: 'Neue Nutzer', color: '#06b6d4' },    
+  avgEngagementTime: { label: 'Ø Zeit', color: '#6366f1' }, 
 };
 
 export interface ChartEntry {
   name: string;
   value: number;
   fill?: string;
-  
-  // Für Engagement/Interaktionsrate
   subValue?: string;
   subLabel?: string;
-  
-  // Neu für Conversions
   subValue2?: number;
   subLabel2?: string;
 }
@@ -48,14 +43,13 @@ export interface ApiErrorStatus {
   semrush?: string;
 }
 
-// ✅ NEU: Definition für die Top Converting Pages
 export interface ConvertingPageData {
   path: string;
   conversions: number;
   conversionRate: number; 
   engagementRate?: number;
-  sessions?: number; // ✅ NEU
-  newUsers?: number; // ✅ NEU
+  sessions?: number; 
+  newUsers?: number; 
 }
 
 export interface ProjectDashboardData {
@@ -64,8 +58,6 @@ export interface ProjectDashboardData {
     impressions?: KpiDatum;
     sessions?: KpiDatum;
     totalUsers?: KpiDatum;
-    
-    // Erweiterte GA4 Metriken
     conversions?: KpiDatum;     
     engagementRate?: KpiDatum; 
     bounceRate?: KpiDatum;        
@@ -82,22 +74,18 @@ export interface ProjectDashboardData {
     bounceRate?: ChartPoint[];
     newUsers?: ChartPoint[];
     avgEngagementTime?: ChartPoint[];
+    aiTraffic?: ChartPoint[]; // ✅ UPDATE: Chart-Daten für AI Traffic
   };
   topQueries?: TopQueryData[];
-  
-  // ✅ NEU: Das Feld, das gefehlt hat
   topConvertingPages?: ConvertingPageData[];
-  
   aiTraffic?: AiTrafficData;
   countryData?: ChartEntry[];
   channelData?: ChartEntry[];
   deviceData?: ChartEntry[];
-  
   apiErrors?: ApiErrorStatus;
   fromCache?: boolean;
 }
 
-// Default Werte Helper
 export const ZERO_KPI: KpiDatum = { value: 0, change: 0 };
 
 export function normalizeFlatKpis(input?: ProjectDashboardData['kpis']) {
@@ -106,7 +94,6 @@ export function normalizeFlatKpis(input?: ProjectDashboardData['kpis']) {
     impressions: input?.impressions ?? ZERO_KPI,
     sessions: input?.sessions ?? ZERO_KPI,
     totalUsers: input?.totalUsers ?? ZERO_KPI,
-    
     conversions: input?.conversions ?? ZERO_KPI,
     engagementRate: input?.engagementRate ?? ZERO_KPI,
     bounceRate: input?.bounceRate ?? ZERO_KPI,
@@ -117,10 +104,7 @@ export function normalizeFlatKpis(input?: ProjectDashboardData['kpis']) {
 
 export function hasDashboardData(data: ProjectDashboardData): boolean {
   if (data.apiErrors?.gsc && data.apiErrors?.ga4) return false;
-
   const k = normalizeFlatKpis(data.kpis);
-  // Einfacher Check: Haben wir Klicks oder Sessions > 0?
   if (k.clicks.value > 0 || k.sessions.value > 0) return true;
-
   return false;
 }
