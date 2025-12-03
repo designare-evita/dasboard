@@ -12,12 +12,14 @@ interface Props {
 }
 
 export default function LandingPageChart({ data, isLoading, title = "Top Landingpages" }: Props) {
+  // Ladezustand auch mit 70vh Höhe
   if (isLoading) {
-    return <div className="h-[400px] w-full bg-gray-50 rounded-xl animate-pulse flex items-center justify-center text-gray-400">Lade Daten...</div>;
+    return <div className="h-[70vh] w-full bg-gray-50 rounded-xl animate-pulse flex items-center justify-center text-gray-400">Lade Daten...</div>;
   }
 
+  // Leerer Zustand auch mit 70vh Höhe
   if (!data || data.length === 0) {
-    return <div className="h-[400px] w-full bg-gray-50 rounded-xl flex items-center justify-center text-gray-400">Keine Daten verfügbar</div>;
+    return <div className="h-[70vh] w-full bg-gray-50 rounded-xl flex items-center justify-center text-gray-400">Keine Daten verfügbar</div>;
   }
 
   // Daten filtern und sortieren
@@ -29,30 +31,30 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
 
   if (sortedData.length === 0) {
     return (
-      <div className="h-[400px] w-full bg-gray-50 rounded-xl flex items-center justify-center text-gray-400">
+      <div className="h-[70vh] w-full bg-gray-50 rounded-xl flex items-center justify-center text-gray-400">
         Keine validen Daten
       </div>
     );
   }
 
   // --- LOGIK FÜR SMARTE SKALIERUNG ---
-  
-  // Berechne Gesamt-Score für jeden Eintrag (Sessions + gewichtete Conversions)
   const getScore = (p: ConvertingPageData) => (p.sessions || 0) + (p.conversions || 0) * 10;
   
   const firstScore = getScore(sortedData[0]);
   const secondScore = sortedData.length > 1 ? getScore(sortedData[1]) : 0;
 
-  // Prüfen, ob der erste Platz ein extremer Ausreißer ist (mehr als doppelt so groß wie der zweite)
+  // Prüfen, ob der erste Platz ein extremer Ausreißer ist
   const isOutlier = secondScore > 0 && firstScore > (secondScore * 2);
 
   // Wenn Ausreißer: Skaliere Basis auf den ZWEITEN Platz (+20% Puffer)
-  // Sonst: Normal auf den ersten Platz
   const scaleMax = isOutlier ? secondScore * 1.2 : firstScore;
 
   return (
-    <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex flex-col h-full">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-4">
+    // ✅ UPDATE: Feste Höhe von 70vh für den gesamten Container
+    <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex flex-col h-[70vh]">
+      
+      {/* Header Bereich (fixiert, scrollt nicht mit) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-4 flex-shrink-0">
         <h3 className="text-[18px] font-semibold text-gray-900 flex items-center gap-2">
           <FileEarmarkText className="text-indigo-500" size={18} />
           {title}
@@ -83,54 +85,31 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
         </div>
       </div>
 
-      {/* Container OHNE horizontales Scrollen */}
-      <div className="flex-1 overflow-y-auto pr-2">
+      {/* ✅ UPDATE: Scrollbarer Bereich nimmt den restlichen Platz ein */}
+      <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
         <div className="space-y-2.5">
           {sortedData.map((page, i) => {
             const currentScore = getScore(page);
-            
-            // Ist dieser spezielle Balken der Ausreißer?
             const isThisTheOutlier = i === 0 && isOutlier;
-
-            // Breitenberechnung
             const safeMax = scaleMax > 0 ? scaleMax : 1;
             
-            // Wenn Ausreißer -> Gesamtlänge künstlich begrenzen (damit er nicht rausragt)
-            // Ansonsten normal skalieren
             const totalWidthPercent = isThisTheOutlier 
-              ? 100 // Volle Breite, aber Break-Symbol
+              ? 100 
               : Math.min((currentScore / safeMax) * 100, 100);
 
-            // Verhältnis der Segmente zueinander innerhalb des Balkens
             const rawNewUsers = page.newUsers || 0;
             const rawSessions = page.sessions || 0;
-            const rawConv = (page.conversions || 0) * 10; // Gewichtung wie oben
-            const rawEng = (page.engagementRate || 0); // Hier etwas vereinfacht für Visualisierung
-
-            // Summe der Teile für relative Verteilung im Balken
-            // (Wir nehmen Sessions als Basis für Länge, aber teilen visuell auf)
-            // Vereinfachung: Wir nutzen feste Verhältnisse basierend auf dem Wert
-            
-            // Breite relativ zum Skalen-Max
-            let wNewUsers = (rawNewUsers / safeMax) * 100;
-            let wSessions = ((rawSessions - rawNewUsers) / safeMax) * 100; // Rest-Sessions
-            let wEng = 15; // Fixe Breite für Rate reservieren, wenn möglich? Nein, dynamisch.
-            // Engagement ist schwer in "Summe" zu packen. Wir machen es als festen Block.
-            
-            // BESSERER ANSATZ FÜR STACKED BAR MIT "FESTEN" PROPORTIONEN:
-            // Wir nutzen Flex-Grow basierend auf den Werten, aber begrenzen die Gesamtbreite des Containers.
             
             return (
               <div key={i} className="group relative">
                 {/* Break-Symbol für den Ausreißer (Platz 1) */}
                 {isThisTheOutlier && (
                    <div 
-                     className="absolute top-0 bottom-0 z-20 flex items-center justify-center" 
+                     className="absolute top-0 bottom-0 z-20 flex items-center justify-center pointer-events-none" 
                      style={{ left: '50%' }}
                    >
-                     <div className="bg-white px-1 transform -skew-x-12 border-l-2 border-r-2 border-gray-300 h-full flex flex-col justify-center">
-                       {/* Zick-Zack Linie oder einfach leerer Schnitt */}
-                     </div>
+                     {/* Weisser Blitz/Bruch */}
+                     <div className="h-full w-3 bg-white skew-x-[-20deg] border-l-2 border-r-2 border-white/50 shadow-[0_0_10px_rgba(255,255,255,0.8)]"></div>
                    </div>
                 )}
 
@@ -146,7 +125,6 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
                   
                   {/* Der eigentliche Daten-Balken Bereich */}
                   <div className="flex flex-1 relative bg-gray-100 min-w-0">
-                    {/* Wir wrappen die Balken in einen Container, dessen Breite dem Wert entspricht */}
                     <div className="flex h-full transition-all duration-500 ease-out" style={{ width: `${totalWidthPercent}%` }}>
                       
                       {/* Neue Besucher */}
@@ -169,9 +147,7 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
                          </span>
                       </div>
 
-                      {/* Interaktionsrate (Fake-Anteil für Visualisierung oder fest) */}
-                      {/* Da Rate % ist und Sessions absolut, passt das nicht in einen Stack. 
-                          Wir mogeln hier etwas: Wir geben der Rate festen Platz im Balken oder hängen sie an */}
+                      {/* Interaktionsrate (Fester Anteil für Visualisierung) */}
                        <div 
                         className={`flex items-center px-2 overflow-hidden ${
                           (page.engagementRate || 0) > 60 ? 'bg-emerald-500' : 
@@ -188,7 +164,7 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
                       {/* Conversions */}
                       <div 
                         className="bg-amber-500 flex items-center px-2 overflow-hidden"
-                        style={{ flex: 1 }} // Nimmt den Rest des zugewiesenen Platzes
+                        style={{ flex: 1 }} 
                       >
                         <span className="text-[12px] text-white whitespace-nowrap truncate">
                           {page.conversions || 0} Conv.
