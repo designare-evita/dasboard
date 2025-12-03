@@ -2,13 +2,12 @@
 'use client';
 
 import { useState } from 'react';
-import { toPng } from 'html-to-image';
 import { pdf } from '@react-pdf/renderer';
 import { AnalysisReport } from '@/components/pdf/AnalysisReport';
 import { FileEarmarkPdf } from 'react-bootstrap-icons';
 
 interface ExportButtonProps {
-  chartRef: React.RefObject<HTMLDivElement>;
+  chartRef?: React.RefObject<HTMLDivElement>;
   analysisText: string;
   projectId: string;
   dateRange: string;
@@ -28,99 +27,34 @@ interface ExportButtonProps {
 }
 
 export default function ExportButton({ 
-  chartRef, 
   analysisText, 
   projectId, 
   dateRange,
-  pieChartsRefs,
   kpis
 }: ExportButtonProps) {
   const [isGenerating, setIsGenerating] = useState(false);
-
-  const captureElement = async (ref: React.RefObject<HTMLDivElement>): Promise<string> => {
-    if (!ref.current) {
-      console.warn('Ref nicht vorhanden, überspringe Screenshot');
-      return '';
-    }
-    
-    try {
-      const element = ref.current;
-      
-      // Scroll in View
-      element.scrollIntoView({ behavior: 'instant', block: 'center' });
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      // ✅ Verwende html-to-image (unterstützt oklch besser)
-      const dataUrl = await toPng(element, {
-        quality: 0.95,
-        pixelRatio: 2,
-        backgroundColor: '#ffffff',
-        cacheBust: true,
-        style: {
-          transform: 'scale(1)',
-          transformOrigin: 'top left'
-        }
-      });
-      
-      console.log(`✅ Screenshot erfolgreich (${Math.round(dataUrl.length / 1024)}KB)`);
-      return dataUrl;
-      
-    } catch (e) {
-      console.error("Konnte Element nicht rendern:", e);
-      return '';
-    }
-  };
 
   const handleDownload = async () => {
     if (!analysisText) return;
     setIsGenerating(true);
 
     try {
-      console.log('🚀 Starte PDF-Generierung...');
+      console.log('🚀 Starte PDF-Generierung (ohne Charts)...');
       
-      // 1. Trend Chart
-      console.log('📊 Erstelle Trend Chart Screenshot...');
-      const trendChart = await captureElement(chartRef);
-      
-      if (trendChart) {
-        console.log('✅ Trend Chart erfolgreich');
-      } else {
-        console.warn('⚠️ Trend Chart leer');
-      }
-      
-      // 2. Pie Charts
-      console.log('📊 Erstelle Pie Charts Screenshots...');
-      const pieCharts = pieChartsRefs ? {
-        channel: pieChartsRefs.channel ? await captureElement(pieChartsRefs.channel) : '',
-        country: pieChartsRefs.country ? await captureElement(pieChartsRefs.country) : '',
-        device: pieChartsRefs.device ? await captureElement(pieChartsRefs.device) : ''
-      } : undefined;
-
-      if (pieCharts) {
-        console.log('Pie Charts Status:', {
-          channel: pieCharts.channel ? '✅' : '❌',
-          country: pieCharts.country ? '✅' : '❌',
-          device: pieCharts.device ? '✅' : '❌'
-        });
-      }
-
-      console.log('📄 Generiere PDF...');
-      
-      // 3. PDF Blob generieren
+      // Generiere PDF nur mit KPIs und Text
       const blob = await pdf(
         <AnalysisReport 
           projectId={projectId}
           dateRange={dateRange}
-          summaryText={analysisText} 
-          trendChart={trendChart}
-          pieCharts={pieCharts}
+          summaryText={analysisText}
           kpis={kpis}
+          // Charts werden vorerst weggelassen
         />
       ).toBlob();
 
       console.log('✅ PDF erfolgreich generiert');
 
-      // 4. Download
+      // Download
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -145,7 +79,7 @@ export default function ExportButton({
       onClick={handleDownload} 
       disabled={isGenerating}
       className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-      title="Vollständigen PDF Report herunterladen"
+      title="PDF Report mit KPIs und Analyse herunterladen"
     >
       {isGenerating ? (
         <>
