@@ -11,8 +11,7 @@ import {
   Eye, 
   EyeSlash, 
   Envelope, 
-  Lock,
-  Database // Optionales Icon für die Rückseite
+  Lock 
 } from 'react-bootstrap-icons';
 import { motion } from 'framer-motion';
 
@@ -25,7 +24,7 @@ export default function LoginForm() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false); // Neuer State für Erfolg
+  const [isSuccess, setIsSuccess] = useState(false);
   
   const [showPassword, setShowPassword] = useState(false);
   const [shake, setShake] = useState(0);
@@ -57,14 +56,14 @@ export default function LoginForm() {
       setError('E-Mail oder Passwort ist falsch.');
       setShake(prev => prev + 1);
     } else {
-      // ✅ ERFOLG: Karte drehen und Initialisierung simulieren
+      // ✅ ERFOLG: Karte drehen
       setIsSuccess(true);
       
-      // Kurze Verzögerung für die Animation und "Dateninitialisierung"
+      // ✅ UPDATE: 3 Sekunden warten für Animation & Text
       setTimeout(() => {
         router.push(callbackUrl);
         router.refresh();
-      }, 2000); // 2 Sekunden warten
+      }, 3000); 
     }
   };
 
@@ -77,7 +76,7 @@ export default function LoginForm() {
         <motion.div
           className="relative w-full h-full"
           initial={{ rotateY: 0 }}
-          animate={{ rotateY: isSuccess ? 180 : 0 + (shake * 0) }} // Shake logic müsste separat in x/y handled werden, hier ignorieren wir es für Rotation
+          animate={{ rotateY: isSuccess ? 180 : 0 + (shake * 0) }} 
           transition={{ duration: 0.8, type: "spring", stiffness: 60 }}
           style={{ transformStyle: 'preserve-3d' }}
         >
@@ -87,9 +86,9 @@ export default function LoginForm() {
             className="absolute inset-0 w-full h-full bg-white rounded-xl shadow-2xl p-8 backface-hidden flex flex-col"
             style={{ backfaceVisibility: 'hidden' }}
           >
-            {/* LOGO */}
+            {/* LOGO - ✅ UPDATE: Größe angepasst */}
             <div className="flex justify-center mb-8">
-              <div className="relative w-[180px] h-[45px]">
+              <div className="relative w-[240px] h-[60px]">
                 <Image
                   src="/logo-data-peak.webp"
                   alt="Data Peak Logo"
@@ -198,7 +197,7 @@ export default function LoginForm() {
             className="absolute inset-0 w-full h-full bg-white rounded-xl shadow-2xl p-8 flex flex-col items-center justify-center text-center space-y-6"
             style={{ 
               backfaceVisibility: 'hidden', 
-              transform: 'rotateY(180deg)' // Muss gedreht sein, damit es beim Flip "richtig" steht
+              transform: 'rotateY(180deg)' 
             }}
           >
             {/* Pulsierendes Bild */}
@@ -208,7 +207,7 @@ export default function LoginForm() {
               transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
             >
               <Image
-                src="/data-max.webp" // Pfad zu deinem Bild im public ordner
+                src="/data-max.webp"
                 alt="Data Initialization"
                 fill
                 className="object-contain"
@@ -224,7 +223,7 @@ export default function LoginForm() {
                 Dateninitialisierung läuft...
               </p>
               <p className="text-sm text-gray-400">
-                Gleicht gehts los.
+                Sie werden gleich weitergeleitet.
               </p>
             </div>
           </div>
