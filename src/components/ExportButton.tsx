@@ -37,48 +37,70 @@ export default function ExportButton({
 }: ExportButtonProps) {
   const [isGenerating, setIsGenerating] = useState(false);
 
-  // ✅ NEUE STRATEGIE: Injiziere CSS Override vor Screenshot
-  const injectScreenshotStyles = () => {
-    const styleId = 'screenshot-color-override';
+  // ✅ Erstelle ein unsichtbares Clone des Elements
+  const cloneAndPrepareElement = async (element: HTMLElement): Promise<HTMLElement> => {
+    // Clone das Element
+    const clone = element.cloneNode(true) as HTMLElement;
     
-    // Entferne alte Version falls vorhanden
-    const existing = document.getElementById(styleId);
-    if (existing) existing.remove();
+    // Verstecke das Original temporär
+    const originalDisplay = element.style.display;
     
-    const style = document.createElement('style');
-    style.id = styleId;
-    style.textContent = `
-      /* Überschreibe alle oklch-Farben für Screenshots */
-      .screenshot-mode,
-      .screenshot-mode * {
-        color: rgb(0, 0, 0) !important;
-        background-color: rgb(255, 255, 255) !important;
-        border-color: rgb(229, 231, 235) !important;
-        fill: currentColor !important;
-        stroke: currentColor !important;
-      }
-      
-      /* Chart-spezifische Farben */
-      .screenshot-mode .recharts-surface {
-        background: white !important;
-      }
-      
-      .screenshot-mode .recharts-cartesian-axis-tick-value {
-        fill: rgb(107, 114, 128) !important;
-      }
-      
-      .screenshot-mode .recharts-legend-item-text {
-        color: rgb(55, 65, 81) !important;
-      }
-    `;
+    // Füge Clone zum Body hinzu (unsichtbar)
+    clone.style.position = 'fixed';
+    clone.style.top = '-9999px';
+    clone.style.left = '-9999px';
+    clone.style.zIndex = '-1';
+    document.body.appendChild(clone);
     
-    document.head.appendChild(style);
-    return styleId;
-  };
-
-  const removeScreenshotStyles = (styleId: string) => {
-    const style = document.getElementById(styleId);
-    if (style) style.remove();
+    // Warte kurz, damit Browser alles rendert
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // Ersetze oklch-Farben im Clone durch berechnete RGB-Werte
+    const replaceOklchInClone = (el: HTMLElement) => {
+      const computedStyle = window.getComputedStyle(el);
+      
+      // Hole alle Style-Properties
+      const styleProps = [
+        'color', 
+        'backgroundColor', 
+        'borderColor', 
+        'borderTopColor',
+        'borderRightColor',
+        'borderBottomColor',
+        'borderLeftColor'
+      ];
+      
+      styleProps.forEach(prop => {
+        const value = computedStyle.getPropertyValue(prop);
+        // Wenn oklch erkannt wird, setze den berechneten Wert
+        if (value && !value.includes('oklch')) {
+          el.style.setProperty(prop, value);
+        }
+      });
+      
+      // SVG-spezifische Attribute
+      if (el instanceof SVGElement) {
+        const fill = computedStyle.getPropertyValue('fill');
+        const stroke = computedStyle.getPropertyValue('stroke');
+        
+        if (fill && !fill.includes('oklch')) {
+          el.setAttribute('fill', fill);
+        }
+        if (stroke && !stroke.includes('oklch')) {
+          el.setAttribute('stroke', stroke);
+        }
+      }
+    };
+    
+    // Durchlaufe Clone und alle Kinder
+    replaceOklchInClone(clone);
+    clone.querySelectorAll('*').forEach(child => {
+      if (child instanceof HTMLElement) {
+        replaceOklchInClone(child);
+      }
+    });
+    
+    return clone;
   };
 
   const captureElement = async (ref: React.RefObject<HTMLDivElement>): Promise<string> => {
@@ -87,52 +109,41 @@ export default function ExportButton({
       return '';
     }
     
-    let styleId: string | null = null;
+    let clone: HTMLElement | null = null;
     
     try {
       const element = ref.current;
       
-      // ✅ Füge CSS Override hinzu
-      styleId = injectScreenshotStyles();
+      // ✅ Erstelle vorbereitetes Clone
+      clone = await cloneAndPrepareElement(element);
       
-      // ✅ Füge screenshot-mode Klasse hinzu
-      element.classList.add('screenshot-mode');
-      
-      // Warte kurz, damit Browser Styles anwendet
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      // Scroll in View
-      element.scrollIntoView({ behavior: 'instant', block: 'center' });
-      await new Promise(resolve => setTimeout(resolve, 200));
-      
-      const canvas = await html2canvas(element, {
+      // Screenshot vom Clone
+      const canvas = await html2canvas(clone, {
         scale: 2,
         useCORS: true,
-        logging: true, // ✅ Aktiviere Logging zum Debuggen
+        logging: false,
         backgroundColor: '#ffffff',
         allowTaint: false,
-        windowWidth: element.scrollWidth,
-        windowHeight: element.scrollHeight
+        windowWidth: clone.scrollWidth,
+        windowHeight: clone.scrollHeight
       });
       
-      // ✅ Entferne screenshot-mode Klasse
-      element.classList.remove('screenshot-mode');
-      
-      // ✅ Entferne CSS Override
-      if (styleId) removeScreenshotStyles(styleId);
+      // Entferne Clone
+      if (clone && clone.parentNode) {
+        clone.parentNode.removeChild(clone);
+      }
       
       const dataUrl = canvas.toDataURL('image/png', 0.95);
-      console.log(`✅ Screenshot erfolgreich (${dataUrl.length} bytes)`);
+      console.log(`✅ Screenshot erfolgreich (${Math.round(dataUrl.length / 1024)}KB)`);
       
       return dataUrl;
     } catch (e) {
       console.error("Konnte Element nicht rendern:", e);
       
       // Cleanup bei Fehler
-      if (ref.current) {
-        ref.current.classList.remove('screenshot-mode');
+      if (clone && clone.parentNode) {
+        clone.parentNode.removeChild(clone);
       }
-      if (styleId) removeScreenshotStyles(styleId);
       
       return '';
     }
@@ -148,6 +159,10 @@ export default function ExportButton({
       // 1. Trend Chart
       console.log('📊 Erstelle Trend Chart Screenshot...');
       const trendChart = await captureElement(chartRef);
+      
+      if (!trendChart) {
+        console.warn('⚠️ Trend Chart konnte nicht erstellt werden');
+      }
       
       // 2. Pie Charts
       console.log('📊 Erstelle Pie Charts Screenshots...');
