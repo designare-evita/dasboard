@@ -1,4 +1,3 @@
-// src/components/charts/KpiTrendChart.tsx
 'use client';
 
 import React, { useState, useMemo } from 'react';
@@ -27,6 +26,9 @@ const KPI_CONFIG: Record<string, { label: string; color: string; gradientId: str
   totalUsers: { label: 'Besucher', color: '#0ea5e9', gradientId: 'gradSky' },     
   sessions: { label: 'Sessions', color: '#06b6d4', gradientId: 'gradCyan' },       
   
+  // ✅ NEU: KI-Traffic Konfiguration
+  aiTraffic: { label: 'KI-Traffic', color: '#7c3aed', gradientId: 'gradAi' },
+
   // Engagement
   engagementRate: { label: 'Interaktionsrate', color: '#ec4899', gradientId: 'gradPink' },
   conversions: { label: 'Conversions', color: '#10b981', gradientId: 'gradEmerald' },   
@@ -106,19 +108,12 @@ export default function KpiTrendChart({
 
     const dataMap = new Map<string, any>();
 
-    // ✅ FIX: Werte für Raten mit 100 multiplizieren, falls sie < 1 sind (API liefert oft 0.5 für 50%)
-    // Oder generell multiplizieren, wenn es eine Rate ist und der Wert klein scheint.
-    // Am sichersten: Einfach für Raten x100 rechnen, da die Google API Rohdaten liefert.
-    
     primaryData.forEach(p => {
       const dStr = new Date(p.date).toISOString();
       let val = p.value;
-      
-      // Korrektur für Prozentwerte
       if (isPercentageKpi(activeKpi) && val <= 1) {
         val = val * 100;
       }
-      
       dataMap.set(dStr, { date: p.date, value: val });
     });
 
@@ -126,13 +121,10 @@ export default function KpiTrendChart({
       secondaryData.forEach(p => {
         const dStr = new Date(p.date).toISOString();
         const existing = dataMap.get(dStr) || { date: p.date };
-        
         let compVal = p.value;
-        // Korrektur für Prozentwerte
         if (isPercentageKpi(compareKpi) && compVal <= 1) {
           compVal = compVal * 100;
         }
-
         existing.compareValue = compVal;
         dataMap.set(dStr, existing);
       });
@@ -146,14 +138,10 @@ export default function KpiTrendChart({
   const activeConfig = KPI_CONFIG[activeKpi] || KPI_CONFIG['sessions'];
   const compareConfig = compareKpi !== 'none' ? KPI_CONFIG[compareKpi] : null;
 
-  // ✅ NEU: Formatierung der Y-Achse mit Kontext (z.B. Prozentzeichen)
   const formatYAxis = (val: number, kpiContext: string) => {
     if (val >= 1000000) return `${(val / 1000000).toFixed(1)}M`;
     if (val >= 1000) return `${(val / 1000).toFixed(0)}k`;
-    
-    // Wenn es eine Rate ist, hängen wir ein % an, damit die Achse klarer ist
     if (isPercentageKpi(kpiContext)) return `${val}%`;
-    
     return String(val);
   };
 
