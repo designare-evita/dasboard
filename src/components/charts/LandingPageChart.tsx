@@ -1,3 +1,4 @@
+// src/components/charts/LandingPageChart.tsx
 'use client';
 
 import React from 'react';
@@ -55,8 +56,8 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
           Top Landingpages (Conversions & Interaktion)
         </h3>
 
-        {/* Legende (Rechts ausgerichtet im Header) */}
-        <div className="flex flex-wrap items-center gap-4 text-[10px]">
+        {/* Legende (Rechts ausgerichtet im Header) - Schriftgröße angepasst (text-xs) */}
+        <div className="flex flex-wrap items-center gap-4 text-xs">
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded bg-gray-700"></div>
             <span className="text-gray-600 font-medium">Seite</span>
@@ -130,20 +131,22 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
                     (page.engagementRate || 0) > 40 ? 'bg-blue-500' : 
                     'bg-gray-400'
                   }`}
-                  style={{ minWidth: '95px', flex: `0 0 ${Math.max(engagementWidth, 12)}%` }}
+                  // MinWidth erhöht, damit "Interaktionsrate" Platz hat
+                  style={{ minWidth: '170px', flex: `0 0 ${Math.max(engagementWidth, 12)}%` }}
                 >
                   <span className="text-[14px] text-white whitespace-nowrap">
-                    ⚡ {(page.engagementRate || 0).toFixed(2)}%
+                    {(page.engagementRate || 0).toFixed(2)}% Interaktionsrate
                   </span>
                 </div>
                 
                 {/* Segment 5: Conversions */}
                 <div 
                   className="bg-amber-500 flex items-center px-2"
-                  style={{ minWidth: '80px', flex: `0 0 ${Math.max(conversionWidth, 10)}%` }}
+                  // MinWidth leicht erhöht für "Conversions"
+                  style={{ minWidth: '110px', flex: `0 0 ${Math.max(conversionWidth, 10)}%` }}
                 >
                   <span className="text-[14px] text-white whitespace-nowrap">
-                    {page.conversions || 0} ★
+                    {page.conversions || 0} Conversions
                   </span>
                 </div>
               </div>
