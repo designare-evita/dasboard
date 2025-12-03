@@ -8,11 +8,30 @@ import ExportButton from '@/components/ExportButton';
 
 interface Props {
   projectId: string;
-  dateRange: DateRangeOption; // <--- HIER KORRIGIERT (war vorher string)
+  dateRange: DateRangeOption;
   chartRef?: React.RefObject<HTMLDivElement>;
+  
+  // ✅ PDF EXPORT: Zusätzliche Props
+  pieChartsRefs?: {
+    country?: React.RefObject<HTMLDivElement>;
+    channel?: React.RefObject<HTMLDivElement>;
+    device?: React.RefObject<HTMLDivElement>;
+  };
+  kpis?: Array<{
+    label: string;
+    value: string | number;
+    change?: number;
+    unit?: string;
+  }>;
 }
 
-export default function AiAnalysisWidget({ projectId, dateRange, chartRef }: Props) {
+export default function AiAnalysisWidget({ 
+  projectId, 
+  dateRange, 
+  chartRef,
+  pieChartsRefs,
+  kpis
+}: Props) {
   // Content States
   const [statusContent, setStatusContent] = useState('');
   const [analysisContent, setAnalysisContent] = useState('');
@@ -56,7 +75,7 @@ export default function AiAnalysisWidget({ projectId, dateRange, chartRef }: Pro
     const prefetchData = async () => {
       if (!projectId) return;
       
-      // Teaser generieren (jetzt ist der Typ sicher)
+      // Teaser generieren
       setTeaserText(generateTeaser(getRangeLabel(dateRange)));
 
       console.log(`[AI Widget] 🚀 Starte Pre-Fetching für Zeitraum: ${dateRange}`);
@@ -241,7 +260,9 @@ export default function AiAnalysisWidget({ projectId, dateRange, chartRef }: Pro
                chartRef={chartRef} 
                analysisText={analysisContent} 
                projectId={projectId} 
-               dateRange={dateRange} 
+               dateRange={dateRange}
+               pieChartsRefs={pieChartsRefs}
+               kpis={kpis}
              />
           )}
         </div>
