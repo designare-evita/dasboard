@@ -1,7 +1,7 @@
 // src/components/ProjectDashboard.tsx
 'use client';
 
-import { useState, useRef } from 'react'; // <--- useRef hinzugefügt
+import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeSlash } from 'react-bootstrap-icons'; 
 import { 
@@ -38,6 +38,7 @@ interface ProjectDashboardProps {
   deviceData?: any;
   userRole?: string;
   userEmail?: string;
+  showLandingPagesToCustomer?: boolean; // <--- HIER HINZUGEFÜGT (Fix für den Fehler)
 }
 
 export default function ProjectDashboard({
@@ -52,13 +53,16 @@ export default function ProjectDashboard({
   semrushTrackingId02,
   projectTimelineActive = false,
   userRole = 'BENUTZER',
-  userEmail = ''
+  userEmail = '',
+  showLandingPagesToCustomer = false // Default Wert
 }: ProjectDashboardProps) {
   
   // Ref für den PDF Export (zielt auf das Haupt-Chart)
-  const chartSectionRef = useRef<HTMLDivElement>(null); // <--- NEUE REF
+  const chartSectionRef = useRef<HTMLDivElement>(null);
 
-  const [isLandingPagesVisible, setIsLandingPagesVisible] = useState(false);
+  // State Init: Nutzt den übergebenen Wert als Startwert
+  const [isLandingPagesVisible, setIsLandingPagesVisible] = useState(showLandingPagesToCustomer);
+  
   const isAdmin = userRole === 'ADMIN' || userRole === 'SUPERADMIN';
   
   const hasSemrushConfig = !!semrushTrackingId || !!semrushTrackingId02;
@@ -127,7 +131,7 @@ export default function ProjectDashboard({
           {/* LINKER BEREICH: CHART (2/3 Breite) */}
           <div className="xl:col-span-2 space-y-6">
              
-             {/* WICHTIG: Ref hier setzen für Screenshot */}
+             {/* Ref für Screenshot */}
              <div ref={chartSectionRef} className="bg-white p-1 rounded-2xl"> 
                 <KpiTrendChart 
                   data={data.historyData} 
@@ -136,7 +140,7 @@ export default function ProjectDashboard({
                 />
              </div>
              
-             {/* Landing Pages Chart (Optional) */}
+             {/* Landing Pages Chart (Optional / Konfigurierbar) */}
              {isLandingPagesVisible && (
                <div className="animate-fade-in">
                   <LandingPageChart 
@@ -153,7 +157,7 @@ export default function ProjectDashboard({
               <AiAnalysisWidget 
                 projectId={projectId} 
                 dateRange={dateRange}
-                chartRef={chartSectionRef} // <--- Ref übergeben
+                chartRef={chartSectionRef} 
               />
             </div>
           </div>
