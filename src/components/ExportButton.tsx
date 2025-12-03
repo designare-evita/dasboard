@@ -2,7 +2,7 @@
 'use client';
 
 import { useState } from 'react';
-import html2canvas from 'html2canvas';
+import { toPng } from 'html-to-image';
 import { pdf } from '@react-pdf/renderer';
 import { AnalysisReport } from '@/components/pdf/AnalysisReport';
 import { FileEarmarkPdf } from 'react-bootstrap-icons';
@@ -37,114 +37,36 @@ export default function ExportButton({
 }: ExportButtonProps) {
   const [isGenerating, setIsGenerating] = useState(false);
 
-  // ✅ Erstelle ein unsichtbares Clone des Elements
-  const cloneAndPrepareElement = async (element: HTMLElement): Promise<HTMLElement> => {
-    // Clone das Element
-    const clone = element.cloneNode(true) as HTMLElement;
-    
-    // Verstecke das Original temporär
-    const originalDisplay = element.style.display;
-    
-    // Füge Clone zum Body hinzu (unsichtbar)
-    clone.style.position = 'fixed';
-    clone.style.top = '-9999px';
-    clone.style.left = '-9999px';
-    clone.style.zIndex = '-1';
-    document.body.appendChild(clone);
-    
-    // Warte kurz, damit Browser alles rendert
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
-    // Ersetze oklch-Farben im Clone durch berechnete RGB-Werte
-    const replaceOklchInClone = (el: HTMLElement) => {
-      const computedStyle = window.getComputedStyle(el);
-      
-      // Hole alle Style-Properties
-      const styleProps = [
-        'color', 
-        'backgroundColor', 
-        'borderColor', 
-        'borderTopColor',
-        'borderRightColor',
-        'borderBottomColor',
-        'borderLeftColor'
-      ];
-      
-      styleProps.forEach(prop => {
-        const value = computedStyle.getPropertyValue(prop);
-        // Wenn oklch erkannt wird, setze den berechneten Wert
-        if (value && !value.includes('oklch')) {
-          el.style.setProperty(prop, value);
-        }
-      });
-      
-      // SVG-spezifische Attribute
-      if (el instanceof SVGElement) {
-        const fill = computedStyle.getPropertyValue('fill');
-        const stroke = computedStyle.getPropertyValue('stroke');
-        
-        if (fill && !fill.includes('oklch')) {
-          el.setAttribute('fill', fill);
-        }
-        if (stroke && !stroke.includes('oklch')) {
-          el.setAttribute('stroke', stroke);
-        }
-      }
-    };
-    
-    // Durchlaufe Clone und alle Kinder
-    replaceOklchInClone(clone);
-    clone.querySelectorAll('*').forEach(child => {
-      if (child instanceof HTMLElement) {
-        replaceOklchInClone(child);
-      }
-    });
-    
-    return clone;
-  };
-
   const captureElement = async (ref: React.RefObject<HTMLDivElement>): Promise<string> => {
     if (!ref.current) {
       console.warn('Ref nicht vorhanden, überspringe Screenshot');
       return '';
     }
     
-    let clone: HTMLElement | null = null;
-    
     try {
       const element = ref.current;
       
-      // ✅ Erstelle vorbereitetes Clone
-      clone = await cloneAndPrepareElement(element);
+      // Scroll in View
+      element.scrollIntoView({ behavior: 'instant', block: 'center' });
+      await new Promise(resolve => setTimeout(resolve, 300));
       
-      // Screenshot vom Clone
-      const canvas = await html2canvas(clone, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
+      // ✅ Verwende html-to-image (unterstützt oklch besser)
+      const dataUrl = await toPng(element, {
+        quality: 0.95,
+        pixelRatio: 2,
         backgroundColor: '#ffffff',
-        allowTaint: false,
-        windowWidth: clone.scrollWidth,
-        windowHeight: clone.scrollHeight
+        cacheBust: true,
+        style: {
+          transform: 'scale(1)',
+          transformOrigin: 'top left'
+        }
       });
       
-      // Entferne Clone
-      if (clone && clone.parentNode) {
-        clone.parentNode.removeChild(clone);
-      }
-      
-      const dataUrl = canvas.toDataURL('image/png', 0.95);
       console.log(`✅ Screenshot erfolgreich (${Math.round(dataUrl.length / 1024)}KB)`);
-      
       return dataUrl;
+      
     } catch (e) {
       console.error("Konnte Element nicht rendern:", e);
-      
-      // Cleanup bei Fehler
-      if (clone && clone.parentNode) {
-        clone.parentNode.removeChild(clone);
-      }
-      
       return '';
     }
   };
@@ -160,8 +82,10 @@ export default function ExportButton({
       console.log('📊 Erstelle Trend Chart Screenshot...');
       const trendChart = await captureElement(chartRef);
       
-      if (!trendChart) {
-        console.warn('⚠️ Trend Chart konnte nicht erstellt werden');
+      if (trendChart) {
+        console.log('✅ Trend Chart erfolgreich');
+      } else {
+        console.warn('⚠️ Trend Chart leer');
       }
       
       // 2. Pie Charts
@@ -171,6 +95,14 @@ export default function ExportButton({
         country: pieChartsRefs.country ? await captureElement(pieChartsRefs.country) : '',
         device: pieChartsRefs.device ? await captureElement(pieChartsRefs.device) : ''
       } : undefined;
+
+      if (pieCharts) {
+        console.log('Pie Charts Status:', {
+          channel: pieCharts.channel ? '✅' : '❌',
+          country: pieCharts.country ? '✅' : '❌',
+          device: pieCharts.device ? '✅' : '❌'
+        });
+      }
 
       console.log('📄 Generiere PDF...');
       
