@@ -38,7 +38,7 @@ interface ProjectDashboardProps {
   deviceData?: any;
   userRole?: string;
   userEmail?: string;
-  showLandingPagesToCustomer?: boolean; // <--- HIER HINZUGEFÜGT (Fix für den Fehler)
+  showLandingPagesToCustomer?: boolean; 
 }
 
 export default function ProjectDashboard({
@@ -54,7 +54,7 @@ export default function ProjectDashboard({
   projectTimelineActive = false,
   userRole = 'BENUTZER',
   userEmail = '',
-  showLandingPagesToCustomer = false // Default Wert
+  showLandingPagesToCustomer = false
 }: ProjectDashboardProps) {
   
   // Ref für den PDF Export (zielt auf das Haupt-Chart)
@@ -71,7 +71,8 @@ export default function ProjectDashboard({
   const router = useRouter();
 
   // Fehlerbehandlung für API Daten
-  const apiErrors = data?._errors || {};
+  // FIX: Wir casten zu 'any', da _errors evtl. nicht im Interface definiert ist
+  const apiErrors = (data as any)?._errors || {};
 
   return (
     <div className="min-h-screen bg-gray-50/50 pb-20">
