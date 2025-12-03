@@ -1,4 +1,3 @@
-// src/components/ProjectDashboard.tsx
 'use client';
 
 import { useState } from 'react';
@@ -39,9 +38,8 @@ interface ProjectDashboardProps {
   channelData?: ChartEntry[];
   deviceData?: ChartEntry[];
   
-  // Props für Admin/User Steuerung
   userRole?: string; 
-  userEmail?: string; // ✅ NEU
+  userEmail?: string; 
   showLandingPagesToCustomer?: boolean; 
 }
 
@@ -63,7 +61,7 @@ export default function ProjectDashboard({
   onPdfExport,
   
   userRole = 'USER', 
-  userEmail = '', // ✅ NEU: Default
+  userEmail = '', 
   showLandingPagesToCustomer = false, 
 }: ProjectDashboardProps) {
   
@@ -91,6 +89,15 @@ export default function ProjectDashboard({
     newUsers: safeKpi(kpis.newUsers),
     avgEngagementTime: safeKpi(kpis.avgEngagementTime),
   } : undefined;
+
+  // ✅ NEU: Kombiniere Standard-Charts mit AI-Trend-Daten
+  const allChartData = {
+    ...(data.charts || {}),
+    aiTraffic: (data.aiTraffic?.trend ?? []).map(item => ({
+      date: item.date,
+      value: (item as any).value ?? (item as any).sessions ?? 0
+    }))
+  };
 
   const handleDateRangeChange = (range: DateRangeOption) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -141,7 +148,7 @@ export default function ProjectDashboard({
           dateRange={dateRange}
           onDateRangeChange={handleDateRangeChange}
           userRole={userRole}
-          userEmail={userEmail} // ✅ NEU: Weitergeben
+          userEmail={userEmail}
         />
         
         {/* TIMELINE */}
@@ -176,7 +183,7 @@ export default function ProjectDashboard({
           <KpiTrendChart 
             activeKpi={activeKpi}
             onKpiChange={(kpi) => setActiveKpi(kpi as ActiveKpi)}
-            allChartData={data.charts}
+            allChartData={allChartData} // ✅ UPDATE: Hier die erweiterten Daten übergeben
           />
         </div>
 
