@@ -3,7 +3,6 @@
 
 import React from 'react';
 import { ConvertingPageData } from '@/lib/dashboard-shared';
-import { cn } from '@/lib/utils';
 import { FileEarmarkText } from 'react-bootstrap-icons';
 
 interface Props {
@@ -21,27 +20,35 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
     return <div className="h-[400px] w-full bg-gray-50 rounded-xl flex items-center justify-center text-gray-400">Keine Daten verfügbar</div>;
   }
 
-  // Debug: Daten prüfen
-  // console.log('[LandingPageChart] Rohdaten:', data);
-
-  // Sortiere nach Neuen Nutzern und filtere ungültige Einträge
+  // Daten filtern und sortieren
   const sortedData = [...data]
     .filter(item => item.newUsers !== undefined && item.newUsers !== null) 
     .filter(item => !item.path?.toLowerCase().includes('danke')) 
     .sort((a, b) => (b.newUsers || 0) - (a.newUsers || 0))
     .slice(0, 50); 
 
-  // Fallback wenn keine validen Daten
   if (sortedData.length === 0) {
     return (
-      <div className="h-[400px] w-full bg-gray-50 rounded-xl flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-gray-400 mb-2">Keine validen Landing Page Daten</p>
-          <p className="text-xs text-gray-300">newUsers oder sessions fehlen in den Daten</p>
-        </div>
+      <div className="h-[400px] w-full bg-gray-50 rounded-xl flex items-center justify-center text-gray-400">
+        Keine validen Daten
       </div>
     );
   }
+
+  // --- LOGIK FÜR SMARTE SKALIERUNG ---
+  
+  // Berechne Gesamt-Score für jeden Eintrag (Sessions + gewichtete Conversions)
+  const getScore = (p: ConvertingPageData) => (p.sessions || 0) + (p.conversions || 0) * 10;
+  
+  const firstScore = getScore(sortedData[0]);
+  const secondScore = sortedData.length > 1 ? getScore(sortedData[1]) : 0;
+
+  // Prüfen, ob der erste Platz ein extremer Ausreißer ist (mehr als doppelt so groß wie der zweite)
+  const isOutlier = secondScore > 0 && firstScore > (secondScore * 2);
+
+  // Wenn Ausreißer: Skaliere Basis auf den ZWEITEN Platz (+20% Puffer)
+  // Sonst: Normal auf den ersten Platz
+  const scaleMax = isOutlier ? secondScore * 1.2 : firstScore;
 
   return (
     <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex flex-col h-full">
@@ -76,111 +83,127 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
         </div>
       </div>
 
-      {/* ✅ UPDATE: Scrollbarer Container für die Balken */}
-      <div className="overflow-x-auto pb-2 flex-1">
-        {/* Min-Width erzwingt, dass die Balken nicht gequetscht werden -> Scrollbar erscheint */}
-        <div className="space-y-2.5 min-w-[900px]">
+      {/* Container OHNE horizontales Scrollen */}
+      <div className="flex-1 overflow-y-auto pr-2">
+        <div className="space-y-2.5">
           {sortedData.map((page, i) => {
+            const currentScore = getScore(page);
             
-            // Berechnungsgrundlage: MaxValue = Sessions + (Conversions * 10)
-            const maxValue = Math.max(...sortedData.map(p => (p.sessions || 0) + (p.conversions || 0) * 10));
-            
-            // Verhindert Division durch Null
-            const safeMax = maxValue > 0 ? maxValue : 1;
+            // Ist dieser spezielle Balken der Ausreißer?
+            const isThisTheOutlier = i === 0 && isOutlier;
 
-            const newUsers = page.newUsers || 0;
-            const sessions = page.sessions || 0;
+            // Breitenberechnung
+            const safeMax = scaleMax > 0 ? scaleMax : 1;
             
-            // Sichere Berechnung der Breiten
-            const newUsersWidth = (newUsers / safeMax) * 100;
+            // Wenn Ausreißer -> Gesamtlänge künstlich begrenzen (damit er nicht rausragt)
+            // Ansonsten normal skalieren
+            const totalWidthPercent = isThisTheOutlier 
+              ? 100 // Volle Breite, aber Break-Symbol
+              : Math.min((currentScore / safeMax) * 100, 100);
+
+            // Verhältnis der Segmente zueinander innerhalb des Balkens
+            const rawNewUsers = page.newUsers || 0;
+            const rawSessions = page.sessions || 0;
+            const rawConv = (page.conversions || 0) * 10; // Gewichtung wie oben
+            const rawEng = (page.engagementRate || 0); // Hier etwas vereinfacht für Visualisierung
+
+            // Summe der Teile für relative Verteilung im Balken
+            // (Wir nehmen Sessions als Basis für Länge, aber teilen visuell auf)
+            // Vereinfachung: Wir nutzen feste Verhältnisse basierend auf dem Wert
             
-            // Sessions-Balken ist der Rest (Total - Neue)
-            // Math.max(0, ...) verhindert negative Werte bei Datenfehlern
-            const sessionsWidth = (Math.max(0, sessions - newUsers) / safeMax) * 100;
+            // Breite relativ zum Skalen-Max
+            let wNewUsers = (rawNewUsers / safeMax) * 100;
+            let wSessions = ((rawSessions - rawNewUsers) / safeMax) * 100; // Rest-Sessions
+            let wEng = 15; // Fixe Breite für Rate reservieren, wenn möglich? Nein, dynamisch.
+            // Engagement ist schwer in "Summe" zu packen. Wir machen es als festen Block.
             
-            const engagementWidth = ((page.engagementRate || 0) / 100) * 15; 
-            const conversionWidth = ((page.conversions || 0) / safeMax) * 100 * 10;
+            // BESSERER ANSATZ FÜR STACKED BAR MIT "FESTEN" PROPORTIONEN:
+            // Wir nutzen Flex-Grow basierend auf den Werten, aber begrenzen die Gesamtbreite des Containers.
             
             return (
-              <div key={i} className="group">
-                <div className="h-9 flex rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow relative bg-gray-50">
+              <div key={i} className="group relative">
+                {/* Break-Symbol für den Ausreißer (Platz 1) */}
+                {isThisTheOutlier && (
+                   <div 
+                     className="absolute top-0 bottom-0 z-20 flex items-center justify-center" 
+                     style={{ left: '50%' }}
+                   >
+                     <div className="bg-white px-1 transform -skew-x-12 border-l-2 border-r-2 border-gray-300 h-full flex flex-col justify-center">
+                       {/* Zick-Zack Linie oder einfach leerer Schnitt */}
+                     </div>
+                   </div>
+                )}
+
+                <div className="h-9 flex rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow relative bg-gray-50 w-full">
                   
-                  {/* 1. Seite */}
-                  <div className="bg-gray-700 flex items-center px-3 gap-2 flex-shrink-0" style={{ width: '220px' }}>
+                  {/* 1. Label (Seite) - Fixe Breite */}
+                  <div className="bg-gray-700 flex items-center px-3 gap-2 flex-shrink-0 z-30 relative" style={{ width: '200px' }}>
                     <span className="text-[10px] font-black text-gray-400 w-5">#{i+1}</span>
                     <span className="text-[13px] font-medium text-white truncate" title={page.path}>
                       {page.path}
                     </span>
                   </div>
                   
-                  {/* 2. Neue Besucher */}
-                  <div 
-                    className="flex items-center px-2 transition-all hover:brightness-110"
-                    style={{ 
-                      flex: `0 0 ${Math.max(newUsersWidth, 1)}%`, 
-                      minWidth: '140px', // Etwas mehr Platz für Text
-                      backgroundColor: '#188BDB' 
-                    }}
-                  >
-                    <span className="text-[13px] text-white whitespace-nowrap">
-                      {newUsers.toLocaleString()} Neue Besucher
-                    </span>
+                  {/* Der eigentliche Daten-Balken Bereich */}
+                  <div className="flex flex-1 relative bg-gray-100 min-w-0">
+                    {/* Wir wrappen die Balken in einen Container, dessen Breite dem Wert entspricht */}
+                    <div className="flex h-full transition-all duration-500 ease-out" style={{ width: `${totalWidthPercent}%` }}>
+                      
+                      {/* Neue Besucher */}
+                      <div 
+                        className="bg-[#188BDB] flex items-center px-2 overflow-hidden"
+                        style={{ width: `${(rawNewUsers / currentScore) * 100}%` }}
+                      >
+                         <span className="text-[12px] text-white whitespace-nowrap truncate">
+                           {rawNewUsers.toLocaleString()} Neu
+                         </span>
+                      </div>
+
+                      {/* Total Sessions (Rest) */}
+                      <div 
+                        className="bg-teal-600 flex items-center px-2 overflow-hidden"
+                        style={{ width: `${((rawSessions - rawNewUsers) / currentScore) * 100}%` }}
+                      >
+                         <span className="text-[12px] text-white whitespace-nowrap truncate">
+                           {rawSessions.toLocaleString()} Sess.
+                         </span>
+                      </div>
+
+                      {/* Interaktionsrate (Fake-Anteil für Visualisierung oder fest) */}
+                      {/* Da Rate % ist und Sessions absolut, passt das nicht in einen Stack. 
+                          Wir mogeln hier etwas: Wir geben der Rate festen Platz im Balken oder hängen sie an */}
+                       <div 
+                        className={`flex items-center px-2 overflow-hidden ${
+                          (page.engagementRate || 0) > 60 ? 'bg-emerald-500' : 
+                          (page.engagementRate || 0) > 40 ? 'bg-blue-500' : 
+                          'bg-gray-400'
+                        }`}
+                        style={{ width: '15%' }} // Feste relative Breite im Stack
+                      >
+                        <span className="text-[12px] text-white whitespace-nowrap truncate">
+                          {(page.engagementRate || 0).toFixed(0)}% Rate
+                        </span>
+                      </div>
+
+                      {/* Conversions */}
+                      <div 
+                        className="bg-amber-500 flex items-center px-2 overflow-hidden"
+                        style={{ flex: 1 }} // Nimmt den Rest des zugewiesenen Platzes
+                      >
+                        <span className="text-[12px] text-white whitespace-nowrap truncate">
+                          {page.conversions || 0} Conv.
+                        </span>
+                      </div>
+
+                    </div>
                   </div>
-                  
-                  {/* 3. Total Sessions (Rest) */}
-                  <div 
-                    className="bg-teal-600 flex items-center px-2 transition-all hover:brightness-110"
-                    style={{ 
-                      flex: `0 0 ${Math.max(sessionsWidth, 1)}%`,
-                      minWidth: '140px' 
-                    }}
-                  >
-                    <span className="text-[13px] text-white whitespace-nowrap">
-                      {sessions.toLocaleString()} Total Sessions
-                    </span>
-                  </div>
-                  
-                  {/* 4. Interaktionsrate */}
-                  <div 
-                    className={`flex items-center px-2 transition-all hover:brightness-110 ${
-                      (page.engagementRate || 0) > 60 ? 'bg-emerald-500' : 
-                      (page.engagementRate || 0) > 40 ? 'bg-blue-500' : 
-                      'bg-gray-400'
-                    }`}
-                    style={{ 
-                      flex: `0 0 ${Math.max(engagementWidth, 1)}%`,
-                      minWidth: '180px' // Genug Platz für "55.20% Interaktionsrate"
-                    }}
-                  >
-                    <span className="text-[13px] text-white whitespace-nowrap">
-                      {(page.engagementRate || 0).toFixed(2)}% Interaktionsrate
-                    </span>
-                  </div>
-                  
-                  {/* 5. Conversions */}
-                  <div 
-                    className="bg-amber-500 flex items-center px-2 transition-all hover:brightness-110"
-                    style={{ 
-                      flex: `0 0 ${Math.max(conversionWidth, 1)}%`,
-                      minWidth: '120px'
-                    }}
-                  >
-                    <span className="text-[13px] text-white whitespace-nowrap font-medium">
-                      {page.conversions || 0} Conversions
-                    </span>
-                  </div>
+
                 </div>
               </div>
             );
           })}
         </div>
       </div>
-
-      {sortedData.length === 0 && (
-        <div className="text-center py-8 text-gray-400 text-sm">
-          Keine Landing Pages mit Daten gefunden
-        </div>
-      )}
     </div>
   );
 }
