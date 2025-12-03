@@ -1,6 +1,6 @@
 /* src/components/pdf/AnalysisReport.tsx */
 import React from 'react';
-import { Page, Text, View, Document, StyleSheet, Image } from '@react-pdf/renderer';
+import { Page, Text, View, Document, StyleSheet } from '@react-pdf/renderer';
 
 const styles = StyleSheet.create({
   page: { 
@@ -11,7 +11,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff'
   },
   
-  // Header
   header: { 
     marginBottom: 20, 
     borderBottom: '3px solid #10b981', 
@@ -37,7 +36,6 @@ const styles = StyleSheet.create({
     textAlign: 'right'
   },
   
-  // KPI Grid
   kpiGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -76,7 +74,6 @@ const styles = StyleSheet.create({
     color: '#ef4444'
   },
   
-  // Sections
   section: { 
     marginBottom: 20 
   },
@@ -89,7 +86,6 @@ const styles = StyleSheet.create({
     borderBottom: '1px solid #e5e7eb'
   },
   
-  // Text
   text: { 
     lineHeight: 1.6, 
     marginBottom: 6, 
@@ -98,48 +94,19 @@ const styles = StyleSheet.create({
     color: '#374151'
   },
   
-  // Chart Container
-  chartContainer: { 
-    marginTop: 10, 
-    marginBottom: 15, 
-    padding: 8, 
-    backgroundColor: '#f9fafb', 
-    borderRadius: 6,
-    border: '1px solid #e5e7eb'
+  note: {
+    marginTop: 20,
+    padding: 12,
+    backgroundColor: '#f0fdf4',
+    border: '1px solid #86efac',
+    borderRadius: 6
   },
-  chartImage: { 
-    width: '100%', 
-    objectFit: 'contain',
-    maxHeight: 250
-  },
-  chartCaption: {
-    fontSize: 8,
-    color: '#6b7280',
-    marginTop: 6,
-    fontStyle: 'italic',
-    textAlign: 'center'
+  noteText: {
+    fontSize: 9,
+    color: '#166534',
+    lineHeight: 1.4
   },
   
-  // Grid Layout für kleine Charts
-  chartGrid: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 20
-  },
-  chartGridItem: {
-    flex: 1,
-    backgroundColor: '#f9fafb',
-    borderRadius: 6,
-    padding: 8,
-    border: '1px solid #e5e7eb'
-  },
-  smallChartImage: {
-    width: '100%',
-    height: 150,
-    objectFit: 'contain'
-  },
-  
-  // Footer
   footer: { 
     position: 'absolute', 
     bottom: 20, 
@@ -159,11 +126,6 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: 'bold',
     color: '#10b981'
-  },
-  
-  // Page Break Helper
-  pageBreak: {
-    marginTop: 20
   }
 });
 
@@ -178,23 +140,17 @@ interface ReportProps {
   projectId: string;
   dateRange: string;
   summaryText: string;
-  
-  // Charts
+  kpis?: KpiData[];
   trendChart?: string;
   pieCharts?: {
     country?: string;
     channel?: string;
     device?: string;
   };
-  
-  // KPIs
-  kpis?: KpiData[];
 }
 
-// Hilfsfunktion um HTML-Tags zu entfernen
 const stripHtml = (html: string) => html.replace(/<[^>]*>?/gm, '');
 
-// Hilfsfunktion für Change-Formatierung
 const formatChange = (change?: number) => {
   if (change === undefined || change === null) return '';
   const sign = change >= 0 ? '+' : '';
@@ -205,12 +161,9 @@ export const AnalysisReport = ({
   projectId, 
   dateRange, 
   summaryText, 
-  trendChart,
-  pieCharts,
   kpis
 }: ReportProps) => (
   <Document>
-    {/* PAGE 1: Header, KPIs, AI Summary */}
     <Page size="A4" style={styles.page}>
       
       {/* HEADER */}
@@ -261,62 +214,17 @@ export const AnalysisReport = ({
         </Text>
       </View>
 
-      {/* FOOTER */}
-      <View style={styles.footer} fixed>
-        <Text style={styles.footerText}>
-          Seite 1 • Automatisch generierter Report
+      {/* HINWEIS */}
+      <View style={styles.note}>
+        <Text style={styles.noteText}>
+          💡 Hinweis: Für vollständige Visualisierungen (Charts & Grafiken) besuchen Sie bitte das Dashboard unter https://dashboard.datapeak.at
         </Text>
-        <Text style={styles.footerBrand}>DATA PEAK Dashboard</Text>
       </View>
-    </Page>
-
-    {/* PAGE 2: Charts */}
-    <Page size="A4" style={styles.page}>
-      
-      {/* TREND CHART */}
-      {trendChart && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Traffic-Entwicklung</Text>
-          <View style={styles.chartContainer}>
-            <Image src={trendChart} style={styles.chartImage} />
-          </View>
-          <Text style={styles.chartCaption}>
-            Zeitlicher Verlauf der wichtigsten KPIs im ausgewählten Zeitraum
-          </Text>
-        </View>
-      )}
-
-      {/* PIE CHARTS GRID */}
-      {pieCharts && Object.values(pieCharts).some(chart => chart) && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Traffic-Verteilung</Text>
-          <View style={styles.chartGrid}>
-            {pieCharts.channel && (
-              <View style={styles.chartGridItem}>
-                <Image src={pieCharts.channel} style={styles.smallChartImage} />
-                <Text style={styles.chartCaption}>Channel</Text>
-              </View>
-            )}
-            {pieCharts.country && (
-              <View style={styles.chartGridItem}>
-                <Image src={pieCharts.country} style={styles.smallChartImage} />
-                <Text style={styles.chartCaption}>Land</Text>
-              </View>
-            )}
-          </View>
-          {pieCharts.device && (
-            <View style={styles.chartContainer}>
-              <Image src={pieCharts.device} style={styles.smallChartImage} />
-              <Text style={styles.chartCaption}>Endgerät</Text>
-            </View>
-          )}
-        </View>
-      )}
 
       {/* FOOTER */}
       <View style={styles.footer} fixed>
         <Text style={styles.footerText}>
-          Seite 2 • Automatisch generierter Report
+          Automatisch generierter Report
         </Text>
         <Text style={styles.footerBrand}>DATA PEAK Dashboard</Text>
       </View>
