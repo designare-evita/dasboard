@@ -12,17 +12,14 @@ interface Props {
 }
 
 export default function LandingPageChart({ data, isLoading, title = "Top Landingpages" }: Props) {
-  // Ladezustand - Höhe angepasst auf 50vh
   if (isLoading) {
     return <div className="h-[50vh] w-full bg-gray-50 rounded-xl animate-pulse flex items-center justify-center text-gray-400">Lade Daten...</div>;
   }
 
-  // Leerer Zustand - Höhe angepasst auf 50vh
   if (!data || data.length === 0) {
     return <div className="h-[50vh] w-full bg-gray-50 rounded-xl flex items-center justify-center text-gray-400">Keine Daten verfügbar</div>;
   }
 
-  // Daten filtern und sortieren
   const sortedData = [...data]
     .filter(item => item.newUsers !== undefined && item.newUsers !== null) 
     .filter(item => !item.path?.toLowerCase().includes('danke')) 
@@ -37,7 +34,6 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
     );
   }
 
-  // --- LOGIK FÜR SMARTE SKALIERUNG ---
   const getScore = (p: ConvertingPageData) => (p.sessions || 0) + (p.conversions || 0) * 10;
   
   const firstScore = getScore(sortedData[0]);
@@ -46,17 +42,14 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
   const scaleMax = isOutlier ? secondScore * 1.2 : firstScore;
 
   return (
-    // ✅ UPDATE: Feste Höhe von 50vh
     <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex flex-col h-[50vh]">
       
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-4 flex-shrink-0">
         <h3 className="text-[18px] font-semibold text-gray-900 flex items-center gap-2">
           <FileEarmarkText className="text-indigo-500" size={18} />
           {title}
         </h3>
 
-        {/* Legende */}
         <div className="flex flex-wrap items-center gap-3 text-xs">
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded bg-gray-700"></div>
@@ -81,7 +74,6 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
         </div>
       </div>
 
-      {/* Scrollbarer Bereich */}
       <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
         <div className="space-y-2.5">
           {sortedData.map((page, i) => {
@@ -95,14 +87,10 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
 
             const rawNewUsers = page.newUsers || 0;
             const rawSessions = page.sessions || 0;
-
-            // Breitenverhältnis innerhalb des variablen Bereichs (Users/Sessions)
-            // Wir müssen sicherstellen, dass nicht durch 0 geteilt wird
             const totalVariableValue = rawSessions || 1; 
-            
+
             return (
               <div key={i} className="group relative">
-                {/* Break-Symbol für den Ausreißer */}
                 {isThisTheOutlier && (
                    <div 
                      className="absolute top-0 bottom-0 z-20 flex items-center justify-center pointer-events-none" 
@@ -125,25 +113,23 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
                   {/* Daten-Balken Bereich */}
                   <div className="flex flex-1 relative bg-gray-100 min-w-0">
                     
-                    {/* Container für den Balken. 
-                        minWidth sorgt dafür, dass Rate & Conv immer reinpassen, auch wenn der Balken rechnerisch (totalWidthPercent) winzig wäre.
+                    {/* ✅ UPDATE: minWidth massiv erhöht (ca. 490px),
+                        damit alle 4 Segmente ihre Mindestbreite von ~120px bekommen.
                     */}
                     <div 
                       className="flex h-full transition-all duration-500 ease-out" 
                       style={{ 
                         width: `${totalWidthPercent}%`,
-                        minWidth: '260px' // ✅ Platz reservieren für die rechten Blöcke (Rate + Conv)
+                        minWidth: '500px' 
                       }}
                     >
                       
-                      {/* --- Variable Breite (Users & Sessions) --- */}
-                      
-                      {/* Neue Besucher */}
+                      {/* Neue Besucher - ✅ UPDATE: Feste Mindestbreite 120px */}
                       <div 
                         className="bg-[#188BDB] flex items-center px-2 overflow-hidden"
                         style={{ 
                           width: `${(rawNewUsers / totalVariableValue) * 100}%`,
-                          minWidth: rawNewUsers > 0 ? '40px' : '0px' // Mindestbreite nur wenn Daten da sind
+                          minWidth: rawNewUsers > 0 ? '120px' : '0px'
                         }}
                       >
                          <span className="text-[12px] text-white whitespace-nowrap truncate">
@@ -151,13 +137,12 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
                          </span>
                       </div>
 
-                      {/* Total Sessions (Rest) */}
+                      {/* Total Sessions - ✅ UPDATE: Feste Mindestbreite 120px */}
                       <div 
                         className="bg-teal-600 flex items-center px-2 overflow-hidden"
                         style={{ 
-                          // Den Rest des verfügbaren Platzes im "Variable-Teil" nehmen
                           flex: 1,
-                          minWidth: '40px'
+                          minWidth: '120px'
                         }}
                       >
                          <span className="text-[12px] text-white whitespace-nowrap truncate">
@@ -166,22 +151,20 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
                       </div>
 
 
-                      {/* --- Feste Breite (Text passt immer) --- */}
-
-                      {/* Interaktionsrate - ✅ Immer Emerald, Feste Breite für Text */}
+                      {/* Interaktionsrate - ✅ UPDATE: Feste Breite & Emerald */}
                        <div 
                         className="bg-emerald-500 flex items-center px-2 overflow-hidden flex-shrink-0"
-                        style={{ width: '120px' }} // Breit genug für "XX% Interaktionsrate"
+                        style={{ width: '120px' }} 
                       >
                         <span className="text-[12px] text-white whitespace-nowrap truncate">
                           {(page.engagementRate || 0).toFixed(0)}% Rate
                         </span>
                       </div>
 
-                      {/* Conversions - ✅ Immer Amber, Feste Breite für Text */}
+                      {/* Conversions - ✅ UPDATE: Feste Breite & Amber */}
                       <div 
                         className="bg-amber-500 flex items-center px-2 overflow-hidden flex-shrink-0"
-                        style={{ width: '130px' }} // Breit genug für "XXX Conversions"
+                        style={{ width: '130px' }}
                       >
                         <span className="text-[12px] text-white whitespace-nowrap truncate">
                           {page.conversions || 0} Conv.
