@@ -248,14 +248,14 @@ export default function ProjectDashboard({
         </div>
 
         {/* TREND CHART */}
-        <div className="mt-6 print-trend-chart" ref={chartRef}>
-          <KpiTrendChart 
-            activeKpi={activeKpi}
-            onKpiChange={(kpi) => setActiveKpi(kpi as ActiveKpi)}
-            allChartData={allChartData}
-          />
-        </div>
-
+<div className="mt-6 print-trend-chart" ref={chartRef} data-chart-ref="trend">
+  <KpiTrendChart 
+    activeKpi={activeKpi}
+    onKpiChange={(kpi) => setActiveKpi(kpi as ActiveKpi)}
+    allChartData={allChartData}
+  />
+</div>
+        
         {/* TRAFFIC & QUERIES */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mt-6 print-traffic-grid">
           <div className="xl:col-span-1 print-ai-card">
@@ -344,17 +344,17 @@ export default function ProjectDashboard({
         )}
 
         {/* PIE CHARTS */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6 print-pie-grid">
-          <div ref={pieChartChannelRef}>
-            <TableauPieChart data={data.channelData} title="Zugriffe nach Channel" isLoading={isLoading} error={apiErrors?.ga4} />
-          </div>
-          <div ref={pieChartCountryRef}>
-            <TableauPieChart data={data.countryData} title="Zugriffe nach Land" isLoading={isLoading} error={apiErrors?.ga4} />
-          </div>
-          <div ref={pieChartDeviceRef}>
-            <TableauPieChart data={data.deviceData} title="Zugriffe nach Endgerät" isLoading={isLoading} error={apiErrors?.ga4} />
-          </div>
-        </div>
+<div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6 print-pie-grid">
+  <div ref={pieChartChannelRef} data-chart-ref="channel">
+    <TableauPieChart data={data.channelData} title="Zugriffe nach Channel" isLoading={isLoading} error={apiErrors?.ga4} />
+  </div>
+  <div ref={pieChartCountryRef} data-chart-ref="country">
+    <TableauPieChart data={data.countryData} title="Zugriffe nach Land" isLoading={isLoading} error={apiErrors?.ga4} />
+  </div>
+  <div ref={pieChartDeviceRef} data-chart-ref="device">
+    <TableauPieChart data={data.deviceData} title="Zugriffe nach Endgerät" isLoading={isLoading} error={apiErrors?.ga4} />
+  </div>
+</div>
         
         {/* SEMRUSH */}
         {hasSemrushConfig && (
