@@ -1,7 +1,7 @@
 // src/components/ProjectDashboard.tsx
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { Eye, EyeSlash, ArrowRepeat } from 'react-bootstrap-icons'; 
 import { 
@@ -81,6 +81,9 @@ export default function ProjectDashboard({
 
   // Lokaler Loading-State für die Lightbox
   const [isUpdating, setIsUpdating] = useState(false);
+  
+  // ✅ NEU: Ref für den Chart (für PDF Export)
+  const chartRef = useRef<HTMLDivElement>(null);
   
   // Überwachen, wann die Daten fertig geladen sind
   useEffect(() => {
@@ -198,7 +201,11 @@ export default function ProjectDashboard({
         {/* AI ANALYSE */}
         {projectId && (
           <div className="mt-6 print:hidden">
-            <AiAnalysisWidget projectId={projectId} dateRange={dateRange} />
+            <AiAnalysisWidget 
+              projectId={projectId} 
+              dateRange={dateRange}
+              chartRef={chartRef}
+            />
           </div>
         )}
 
@@ -216,7 +223,7 @@ export default function ProjectDashboard({
         </div>
 
         {/* TREND CHART */}
-        <div className="mt-6 print-trend-chart">
+        <div className="mt-6 print-trend-chart" ref={chartRef}>
           <KpiTrendChart 
             activeKpi={activeKpi}
             onKpiChange={(kpi) => setActiveKpi(kpi as ActiveKpi)}
