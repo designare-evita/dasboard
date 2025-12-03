@@ -37,90 +37,48 @@ export default function ExportButton({
 }: ExportButtonProps) {
   const [isGenerating, setIsGenerating] = useState(false);
 
-  // ✅ NEU: Konvertiere oklch() zu rgb()
-  const convertOklchToRgb = (element: HTMLElement) => {
-    const savedStyles: Array<{element: HTMLElement, property: string, value: string}> = [];
+  // ✅ NEUE STRATEGIE: Injiziere CSS Override vor Screenshot
+  const injectScreenshotStyles = () => {
+    const styleId = 'screenshot-color-override';
     
-    const processElement = (el: HTMLElement) => {
-      const computedStyle = window.getComputedStyle(el);
-      
-      // Prüfe alle relevanten CSS-Properties
-      const properties = [
-        'color', 'backgroundColor', 'borderColor', 
-        'fill', 'stroke', 'outlineColor'
-      ];
-      
-      properties.forEach(prop => {
-        const value = computedStyle.getPropertyValue(prop);
-        
-        // Wenn oklch() gefunden, speichere Original und setze Fallback
-        if (value && value.includes('oklch')) {
-          savedStyles.push({
-            element: el,
-            property: prop,
-            value: el.style.getPropertyValue(prop) || ''
-          });
-          
-          // Setze RGB-Fallback (extrahiere aus computedStyle)
-          const rgbValue = computedStyle.getPropertyValue(prop);
-          if (rgbValue) {
-            el.style.setProperty(prop, rgbValue, 'important');
-          }
-        }
-      });
-    };
+    // Entferne alte Version falls vorhanden
+    const existing = document.getElementById(styleId);
+    if (existing) existing.remove();
     
-    // Durchlaufe Element und alle Kinder
-    processElement(element);
-    element.querySelectorAll('*').forEach(child => {
-      if (child instanceof HTMLElement) {
-        processElement(child);
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = `
+      /* Überschreibe alle oklch-Farben für Screenshots */
+      .screenshot-mode,
+      .screenshot-mode * {
+        color: rgb(0, 0, 0) !important;
+        background-color: rgb(255, 255, 255) !important;
+        border-color: rgb(229, 231, 235) !important;
+        fill: currentColor !important;
+        stroke: currentColor !important;
       }
-    });
+      
+      /* Chart-spezifische Farben */
+      .screenshot-mode .recharts-surface {
+        background: white !important;
+      }
+      
+      .screenshot-mode .recharts-cartesian-axis-tick-value {
+        fill: rgb(107, 114, 128) !important;
+      }
+      
+      .screenshot-mode .recharts-legend-item-text {
+        color: rgb(55, 65, 81) !important;
+      }
+    `;
     
-    return savedStyles;
+    document.head.appendChild(style);
+    return styleId;
   };
 
-  // ✅ NEU: Stelle ursprüngliche Styles wieder her
-  const restoreStyles = (savedStyles: Array<{element: HTMLElement, property: string, value: string}>) => {
-    savedStyles.forEach(({element, property, value}) => {
-      if (value) {
-        element.style.setProperty(property, value);
-      } else {
-        element.style.removeProperty(property);
-      }
-    });
-  };
-
-  const waitForElement = (ref: React.RefObject<HTMLDivElement>, timeout = 3000): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      if (!ref.current) {
-        reject(new Error('Element nicht gefunden'));
-        return;
-      }
-
-      const startTime = Date.now();
-      
-      const checkVisibility = () => {
-        if (!ref.current) {
-          reject(new Error('Element nicht gefunden'));
-          return;
-        }
-
-        const rect = ref.current.getBoundingClientRect();
-        const isVisible = rect.width > 0 && rect.height > 0;
-        
-        if (isVisible) {
-          setTimeout(() => resolve(), 500);
-        } else if (Date.now() - startTime > timeout) {
-          reject(new Error('Timeout beim Warten auf Element'));
-        } else {
-          requestAnimationFrame(checkVisibility);
-        }
-      };
-      
-      checkVisibility();
-    });
+  const removeScreenshotStyles = (styleId: string) => {
+    const style = document.getElementById(styleId);
+    if (style) style.remove();
   };
 
   const captureElement = async (ref: React.RefObject<HTMLDivElement>): Promise<string> => {
@@ -129,56 +87,52 @@ export default function ExportButton({
       return '';
     }
     
-    let savedStyles: Array<{element: HTMLElement, property: string, value: string}> = [];
+    let styleId: string | null = null;
     
     try {
-      await waitForElement(ref);
-      
       const element = ref.current;
       
-      // ✅ Konvertiere oklch vor dem Screenshot
-      savedStyles = convertOklchToRgb(element);
+      // ✅ Füge CSS Override hinzu
+      styleId = injectScreenshotStyles();
       
-      const originalBg = element.style.backgroundColor;
-      element.style.backgroundColor = '#ffffff';
+      // ✅ Füge screenshot-mode Klasse hinzu
+      element.classList.add('screenshot-mode');
       
+      // Warte kurz, damit Browser Styles anwendet
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Scroll in View
       element.scrollIntoView({ behavior: 'instant', block: 'center' });
       await new Promise(resolve => setTimeout(resolve, 200));
       
       const canvas = await html2canvas(element, {
         scale: 2,
         useCORS: true,
-        logging: false,
+        logging: true, // ✅ Aktiviere Logging zum Debuggen
         backgroundColor: '#ffffff',
         allowTaint: false,
-        foreignObjectRendering: false,
         windowWidth: element.scrollWidth,
-        windowHeight: element.scrollHeight,
-        onclone: (clonedDoc) => {
-          // Entferne auch im geklonten Dokument alle oklch-Referenzen
-          const clonedElement = clonedDoc.querySelector(`[data-chart-ref]`) as HTMLElement;
-          if (clonedElement) {
-            convertOklchToRgb(clonedElement);
-          }
-        }
+        windowHeight: element.scrollHeight
       });
       
-      element.style.backgroundColor = originalBg;
+      // ✅ Entferne screenshot-mode Klasse
+      element.classList.remove('screenshot-mode');
       
-      // ✅ Stelle Original-Styles wieder her
-      restoreStyles(savedStyles);
+      // ✅ Entferne CSS Override
+      if (styleId) removeScreenshotStyles(styleId);
       
       const dataUrl = canvas.toDataURL('image/png', 0.95);
-      console.log(`✅ Screenshot erfolgreich: ${dataUrl.substring(0, 50)}...`);
+      console.log(`✅ Screenshot erfolgreich (${dataUrl.length} bytes)`);
       
       return dataUrl;
     } catch (e) {
       console.error("Konnte Element nicht rendern:", e);
       
-      // ✅ Stelle bei Fehler auch Styles wieder her
-      if (savedStyles.length > 0) {
-        restoreStyles(savedStyles);
+      // Cleanup bei Fehler
+      if (ref.current) {
+        ref.current.classList.remove('screenshot-mode');
       }
+      if (styleId) removeScreenshotStyles(styleId);
       
       return '';
     }
