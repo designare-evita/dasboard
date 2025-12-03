@@ -13,14 +13,12 @@ interface ExportButtonProps {
   projectId: string;
   dateRange: string;
   
-  // NEU: Zusätzliche Refs für mehr Charts
   pieChartsRefs?: {
     country?: React.RefObject<HTMLDivElement>;
     channel?: React.RefObject<HTMLDivElement>;
     device?: React.RefObject<HTMLDivElement>;
   };
   
-  // NEU: KPI Daten
   kpis?: Array<{
     label: string;
     value: string | number;
@@ -39,24 +37,78 @@ export default function ExportButton({
 }: ExportButtonProps) {
   const [isGenerating, setIsGenerating] = useState(false);
 
+  // ✅ VERBESSERT: Warten bis Element sichtbar ist
+  const waitForElement = (ref: React.RefObject<HTMLDivElement>, timeout = 3000): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      if (!ref.current) {
+        reject(new Error('Element nicht gefunden'));
+        return;
+      }
+
+      const startTime = Date.now();
+      
+      const checkVisibility = () => {
+        if (!ref.current) {
+          reject(new Error('Element nicht gefunden'));
+          return;
+        }
+
+        const rect = ref.current.getBoundingClientRect();
+        const isVisible = rect.width > 0 && rect.height > 0;
+        
+        if (isVisible) {
+          // Extra 500ms warten für Chart-Rendering
+          setTimeout(() => resolve(), 500);
+        } else if (Date.now() - startTime > timeout) {
+          reject(new Error('Timeout beim Warten auf Element'));
+        } else {
+          requestAnimationFrame(checkVisibility);
+        }
+      };
+      
+      checkVisibility();
+    });
+  };
+
   const captureElement = async (ref: React.RefObject<HTMLDivElement>): Promise<string> => {
-    if (!ref.current) return '';
+    if (!ref.current) {
+      console.warn('Ref nicht vorhanden, überspringe Screenshot');
+      return '';
+    }
     
     try {
-      const originalBg = ref.current.style.backgroundColor;
-      ref.current.style.backgroundColor = '#ffffff';
+      // ✅ Warten bis Element vollständig gerendert ist
+      await waitForElement(ref);
       
-      const canvas = await html2canvas(ref.current, {
+      const element = ref.current;
+      const originalBg = element.style.backgroundColor;
+      element.style.backgroundColor = '#ffffff';
+      
+      // ✅ Scroll in View (wichtig für Off-Screen-Elemente)
+      element.scrollIntoView({ behavior: 'instant', block: 'center' });
+      
+      // ✅ Weitere 200ms warten nach Scroll
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      const canvas = await html2canvas(element, {
         scale: 2,
         useCORS: true,
         logging: false,
-        backgroundColor: '#ffffff'
+        backgroundColor: '#ffffff',
+        allowTaint: true,
+        foreignObjectRendering: false, // Manchmal hilft das bei Chart-Libraries
+        windowWidth: element.scrollWidth,
+        windowHeight: element.scrollHeight
       });
       
-      ref.current.style.backgroundColor = originalBg;
-      return canvas.toDataURL('image/png');
+      element.style.backgroundColor = originalBg;
+      
+      const dataUrl = canvas.toDataURL('image/png', 0.95);
+      console.log(`✅ Screenshot erfolgreich: ${dataUrl.substring(0, 50)}...`);
+      
+      return dataUrl;
     } catch (e) {
-      console.warn("Konnte Element nicht rendern:", e);
+      console.error("Konnte Element nicht rendern:", e);
       return '';
     }
   };
@@ -66,16 +118,22 @@ export default function ExportButton({
     setIsGenerating(true);
 
     try {
+      console.log('🚀 Starte PDF-Generierung...');
+      
       // 1. Trend Chart
+      console.log('📊 Erstelle Trend Chart Screenshot...');
       const trendChart = await captureElement(chartRef);
       
       // 2. Pie Charts
+      console.log('📊 Erstelle Pie Charts Screenshots...');
       const pieCharts = pieChartsRefs ? {
-        country: await captureElement(pieChartsRefs.country || { current: null }),
-        channel: await captureElement(pieChartsRefs.channel || { current: null }),
-        device: await captureElement(pieChartsRefs.device || { current: null })
+        channel: pieChartsRefs.channel ? await captureElement(pieChartsRefs.channel) : '',
+        country: pieChartsRefs.country ? await captureElement(pieChartsRefs.country) : '',
+        device: pieChartsRefs.device ? await captureElement(pieChartsRefs.device) : ''
       } : undefined;
 
+      console.log('📄 Generiere PDF...');
+      
       // 3. PDF Blob generieren
       const blob = await pdf(
         <AnalysisReport 
@@ -88,6 +146,8 @@ export default function ExportButton({
         />
       ).toBlob();
 
+      console.log('✅ PDF erfolgreich generiert');
+
       // 4. Download
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -99,8 +159,8 @@ export default function ExportButton({
       URL.revokeObjectURL(url);
 
     } catch (error) {
-      console.error("PDF Export Fehler:", error);
-      alert("Fehler beim Erstellen des PDFs.");
+      console.error("❌ PDF Export Fehler:", error);
+      alert("Fehler beim Erstellen des PDFs. Bitte versuchen Sie es erneut.");
     } finally {
       setIsGenerating(false);
     }
