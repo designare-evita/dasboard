@@ -1,7 +1,7 @@
 // src/components/ProjectDashboard.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { Eye, EyeSlash, ArrowRepeat } from 'react-bootstrap-icons'; 
 import { 
@@ -22,6 +22,9 @@ import GlobalHeader from '@/components/GlobalHeader';
 import ProjectTimelineWidget from '@/components/ProjectTimelineWidget'; 
 import AiAnalysisWidget from '@/components/AiAnalysisWidget';
 import LandingPageChart from '@/components/charts/LandingPageChart';
+
+// ✅ NEU: Import der Bereinigungs-Funktion
+import { aggregateLandingPages } from '@/lib/utils';
 
 interface ProjectDashboardProps {
   data: ProjectDashboardData;
@@ -76,12 +79,11 @@ export default function ProjectDashboard({
   const [isLandingPagesVisible, setIsLandingPagesVisible] = useState(showLandingPagesToCustomer);
   const [isToggling, setIsToggling] = useState(false);
 
-  // ✅ NEU: Lokaler Loading-State für die Lightbox
+  // Lokaler Loading-State für die Lightbox
   const [isUpdating, setIsUpdating] = useState(false);
   
-  // ✅ NEU: Überwachen, wann die Daten fertig geladen sind
+  // Überwachen, wann die Daten fertig geladen sind
   useEffect(() => {
-    // Wenn sich die Daten oder der Zeitraum geändert haben, Loading beenden
     setIsUpdating(false);
   }, [dateRange, data, isLoading]);
 
@@ -108,11 +110,15 @@ export default function ProjectDashboard({
     }))
   };
 
+  // ✅ NEU: Landingpages bereinigen und zusammenfassen
+  const cleanLandingPages = useMemo(() => {
+    return aggregateLandingPages(data.topConvertingPages || []);
+  }, [data.topConvertingPages]);
+
   const handleDateRangeChange = (range: DateRangeOption) => {
-    // Verhindere Reload, wenn der gleiche Zeitraum geklickt wird
     if (range === dateRange) return;
 
-    // ✅ NEU: Lightbox aktivieren
+    // Lightbox aktivieren
     setIsUpdating(true);
 
     const params = new URLSearchParams(searchParams.toString());
@@ -154,7 +160,7 @@ export default function ProjectDashboard({
   return (
     <div className="min-h-screen flex flex-col dashboard-gradient relative">
       
-      {/* ✅ NEU: Lightbox Overlay */}
+      {/* Lightbox Overlay */}
       {isUpdating && (
         <div className="fixed inset-0 z-[9999] bg-black/40 backdrop-blur-[2px] flex items-center justify-center transition-opacity duration-300">
           <div className="bg-white px-8 py-6 rounded-xl shadow-2xl flex flex-col items-center gap-4 animate-in fade-in zoom-in duration-200">
@@ -201,7 +207,7 @@ export default function ProjectDashboard({
           {extendedKpis && (
             <TableauKpiGrid
               kpis={extendedKpis}
-              isLoading={isLoading} // Hier lassen wir isLoading für die Skeletons, falls gewünscht
+              isLoading={isLoading} 
               allChartData={data.charts as any} 
               apiErrors={apiErrors}
               dateRange={dateRange} 
@@ -288,8 +294,9 @@ export default function ProjectDashboard({
             )}
 
             <div className="print-landing-chart relative">
+               {/* ✅ UPDATE: Verwendung der bereinigten Daten */}
                <LandingPageChart 
-                 data={data.topConvertingPages} 
+                 data={cleanLandingPages} 
                  isLoading={isLoading}
                  title="Top Landingpages (Conversions & Engagement)" 
                />
