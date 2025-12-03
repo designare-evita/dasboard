@@ -113,23 +113,21 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
                   {/* Daten-Balken Bereich */}
                   <div className="flex flex-1 relative bg-gray-100 min-w-0">
                     
-                    {/* ✅ UPDATE: minWidth massiv erhöht (ca. 490px),
-                        damit alle 4 Segmente ihre Mindestbreite von ~120px bekommen.
-                    */}
+                    {/* ✅ UPDATE: minWidth auf 380px reduziert (4 * 90px + Puffer) */}
                     <div 
                       className="flex h-full transition-all duration-500 ease-out" 
                       style={{ 
                         width: `${totalWidthPercent}%`,
-                        minWidth: '500px' 
+                        minWidth: '380px' 
                       }}
                     >
                       
-                      {/* Neue Besucher - ✅ UPDATE: Feste Mindestbreite 120px */}
+                      {/* Neue Besucher - ✅ UPDATE: Feste Mindestbreite 90px */}
                       <div 
                         className="bg-[#188BDB] flex items-center px-2 overflow-hidden"
                         style={{ 
                           width: `${(rawNewUsers / totalVariableValue) * 100}%`,
-                          minWidth: rawNewUsers > 0 ? '120px' : '0px'
+                          minWidth: rawNewUsers > 0 ? '90px' : '0px'
                         }}
                       >
                          <span className="text-[12px] text-white whitespace-nowrap truncate">
@@ -137,12 +135,12 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
                          </span>
                       </div>
 
-                      {/* Total Sessions - ✅ UPDATE: Feste Mindestbreite 120px */}
+                      {/* Total Sessions - ✅ UPDATE: Feste Mindestbreite 90px */}
                       <div 
                         className="bg-teal-600 flex items-center px-2 overflow-hidden"
                         style={{ 
                           flex: 1,
-                          minWidth: '120px'
+                          minWidth: '90px'
                         }}
                       >
                          <span className="text-[12px] text-white whitespace-nowrap truncate">
@@ -151,20 +149,20 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
                       </div>
 
 
-                      {/* Interaktionsrate - ✅ UPDATE: Feste Breite & Emerald */}
+                      {/* Interaktionsrate - ✅ UPDATE: Feste Mindestbreite 90px */}
                        <div 
                         className="bg-emerald-500 flex items-center px-2 overflow-hidden flex-shrink-0"
-                        style={{ width: '120px' }} 
+                        style={{ width: '90px' }} 
                       >
                         <span className="text-[12px] text-white whitespace-nowrap truncate">
                           {(page.engagementRate || 0).toFixed(0)}% Rate
                         </span>
                       </div>
 
-                      {/* Conversions - ✅ UPDATE: Feste Breite & Amber */}
+                      {/* Conversions - ✅ UPDATE: Feste Mindestbreite 90px */}
                       <div 
                         className="bg-amber-500 flex items-center px-2 overflow-hidden flex-shrink-0"
-                        style={{ width: '130px' }}
+                        style={{ width: '90px' }}
                       >
                         <span className="text-[12px] text-white whitespace-nowrap truncate">
                           {page.conversions || 0} Conv.
