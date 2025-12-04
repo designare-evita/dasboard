@@ -2,7 +2,7 @@
 import React from 'react';
 import { Page, Text, View, Document, StyleSheet, Font } from '@react-pdf/renderer';
 
-// Stabile Fonts
+// Stabile Fonts via CDN
 Font.register({
   family: 'Poppins',
   fonts: [
@@ -50,6 +50,8 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     marginBottom: 2
   },
+  
+  // KPI Grid
   kpiGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -84,27 +86,28 @@ const styles = StyleSheet.create({
   kpiChangePositive: { color: '#16a34a' },
   kpiChangeNegative: { color: '#dc2626' },
   
+  // Text Bereich
   section: { 
-    marginBottom: 15 // Etwas weniger Abstand nach unten, da Text kompakter
+    marginBottom: 15
   },
   sectionTitle: { 
     fontSize: 14, 
     fontWeight: 'bold', 
     color: PRIMARY_COLOR, 
-    marginBottom: 8,
+    marginBottom: 10, // Mehr Abstand unter dem Titel
     paddingBottom: 4,
     borderBottom: '1px solid #f1f5f9'
   },
   text: { 
-    lineHeight: 1.3, // ✅ FIX: Kompakterer Zeilenabstand (vorher 1.6)
+    lineHeight: 1.4, // ✅ FIX: Lesbarer, kompakter Zeilenabstand
     marginBottom: 6, 
-    textAlign: 'justify', 
+    textAlign: 'left', // ✅ FIX: Linksbündig verhindert "Spalten" und komische Lücken
     fontSize: 10,
     color: '#334155'
   },
   
   note: {
-    marginTop: 10,
+    marginTop: 20,
     padding: 15,
     backgroundColor: ACCENT_BG,
     borderLeft: `3px solid ${PRIMARY_COLOR}`,
@@ -115,6 +118,7 @@ const styles = StyleSheet.create({
     color: '#0c4a6e',
     fontStyle: 'italic'
   },
+  
   footer: { 
     position: 'absolute', 
     bottom: 30, 
@@ -145,47 +149,52 @@ interface ReportProps {
   kpis?: KpiData[];
 }
 
-// 🛠 HELPER: Verbesserte Textaufbereitung
+// 🛠 HELPER: Präzise Textaufbereitung
 const formatAiTextWithBold = (html: string) => {
   if (!html) return [];
   
   let text = html;
   
-  // 1. Markiere Überschriften (h4 etc.) für Fettdruck & erzwinge Umbruch davor/danach
-  text = text.replace(/<h[1-6][^>]*>(.*?)<\/h[1-6]>/gi, '\n__BOLD__$1__BOLD__\n');
+  // 1. Überschriften isolieren
+  // Wir fügen \n\n davor und danach ein, um sicherzustellen, dass sie frei stehen
+  text = text.replace(/<h[1-6][^>]*>(.*?)<\/h[1-6]>/gi, '\n\n__BOLD__$1__BOLD__\n\n');
   
-  // 2. Ersetze Block-Elemente durch doppelte Umbrüche (Absatz)
-  text = text.replace(/<\/p>/gi, '\n\n');
+  // 2. HTML Tags bereinigen
+  text = text.replace(/<\/p>/gi, '\n\n'); // Absätze
   text = text.replace(/<br\s*\/?>/gi, '\n');
   text = text.replace(/<\/li>/gi, '\n');
+  text = text.replace(/<[^>]*>?/gm, ''); // Restliche Tags weg
   
-  // 3. Entferne restliche Tags
-  text = text.replace(/<[^>]*>?/gm, '');
-  
-  // 4. HTML Entities
+  // 3. Entities dekodieren
   text = text.replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&quot;/g, '"');
 
-  // ✅ FIX: Entferne führende Leerzeichen nach Zeilenumbrüchen (verhindert den "Spalt")
-  // Ersetzt "newline + space" durch "newline"
-  text = text.replace(/\n\s+/g, '\n');
-  
-  // Mehrfache Newlines auf max 2 begrenzen (verhindert riesige Lücken)
-  text = text.replace(/\n{3,}/g, '\n\n');
+  // 4. Aufräumen: Mehrfache Leerzeilen reduzieren
+  // Das verhindert riesige Lücken, stellt aber sicher, dass Absätze sichtbar bleiben
+  text = text.replace(/\n{3,}/g, '\n\n'); 
 
-  // 5. Splitte Text in normale und fette Teile
+  // 5. Splitten
   const parts = text.split('__BOLD__');
   
   return parts.map((part, index) => {
-    // Trimme jeden Teil leicht, um Artefakte zu entfernen
-    // Aber vorsicht: Wir wollen Leerzeichen zwischen Wörtern behalten, falls inline Bold.
-    // Da wir oben Bold für Headlines nutzen (eigene Zeile), ist trim() hier okay.
-    const cleanPart = part.replace(/^\n+/, '').replace(/\n+$/, '\n');
+    const isBold = index % 2 === 1;
     
+    // Trimmen, aber vorsichtig:
+    // Wir wollen unnötige Newlines am Anfang/Ende eines Textblocks entfernen,
+    // damit die Abstände durch unsere styles geregelt werden.
+    let cleanPart = part;
+    
+    if (!isBold) {
+        // Bei normalem Text entfernen wir führende Leerzeichen, die "Gaps" verursachen
+        cleanPart = cleanPart.replace(/^\s+/, '').replace(/\s+$/, '\n');
+    } else {
+        cleanPart = cleanPart.trim();
+    }
+
     return {
       text: cleanPart,
-      isBold: index % 2 === 1
+      isBold: isBold
     };
-  }).filter(p => p.text.trim().length > 0); // Leere Teile entfernen
+  }).filter(p => p.text.length > 0);
 };
 
 const formatChange = (change?: number) => {
@@ -253,10 +262,17 @@ export const AnalysisReport = ({
           <Text style={styles.sectionTitle}>KI-Analyse</Text>
           <Text style={styles.text}>
             {textParts.map((part, i) => (
-              <Text key={i} style={part.isBold ? { fontWeight: 700, color: '#111827', fontSize: 11 } : {}}>
-                {/* Füge manuell einen Umbruch vor Überschriften ein, falls nötig, durch den Block-Charakter */}
+              <Text 
+                key={i} 
+                style={part.isBold ? { 
+                  fontWeight: 700, 
+                  color: '#111827',
+                  fontSize: 11, // Überschriften minimal größer
+                } : {}}
+              >
                 {part.text}
-                {/* Bei Headlines (Bold) erzwingen wir einen optischen Abstand durch Newline im Text selbst (siehe Helper) */}
+                {/* Füge nach einer Überschrift explizit einen Break ein, falls das Mapping das schluckt */}
+                {part.isBold ? "\n" : ""}
               </Text>
             ))}
           </Text>
