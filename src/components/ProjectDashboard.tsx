@@ -26,20 +26,8 @@ import BingAnalysisWidget from '@/components/BingAnalysisWidget';
 import LandingPageChart from '@/components/charts/LandingPageChart';
 import { aggregateLandingPages } from '@/lib/utils';
 
-// ✅ Type Extension für Bing Data Support
-interface ExtendedProjectDashboardData extends ProjectDashboardData {
-  bingData?: Array<{
-    query?: string;
-    keyword?: string;
-    clicks?: number;
-    impressions?: number;
-    position?: number;
-    ctr?: number;
-  }>;
-}
-
 interface ProjectDashboardProps {
-  data: ExtendedProjectDashboardData; // ✅ Verwende erweiterte Version
+  data: ProjectDashboardData; // ✅ Verwende das Original-Interface (hat bereits bingData)
   isLoading: boolean;
   dateRange: DateRangeOption;
   onDateRangeChange?: (range: DateRangeOption) => void;
