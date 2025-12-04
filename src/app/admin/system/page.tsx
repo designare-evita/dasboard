@@ -159,6 +159,16 @@ export default function SystemHealthPage() {
               <p className="text-xs text-gray-500 mt-1 break-words">{status.ga4Api?.message || 'Wird geprüft...'}</p>
             </div>
 
+            {/* BING */}
+            <div className={`p-4 rounded-xl border ${status.bingApi?.status === 'ok' ? 'bg-purple-50 border-purple-200' : status.bingApi?.status === 'error' ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200'}`}>
+              <div className="flex items-center gap-2 mb-2">
+                {/* Sie können hier ein Microsoft Icon importieren oder Search nutzen */}
+                <Search className={status.bingApi?.status === 'ok' ? 'text-purple-600' : 'text-gray-500'} />
+                <span className="font-semibold text-gray-900">Bing & AI Search</span>
+              </div>
+              <p className="text-xs text-gray-600 font-mono bg-white/50 p-1.5 rounded">{status.bingApi?.message || 'Wird geprüft...'}</p>
+            </div>
+
           </div>
 
           {/* CACHE MANAGEMENT */}
