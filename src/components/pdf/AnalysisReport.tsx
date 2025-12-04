@@ -2,22 +2,23 @@
 import React from 'react';
 import { Page, Text, View, Document, StyleSheet, Font } from '@react-pdf/renderer';
 
-// 1. Poppins Font registrieren
+// ✅ FIX: Italic Schriftart registriert, damit der Fehler #419 verschwindet
 Font.register({
   family: 'Poppins',
   fonts: [
     { src: 'https://fonts.gstatic.com/s/poppins/v20/pxiEyp8kv8JHgFVrJJfecg.ttf', fontWeight: 400 }, // Regular
-    { src: 'https://fonts.gstatic.com/s/poppins/v20/pxiByp8kv8JHgFVrLEj6Z1xlFQ.ttf', fontWeight: 700 } // Bold
+    { src: 'https://fonts.gstatic.com/s/poppins/v20/pxiByp8kv8JHgFVrLEj6Z1xlFQ.ttf', fontWeight: 700 }, // Bold
+    { src: 'https://fonts.gstatic.com/s/poppins/v20/pxiGyp8kv8JHgFVrJJLucHtF.ttf', fontWeight: 400, fontStyle: 'italic' } // Italic (WICHTIG!)
   ]
 });
 
-const PRIMARY_COLOR = '#188BDB'; // Dein Blau
-const ACCENT_BG = '#e0f2fe';     // Sehr helles Blau für Hintergründe
+const PRIMARY_COLOR = '#188BDB'; 
+const ACCENT_BG = '#e0f2fe';     
 
 const styles = StyleSheet.create({
   page: { 
     padding: 40, 
-    fontFamily: 'Poppins', // Priorität auf Poppins
+    fontFamily: 'Poppins', 
     fontSize: 10, 
     color: '#333',
     backgroundColor: '#ffffff'
@@ -83,10 +84,10 @@ const styles = StyleSheet.create({
     fontWeight: 'bold'
   },
   kpiChangePositive: {
-    color: '#16a34a' // Grün für positiven Trend lassen (Standard UX)
+    color: '#16a34a' 
   },
   kpiChangeNegative: {
-    color: '#dc2626' // Rot für negativen Trend
+    color: '#dc2626' 
   },
   
   // Text Sektion
@@ -120,7 +121,7 @@ const styles = StyleSheet.create({
   noteText: {
     fontSize: 9,
     color: '#0c4a6e',
-    fontStyle: 'italic'
+    fontStyle: 'italic' // Das hier verursachte den Fehler, ist jetzt gefixt durch die Registrierung oben
   },
   
   footer: { 
@@ -159,21 +160,17 @@ interface ReportProps {
   kpis?: KpiData[];
 }
 
-// ✅ FIX: Verbesserte Text-Formatierung (statt stripHtml)
 const formatAiText = (html: string) => {
   if (!html) return '';
   let text = html;
   
-  // Block-Elemente durch Umbrüche ersetzen
   text = text.replace(/<\/p>/gi, '\n\n');
   text = text.replace(/<br\s*\/?>/gi, '\n');
   text = text.replace(/<\/li>/gi, '\n');
   text = text.replace(/<\/h[1-6]>/gi, '\n\n');
   
-  // Tags entfernen
   text = text.replace(/<[^>]*>?/gm, '');
   
-  // HTML Entities decodieren (Basics)
   text = text.replace(/&nbsp;/g, ' ')
              .replace(/&amp;/g, '&')
              .replace(/&lt;/g, '<')
