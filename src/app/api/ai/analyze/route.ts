@@ -243,7 +243,9 @@ export async function POST(req: NextRequest) {
         1. <h4...>Status-Analyse:</h4> Kritische Analyse.
         2. <h4...>Handlungsempfehlung:</h4> Technische Schritte.
         3. <h4...>Conversion Analyse:</h4> Welche Seiten bringen Umsatz? (Ignoriere Impressum/Datenschutz falls noch vorhanden).
-        <h4...>Wachstumspotenzial:</h4> Erwähne 1-2 "SEO Chancen" (Keywords) aus den Daten, wo mit wenig Aufwand mehr Besucher möglich sind (Erkläre es einfach: "Hier suchen viele Leute, wir sind knapp vor Seite 1").
+        4. <h4...>SEO-Chancen (Striking Distance):</h4> 
+           Analysiere die "SEO CHANCEN" Daten. Identifiziere Keywords auf Position 4-20 mit hohem Suchvolumen (Striking Distance). 
+           Gib eine konkrete technische Handlungsempfehlung (z.B. "Content schärfen", "Metas optimieren", "Interne Verlinkung stärken") um diese Rankings auf Seite 1 zu heben.
       `;
     } else {
       // === KUNDEN MODUS ===
@@ -264,7 +266,10 @@ export async function POST(req: NextRequest) {
         1. Anrede: <p class="mb-4 font-medium">Sehr geehrte Kundin, sehr geehrter Kunde,</p>
         2. <h4...>Zusammenfassung:</h4> Fließtext über Erfolge (Conversions hervorheben).
         3. <h4...>Top Seiten (Umsatz):</h4> Nenne lobend die Seiten mit den meisten Conversions.
-        4. <h4...>Wachstumspotenzial:</h4> Erwähne 1-2 "SEO Chancen" (Keywords) aus den Daten, wo mit wenig Aufwand mehr Besucher möglich sind (Erkläre es einfach: "Hier suchen viele Leute, wir sind knapp vor Seite 1").
+        4. <hh4...>Ihr Wachstumspotenzial:</h4> 
+           Greifen Sie 1-2 Keywords aus "SEO CHANCEN" heraus und formulieren Sie es als gute Nachricht: 
+           "Wir haben tolles Potenzial entdeckt! Viele Menschen suchen nach [Keyword], und Sie sind schon fast ganz vorne dabei (Seite 2)."
+           Erklären Sie motivierend, dass kleine Anpassungen hier große Wirkung für noch mehr Besucher haben können.
       `;
     }
 
