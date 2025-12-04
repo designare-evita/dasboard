@@ -1,3 +1,4 @@
+/* src/components/AiAnalysisWidget.tsx */
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
@@ -8,9 +9,9 @@ import ExportButton from '@/components/ExportButton';
 
 interface Props {
   projectId: string;
+  domain?: string; // ✅ NEU: Prop für Domain
   dateRange: DateRangeOption;
   chartRef?: React.RefObject<HTMLDivElement>;
-  // ✅ UPDATE: Nur KPIs akzeptieren, keine komplexen Chart-Refs mehr
   kpis?: Array<{
     label: string;
     value: string | number;
@@ -21,6 +22,7 @@ interface Props {
 
 export default function AiAnalysisWidget({ 
   projectId, 
+  domain, // ✅
   dateRange, 
   chartRef,
   kpis
@@ -38,10 +40,8 @@ export default function AiAnalysisWidget({
   // Dynamischer Teaser Text
   const [teaserText, setTeaserText] = useState('');
 
-  // Ref für AbortController
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Helfer: Zufälligen "Anfütter"-Text generieren
   const generateTeaser = (rangeLabelText: string) => {
     const teasers = [
       `Der Datensatz für ${rangeLabelText} ist vollständig importiert und wartet auf Sie. Soll ich die Auswertung jetzt starten?`,
@@ -56,7 +56,6 @@ export default function AiAnalysisWidget({
 
   const rangeLabel = getRangeLabel(dateRange).toLowerCase();
 
-  // --- PRE-FETCHING & RESET LOGIK ---
   useEffect(() => {
     setStatusContent('');
     setAnalysisContent('');
@@ -68,7 +67,6 @@ export default function AiAnalysisWidget({
     const prefetchData = async () => {
       if (!projectId) return;
       
-      // Teaser generieren
       setTeaserText(generateTeaser(getRangeLabel(dateRange)));
 
       console.log(`[AI Widget] 🚀 Starte Pre-Fetching für Zeitraum: ${dateRange}`);
@@ -155,27 +153,17 @@ export default function AiAnalysisWidget({
     }
   };
 
-  // 1. Start-Ansicht (Leerzustand)
+  // UI Renders (gekürzt für Übersichtlichkeit, Logik bleibt gleich)
   if (!statusContent && !isLoading && !error) {
     return (
       <div className="relative group mb-6">
         <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 to-blue-500 rounded-2xl opacity-5 group-hover:opacity-15 transition duration-700 blur-sm"></div>
-        
         <div className="relative bg-white rounded-xl p-6 flex flex-col sm:flex-row items-center gap-6 shadow-sm border border-gray-100/80">
-          
-          {/* Avatar Bereich */}
           <div className="relative shrink-0">
             <div className={`absolute inset-0 rounded-2xl opacity-10 animate-pulse ${isPrefetched ? 'bg-emerald-500' : 'bg-indigo-500'}`}></div>
             <div className={`relative p-1 rounded-2xl border-2 ${isPrefetched ? 'bg-emerald-50/30 border-emerald-100/50' : 'bg-indigo-50/30 border-indigo-100/50'}`}>
               <div className="relative w-20 h-20">
-                <Image 
-                  src="/data-max.webp" 
-                  alt="Data Max AI Analyst" 
-                  fill
-                  className="object-contain drop-shadow-sm"
-                  sizes="80px"
-                  priority
-                />
+                <Image src="/data-max.webp" alt="Data Max AI Analyst" fill className="object-contain drop-shadow-sm" sizes="80px" priority />
               </div>
             </div>
             <span className={`absolute -top-1 -right-1 flex h-3 w-3`}>
@@ -183,14 +171,10 @@ export default function AiAnalysisWidget({
               <span className={`relative inline-flex rounded-full h-3 w-3 ${isPrefetched ? 'bg-emerald-500' : 'bg-indigo-500'}`}></span>
             </span>
           </div>
-
-          {/* Text Inhalt */}
           <div className="flex-1 text-center sm:text-left">
             <div className="flex items-center justify-center sm:justify-start gap-3 mb-2">
               <h3 className="text-xl font-bold text-gray-900">Data Max</h3>
-              <span className="px-2.5 py-0.5 rounded-full text-indigo-600/90 bg-indigo-50 text-[10px] font-bold uppercase tracking-wider border border-indigo-100/50">
-                AI Analyst
-              </span>
+              <span className="px-2.5 py-0.5 rounded-full text-indigo-600/90 bg-indigo-50 text-[10px] font-bold uppercase tracking-wider border border-indigo-100/50">AI Analyst</span>
             </div>
             <p className="text-base text-gray-600 leading-relaxed max-w-xl">
               {isPrefetched && teaserText 
@@ -198,12 +182,7 @@ export default function AiAnalysisWidget({
                 : <span>Soll ich die Performance der letzten <span className="font-medium text-gray-700">{rangeLabel}</span> analysieren?</span>}
             </p>
           </div>
-
-          {/* Action Button */}
-          <button
-            onClick={handleAnalyze}
-            className="shrink-0 px-6 py-3 bg-[#188BDB] hover:bg-[#1479BF] text-white rounded-lg text-sm font-medium shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2 group"
-          >
+          <button onClick={handleAnalyze} className="shrink-0 px-6 py-3 bg-[#188BDB] hover:bg-[#1479BF] text-white rounded-lg text-sm font-medium shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2 group">
             <Lightbulb size={18} className="text-white/90 group-hover:text-yellow-200 transition-colors" />
             <span>Jetzt analysieren</span>
           </button>
@@ -212,11 +191,8 @@ export default function AiAnalysisWidget({
     );
   }
 
-  // 2. Aktive Ansicht (Split Screen)
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6 items-stretch animate-in fade-in slide-in-from-bottom-4 duration-500">
-      
-      {/* SPALTE 1: Status */}
       <div className="bg-indigo-50/30 rounded-2xl border border-indigo-100/50 flex flex-col h-full shadow-sm">
         <div className="p-5 border-b border-indigo-100/50 bg-white/40 rounded-t-2xl backdrop-blur-sm flex justify-between items-center">
           <h3 className="font-bold text-indigo-900 flex items-center gap-2">
@@ -226,7 +202,6 @@ export default function AiAnalysisWidget({
         </div>
         <div className="p-5 text-sm text-indigo-900 leading-relaxed flex-grow">
            <div dangerouslySetInnerHTML={{ __html: statusContent }} />
-           
            {isLoading && !analysisContent && (
              <div className="inline-flex items-center gap-2 mt-2 text-emerald-600 font-medium animate-pulse opacity-80">
                <span className="relative flex h-2.5 w-2.5">
@@ -239,7 +214,6 @@ export default function AiAnalysisWidget({
         </div>
       </div>
 
-      {/* SPALTE 2: Analyse */}
       <div className="bg-white rounded-2xl border border-gray-200 flex flex-col h-full shadow-sm">
         <div className="p-5 border-b border-gray-100 flex justify-between items-center">
           <h3 className="font-bold text-gray-900 flex items-center gap-2">
@@ -247,15 +221,15 @@ export default function AiAnalysisWidget({
             Analyse & Fazit
           </h3>
           
-          {/* PDF EXPORT BUTTON */}
+          {/* PDF EXPORT BUTTON: Hier übergeben wir Domain und PDF-spezifische KPIs */}
           {chartRef && analysisContent && !isLoading && (
              <ExportButton 
                chartRef={chartRef} 
                analysisText={analysisContent} 
                projectId={projectId} 
+               domain={domain} // ✅
                dateRange={dateRange}
-               // ✅ FIX: Keine pieChartsRefs mehr übergeben!
-               kpis={kpis}
+               kpis={kpis} // ✅ Das sind die "exportKpis" aus ProjectDashboard
              />
           )}
         </div>
@@ -266,14 +240,12 @@ export default function AiAnalysisWidget({
            ) : (
              isLoading && !statusContent ? <p className="text-gray-400 italic">Warte auf Datenverarbeitung...</p> : null
            )}
-
            {isLoading && analysisContent && (
              <div className="inline-flex items-center gap-2 mt-2 text-emerald-600 font-medium animate-pulse opacity-80">
                <span className="w-1.5 h-3 bg-emerald-500 rounded-sm"></span>
                <span className="text-xs uppercase tracking-wider">Schreibt...</span>
              </div>
            )}
-           
            {error && (
              <div className="mt-4 p-3 bg-red-50 text-red-700 text-xs rounded border border-red-200 flex gap-2">
                <ExclamationTriangle className="shrink-0 mt-0.5"/>
@@ -285,7 +257,6 @@ export default function AiAnalysisWidget({
            )}
         </div>
       </div>
-
     </div>
   );
 }
