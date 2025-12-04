@@ -140,6 +140,11 @@ export default function ProjectDashboard({
   const hasKampagne2Config = !!semrushTrackingId02;
   const safeApiErrors = (apiErrors as any) || {};
 
+  // Debug: Log bingData wenn es sich ändert
+  useEffect(() => {
+    console.log('[DEBUG] ProjectDashboard bingData:', data.bingData);
+  }, [data.bingData]);
+
   return (
     <div className="min-h-screen flex flex-col dashboard-gradient relative">
       {isUpdating && (
@@ -278,17 +283,15 @@ export default function ProjectDashboard({
           </div>
         )}
 
-     {/* BING KI-ANALYSE */}
+        {/* BING KI-ANALYSE */}
         <div className="mt-6 print:hidden">
           <BingAnalysisWidget 
-            bingData={data.bingData || []} 
+            bingData={data.bingData || []}
             domain={domain}
             dateRange={dateRange}
+            isLoading={isLoading}
           />
         </div>
-        
-        {/* HIER WAR DER FEHLER: Die Zeile ")}" muss weg! */}
-
       </div>
     </div>
   );
