@@ -52,20 +52,20 @@ const styles = StyleSheet.create({
     marginBottom: 12, paddingBottom: 4, borderBottom: '1px solid #f1f5f9' 
   },
   
-  // ✅ NEU: Spezifische Styles für die Text-Blöcke
+  // Text-Block Styles
   blockHeading: {
     fontSize: 11,
     fontWeight: 700,
     color: '#111827',
-    marginTop: 14,  // VIEL Luft nach oben (Padding)
-    marginBottom: 6 // Etwas Luft nach unten
+    marginTop: 14,  
+    marginBottom: 6 
   },
   blockParagraph: {
     fontSize: 10,
     lineHeight: 1.4,
     color: '#334155',
-    marginBottom: 8, // Normaler Abstand zwischen Absätzen
-    textAlign: 'left' // Linksbündig für sauberen Lesefluss
+    marginBottom: 8,
+    textAlign: 'left'
   },
   
   // Listen Styles
@@ -75,12 +75,13 @@ const styles = StyleSheet.create({
   },
   listItem: {
     flexDirection: 'row',
-    marginBottom: 3 // ✅ FIX: Sehr kleiner Abstand zwischen Listenpunkten
+    marginBottom: 3
   },
   bullet: {
     width: 10,
     fontSize: 10,
-    color: PRIMARY_COLOR
+    color: PRIMARY_COLOR,
+    marginTop: 2 // Feinjustierung damit Bullet auf Höhe der ersten Zeile ist
   },
   listContent: {
     flex: 1,
@@ -120,7 +121,6 @@ interface ReportProps {
 }
 
 // --- PARSER LOGIK ---
-// Zerlegt den HTML-String in echte JSON-Blöcke für das PDF-Rendering
 type Block = 
   | { type: 'heading', content: string }
   | { type: 'paragraph', content: string }
@@ -128,17 +128,14 @@ type Block =
 
 const parseContentToBlocks = (html: string): Block[] => {
   const blocks: Block[] = [];
-  // Bereinigung
   const cleanHtml = html.replace(/\r\n/g, '\n');
   
-  // Regex sucht nach Tags h4, p, ul und deren Inhalt
   const regex = /<(h[1-6]|p|ul)[^>]*>([\s\S]*?)<\/\1>/gi;
   
   let lastIndex = 0;
   let match;
   
   while ((match = regex.exec(cleanHtml)) !== null) {
-    // Text VOR dem Match (z.B. Einleitung ohne p-Tag)
     if (match.index > lastIndex) {
       const rawText = cleanHtml.substring(lastIndex, match.index).trim();
       if (rawText) blocks.push({ type: 'paragraph', content: stripTags(rawText) });
@@ -152,7 +149,6 @@ const parseContentToBlocks = (html: string): Block[] => {
     } else if (tag === 'p') {
       blocks.push({ type: 'paragraph', content: stripTags(content) });
     } else if (tag === 'ul') {
-      // Liste parsen
       const items: string[] = [];
       const liRegex = /<li[^>]*>([\s\S]*?)<\/li>/gi;
       let liMatch;
@@ -165,7 +161,6 @@ const parseContentToBlocks = (html: string): Block[] => {
     lastIndex = regex.lastIndex;
   }
   
-  // Text NACH dem letzten Match
   if (lastIndex < cleanHtml.length) {
     const rawText = cleanHtml.substring(lastIndex).trim();
     if (rawText) blocks.push({ type: 'paragraph', content: stripTags(rawText) });
@@ -174,14 +169,16 @@ const parseContentToBlocks = (html: string): Block[] => {
   return blocks;
 };
 
+// ✅ FIX: "•" (Bullet) wird jetzt hier entfernt, damit es im PDF nicht doppelt erscheint
 const stripTags = (str: string) => {
   return str
-    .replace(/<br\s*\/?>/gi, '\n') // br zu newline
-    .replace(/<[^>]+>/g, '') // tags weg
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
     .replace(/&quot;/g, '"')
-    .replace(/\s+/g, ' ') // Mehrfach-Spaces zu einem
+    .replace(/•/g, '') // <--- ENTFERNT DAS DOPPELTE BULLET AUS DEM TEXT
+    .replace(/\s+/g, ' ')
     .trim();
 };
 
@@ -199,7 +196,6 @@ export const AnalysisReport = ({
   kpis
 }: ReportProps) => {
   
-  // 1. Content parsen
   const contentBlocks = parseContentToBlocks(summaryText);
 
   return (
@@ -246,7 +242,7 @@ export const AnalysisReport = ({
           </View>
         )}
 
-        {/* KI ANALYSE - Render Blocks */}
+        {/* KI ANALYSE */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>KI-Analyse</Text>
           
@@ -270,7 +266,9 @@ export const AnalysisReport = ({
                 <View key={index} style={styles.listContainer}>
                   {block.items.map((item, idx) => (
                     <View key={idx} style={styles.listItem}>
+                      {/* Unser eigener Bullet Point */}
                       <Text style={styles.bullet}>•</Text>
+                      {/* Der bereinigte Text (ohne zweites Bullet) */}
                       <Text style={styles.listContent}>{item}</Text>
                     </View>
                   ))}
