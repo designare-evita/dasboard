@@ -2,7 +2,7 @@
 import React from 'react';
 import { Page, Text, View, Document, StyleSheet, Font } from '@react-pdf/renderer';
 
-// ✅ STABILE FONTS (Fix für "Unknown font format")
+// Stabile Fonts
 Font.register({
   family: 'Poppins',
   fonts: [
@@ -40,7 +40,7 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 12,
     color: '#6b7280',
-    fontWeight: 'bold' // Domain etwas hervorheben
+    fontWeight: 'bold'
   },
   metaContainer: {
     alignItems: 'flex-end'
@@ -83,24 +83,26 @@ const styles = StyleSheet.create({
   },
   kpiChangePositive: { color: '#16a34a' },
   kpiChangeNegative: { color: '#dc2626' },
+  
   section: { 
-    marginBottom: 20 
+    marginBottom: 15 // Etwas weniger Abstand nach unten, da Text kompakter
   },
   sectionTitle: { 
     fontSize: 14, 
     fontWeight: 'bold', 
     color: PRIMARY_COLOR, 
-    marginBottom: 10,
-    paddingBottom: 6,
+    marginBottom: 8,
+    paddingBottom: 4,
     borderBottom: '1px solid #f1f5f9'
   },
   text: { 
-    lineHeight: 1.6, 
-    marginBottom: 8, 
+    lineHeight: 1.3, // ✅ FIX: Kompakterer Zeilenabstand (vorher 1.6)
+    marginBottom: 6, 
     textAlign: 'justify', 
     fontSize: 10,
     color: '#334155'
   },
+  
   note: {
     marginTop: 10,
     padding: 15,
@@ -143,16 +145,16 @@ interface ReportProps {
   kpis?: KpiData[];
 }
 
-// 🛠 HELPER: Textaufbereitung & Erkennung von Überschriften für Fettdruck
+// 🛠 HELPER: Verbesserte Textaufbereitung
 const formatAiTextWithBold = (html: string) => {
   if (!html) return [];
   
   let text = html;
   
-  // 1. Markiere Überschriften (h4 etc.) für Fettdruck
-  text = text.replace(/<h[1-6][^>]*>(.*?)<\/h[1-6]>/gi, '__BOLD__$1__BOLD__\n');
+  // 1. Markiere Überschriften (h4 etc.) für Fettdruck & erzwinge Umbruch davor/danach
+  text = text.replace(/<h[1-6][^>]*>(.*?)<\/h[1-6]>/gi, '\n__BOLD__$1__BOLD__\n');
   
-  // 2. Ersetze Block-Elemente durch Umbrüche
+  // 2. Ersetze Block-Elemente durch doppelte Umbrüche (Absatz)
   text = text.replace(/<\/p>/gi, '\n\n');
   text = text.replace(/<br\s*\/?>/gi, '\n');
   text = text.replace(/<\/li>/gi, '\n');
@@ -163,13 +165,27 @@ const formatAiTextWithBold = (html: string) => {
   // 4. HTML Entities
   text = text.replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&quot;/g, '"');
 
+  // ✅ FIX: Entferne führende Leerzeichen nach Zeilenumbrüchen (verhindert den "Spalt")
+  // Ersetzt "newline + space" durch "newline"
+  text = text.replace(/\n\s+/g, '\n');
+  
+  // Mehrfache Newlines auf max 2 begrenzen (verhindert riesige Lücken)
+  text = text.replace(/\n{3,}/g, '\n\n');
+
   // 5. Splitte Text in normale und fette Teile
   const parts = text.split('__BOLD__');
   
-  return parts.map((part, index) => ({
-    text: part,
-    isBold: index % 2 === 1 // Ungerade Teile waren zwischen __BOLD__ Tags
-  }));
+  return parts.map((part, index) => {
+    // Trimme jeden Teil leicht, um Artefakte zu entfernen
+    // Aber vorsicht: Wir wollen Leerzeichen zwischen Wörtern behalten, falls inline Bold.
+    // Da wir oben Bold für Headlines nutzen (eigene Zeile), ist trim() hier okay.
+    const cleanPart = part.replace(/^\n+/, '').replace(/\n+$/, '\n');
+    
+    return {
+      text: cleanPart,
+      isBold: index % 2 === 1
+    };
+  }).filter(p => p.text.trim().length > 0); // Leere Teile entfernen
 };
 
 const formatChange = (change?: number) => {
@@ -186,14 +202,13 @@ export const AnalysisReport = ({
   kpis
 }: ReportProps) => {
   
-  // Bereite den Text auf (mit Fettdruck-Logik)
   const textParts = formatAiTextWithBold(summaryText);
 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
         
-        {/* HEADER: Domain anzeigen (Fallback auf ID) */}
+        {/* HEADER */}
         <View style={styles.header}>
           <View>
             <Text style={styles.title}>Performance Report</Text>
@@ -238,8 +253,10 @@ export const AnalysisReport = ({
           <Text style={styles.sectionTitle}>KI-Analyse</Text>
           <Text style={styles.text}>
             {textParts.map((part, i) => (
-              <Text key={i} style={part.isBold ? { fontWeight: 700, color: '#111827' } : {}}>
+              <Text key={i} style={part.isBold ? { fontWeight: 700, color: '#111827', fontSize: 11 } : {}}>
+                {/* Füge manuell einen Umbruch vor Überschriften ein, falls nötig, durch den Block-Charakter */}
                 {part.text}
+                {/* Bei Headlines (Bold) erzwingen wir einen optischen Abstand durch Newline im Text selbst (siehe Helper) */}
               </Text>
             ))}
           </Text>
