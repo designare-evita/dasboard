@@ -44,7 +44,6 @@ interface ProjectDashboardProps {
   showLandingPagesToCustomer?: boolean; 
 }
 
-// Hilfsfunktion: Verhindert Abstürze bei undefined KPIs
 function safeKpi(kpi?: KpiDatum) {
   return kpi || { value: 0, change: 0 };
 }
@@ -72,20 +71,16 @@ export default function ProjectDashboard({
   const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
   const [isLandingPagesVisible, setIsLandingPagesVisible] = useState(showLandingPagesToCustomer);
   const [isUpdating, setIsUpdating] = useState(false);
-  
-  // Ref für Chart Screenshots
   const chartRef = useRef<HTMLDivElement>(null);
   
-  // Loading State Reset
   useEffect(() => {
     setIsUpdating(false);
   }, [dateRange, data, isLoading]);
 
   const apiErrors = data.apiErrors;
-  
-  // FIX: Zugriff auf 'data.kpis' statt 'data.kpiData'
   const kpis = data.kpis;
 
+  // 1. Daten für das Dashboard (Originalzustand)
   const extendedKpis = kpis ? {
     clicks: safeKpi(kpis.clicks),
     impressions: safeKpi(kpis.impressions),
@@ -110,21 +105,22 @@ export default function ProjectDashboard({
     return aggregateLandingPages(data.topConvertingPages || []);
   }, [data.topConvertingPages]);
 
-  // ✅ KPIs für PDF Export formatieren
+  // 2. Daten NUR für den PDF Export (Deine Wunsch-Reihenfolge)
   const exportKpis = useMemo(() => {
     if (!extendedKpis) return [];
     
     return [
-      { label: 'Klicks', value: extendedKpis.clicks.value.toLocaleString('de-DE'), change: extendedKpis.clicks.change },
       { label: 'Impressionen', value: extendedKpis.impressions.value.toLocaleString('de-DE'), change: extendedKpis.impressions.change },
-      { label: 'Sitzungen', value: extendedKpis.sessions.value.toLocaleString('de-DE'), change: extendedKpis.sessions.change },
+      { label: 'Klicks', value: extendedKpis.clicks.value.toLocaleString('de-DE'), change: extendedKpis.clicks.change },
       { label: 'Nutzer', value: extendedKpis.totalUsers.value.toLocaleString('de-DE'), change: extendedKpis.totalUsers.change },
-      { label: 'Conversions', value: extendedKpis.conversions.value.toLocaleString('de-DE'), change: extendedKpis.conversions.change },
+      { label: 'Sitzungen', value: extendedKpis.sessions.value.toLocaleString('de-DE'), change: extendedKpis.sessions.change },
       { label: 'Engagement', value: extendedKpis.engagementRate.value.toFixed(1), change: extendedKpis.engagementRate.change, unit: '%' },
-      { label: 'Bounce Rate', value: extendedKpis.bounceRate.value.toFixed(1), change: extendedKpis.bounceRate.change, unit: '%' },
+      { label: 'Conversions', value: extendedKpis.conversions.value.toLocaleString('de-DE'), change: extendedKpis.conversions.change },
+      // AI Traffic statt Bounce Rate
+      { label: 'KI-Traffic', value: (data.aiTraffic?.totalUsers || 0).toLocaleString('de-DE'), change: data.aiTraffic?.totalUsersChange || 0 }, 
       { label: 'Ø Zeit', value: extendedKpis.avgEngagementTime.value.toLocaleString('de-DE'), change: extendedKpis.avgEngagementTime.change },
     ];
-  }, [extendedKpis]);
+  }, [extendedKpis, data.aiTraffic]);
 
   const handleDateRangeChange = (range: DateRangeOption) => {
     if (range === dateRange) return;
@@ -137,35 +133,25 @@ export default function ProjectDashboard({
 
   const isAdmin = userRole === 'ADMIN' || userRole === 'SUPERADMIN';
   const shouldRenderChart = isAdmin || isLandingPagesVisible;
+  const hasSemrushConfig = !!semrushTrackingId || !!semrushTrackingId02;
   const hasKampagne1Config = !!semrushTrackingId;
   const hasKampagne2Config = !!semrushTrackingId02;
-  const hasSemrushConfig = hasKampagne1Config || hasKampagne2Config;
-
-  // Cast auf any für apiErrors um Typfehler zu vermeiden, falls Interface abweicht
   const safeApiErrors = (apiErrors as any) || {};
 
   return (
     <div className="min-h-screen flex flex-col dashboard-gradient relative">
-      
-      {/* Lightbox Overlay bei Datumswechsel */}
       {isUpdating && (
-        <div className="fixed inset-0 z-[9999] bg-black/40 backdrop-blur-[2px] flex items-center justify-center transition-opacity duration-300">
-          <div className="bg-white px-8 py-6 rounded-xl shadow-2xl flex flex-col items-center gap-4 animate-in fade-in zoom-in duration-200">
-            <div className="relative">
-              <div className="w-12 h-12 border-4 border-blue-100 rounded-full"></div>
-              <div className="absolute top-0 left-0 w-12 h-12 border-4 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
-            </div>
+        <div className="fixed inset-0 z-[9999] bg-black/40 backdrop-blur-[2px] flex items-center justify-center">
+          <div className="bg-white px-8 py-6 rounded-xl shadow-2xl flex flex-col items-center gap-4">
+            <div className="w-12 h-12 border-4 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
             <div className="text-center">
               <h4 className="text-gray-900 font-semibold mb-1">Daten werden aktualisiert</h4>
-              <p className="text-gray-500 text-sm">Bitte einen Moment Geduld...</p>
             </div>
           </div>
         </div>
       )}
       
       <div className="flex-grow w-full px-4 sm:px-6 lg:px-8 py-6">
-        
-        {/* GLOBAL HEADER */}
         <GlobalHeader 
           domain={domain}
           projectId={projectId}
@@ -175,27 +161,26 @@ export default function ProjectDashboard({
           userEmail={userEmail}
         />
         
-        {/* TIMELINE */}
         {projectId && projectTimelineActive && (
           <div className="mb-6 print-timeline">
             <ProjectTimelineWidget projectId={projectId} />
           </div>
         )}
 
-        {/* AI ANALYSE WIDGET */}
+        {/* AI WIDGET: Hier übergeben wir die spezielle 'exportKpis' Liste und 'domain' */}
         {projectId && (
           <div className="mt-6 print:hidden">
             <AiAnalysisWidget 
-              projectId={projectId} 
+              projectId={projectId}
+              domain={domain} // ✅ Domain wird übergeben
               dateRange={dateRange}
               chartRef={chartRef}
-              // ✅ UPDATE: Korrekte Übergabe der KPIs, keine pieChartsRefs mehr
-              kpis={exportKpis}
+              kpis={exportKpis} // ✅ Nur für den PDF Export Button
             />
           </div>
         )}
 
-        {/* KPI GRID */}
+        {/* KPI GRID: Hier nutzen wir weiterhin die normalen 'extendedKpis' für die Web-Ansicht */}
         <div className="mt-6 print-kpi-grid">
           {extendedKpis && (
             <TableauKpiGrid
@@ -208,7 +193,6 @@ export default function ProjectDashboard({
           )}
         </div>
 
-        {/* TREND CHART */}
         <div className="mt-6 print-trend-chart" ref={chartRef}>
           <KpiTrendChart 
             activeKpi={activeKpi}
@@ -217,7 +201,7 @@ export default function ProjectDashboard({
           />
         </div>
         
-        {/* TRAFFIC & QUERIES */}
+        {/* ... Rest der Dashboard Komponenten unverändert ... */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mt-6 print-traffic-grid">
           <div className="xl:col-span-1 print-ai-card">
             <AiTrafficCard 
@@ -249,10 +233,8 @@ export default function ProjectDashboard({
           </div>
         </div>
 
-        {/* LANDINGPAGE CHART MIT SCHALTER */}
         {shouldRenderChart && (
           <div className={`mt-6 transition-all duration-300 ${!isLandingPagesVisible && isAdmin ? 'opacity-70 grayscale-[0.5]' : ''}`}>
-            
             {isAdmin && (
                <div className="flex items-center justify-end mb-2 print:hidden">
                  <button 
@@ -264,7 +246,6 @@ export default function ProjectDashboard({
                  </button>
                </div>
             )}
-
             <div className="print-landing-chart relative">
                <LandingPageChart 
                  data={cleanLandingPages} 
@@ -282,14 +263,12 @@ export default function ProjectDashboard({
           </div>
         )}
 
-        {/* PIE CHARTS */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6 print-pie-grid">
           <TableauPieChart data={data.channelData} title="Zugriffe nach Channel" isLoading={isLoading} error={safeApiErrors?.ga4} />
           <TableauPieChart data={data.countryData} title="Zugriffe nach Land" isLoading={isLoading} error={safeApiErrors?.ga4} />
           <TableauPieChart data={data.deviceData} title="Zugriffe nach Endgerät" isLoading={isLoading} error={safeApiErrors?.ga4} />
         </div>
         
-        {/* SEMRUSH */}
         {hasSemrushConfig && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6 print-semrush-grid">
             {hasKampagne1Config && <div className="card-glass p-4 sm:p-6"><SemrushTopKeywords projectId={projectId} /></div>}
