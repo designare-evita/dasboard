@@ -56,7 +56,33 @@ export default function BingAnalysisWidget({
   }
 
   if (!bingData || bingData.length === 0) {
-    return null;
+    return (
+      <div className="card-glass p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+              <Search className="text-white" size={20} />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">Bing KI-Analyse</h3>
+              <p className="text-xs text-gray-500">{getDateRangeLabel(dateRange)}</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">
+          <Search className="text-blue-300 mx-auto mb-3" size={32} />
+          <p className="text-sm font-medium text-blue-900 mb-2">
+            Keine Bing-Daten verfügbar
+          </p>
+          <p className="text-xs text-blue-700">
+            Die Bing Webmaster Tools API konnte keine Daten für diesen Zeitraum abrufen.
+          </p>
+          <p className="text-xs text-blue-600 mt-2">
+            Mögliche Gründe: Keine Bing-Konfiguration, keine Daten im gewählten Zeitraum, oder API-Fehler.
+          </p>
+        </div>
+      </div>
+    );
   }
 
   // Berechne Gesamtstatistiken
