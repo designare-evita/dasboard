@@ -278,16 +278,14 @@ export default function ProjectDashboard({
           </div>
         )}
 
-        {/* BING KI-ANALYSE */}
-        {data.bingData && data.bingData.length > 0 && (
-          <div className="mt-6 print:hidden">
-            <BingAnalysisWidget 
-              bingData={data.bingData}
-              domain={domain}
-              dateRange={dateRange}
-              isLoading={isLoading}
-            />
-          </div>
+      {/* BING KI-ANALYSE - Korrektur: Bedingung entfernt, damit Widget immer sichtbar ist */}
+        <div className="mt-6 print:hidden">
+          <BingAnalysisWidget 
+            bingData={data.bingData || []} 
+            domain={domain}
+            dateRange={dateRange}
+          />
+        </div>
         )}
       </div>
     </div>
