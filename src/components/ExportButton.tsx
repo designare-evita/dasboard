@@ -11,13 +11,6 @@ interface ExportButtonProps {
   analysisText: string;
   projectId: string;
   dateRange: string;
-  
-  pieChartsRefs?: {
-    country?: React.RefObject<HTMLDivElement>;
-    channel?: React.RefObject<HTMLDivElement>;
-    device?: React.RefObject<HTMLDivElement>;
-  };
-  
   kpis?: Array<{
     label: string;
     value: string | number;
@@ -39,34 +32,31 @@ export default function ExportButton({
     setIsGenerating(true);
 
     try {
-      console.log('🚀 Starte PDF-Generierung (ohne Charts)...');
-      
-      // Generiere PDF nur mit KPIs und Text
+      // PDF Blob erstellen
       const blob = await pdf(
         <AnalysisReport 
           projectId={projectId}
           dateRange={dateRange}
           summaryText={analysisText}
           kpis={kpis}
-          // Charts werden vorerst weggelassen
         />
       ).toBlob();
 
-      console.log('✅ PDF erfolgreich generiert');
-
-      // Download
+      // Download auslösen
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `Performance_Report_${projectId}_${new Date().toISOString().slice(0,10)}.pdf`;
+      link.download = `Report_${projectId}_${new Date().toISOString().slice(0,10)}.pdf`;
       document.body.appendChild(link);
       link.click();
+      
+      // Cleanup
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
 
     } catch (error) {
-      console.error("❌ PDF Export Fehler:", error);
-      alert("Fehler beim Erstellen des PDFs. Bitte versuchen Sie es erneut.");
+      console.error("PDF Export Fehler:", error);
+      alert("Fehler beim Erstellen des PDFs.");
     } finally {
       setIsGenerating(false);
     }
@@ -78,13 +68,14 @@ export default function ExportButton({
     <button 
       onClick={handleDownload} 
       disabled={isGenerating}
-      className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-      title="PDF Report mit KPIs und Analyse herunterladen"
+      // UPDATE: Farben auf das Blau angepasst (#188BDB ist ca. sky-600/700, hier Nutzung von arbitrary values für exakten Match)
+      className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-[#188BDB] bg-[#188BDB]/10 hover:bg-[#188BDB]/20 border border-[#188BDB]/20 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+      title="PDF Report herunterladen"
     >
       {isGenerating ? (
         <>
-          <div className="animate-spin h-3 w-3 border-2 border-emerald-600 border-t-transparent rounded-full"></div>
-          <span>Generiere PDF...</span>
+          <div className="animate-spin h-3 w-3 border-2 border-[#188BDB] border-t-transparent rounded-full"></div>
+          <span>Erstelle PDF...</span>
         </>
       ) : (
         <>
