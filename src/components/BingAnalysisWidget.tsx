@@ -20,6 +20,19 @@ export default function BingAnalysisWidget({
 }: BingAnalysisWidgetProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
+  // Helper function für dateRange Label
+  const getDateRangeLabel = (range: DateRangeOption): string => {
+    const rangeStr = String(range);
+    switch (rangeStr) {
+      case '7d': return '7 Tage';
+      case '30d': return '30 Tage';
+      case '3m': return '3 Monate';
+      case '6m': return '6 Monate';
+      case '12m': return '12 Monate';
+      default: return '30 Tage';
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="card-glass p-6">
@@ -81,7 +94,7 @@ export default function BingAnalysisWidget({
           <div>
             <h3 className="text-lg font-semibold text-gray-900">Bing KI-Analyse</h3>
             <p className="text-xs text-gray-500">
-              {domain ? `${domain} • ` : ''}{dateRange === '7d' ? '7 Tage' : dateRange === '30d' ? '30 Tage' : dateRange === '3m' ? '3 Monate' : dateRange === '6m' ? '6 Monate' : '12 Monate'}
+              {domain ? `${domain} • ` : ''}{getDateRangeLabel(dateRange)}
             </p>
           </div>
         </div>
