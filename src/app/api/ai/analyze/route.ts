@@ -90,7 +90,15 @@ export async function POST(req: NextRequest) {
       .map((q: any) => `- "${q.query}" (Pos: ${q.position.toFixed(1)}, Klicks: ${q.clicks})`)
       .join('\n') || 'Keine Keywords';
 
-    // ✅ NEU: Erweiterter Filter für Data Max
+    // ✅ SEO CHANCEN (Striking Distance Keywords - Position 4-20)
+    const seoOpportunities = data.topQueries
+      ?.filter((q: any) => q.position >= 4 && q.position <= 20)
+      .sort((a: any, b: any) => b.impressions - a.impressions)
+      .slice(0, 5)
+      .map((q: any) => `- "${q.query}" (Pos: ${q.position.toFixed(1)}, Impr: ${q.impressions})`)
+      .join('\n') || 'Keine SEO-Chancen identifiziert';
+
+    // ✅ Erweiterter Filter für Data Max
     // Filtert Impressum, Datenschutz, Danke-Seiten und kryptische Pfade
     const topConverters = data.topConvertingPages
       ?.filter((p: any) => {
@@ -266,7 +274,7 @@ export async function POST(req: NextRequest) {
         1. Anrede: <p class="mb-4 font-medium">Sehr geehrte Kundin, sehr geehrter Kunde,</p>
         2. <h4...>Zusammenfassung:</h4> Fließtext über Erfolge (Conversions hervorheben).
         3. <h4...>Top Seiten (Umsatz):</h4> Nenne lobend die Seiten mit den meisten Conversions.
-        4. <hh4...>Ihr Wachstumspotenzial:</h4> 
+        4. <h4...>Ihr Wachstumspotenzial:</h4> 
            Greifen Sie 1-2 Keywords aus "SEO CHANCEN" heraus und formulieren Sie es als gute Nachricht: 
            "Wir haben tolles Potenzial entdeckt! Viele Menschen suchen nach [Keyword], und Sie sind schon fast ganz vorne dabei (Seite 2)."
            Erklären Sie motivierend, dass kleine Anpassungen hier große Wirkung für noch mehr Besucher haben können.
