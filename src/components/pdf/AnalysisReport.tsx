@@ -2,7 +2,7 @@
 import React from 'react';
 import { Page, Text, View, Document, StyleSheet, Font } from '@react-pdf/renderer';
 
-// Stabile Fonts via CDN
+// Fonts laden
 Font.register({
   family: 'Poppins',
   fonts: [
@@ -31,104 +31,74 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between', 
     alignItems: 'center' 
   },
-  title: { 
-    fontSize: 22, 
-    fontWeight: 'bold', 
-    color: '#111827',
-    marginBottom: 4
-  },
-  subtitle: {
-    fontSize: 12,
-    color: '#6b7280',
-    fontWeight: 'bold'
-  },
-  metaContainer: {
-    alignItems: 'flex-end'
-  },
-  meta: { 
-    fontSize: 9, 
-    color: '#6b7280',
-    marginBottom: 2
-  },
+  title: { fontSize: 22, fontWeight: 'bold', color: '#111827', marginBottom: 4 },
+  subtitle: { fontSize: 12, color: '#6b7280', fontWeight: 'bold' },
+  metaContainer: { alignItems: 'flex-end' },
+  meta: { fontSize: 9, color: '#6b7280', marginBottom: 2 },
   
   // KPI Grid
-  kpiGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 25,
-    gap: 10
-  },
-  kpiCard: {
-    width: '23%',
-    backgroundColor: '#f8fafc',
-    border: '1px solid #e2e8f0',
-    borderRadius: 8,
-    padding: 12
-  },
-  kpiLabel: {
-    fontSize: 8,
-    color: '#64748b',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 6,
-    fontWeight: 'bold'
-  },
-  kpiValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#0f172a',
-    marginBottom: 4
-  },
-  kpiChange: {
-    fontSize: 9,
-    fontWeight: 'bold'
-  },
+  kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 25, gap: 10 },
+  kpiCard: { width: '23%', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: 12 },
+  kpiLabel: { fontSize: 8, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, fontWeight: 'bold' },
+  kpiValue: { fontSize: 18, fontWeight: 'bold', color: '#0f172a', marginBottom: 4 },
+  kpiChange: { fontSize: 9, fontWeight: 'bold' },
   kpiChangePositive: { color: '#16a34a' },
   kpiChangeNegative: { color: '#dc2626' },
   
-  // Text Bereich
-  section: { 
-    marginBottom: 15
-  },
+  // Section Styles
+  section: { marginBottom: 15 },
   sectionTitle: { 
-    fontSize: 14, 
-    fontWeight: 'bold', 
-    color: PRIMARY_COLOR, 
-    marginBottom: 10, // Mehr Abstand unter dem Titel
-    paddingBottom: 4,
-    borderBottom: '1px solid #f1f5f9'
+    fontSize: 14, fontWeight: 'bold', color: PRIMARY_COLOR, 
+    marginBottom: 12, paddingBottom: 4, borderBottom: '1px solid #f1f5f9' 
   },
-  text: { 
-    lineHeight: 1.4, // ✅ FIX: Lesbarer, kompakter Zeilenabstand
-    marginBottom: 6, 
-    textAlign: 'left', // ✅ FIX: Linksbündig verhindert "Spalten" und komische Lücken
+  
+  // ✅ NEU: Spezifische Styles für die Text-Blöcke
+  blockHeading: {
+    fontSize: 11,
+    fontWeight: 700,
+    color: '#111827',
+    marginTop: 14,  // VIEL Luft nach oben (Padding)
+    marginBottom: 6 // Etwas Luft nach unten
+  },
+  blockParagraph: {
     fontSize: 10,
+    lineHeight: 1.4,
+    color: '#334155',
+    marginBottom: 8, // Normaler Abstand zwischen Absätzen
+    textAlign: 'left' // Linksbündig für sauberen Lesefluss
+  },
+  
+  // Listen Styles
+  listContainer: {
+    marginTop: 4,
+    marginBottom: 8
+  },
+  listItem: {
+    flexDirection: 'row',
+    marginBottom: 3 // ✅ FIX: Sehr kleiner Abstand zwischen Listenpunkten
+  },
+  bullet: {
+    width: 10,
+    fontSize: 10,
+    color: PRIMARY_COLOR
+  },
+  listContent: {
+    flex: 1,
+    fontSize: 10,
+    lineHeight: 1.4,
     color: '#334155'
   },
-  
+
   note: {
-    marginTop: 20,
-    padding: 15,
-    backgroundColor: ACCENT_BG,
-    borderLeft: `3px solid ${PRIMARY_COLOR}`,
-    borderRadius: 4
+    marginTop: 20, padding: 15, backgroundColor: ACCENT_BG,
+    borderLeft: `3px solid ${PRIMARY_COLOR}`, borderRadius: 4
   },
-  noteText: {
-    fontSize: 9,
-    color: '#0c4a6e',
-    fontStyle: 'italic'
-  },
+  noteText: { fontSize: 9, color: '#0c4a6e', fontStyle: 'italic' },
   
   footer: { 
-    position: 'absolute', 
-    bottom: 30, 
-    left: 40, 
-    right: 40, 
-    borderTop: '1px solid #e2e8f0', 
-    paddingTop: 10, 
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center'
+    position: 'absolute', bottom: 30, left: 40, right: 40, 
+    borderTop: '1px solid #e2e8f0', paddingTop: 10, 
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' 
   },
   footerText: { fontSize: 8, color: '#94a3b8' },
   footerBrand: { fontSize: 9, fontWeight: 'bold', color: PRIMARY_COLOR }
@@ -149,52 +119,70 @@ interface ReportProps {
   kpis?: KpiData[];
 }
 
-// 🛠 HELPER: Präzise Textaufbereitung
-const formatAiTextWithBold = (html: string) => {
-  if (!html) return [];
-  
-  let text = html;
-  
-  // 1. Überschriften isolieren
-  // Wir fügen \n\n davor und danach ein, um sicherzustellen, dass sie frei stehen
-  text = text.replace(/<h[1-6][^>]*>(.*?)<\/h[1-6]>/gi, '\n\n__BOLD__$1__BOLD__\n\n');
-  
-  // 2. HTML Tags bereinigen
-  text = text.replace(/<\/p>/gi, '\n\n'); // Absätze
-  text = text.replace(/<br\s*\/?>/gi, '\n');
-  text = text.replace(/<\/li>/gi, '\n');
-  text = text.replace(/<[^>]*>?/gm, ''); // Restliche Tags weg
-  
-  // 3. Entities dekodieren
-  text = text.replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&quot;/g, '"');
+// --- PARSER LOGIK ---
+// Zerlegt den HTML-String in echte JSON-Blöcke für das PDF-Rendering
+type Block = 
+  | { type: 'heading', content: string }
+  | { type: 'paragraph', content: string }
+  | { type: 'list', items: string[] };
 
-  // 4. Aufräumen: Mehrfache Leerzeilen reduzieren
-  // Das verhindert riesige Lücken, stellt aber sicher, dass Absätze sichtbar bleiben
-  text = text.replace(/\n{3,}/g, '\n\n'); 
-
-  // 5. Splitten
-  const parts = text.split('__BOLD__');
+const parseContentToBlocks = (html: string): Block[] => {
+  const blocks: Block[] = [];
+  // Bereinigung
+  const cleanHtml = html.replace(/\r\n/g, '\n');
   
-  return parts.map((part, index) => {
-    const isBold = index % 2 === 1;
-    
-    // Trimmen, aber vorsichtig:
-    // Wir wollen unnötige Newlines am Anfang/Ende eines Textblocks entfernen,
-    // damit die Abstände durch unsere styles geregelt werden.
-    let cleanPart = part;
-    
-    if (!isBold) {
-        // Bei normalem Text entfernen wir führende Leerzeichen, die "Gaps" verursachen
-        cleanPart = cleanPart.replace(/^\s+/, '').replace(/\s+$/, '\n');
-    } else {
-        cleanPart = cleanPart.trim();
+  // Regex sucht nach Tags h4, p, ul und deren Inhalt
+  const regex = /<(h[1-6]|p|ul)[^>]*>([\s\S]*?)<\/\1>/gi;
+  
+  let lastIndex = 0;
+  let match;
+  
+  while ((match = regex.exec(cleanHtml)) !== null) {
+    // Text VOR dem Match (z.B. Einleitung ohne p-Tag)
+    if (match.index > lastIndex) {
+      const rawText = cleanHtml.substring(lastIndex, match.index).trim();
+      if (rawText) blocks.push({ type: 'paragraph', content: stripTags(rawText) });
     }
+    
+    const tag = match[1].toLowerCase();
+    const content = match[2];
+    
+    if (tag.startsWith('h')) {
+      blocks.push({ type: 'heading', content: stripTags(content) });
+    } else if (tag === 'p') {
+      blocks.push({ type: 'paragraph', content: stripTags(content) });
+    } else if (tag === 'ul') {
+      // Liste parsen
+      const items: string[] = [];
+      const liRegex = /<li[^>]*>([\s\S]*?)<\/li>/gi;
+      let liMatch;
+      while ((liMatch = liRegex.exec(content)) !== null) {
+        items.push(stripTags(liMatch[1]));
+      }
+      if (items.length > 0) blocks.push({ type: 'list', items });
+    }
+    
+    lastIndex = regex.lastIndex;
+  }
+  
+  // Text NACH dem letzten Match
+  if (lastIndex < cleanHtml.length) {
+    const rawText = cleanHtml.substring(lastIndex).trim();
+    if (rawText) blocks.push({ type: 'paragraph', content: stripTags(rawText) });
+  }
+  
+  return blocks;
+};
 
-    return {
-      text: cleanPart,
-      isBold: isBold
-    };
-  }).filter(p => p.text.length > 0);
+const stripTags = (str: string) => {
+  return str
+    .replace(/<br\s*\/?>/gi, '\n') // br zu newline
+    .replace(/<[^>]+>/g, '') // tags weg
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/\s+/g, ' ') // Mehrfach-Spaces zu einem
+    .trim();
 };
 
 const formatChange = (change?: number) => {
@@ -211,7 +199,8 @@ export const AnalysisReport = ({
   kpis
 }: ReportProps) => {
   
-  const textParts = formatAiTextWithBold(summaryText);
+  // 1. Content parsen
+  const contentBlocks = parseContentToBlocks(summaryText);
 
   return (
     <Document>
@@ -257,25 +246,39 @@ export const AnalysisReport = ({
           </View>
         )}
 
-        {/* KI ANALYSE TEXT */}
+        {/* KI ANALYSE - Render Blocks */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>KI-Analyse</Text>
-          <Text style={styles.text}>
-            {textParts.map((part, i) => (
-              <Text 
-                key={i} 
-                style={part.isBold ? { 
-                  fontWeight: 700, 
-                  color: '#111827',
-                  fontSize: 11, // Überschriften minimal größer
-                } : {}}
-              >
-                {part.text}
-                {/* Füge nach einer Überschrift explizit einen Break ein, falls das Mapping das schluckt */}
-                {part.isBold ? "\n" : ""}
-              </Text>
-            ))}
-          </Text>
+          
+          {contentBlocks.map((block, index) => {
+            if (block.type === 'heading') {
+              return (
+                <Text key={index} style={styles.blockHeading}>
+                  {block.content}
+                </Text>
+              );
+            }
+            if (block.type === 'paragraph') {
+              return (
+                <Text key={index} style={styles.blockParagraph}>
+                  {block.content}
+                </Text>
+              );
+            }
+            if (block.type === 'list') {
+              return (
+                <View key={index} style={styles.listContainer}>
+                  {block.items.map((item, idx) => (
+                    <View key={idx} style={styles.listItem}>
+                      <Text style={styles.bullet}>•</Text>
+                      <Text style={styles.listContent}>{item}</Text>
+                    </View>
+                  ))}
+                </View>
+              );
+            }
+            return null;
+          })}
         </View>
 
         {/* HINWEIS */}
