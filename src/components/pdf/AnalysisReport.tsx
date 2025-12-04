@@ -2,13 +2,22 @@
 import React from 'react';
 import { Page, Text, View, Document, StyleSheet, Font } from '@react-pdf/renderer';
 
-// ✅ FIX: Italic Schriftart registriert, damit der Fehler #419 verschwindet
+// ✅ FIX: Nutzung von jsDelivr CDN für garantierte TTF-Dateien (löst "Unknown font format")
 Font.register({
   family: 'Poppins',
   fonts: [
-    { src: 'https://fonts.gstatic.com/s/poppins/v20/pxiEyp8kv8JHgFVrJJfecg.ttf', fontWeight: 400 }, // Regular
-    { src: 'https://fonts.gstatic.com/s/poppins/v20/pxiByp8kv8JHgFVrLEj6Z1xlFQ.ttf', fontWeight: 700 }, // Bold
-    { src: 'https://fonts.gstatic.com/s/poppins/v20/pxiGyp8kv8JHgFVrJJLucHtF.ttf', fontWeight: 400, fontStyle: 'italic' } // Italic (WICHTIG!)
+    { 
+      src: 'https://cdn.jsdelivr.net/fontsource/fonts/poppins@latest/latin-400-normal.ttf', 
+      fontWeight: 400 
+    },
+    { 
+      src: 'https://cdn.jsdelivr.net/fontsource/fonts/poppins@latest/latin-700-normal.ttf', 
+      fontWeight: 700 
+    },
+    { 
+      src: 'https://cdn.jsdelivr.net/fontsource/fonts/poppins@latest/latin-400-italic.ttf', 
+      fontStyle: 'italic' 
+    }
   ]
 });
 
@@ -18,7 +27,7 @@ const ACCENT_BG = '#e0f2fe';
 const styles = StyleSheet.create({
   page: { 
     padding: 40, 
-    fontFamily: 'Poppins', 
+    fontFamily: 'Poppins', // Falls das immer noch zickt, ändere dies zu 'Helvetica'
     fontSize: 10, 
     color: '#333',
     backgroundColor: '#ffffff'
@@ -121,7 +130,7 @@ const styles = StyleSheet.create({
   noteText: {
     fontSize: 9,
     color: '#0c4a6e',
-    fontStyle: 'italic' // Das hier verursachte den Fehler, ist jetzt gefixt durch die Registrierung oben
+    fontStyle: 'italic'
   },
   
   footer: { 
