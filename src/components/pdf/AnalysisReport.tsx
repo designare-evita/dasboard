@@ -2,22 +2,13 @@
 import React from 'react';
 import { Page, Text, View, Document, StyleSheet, Font } from '@react-pdf/renderer';
 
-// ✅ FIX: Nutzung von jsDelivr CDN für garantierte TTF-Dateien (löst "Unknown font format")
+// ✅ STABILE FONTS (Fix für "Unknown font format")
 Font.register({
   family: 'Poppins',
   fonts: [
-    { 
-      src: 'https://cdn.jsdelivr.net/fontsource/fonts/poppins@latest/latin-400-normal.ttf', 
-      fontWeight: 400 
-    },
-    { 
-      src: 'https://cdn.jsdelivr.net/fontsource/fonts/poppins@latest/latin-700-normal.ttf', 
-      fontWeight: 700 
-    },
-    { 
-      src: 'https://cdn.jsdelivr.net/fontsource/fonts/poppins@latest/latin-400-italic.ttf', 
-      fontStyle: 'italic' 
-    }
+    { src: 'https://cdn.jsdelivr.net/fontsource/fonts/poppins@latest/latin-400-normal.ttf', fontWeight: 400 }, 
+    { src: 'https://cdn.jsdelivr.net/fontsource/fonts/poppins@latest/latin-700-normal.ttf', fontWeight: 700 },
+    { src: 'https://cdn.jsdelivr.net/fontsource/fonts/poppins@latest/latin-400-italic.ttf', fontStyle: 'italic' }
   ]
 });
 
@@ -27,12 +18,11 @@ const ACCENT_BG = '#e0f2fe';
 const styles = StyleSheet.create({
   page: { 
     padding: 40, 
-    fontFamily: 'Poppins', // Falls das immer noch zickt, ändere dies zu 'Helvetica'
+    fontFamily: 'Poppins',
     fontSize: 10, 
     color: '#333',
     backgroundColor: '#ffffff'
   },
-  
   header: { 
     marginBottom: 25, 
     borderBottom: `2px solid ${PRIMARY_COLOR}`, 
@@ -48,8 +38,9 @@ const styles = StyleSheet.create({
     marginBottom: 4
   },
   subtitle: {
-    fontSize: 10,
-    color: '#6b7280'
+    fontSize: 12,
+    color: '#6b7280',
+    fontWeight: 'bold' // Domain etwas hervorheben
   },
   metaContainer: {
     alignItems: 'flex-end'
@@ -59,8 +50,6 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     marginBottom: 2
   },
-  
-  // KPI Sektion
   kpiGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -92,14 +81,8 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: 'bold'
   },
-  kpiChangePositive: {
-    color: '#16a34a' 
-  },
-  kpiChangeNegative: {
-    color: '#dc2626' 
-  },
-  
-  // Text Sektion
+  kpiChangePositive: { color: '#16a34a' },
+  kpiChangeNegative: { color: '#dc2626' },
   section: { 
     marginBottom: 20 
   },
@@ -118,8 +101,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#334155'
   },
-  
-  // Hinweis Box
   note: {
     marginTop: 10,
     padding: 15,
@@ -132,7 +113,6 @@ const styles = StyleSheet.create({
     color: '#0c4a6e',
     fontStyle: 'italic'
   },
-  
   footer: { 
     position: 'absolute', 
     bottom: 30, 
@@ -144,15 +124,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center'
   },
-  footerText: {
-    fontSize: 8, 
-    color: '#94a3b8'
-  },
-  footerBrand: {
-    fontSize: 9,
-    fontWeight: 'bold',
-    color: PRIMARY_COLOR
-  }
+  footerText: { fontSize: 8, color: '#94a3b8' },
+  footerBrand: { fontSize: 9, fontWeight: 'bold', color: PRIMARY_COLOR }
 });
 
 interface KpiData {
@@ -164,29 +137,39 @@ interface KpiData {
 
 interface ReportProps {
   projectId: string;
+  domain?: string;
   dateRange: string;
   summaryText: string;
   kpis?: KpiData[];
 }
 
-const formatAiText = (html: string) => {
-  if (!html) return '';
+// 🛠 HELPER: Textaufbereitung & Erkennung von Überschriften für Fettdruck
+const formatAiTextWithBold = (html: string) => {
+  if (!html) return [];
+  
   let text = html;
   
+  // 1. Markiere Überschriften (h4 etc.) für Fettdruck
+  text = text.replace(/<h[1-6][^>]*>(.*?)<\/h[1-6]>/gi, '__BOLD__$1__BOLD__\n');
+  
+  // 2. Ersetze Block-Elemente durch Umbrüche
   text = text.replace(/<\/p>/gi, '\n\n');
   text = text.replace(/<br\s*\/?>/gi, '\n');
   text = text.replace(/<\/li>/gi, '\n');
-  text = text.replace(/<\/h[1-6]>/gi, '\n\n');
   
+  // 3. Entferne restliche Tags
   text = text.replace(/<[^>]*>?/gm, '');
   
-  text = text.replace(/&nbsp;/g, ' ')
-             .replace(/&amp;/g, '&')
-             .replace(/&lt;/g, '<')
-             .replace(/&gt;/g, '>')
-             .replace(/&quot;/g, '"');
+  // 4. HTML Entities
+  text = text.replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&quot;/g, '"');
+
+  // 5. Splitte Text in normale und fette Teile
+  const parts = text.split('__BOLD__');
   
-  return text.trim();
+  return parts.map((part, index) => ({
+    text: part,
+    isBold: index % 2 === 1 // Ungerade Teile waren zwischen __BOLD__ Tags
+  }));
 };
 
 const formatChange = (change?: number) => {
@@ -196,76 +179,87 @@ const formatChange = (change?: number) => {
 };
 
 export const AnalysisReport = ({ 
-  projectId, 
+  projectId,
+  domain, 
   dateRange, 
   summaryText, 
   kpis
-}: ReportProps) => (
-  <Document>
-    <Page size="A4" style={styles.page}>
-      
-      {/* HEADER */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.title}>Performance Report</Text>
-          <Text style={styles.subtitle}>Projekt-ID: {projectId}</Text>
-        </View>
-        <View style={styles.metaContainer}>
-          <Text style={styles.meta}>Zeitraum: {dateRange}</Text>
-          <Text style={styles.meta}>Datum: {new Date().toLocaleDateString('de-DE')}</Text>
-          <Text style={[styles.meta, { color: PRIMARY_COLOR, fontWeight: 'bold', marginTop: 4 }]}>
-            DATA PEAK AI
-          </Text>
-        </View>
-      </View>
+}: ReportProps) => {
+  
+  // Bereite den Text auf (mit Fettdruck-Logik)
+  const textParts = formatAiTextWithBold(summaryText);
 
-      {/* KPI GRID */}
-      {kpis && kpis.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Kennzahlen Übersicht</Text>
-          <View style={styles.kpiGrid}>
-            {kpis.map((kpi, index) => (
-              <View key={index} style={styles.kpiCard}>
-                <Text style={styles.kpiLabel}>{kpi.label}</Text>
-                <Text style={styles.kpiValue}>
-                  {kpi.value}{kpi.unit || ''}
-                </Text>
-                {kpi.change !== undefined && (
-                  <Text style={[
-                    styles.kpiChange,
-                    kpi.change >= 0 ? styles.kpiChangePositive : styles.kpiChangeNegative
-                  ]}>
-                    {formatChange(kpi.change)} vs. Vormonat
-                  </Text>
-                )}
-              </View>
-            ))}
+  return (
+    <Document>
+      <Page size="A4" style={styles.page}>
+        
+        {/* HEADER: Domain anzeigen (Fallback auf ID) */}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.title}>Performance Report</Text>
+            <Text style={styles.subtitle}>{domain || projectId}</Text>
+          </View>
+          <View style={styles.metaContainer}>
+            <Text style={styles.meta}>Zeitraum: {dateRange}</Text>
+            <Text style={styles.meta}>Datum: {new Date().toLocaleDateString('de-DE')}</Text>
+            <Text style={[styles.meta, { color: PRIMARY_COLOR, fontWeight: 'bold', marginTop: 4 }]}>
+              DATA PEAK AI
+            </Text>
           </View>
         </View>
-      )}
 
-      {/* AI ANALYSE TEXT */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>KI-Analyse & Handlungsempfehlung</Text>
-        <Text style={styles.text}>
-          {formatAiText(summaryText)}
-        </Text>
-      </View>
+        {/* KPI GRID */}
+        {kpis && kpis.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Kennzahlen Übersicht</Text>
+            <View style={styles.kpiGrid}>
+              {kpis.map((kpi, index) => (
+                <View key={index} style={styles.kpiCard}>
+                  <Text style={styles.kpiLabel}>{kpi.label}</Text>
+                  <Text style={styles.kpiValue}>
+                    {kpi.value}{kpi.unit || ''}
+                  </Text>
+                  {kpi.change !== undefined && (
+                    <Text style={[
+                      styles.kpiChange,
+                      kpi.change >= 0 ? styles.kpiChangePositive : styles.kpiChangeNegative
+                    ]}>
+                      {formatChange(kpi.change)} vs. Vormonat
+                    </Text>
+                  )}
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
 
-      {/* HINWEIS */}
-      <View style={styles.note}>
-        <Text style={styles.noteText}>
-          Hinweis: Dieser Bericht ist eine Zusammenfassung. Detaillierte interaktive Charts finden Sie im Dashboard unter https://dashboard.datapeak.at
-        </Text>
-      </View>
+        {/* KI ANALYSE TEXT */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>KI-Analyse</Text>
+          <Text style={styles.text}>
+            {textParts.map((part, i) => (
+              <Text key={i} style={part.isBold ? { fontWeight: 700, color: '#111827' } : {}}>
+                {part.text}
+              </Text>
+            ))}
+          </Text>
+        </View>
 
-      {/* FOOTER */}
-      <View style={styles.footer} fixed>
-        <Text style={styles.footerText}>
-          Automatisch generiert durch Data Max AI
-        </Text>
-        <Text style={styles.footerBrand}>DATA PEAK</Text>
-      </View>
-    </Page>
-  </Document>
-);
+        {/* HINWEIS */}
+        <View style={styles.note}>
+          <Text style={styles.noteText}>
+            Hinweis: Dieser Bericht ist eine Zusammenfassung. Detaillierte interaktive Charts finden Sie im Dashboard unter https://dashboard.datapeak.at
+          </Text>
+        </View>
+
+        {/* FOOTER */}
+        <View style={styles.footer} fixed>
+          <Text style={styles.footerText}>
+            Automatisch generiert durch Data Max AI
+          </Text>
+          <Text style={styles.footerBrand}>DATA PEAK</Text>
+        </View>
+      </Page>
+    </Document>
+  );
+};
