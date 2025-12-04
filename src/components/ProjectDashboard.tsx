@@ -1,15 +1,22 @@
 // src/components/ProjectDashboard.tsx
 'use client';
 
-import { useState, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { Eye, EyeSlash } from 'react-bootstrap-icons'; 
-import { ProjectDashboardData } from '@/lib/dashboard-shared';
+import { 
+  ProjectDashboardData, 
+  ActiveKpi, 
+  ChartEntry,
+  KpiDatum
+} from '@/lib/dashboard-shared';
 
 import TableauKpiGrid from '@/components/TableauKpiGrid';
 import TableauPieChart from '@/components/charts/TableauPieChart';
 import KpiTrendChart from '@/components/charts/KpiTrendChart';
+import AiTrafficCard from '@/components/AiTrafficCard';
 import { type DateRangeOption } from '@/components/DateRangeSelector';
+import TopQueriesList from '@/components/TopQueriesList';
 import SemrushTopKeywords from '@/components/SemrushTopKeywords';
 import SemrushTopKeywords02 from '@/components/SemrushTopKeywords02';
 import GlobalHeader from '@/components/GlobalHeader';
@@ -29,186 +36,267 @@ interface ProjectDashboardProps {
   semrushTrackingId?: string | null;
   semrushTrackingId02?: string | null;
   projectTimelineActive?: boolean;
-  countryData?: any;
-  channelData?: any;
-  deviceData?: any;
-  userRole?: string;
-  userEmail?: string;
+  countryData?: ChartEntry[];
+  channelData?: ChartEntry[];
+  deviceData?: ChartEntry[];
+  userRole?: string; 
+  userEmail?: string; 
   showLandingPagesToCustomer?: boolean; 
+}
+
+// Hilfsfunktion: Verhindert Abstürze bei undefined KPIs
+function safeKpi(kpi?: KpiDatum) {
+  return kpi || { value: 0, change: 0 };
 }
 
 export default function ProjectDashboard({
   data,
   isLoading,
   dateRange,
-  onDateRangeChange,
-  projectId = '',
-  domain = '',
+  onDateRangeChange, 
+  projectId,
+  domain,
   faviconUrl,
   semrushTrackingId,
   semrushTrackingId02,
   projectTimelineActive = false,
-  userRole = 'BENUTZER',
-  userEmail = '',
-  showLandingPagesToCustomer = false
+  userRole = 'USER', 
+  userEmail = '', 
+  showLandingPagesToCustomer = false, 
 }: ProjectDashboardProps) {
   
-  const chartSectionRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
   const [isLandingPagesVisible, setIsLandingPagesVisible] = useState(showLandingPagesToCustomer);
+  const [isUpdating, setIsUpdating] = useState(false);
+  
+  // Ref für Chart Screenshots
+  const chartRef = useRef<HTMLDivElement>(null);
+  
+  // Loading State Reset
+  useEffect(() => {
+    setIsUpdating(false);
+  }, [dateRange, data, isLoading]);
+
+  const apiErrors = data.apiErrors;
+  
+  // FIX: Zugriff auf 'data.kpis' statt 'data.kpiData'
+  const kpis = data.kpis;
+
+  const extendedKpis = kpis ? {
+    clicks: safeKpi(kpis.clicks),
+    impressions: safeKpi(kpis.impressions),
+    sessions: safeKpi(kpis.sessions),
+    totalUsers: safeKpi(kpis.totalUsers),
+    conversions: safeKpi(kpis.conversions),
+    engagementRate: safeKpi(kpis.engagementRate),
+    bounceRate: safeKpi(kpis.bounceRate),
+    newUsers: safeKpi(kpis.newUsers),
+    avgEngagementTime: safeKpi(kpis.avgEngagementTime),
+  } : undefined;
+
+  const allChartData = {
+    ...(data.charts || {}),
+    aiTraffic: (data.aiTraffic?.trend ?? []).map(item => ({
+      date: item.date,
+      value: (item as any).value ?? (item as any).sessions ?? 0
+    }))
+  };
+
+  const cleanLandingPages = useMemo(() => {
+    return aggregateLandingPages(data.topConvertingPages || []);
+  }, [data.topConvertingPages]);
+
+  // ✅ KPIs für PDF Export formatieren
+  const exportKpis = useMemo(() => {
+    if (!extendedKpis) return [];
+    
+    return [
+      { label: 'Klicks', value: extendedKpis.clicks.value.toLocaleString('de-DE'), change: extendedKpis.clicks.change },
+      { label: 'Impressionen', value: extendedKpis.impressions.value.toLocaleString('de-DE'), change: extendedKpis.impressions.change },
+      { label: 'Sitzungen', value: extendedKpis.sessions.value.toLocaleString('de-DE'), change: extendedKpis.sessions.change },
+      { label: 'Nutzer', value: extendedKpis.totalUsers.value.toLocaleString('de-DE'), change: extendedKpis.totalUsers.change },
+      { label: 'Conversions', value: extendedKpis.conversions.value.toLocaleString('de-DE'), change: extendedKpis.conversions.change },
+      { label: 'Engagement', value: extendedKpis.engagementRate.value.toFixed(1), change: extendedKpis.engagementRate.change, unit: '%' },
+      { label: 'Bounce Rate', value: extendedKpis.bounceRate.value.toFixed(1), change: extendedKpis.bounceRate.change, unit: '%' },
+      { label: 'Ø Zeit', value: extendedKpis.avgEngagementTime.value.toLocaleString('de-DE'), change: extendedKpis.avgEngagementTime.change },
+    ];
+  }, [extendedKpis]);
+
+  const handleDateRangeChange = (range: DateRangeOption) => {
+    if (range === dateRange) return;
+    setIsUpdating(true);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('dateRange', range);
+    router.push(`${pathname}?${params.toString()}`);
+    if (onDateRangeChange) onDateRangeChange(range);
+  };
+
   const isAdmin = userRole === 'ADMIN' || userRole === 'SUPERADMIN';
-  const hasSemrushConfig = !!semrushTrackingId || !!semrushTrackingId02;
+  const shouldRenderChart = isAdmin || isLandingPagesVisible;
   const hasKampagne1Config = !!semrushTrackingId;
   const hasKampagne2Config = !!semrushTrackingId02;
-  
-  // Cast auf any um TS Fehler mit _errors zu vermeiden
-  const apiErrors = (data as any)?._errors || {};
+  const hasSemrushConfig = hasKampagne1Config || hasKampagne2Config;
 
-  // ✅ NEU: KPIs für den Export vorbereiten
-  const exportKpis = [
-    { 
-      label: 'Nutzer', 
-      value: data.kpiData.totalUsers?.value?.toLocaleString('de-DE') || 0, 
-      change: data.kpiData.totalUsers?.change,
-      unit: '' 
-    },
-    { 
-      label: 'Sitzungen', 
-      value: data.kpiData.sessions?.value?.toLocaleString('de-DE') || 0, 
-      change: data.kpiData.sessions?.change,
-      unit: '' 
-    },
-    { 
-      label: 'Engagement', 
-      value: data.kpiData.engagementRate?.value?.toLocaleString('de-DE', { maximumFractionDigits: 1 }) || 0, 
-      change: data.kpiData.engagementRate?.change,
-      unit: '%' 
-    },
-    { 
-      label: 'Ø Dauer', 
-      value: data.kpiData.avgSessionDuration?.value || '0m', 
-      change: data.kpiData.avgSessionDuration?.change,
-      unit: '' 
-    }
-  ];
+  // Cast auf any für apiErrors um Typfehler zu vermeiden, falls Interface abweicht
+  const safeApiErrors = (apiErrors as any) || {};
 
   return (
-    <div className="min-h-screen bg-gray-50/50 pb-20">
+    <div className="min-h-screen flex flex-col dashboard-gradient relative">
       
-      <GlobalHeader 
-        userRole={userRole} 
-        userEmail={userEmail}
-        showDateSelector={true}
-        dateRange={dateRange}
-        onDateRangeChange={onDateRangeChange}
-      />
-
-      <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        
-        {/* HEADER */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            {faviconUrl ? (
-               <div className="relative w-12 h-12 rounded-xl overflow-hidden bg-white shadow-sm border border-gray-100 p-2">
-                 <img src={faviconUrl} alt="Logo" className="w-full h-full object-contain" />
-               </div>
-            ) : (
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 border border-gray-300 flex items-center justify-center text-xl font-bold text-gray-400">
-                {domain ? domain.charAt(0).toUpperCase() : 'P'}
-              </div>
-            )}
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
-                {domain || 'Projekt Dashboard'}
-              </h1>
-              <p className="text-sm text-gray-500 font-medium">
-                 Performance Übersicht
-              </p>
+      {/* Lightbox Overlay bei Datumswechsel */}
+      {isUpdating && (
+        <div className="fixed inset-0 z-[9999] bg-black/40 backdrop-blur-[2px] flex items-center justify-center transition-opacity duration-300">
+          <div className="bg-white px-8 py-6 rounded-xl shadow-2xl flex flex-col items-center gap-4 animate-in fade-in zoom-in duration-200">
+            <div className="relative">
+              <div className="w-12 h-12 border-4 border-blue-100 rounded-full"></div>
+              <div className="absolute top-0 left-0 w-12 h-12 border-4 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
+            </div>
+            <div className="text-center">
+              <h4 className="text-gray-900 font-semibold mb-1">Daten werden aktualisiert</h4>
+              <p className="text-gray-500 text-sm">Bitte einen Moment Geduld...</p>
             </div>
           </div>
         </div>
-
+      )}
+      
+      <div className="flex-grow w-full px-4 sm:px-6 lg:px-8 py-6">
+        
+        {/* GLOBAL HEADER */}
+        <GlobalHeader 
+          domain={domain}
+          projectId={projectId}
+          dateRange={dateRange}
+          onDateRangeChange={handleDateRangeChange}
+          userRole={userRole}
+          userEmail={userEmail}
+        />
+        
         {/* TIMELINE */}
-        {projectTimelineActive && (
-          <div className="animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
+        {projectId && projectTimelineActive && (
+          <div className="mb-6 print-timeline">
             <ProjectTimelineWidget projectId={projectId} />
           </div>
         )}
 
+        {/* AI ANALYSE WIDGET */}
+        {projectId && (
+          <div className="mt-6 print:hidden">
+            <AiAnalysisWidget 
+              projectId={projectId} 
+              dateRange={dateRange}
+              chartRef={chartRef}
+              // ✅ UPDATE: Korrekte Übergabe der KPIs, keine pieChartsRefs mehr
+              kpis={exportKpis}
+            />
+          </div>
+        )}
+
         {/* KPI GRID */}
-        <div className="animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
-          <TableauKpiGrid 
-            kpiData={data.kpiData} 
-            isLoading={isLoading} 
-            previousPeriodLabel="Vormonat"
+        <div className="mt-6 print-kpi-grid">
+          {extendedKpis && (
+            <TableauKpiGrid
+              kpis={extendedKpis}
+              isLoading={isLoading} 
+              allChartData={data.charts as any} 
+              apiErrors={safeApiErrors}
+              dateRange={dateRange} 
+            />
+          )}
+        </div>
+
+        {/* TREND CHART */}
+        <div className="mt-6 print-trend-chart" ref={chartRef}>
+          <KpiTrendChart 
+            activeKpi={activeKpi}
+            onKpiChange={(kpi) => setActiveKpi(kpi as ActiveKpi)}
+            allChartData={allChartData}
           />
         </div>
-
-        {/* MAIN SPLIT VIEW */}
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          
-          {/* CHART AREA */}
-          <div className="xl:col-span-2 space-y-6">
-             <div ref={chartSectionRef} className="bg-white p-1 rounded-2xl"> 
-                <KpiTrendChart 
-                  data={data.historyData} 
-                  isLoading={isLoading} 
-                  title="Besucher & Ereignisse" 
-                />
-             </div>
-             
-             {isLandingPagesVisible && (
-               <div className="animate-fade-in">
-                  <LandingPageChart 
-                    data={aggregateLandingPages(data.landingPagesData)} 
-                    isLoading={isLoading} 
-                  />
-               </div>
-             )}
+        
+        {/* TRAFFIC & QUERIES */}
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mt-6 print-traffic-grid">
+          <div className="xl:col-span-1 print-ai-card">
+            <AiTrafficCard 
+              totalSessions={data.aiTraffic?.totalSessions ?? 0}
+              totalUsers={data.aiTraffic?.totalUsers ?? 0}
+              percentage={data.kpis?.sessions?.value ? ((data.aiTraffic?.totalSessions ?? 0) / data.kpis.sessions.value * 100) : 0}
+              totalSessionsChange={data.aiTraffic?.totalSessionsChange}
+              totalUsersChange={data.aiTraffic?.totalUsersChange}
+              trend={(data.aiTraffic?.trend ?? []).map(item => ({
+                date: item.date,
+                value: (item as any).value ?? (item as any).sessions ?? 0
+              }))}
+              topAiSources={data.aiTraffic?.topAiSources ?? []}
+              className="h-full"
+              isLoading={isLoading}
+              dateRange={dateRange}
+              error={safeApiErrors?.ga4}
+            />
           </div>
-
-          {/* AI WIDGET */}
-          <div className="xl:col-span-1 h-full">
-            <div className="sticky top-6 h-full max-h-[600px]">
-              <AiAnalysisWidget 
-                projectId={projectId} 
-                dateRange={dateRange}
-                chartRef={chartSectionRef}
-                // ✅ WICHTIG: Hier übergeben wir die KPIs
-                kpis={exportKpis}
-              />
-            </div>
+          
+          <div className="xl:col-span-2 print-queries-list">
+            <TopQueriesList 
+              queries={data.topQueries ?? []} 
+              isLoading={isLoading}
+              className="h-full"
+              dateRange={dateRange}
+              error={safeApiErrors?.gsc}
+            />
           </div>
         </div>
 
+        {/* LANDINGPAGE CHART MIT SCHALTER */}
+        {shouldRenderChart && (
+          <div className={`mt-6 transition-all duration-300 ${!isLandingPagesVisible && isAdmin ? 'opacity-70 grayscale-[0.5]' : ''}`}>
+            
+            {isAdmin && (
+               <div className="flex items-center justify-end mb-2 print:hidden">
+                 <button 
+                    onClick={() => setIsLandingPagesVisible(!isLandingPagesVisible)}
+                    className="flex items-center gap-2 text-xs font-medium text-gray-500 hover:text-gray-800 transition-colors"
+                 >
+                    {isLandingPagesVisible ? <EyeSlash size={14}/> : <Eye size={14}/>}
+                    {isLandingPagesVisible ? 'Für Kunden verbergen' : 'Für Kunden sichtbar machen'}
+                 </button>
+               </div>
+            )}
+
+            <div className="print-landing-chart relative">
+               <LandingPageChart 
+                 data={cleanLandingPages} 
+                 isLoading={isLoading}
+                 title="Top Landingpages" 
+               />
+               {!isLandingPagesVisible && isAdmin && (
+                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                   <div className="bg-gray-900/10 backdrop-blur-[1px] px-4 py-2 rounded-lg border border-gray-900/20 text-gray-800 text-xs font-semibold shadow-sm">
+                     🚫 Für Kunden ausgeblendet
+                   </div>
+                 </div>
+               )}
+            </div>
+          </div>
+        )}
+
         {/* PIE CHARTS */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
-          <TableauPieChart data={data.channelData} title="Zugriffe nach Channel" isLoading={isLoading} error={apiErrors?.ga4} />
-          <TableauPieChart data={data.countryData} title="Zugriffe nach Land" isLoading={isLoading} error={apiErrors?.ga4} />
-          <TableauPieChart data={data.deviceData} title="Zugriffe nach Endgerät" isLoading={isLoading} error={apiErrors?.ga4} />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6 print-pie-grid">
+          <TableauPieChart data={data.channelData} title="Zugriffe nach Channel" isLoading={isLoading} error={safeApiErrors?.ga4} />
+          <TableauPieChart data={data.countryData} title="Zugriffe nach Land" isLoading={isLoading} error={safeApiErrors?.ga4} />
+          <TableauPieChart data={data.deviceData} title="Zugriffe nach Endgerät" isLoading={isLoading} error={safeApiErrors?.ga4} />
         </div>
         
         {/* SEMRUSH */}
         {hasSemrushConfig && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6 print-semrush-grid">
             {hasKampagne1Config && <div className="card-glass p-4 sm:p-6"><SemrushTopKeywords projectId={projectId} /></div>}
             {hasKampagne2Config && <div className="card-glass p-4 sm:p-6"><SemrushTopKeywords02 projectId={projectId} /></div>}
           </div>
         )}
-
-        {/* ADMIN */}
-        {isAdmin && (
-          <div className="mt-8 flex justify-end">
-            <button 
-              onClick={() => setIsLandingPagesVisible(!isLandingPagesVisible)}
-              className="flex items-center gap-2 px-4 py-2 text-sm text-gray-500 hover:text-gray-900 transition-colors"
-            >
-              {isLandingPagesVisible ? <EyeSlash /> : <Eye />}
-              {isLandingPagesVisible ? 'Landingpage Chart verbergen' : 'Landingpage Chart (Admin) anzeigen'}
-            </button>
-          </div>
-        )}
-
-      </main>
+      </div>
     </div>
   );
 }
