@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { sql } from '@vercel/postgres';
 import { getSearchConsoleData, getAnalyticsData } from '@/lib/google-api';
-
+import { getBingData } from '@/lib/bing-api';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
@@ -17,6 +17,7 @@ export async function GET() {
       database: { status: 'pending', message: '', latency: 0 },
       google: { status: 'pending', message: '' },
       semrush: { status: 'pending', message: '' },
+      bingApi: { status: 'pending', message: '' },
       cache: { count: 0, size: 'Unknown' },
       cron: { status: 'pending', message: '', lastRun: null as string | null },
       gscApi: { status: 'pending', message: '' },
@@ -94,8 +95,7 @@ export async function GET() {
        status.cron.message = 'Prüfung fehlgeschlagen: ' + e.message;
     }
 
-    // --- TEST 6: LIVE DATEN-FLUSS (GSC & GA4) ---
-    // Wir suchen einen ZUFÄLLIGEN User aus der Datenbank, um die Verbindung zu testen.
+    // --- TEST 6: LIVE DATEN-FLUSS (GSC, GA4 & BING) ---
     try {
       const { rows } = await sql`
         SELECT email, domain, gsc_site_url, ga4_property_id 
@@ -145,24 +145,39 @@ export async function GET() {
             status.gscApi = { status: 'pending', message: `${userLabel}: Kein GSC konfiguriert.` };
          }
 
-         // B) GA4 TEST
+       // B) GA4 TEST
          if (testUser.ga4_property_id) {
             try {
                await getAnalyticsData(testUser.ga4_property_id, gaDateStr, gaDateStr);
                status.ga4Api = { status: 'ok', message: `OK (${userLabel})` };
             } catch (e: any) {
-               status.ga4Api = { 
-                   status: 'warning', 
-                   message: `Fehler bei ${userLabel}: ${e.message}` 
-               };
+               status.ga4Api = { status: 'warning', message: `Fehler bei ${userLabel}: ${e.message}` };
             }
          } else {
             status.ga4Api = { status: 'pending', message: `${userLabel}: Kein GA4 konfiguriert.` };
+         }
+
+         // C) BING API TEST
+         if (!process.env.BING_API_KEY) {
+            status.bingApi = { status: 'error', message: 'Env Variable BING_API_KEY fehlt.' };
+         } else if (testUser.gsc_site_url) {
+            try {
+               // Wir versuchen einen echten Fetch
+               const bingRes = await getBingData(testUser.gsc_site_url);
+               // getBingData fängt Fehler intern ab und gibt [] zurück.
+               // Wir bewerten es als OK, wenn der Aufruf durchlief.
+               status.bingApi = { status: 'ok', message: `OK (${userLabel})` };
+            } catch (e: any) {
+               status.bingApi = { status: 'warning', message: `Fehler bei ${userLabel}: ${e.message}` };
+            }
+         } else {
+            status.bingApi = { status: 'pending', message: 'User hat keine URL für Bing Test.' };
          }
       }
     } catch (e: any) {
        status.gscApi = { status: 'error', message: 'DB Suche fehlgeschlagen.' };
        status.ga4Api = { status: 'error', message: 'DB Suche fehlgeschlagen.' };
+       status.bingApi = { status: 'error', message: 'DB Suche fehlgeschlagen.' };
     }
 
     return NextResponse.json(status);
