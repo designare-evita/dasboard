@@ -2,7 +2,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, Search, TrendingUp, TrendingDown, Minus } from 'react-bootstrap-icons';
+import { ChevronDown, ChevronUp, Search, ArrowUp, ArrowDown, Dash } from 'react-bootstrap-icons';
 import { type DateRangeOption } from '@/components/DateRangeSelector';
 
 interface BingAnalysisWidgetProps {
@@ -58,9 +58,9 @@ export default function BingAnalysisWidget({
     .slice(0, isExpanded ? 20 : 5);
 
   const getTrendIcon = (value: number) => {
-    if (value > 0) return <TrendingUp className="text-green-600" size={14} />;
-    if (value < 0) return <TrendingDown className="text-red-600" size={14} />;
-    return <Minus className="text-gray-400" size={14} />;
+    if (value > 0) return <ArrowUp className="text-green-600" size={14} />;
+    if (value < 0) return <ArrowDown className="text-red-600" size={14} />;
+    return <Dash className="text-gray-400" size={14} />;
   };
 
   const getPositionColor = (position: number) => {
