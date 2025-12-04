@@ -278,7 +278,7 @@ export default function ProjectDashboard({
           </div>
         )}
 
-      {/* BING KI-ANALYSE - Korrektur: Bedingung entfernt, damit Widget immer sichtbar ist */}
+     {/* BING KI-ANALYSE */}
         <div className="mt-6 print:hidden">
           <BingAnalysisWidget 
             bingData={data.bingData || []} 
@@ -286,7 +286,9 @@ export default function ProjectDashboard({
             dateRange={dateRange}
           />
         </div>
-        )}
+        
+        {/* HIER WAR DER FEHLER: Die Zeile ")}" muss weg! */}
+
       </div>
     </div>
   );
