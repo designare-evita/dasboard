@@ -22,9 +22,8 @@ import SemrushTopKeywords02 from '@/components/SemrushTopKeywords02';
 import GlobalHeader from '@/components/GlobalHeader';
 import ProjectTimelineWidget from '@/components/ProjectTimelineWidget'; 
 import AiAnalysisWidget from '@/components/AiAnalysisWidget';
+import BingAnalysisWidget from '@/components/BingAnalysisWidget';
 import LandingPageChart from '@/components/charts/LandingPageChart';
-// ✅ NEU: Import der Bing Karte
-import BingPerformanceCard from '@/components/BingPerformanceCard'; 
 import { aggregateLandingPages } from '@/lib/utils';
 
 interface ProjectDashboardProps {
@@ -41,6 +40,7 @@ interface ProjectDashboardProps {
   countryData?: ChartEntry[];
   channelData?: ChartEntry[];
   deviceData?: ChartEntry[];
+  bingData?: any[];
   userRole?: string; 
   userEmail?: string; 
   showLandingPagesToCustomer?: boolean; 
@@ -63,7 +63,7 @@ export default function ProjectDashboard({
   projectTimelineActive = false,
   userRole = 'USER', 
   userEmail = '', 
-  showLandingPagesToCustomer = false, 
+  showLandingPagesToCustomer = false,
 }: ProjectDashboardProps) {
   
   const router = useRouter();
@@ -107,7 +107,7 @@ export default function ProjectDashboard({
     return aggregateLandingPages(data.topConvertingPages || []);
   }, [data.topConvertingPages]);
 
-  // 2. Daten NUR für den PDF Export
+  // 2. Daten NUR für den PDF Export (Deine Wunsch-Reihenfolge)
   const exportKpis = useMemo(() => {
     if (!extendedKpis) return [];
     
@@ -118,6 +118,7 @@ export default function ProjectDashboard({
       { label: 'Sitzungen', value: extendedKpis.sessions.value.toLocaleString('de-DE'), change: extendedKpis.sessions.change },
       { label: 'Engagement', value: extendedKpis.engagementRate.value.toFixed(1), change: extendedKpis.engagementRate.change, unit: '%' },
       { label: 'Conversions', value: extendedKpis.conversions.value.toLocaleString('de-DE'), change: extendedKpis.conversions.change },
+      // AI Traffic statt Bounce Rate
       { label: 'KI-Traffic', value: (data.aiTraffic?.totalUsers || 0).toLocaleString('de-DE'), change: data.aiTraffic?.totalUsersChange || 0 }, 
       { label: 'Ø Zeit', value: extendedKpis.avgEngagementTime.value.toLocaleString('de-DE'), change: extendedKpis.avgEngagementTime.change },
     ];
@@ -168,18 +169,20 @@ export default function ProjectDashboard({
           </div>
         )}
 
+        {/* AI WIDGET: Hier übergeben wir die spezielle 'exportKpis' Liste und 'domain' */}
         {projectId && (
           <div className="mt-6 print:hidden">
             <AiAnalysisWidget 
               projectId={projectId}
-              domain={domain}
+              domain={domain} // ✅ Domain wird übergeben
               dateRange={dateRange}
               chartRef={chartRef}
-              kpis={exportKpis}
+              kpis={exportKpis} // ✅ Nur für den PDF Export Button
             />
           </div>
         )}
 
+        {/* KPI GRID: Hier nutzen wir weiterhin die normalen 'extendedKpis' für die Web-Ansicht */}
         <div className="mt-6 print-kpi-grid">
           {extendedKpis && (
             <TableauKpiGrid
@@ -200,6 +203,7 @@ export default function ProjectDashboard({
           />
         </div>
         
+        {/* ... Rest der Dashboard Komponenten unverändert ... */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mt-6 print-traffic-grid">
           <div className="xl:col-span-1 print-ai-card">
             <AiTrafficCard 
@@ -274,14 +278,17 @@ export default function ProjectDashboard({
           </div>
         )}
 
-        {/* ✅ NEU: Bing Performance Card (Testweise am Ende) */}
-        <div className="mt-6">
-          <BingPerformanceCard 
-            data={data.bingData || []} 
-            isLoading={isLoading} 
-          />
-        </div>
-        
+        {/* BING KI-ANALYSE */}
+        {data.bingData && data.bingData.length > 0 && (
+          <div className="mt-6 print:hidden">
+            <BingAnalysisWidget 
+              bingData={data.bingData}
+              domain={domain}
+              dateRange={dateRange}
+              isLoading={isLoading}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
