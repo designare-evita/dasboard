@@ -1,4 +1,5 @@
 // src/lib/google-data-loader.ts
+
 import { sql } from '@vercel/postgres';
 import { type User } from '@/lib/schemas';
 import {
@@ -16,11 +17,12 @@ import {
   ApiErrorStatus,
   ConvertingPageData 
 } from '@/lib/dashboard-shared';
+import { getBingData } from '@/lib/bing-api'; // ✅ NEU: Bing API Import
 import type { TopQueryData, ChartPoint } from '@/types/dashboard';
 
 const CACHE_DURATION_HOURS = 48; 
 
-// Interface für interne Datenhaltung (statt 'any')
+// Interface für interne Datenhaltung
 interface RawApiData {
   clicks: { total: number; daily: ChartPoint[] };
   impressions: { total: number; daily: ChartPoint[] };
@@ -33,229 +35,183 @@ interface RawApiData {
   avgEngagementTime: { total: number; daily: ChartPoint[] };
 }
 
-// Hilfsfunktion: Berechnet Veränderung sicher
+// Hilfsfunktion: Berechnet prozentuale Veränderung sicher
 function calculateChange(current: number, previous: number): number {
   if (!previous || previous === 0) return current > 0 ? 100 : 0;
   return ((current - previous) / previous) * 100;
 }
 
-// Initialer State für leere Daten
-const INITIAL_DATA: RawApiData = {
-  clicks: { total: 0, daily: [] },
-  impressions: { total: 0, daily: [] },
-  sessions: { total: 0, daily: [] },
-  totalUsers: { total: 0, daily: [] },
-  conversions: { total: 0, daily: [] },
-  engagementRate: { total: 0, daily: [] },
-  bounceRate: { total: 0, daily: [] },
-  newUsers: { total: 0, daily: [] },
-  avgEngagementTime: { total: 0, daily: [] }
-};
+// Hilfsfunktion: Leeres Datenobjekt erstellen
+function createEmptyRawData(): RawApiData {
+  return {
+    clicks: { total: 0, daily: [] },
+    impressions: { total: 0, daily: [] },
+    sessions: { total: 0, daily: [] },
+    totalUsers: { total: 0, daily: [] },
+    conversions: { total: 0, daily: [] },
+    engagementRate: { total: 0, daily: [] },
+    bounceRate: { total: 0, daily: [] },
+    newUsers: { total: 0, daily: [] },
+    avgEngagementTime: { total: 0, daily: [] }
+  };
+}
 
 export async function getOrFetchGoogleData(
-  user: User,
-  dateRange: string,
-  forceRefresh = false
-): Promise<ProjectDashboardData | null> {
-  if (!user.id) return null;
-  const userId = user.id;
+  user: User, 
+  dateRange: string, 
+  forceRefresh: boolean = false
+): Promise<ProjectDashboardData> {
 
-  // 1. Cache prüfen
+  // 1. Cache prüfen (wenn nicht erzwungen)
   if (!forceRefresh) {
     try {
       const { rows } = await sql`
         SELECT data, last_fetched 
         FROM google_data_cache 
-        WHERE user_id = ${userId}::uuid AND date_range = ${dateRange}
-        LIMIT 1
+        WHERE user_id = ${user.id} AND date_range = ${dateRange}
       `;
 
       if (rows.length > 0) {
-        const cacheEntry = rows[0];
-        const lastFetched = new Date(cacheEntry.last_fetched).getTime();
+        const cache = rows[0];
+        const lastFetched = new Date(cache.last_fetched).getTime();
         const now = Date.now();
-        if ((now - lastFetched) / (1000 * 60 * 60) < CACHE_DURATION_HOURS) {
-          console.log(`[Google Cache] ✅ HIT für ${user.email}`);
-          return { ...cacheEntry.data, fromCache: true };
+        const hoursDiff = (now - lastFetched) / (1000 * 60 * 60);
+
+        if (hoursDiff < CACHE_DURATION_HOURS) {
+          // Cache ist noch gültig -> return
+          return { ...cache.data, fromCache: true } as ProjectDashboardData;
         }
       }
     } catch (error) {
-      console.warn('[Google Cache] Lesefehler:', error);
+      console.error('Cache Read Error:', error);
+      // Bei Fehler einfach weitermachen und neu fetchen
     }
   }
 
-  // 2. Daten frisch holen
-  console.log(`[Google Cache] 🔄 Lade frische Daten für ${user.email}...`);
-
-  const end = new Date();
-  const start = new Date();
-  let days = 30;
-  if (dateRange === '7d') days = 7;
-  if (dateRange === '3m') days = 90;
-  if (dateRange === '6m') days = 180;
-  if (dateRange === '12m') days = 365;
-  start.setDate(end.getDate() - days);
+  // 2. Frische Daten holen
+  const apiErrors: ApiErrorStatus = {};
   
-  const startDateStr = start.toISOString().split('T')[0];
-  const endDateStr = end.toISOString().split('T')[0];
+  // Initialisiere leere Container für "Aktuell" und "Vergleichszeitraum"
+  let currentData = createEmptyRawData();
+  let prevData = createEmptyRawData();
 
-  const prevEnd = new Date(start);
-  prevEnd.setDate(prevEnd.getDate() - 1);
-  const prevStart = new Date(prevEnd);
-  prevStart.setDate(prevEnd.getDate() - days);
-  const prevStartStr = prevStart.toISOString().split('T')[0];
-  const prevEndStr = prevEnd.toISOString().split('T')[0];
+  // --- A) Google Search Console (GSC) ---
+  if (user.gsc_site_url) {
+    try {
+      // Parallel: Aktueller Zeitraum & Vorheriger Zeitraum
+      const [gscCurrent, gscPrev] = await Promise.all([
+        getSearchConsoleData(user.gsc_site_url, user.refresh_token, dateRange, 'current'),
+        getSearchConsoleData(user.gsc_site_url, user.refresh_token, dateRange, 'previous')
+      ]);
 
-  // Datencontainer mit Default-Werten initialisieren
-  let currentData: RawApiData = { ...INITIAL_DATA };
-  let prevData: RawApiData = { ...INITIAL_DATA };
+      currentData.clicks = gscCurrent.clicks;
+      currentData.impressions = gscCurrent.impressions;
+      
+      prevData.clicks = gscPrev.clicks;
+      prevData.impressions = gscPrev.impressions;
 
+    } catch (e: any) {
+      console.error('GSC Fetch Error:', e);
+      apiErrors.gsc = e.message || 'Fehler beim GSC Abruf';
+    }
+  }
+
+  // --- B) Google Analytics 4 (GA4) ---
+  if (user.ga4_property_id) {
+    try {
+      const [ga4Current, ga4Prev] = await Promise.all([
+        getAnalyticsData(user.ga4_property_id, user.refresh_token, dateRange, 'current'),
+        getAnalyticsData(user.ga4_property_id, user.refresh_token, dateRange, 'previous')
+      ]);
+
+      // Merge GA4 Data into main object
+      currentData = { ...currentData, ...ga4Current }; // Überschreibt sessions, users etc.
+      // Clicks/Impressions bleiben erhalten, da GA4 diese Keys nicht liefert (außer wir hätten Namenskonflikte)
+      // Safety: getAnalyticsData liefert exakt die Keys aus RawApiData (sessions, totalUsers...)
+      
+      // Merge Prev Data manuell, um sicherzugehen
+      prevData.sessions = ga4Prev.sessions;
+      prevData.totalUsers = ga4Prev.totalUsers;
+      prevData.conversions = ga4Prev.conversions;
+      prevData.engagementRate = ga4Prev.engagementRate;
+      prevData.bounceRate = ga4Prev.bounceRate;
+      prevData.newUsers = ga4Prev.newUsers;
+      prevData.avgEngagementTime = ga4Prev.avgEngagementTime;
+
+    } catch (e: any) {
+       console.error('GA4 Fetch Error:', e);
+       apiErrors.ga4 = e.message || 'Fehler beim GA4 Abruf';
+    }
+  }
+
+  // --- C) Zusatz-Daten (Top Queries, AI, Dimensionen) ---
+  // Diese Daten holen wir meist nur für den aktuellen Zeitraum
   let topQueries: TopQueryData[] = [];
-  let topConvertingPages: ConvertingPageData[] = []; 
   let aiTraffic: AiTrafficData | undefined;
   let countryData: ChartEntry[] = [];
   let channelData: ChartEntry[] = [];
   let deviceData: ChartEntry[] = [];
-  let apiErrors: ApiErrorStatus = {};
+  let topConvertingPages: ConvertingPageData[] = [];
 
-  // --- GSC FETCH ---
+  // GSC Extras
+  if (user.gsc_site_url && !apiErrors.gsc) {
+    try {
+      const [queries, ai] = await Promise.all([
+        getTopQueries(user.gsc_site_url, user.refresh_token, dateRange),
+        getAiTrafficData(user.gsc_site_url, user.refresh_token, dateRange)
+      ]);
+      topQueries = queries;
+      aiTraffic = ai;
+    } catch (e) {
+      console.warn('GSC Extras Error:', e);
+    }
+  }
+
+  // GA4 Extras
+  if (user.ga4_property_id && !apiErrors.ga4) {
+    try {
+       const [countries, channels, devices, pages] = await Promise.all([
+         getGa4DimensionReport(user.ga4_property_id, user.refresh_token, dateRange, 'country'),
+         getGa4DimensionReport(user.ga4_property_id, user.refresh_token, dateRange, 'sessionDefaultChannelGroup'),
+         getGa4DimensionReport(user.ga4_property_id, user.refresh_token, dateRange, 'deviceCategory'),
+         getTopConvertingPages(user.ga4_property_id, user.refresh_token, dateRange)
+       ]);
+       countryData = countries;
+       channelData = channels;
+       deviceData = devices;
+       topConvertingPages = pages;
+    } catch (e) {
+      console.warn('GA4 Extras Error:', e);
+    }
+  }
+
+  // --- D) ✅ NEU: BING DATEN FETCH ---
+  let bingData: any[] = [];
+  // Wir versuchen Bing Daten zu holen, wenn eine GSC URL existiert.
+  // Der Bing-Fetcher nutzt den serverseitigen Agency-Key (Env Var).
   if (user.gsc_site_url) {
     try {
-      const gscRaw = await getSearchConsoleData(user.gsc_site_url, startDateStr, endDateStr);
-      // Merge GSC Data
-      currentData = {
-        ...currentData,
-        clicks: { total: gscRaw.clicks?.total || 0, daily: gscRaw.clicks?.daily || [] },
-        impressions: { total: gscRaw.impressions?.total || 0, daily: gscRaw.impressions?.daily || [] }
-      };
-      
-      const gscPrevRaw = await getSearchConsoleData(user.gsc_site_url, prevStartStr, prevEndStr);
-      prevData = {
-        ...prevData,
-        clicks: { ...prevData.clicks, total: gscPrevRaw.clicks?.total || 0 },
-        impressions: { ...prevData.impressions, total: gscPrevRaw.impressions?.total || 0 }
-      };
-
-      topQueries = await getTopQueries(user.gsc_site_url, startDateStr, endDateStr);
-    } catch (e: any) {
-      console.error('[GSC Error]', e);
-      apiErrors.gsc = e.message || 'GSC Fehler';
+      bingData = await getBingData(user.gsc_site_url);
+    } catch (e) {
+      console.warn('Bing Fetch skipped/failed (non-critical):', e);
+      // Kein apiError setzen, da Bing optional ist
     }
   }
 
-  // --- GA4 FETCH ---
-  if (user.ga4_property_id) {
-    try {
-      const propertyId = user.ga4_property_id.trim();
-      
-      // Hauptdaten (KPIs & Charts)
-      const gaCurrent = await getAnalyticsData(propertyId, startDateStr, endDateStr);
-      const gaPrevious = await getAnalyticsData(propertyId, prevStartStr, prevEndStr);
-      
-      // ✅ FIX: GA4 Daten gezielt mergen, damit GSC (clicks/impressions) nicht überschrieben wird!
-      currentData = { 
-        ...currentData,
-        sessions: gaCurrent.sessions,
-        totalUsers: gaCurrent.totalUsers,
-        conversions: gaCurrent.conversions,
-        engagementRate: gaCurrent.engagementRate,
-        bounceRate: gaCurrent.bounceRate,
-        newUsers: gaCurrent.newUsers,
-        avgEngagementTime: gaCurrent.avgEngagementTime
-      };
-
-      prevData = { 
-        ...prevData,
-        sessions: gaPrevious.sessions,
-        totalUsers: gaPrevious.totalUsers,
-        conversions: gaPrevious.conversions,
-        engagementRate: gaPrevious.engagementRate,
-        bounceRate: gaPrevious.bounceRate,
-        newUsers: gaPrevious.newUsers,
-        avgEngagementTime: gaPrevious.avgEngagementTime
-      };
-
-      // AI Traffic
-      try { 
-        aiTraffic = await getAiTrafficData(propertyId, startDateStr, endDateStr); 
-      } catch (e) {
-        console.warn('[AI Traffic] Fehler (ignoriert):', e);
-      }
-      
-      // FIX: Daten mappen
-      try {
-        const rawPages = await getTopConvertingPages(propertyId, startDateStr, endDateStr);
-        
-        topConvertingPages = rawPages.map((p: any) => ({
-          path: p.path,
-          conversions: p.conversions,
-          conversionRate: typeof p.conversionRate === 'string' 
-            ? parseFloat(p.conversionRate) 
-            : Number(p.conversionRate),
-          engagementRate: p.engagementRate, 
-          sessions: p.sessions, 
-          newUsers: p.newUsers  
-        }));
-      } catch (e) {
-        console.warn('[GA4] Konnte Top-Pages nicht laden:', e);
-      }
-
-      // Dimensionen (Charts)
-      try {
-        // Country
-        const rawCountry = await getGa4DimensionReport(propertyId, startDateStr, endDateStr, 'country');
-        countryData = rawCountry.map((item, index) => ({ ...item, fill: `hsl(var(--chart-${(index % 5) + 1}))` }));
-        
-        // Channel
-        const rawChannel = await getGa4DimensionReport(propertyId, startDateStr, endDateStr, 'sessionDefaultChannelGroup');
-        channelData = rawChannel.map((item, index) => ({ ...item, fill: `hsl(var(--chart-${(index % 5) + 1}))` }));
-        
-        // Device
-        const rawDevice = await getGa4DimensionReport(propertyId, startDateStr, endDateStr, 'deviceCategory');
-        deviceData = rawDevice.map((item, index) => ({ ...item, fill: `hsl(var(--chart-${(index % 5) + 1}))` }));
-      } catch (e) { 
-        console.error('[GA4 Dimensions Error]', e); 
-      }
-
-    } catch (e: any) {
-      console.error('[GA4 Error]', e);
-      apiErrors.ga4 = e.message || 'GA4 Fehler';
-    }
-  }
-
-  // AI Anteil berechnen
-  const aiTrafficPercentage = (aiTraffic && currentData.sessions.total > 0)
-    ? (aiTraffic.totalSessions / currentData.sessions.total) * 100
-    : 0;
-
-  // --- DATEN ZUSAMMENBAUEN ---
+  // 3. Finales Objekt zusammenbauen
   const freshData: ProjectDashboardData = {
     kpis: {
-      // GSC (bleiben erhalten, wenn GA4 sie nicht überschreibt)
       clicks: { value: currentData.clicks.total, change: calculateChange(currentData.clicks.total, prevData.clicks.total) },
       impressions: { value: currentData.impressions.total, change: calculateChange(currentData.impressions.total, prevData.impressions.total) },
-      
-      // GA4
-      sessions: { 
-        value: currentData.sessions.total, 
-        change: calculateChange(currentData.sessions.total, prevData.sessions.total),
-        aiTraffic: aiTraffic ? { value: aiTraffic.totalSessions, percentage: aiTrafficPercentage } : undefined
-      },
+      sessions: { value: currentData.sessions.total, change: calculateChange(currentData.sessions.total, prevData.sessions.total) },
       totalUsers: { value: currentData.totalUsers.total, change: calculateChange(currentData.totalUsers.total, prevData.totalUsers.total) },
       conversions: { value: currentData.conversions.total, change: calculateChange(currentData.conversions.total, prevData.conversions.total) },
-      engagementRate: { 
-        value: parseFloat((currentData.engagementRate.total * 100).toFixed(2)), 
-        change: calculateChange(currentData.engagementRate.total, prevData.engagementRate.total) 
-      },
-      bounceRate: { 
-        value: parseFloat((currentData.bounceRate.total * 100).toFixed(2)), 
-        change: calculateChange(currentData.bounceRate.total, prevData.bounceRate.total) 
-      },
+      engagementRate: { value: currentData.engagementRate.total, change: calculateChange(currentData.engagementRate.total, prevData.engagementRate.total) },
+      bounceRate: { value: currentData.bounceRate.total, change: calculateChange(currentData.bounceRate.total, prevData.bounceRate.total) },
       newUsers: { value: currentData.newUsers.total, change: calculateChange(currentData.newUsers.total, prevData.newUsers.total) },
       avgEngagementTime: { value: currentData.avgEngagementTime.total, change: calculateChange(currentData.avgEngagementTime.total, prevData.avgEngagementTime.total) }
     },
     
-    // Charts
     charts: {
       clicks: currentData.clicks.daily || [],
       impressions: currentData.impressions.daily || [],
@@ -265,26 +221,35 @@ export async function getOrFetchGoogleData(
       engagementRate: currentData.engagementRate.daily || [],
       bounceRate: currentData.bounceRate.daily || [],
       newUsers: currentData.newUsers.daily || [],
-      avgEngagementTime: currentData.avgEngagementTime.daily || []
+      avgEngagementTime: currentData.avgEngagementTime.daily || [],
+      aiTraffic: aiTraffic?.history || [] // Historie für das AI-Chart
     },
+
     topQueries,
     topConvertingPages,
     aiTraffic,
+    bingData, // ✅ Bing Daten integriert
     countryData,
     channelData,
     deviceData,
-    apiErrors: Object.keys(apiErrors).length > 0 ? apiErrors : undefined
+    
+    apiErrors: Object.keys(apiErrors).length > 0 ? apiErrors : undefined,
+    fromCache: false
   };
 
-  // Cache speichern
+  // 4. Cache schreiben (Upsert)
   try {
     await sql`
       INSERT INTO google_data_cache (user_id, date_range, data, last_fetched)
-      VALUES (${userId}::uuid, ${dateRange}, ${JSON.stringify(freshData)}::jsonb, NOW())
+      VALUES (${user.id}, ${dateRange}, ${JSON.stringify(freshData)}::jsonb, NOW())
       ON CONFLICT (user_id, date_range)
-      DO UPDATE SET data = ${JSON.stringify(freshData)}::jsonb, last_fetched = NOW();
+      DO UPDATE SET 
+        data = ${JSON.stringify(freshData)}::jsonb,
+        last_fetched = NOW();
     `;
-  } catch (e) { console.error('[Cache Write Error]', e); }
+  } catch (e) {
+    console.error('Cache Write Error:', e);
+  }
 
   return freshData;
 }
