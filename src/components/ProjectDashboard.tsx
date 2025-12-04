@@ -23,6 +23,8 @@ import GlobalHeader from '@/components/GlobalHeader';
 import ProjectTimelineWidget from '@/components/ProjectTimelineWidget'; 
 import AiAnalysisWidget from '@/components/AiAnalysisWidget';
 import LandingPageChart from '@/components/charts/LandingPageChart';
+// ✅ NEU: Import der Bing Karte
+import BingPerformanceCard from '@/components/BingPerformanceCard'; 
 import { aggregateLandingPages } from '@/lib/utils';
 
 interface ProjectDashboardProps {
@@ -105,7 +107,7 @@ export default function ProjectDashboard({
     return aggregateLandingPages(data.topConvertingPages || []);
   }, [data.topConvertingPages]);
 
-  // 2. Daten NUR für den PDF Export (Deine Wunsch-Reihenfolge)
+  // 2. Daten NUR für den PDF Export
   const exportKpis = useMemo(() => {
     if (!extendedKpis) return [];
     
@@ -116,7 +118,6 @@ export default function ProjectDashboard({
       { label: 'Sitzungen', value: extendedKpis.sessions.value.toLocaleString('de-DE'), change: extendedKpis.sessions.change },
       { label: 'Engagement', value: extendedKpis.engagementRate.value.toFixed(1), change: extendedKpis.engagementRate.change, unit: '%' },
       { label: 'Conversions', value: extendedKpis.conversions.value.toLocaleString('de-DE'), change: extendedKpis.conversions.change },
-      // AI Traffic statt Bounce Rate
       { label: 'KI-Traffic', value: (data.aiTraffic?.totalUsers || 0).toLocaleString('de-DE'), change: data.aiTraffic?.totalUsersChange || 0 }, 
       { label: 'Ø Zeit', value: extendedKpis.avgEngagementTime.value.toLocaleString('de-DE'), change: extendedKpis.avgEngagementTime.change },
     ];
@@ -167,20 +168,18 @@ export default function ProjectDashboard({
           </div>
         )}
 
-        {/* AI WIDGET: Hier übergeben wir die spezielle 'exportKpis' Liste und 'domain' */}
         {projectId && (
           <div className="mt-6 print:hidden">
             <AiAnalysisWidget 
               projectId={projectId}
-              domain={domain} // ✅ Domain wird übergeben
+              domain={domain}
               dateRange={dateRange}
               chartRef={chartRef}
-              kpis={exportKpis} // ✅ Nur für den PDF Export Button
+              kpis={exportKpis}
             />
           </div>
         )}
 
-        {/* KPI GRID: Hier nutzen wir weiterhin die normalen 'extendedKpis' für die Web-Ansicht */}
         <div className="mt-6 print-kpi-grid">
           {extendedKpis && (
             <TableauKpiGrid
@@ -201,7 +200,6 @@ export default function ProjectDashboard({
           />
         </div>
         
-        {/* ... Rest der Dashboard Komponenten unverändert ... */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mt-6 print-traffic-grid">
           <div className="xl:col-span-1 print-ai-card">
             <AiTrafficCard 
@@ -275,6 +273,15 @@ export default function ProjectDashboard({
             {hasKampagne2Config && <div className="card-glass p-4 sm:p-6"><SemrushTopKeywords02 projectId={projectId} /></div>}
           </div>
         )}
+
+        {/* ✅ NEU: Bing Performance Card (Testweise am Ende) */}
+        <div className="mt-6">
+          <BingPerformanceCard 
+            data={data.bingData || []} 
+            isLoading={isLoading} 
+          />
+        </div>
+        
       </div>
     </div>
   );
