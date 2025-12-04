@@ -1,3 +1,5 @@
+// src/lib/dashboard-shared.ts
+
 import { DateRangeOption } from "@/components/DateRangeSelector";
 import type { 
   KpiDatum, 
@@ -37,10 +39,18 @@ export interface ChartEntry {
   subLabel2?: string;
 }
 
+// ✅ NEU: Bing Datenstruktur für das Diagramm
+export interface BingDataPoint {
+  date: string;
+  clicks: number;
+  impressions: number;
+}
+
 export interface ApiErrorStatus {
   gsc?: string;
   ga4?: string;
   semrush?: string;
+  bing?: string; // Optional: Auch Bing-Fehler tracken
 }
 
 export interface ConvertingPageData {
@@ -74,11 +84,15 @@ export interface ProjectDashboardData {
     bounceRate?: ChartPoint[];
     newUsers?: ChartPoint[];
     avgEngagementTime?: ChartPoint[];
-    aiTraffic?: ChartPoint[]; // ✅ UPDATE: Chart-Daten für AI Traffic
+    aiTraffic?: ChartPoint[]; // Chart-Daten für AI Traffic
   };
   topQueries?: TopQueryData[];
   topConvertingPages?: ConvertingPageData[];
   aiTraffic?: AiTrafficData;
+  
+  // ✅ NEU: Bing Daten im Dashboard-Objekt
+  bingData?: BingDataPoint[];
+
   countryData?: ChartEntry[];
   channelData?: ChartEntry[];
   deviceData?: ChartEntry[];
@@ -103,8 +117,13 @@ export function normalizeFlatKpis(input?: ProjectDashboardData['kpis']) {
 }
 
 export function hasDashboardData(data: ProjectDashboardData): boolean {
-  if (data.apiErrors?.gsc && data.apiErrors?.ga4) return false;
+  // Wenn GSC & GA4 Fehler haben, aber Bing Daten da sind, zeigen wir trotzdem was an
+  if (data.apiErrors?.gsc && data.apiErrors?.ga4 && (!data.bingData || data.bingData.length === 0)) return false;
+  
   const k = normalizeFlatKpis(data.kpis);
-  if (k.clicks.value > 0 || k.sessions.value > 0) return true;
+  
+  // Zeige Dashboard wenn Google Daten ODER Bing Daten da sind
+  if (k.clicks.value > 0 || k.sessions.value > 0 || (data.bingData && data.bingData.length > 0)) return true;
+  
   return false;
 }
