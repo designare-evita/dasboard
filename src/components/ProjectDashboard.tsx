@@ -26,8 +26,20 @@ import BingAnalysisWidget from '@/components/BingAnalysisWidget';
 import LandingPageChart from '@/components/charts/LandingPageChart';
 import { aggregateLandingPages } from '@/lib/utils';
 
+// ✅ Type Extension für Bing Data Support
+interface ExtendedProjectDashboardData extends ProjectDashboardData {
+  bingData?: Array<{
+    query?: string;
+    keyword?: string;
+    clicks?: number;
+    impressions?: number;
+    position?: number;
+    ctr?: number;
+  }>;
+}
+
 interface ProjectDashboardProps {
-  data: ProjectDashboardData;
+  data: ExtendedProjectDashboardData; // ✅ Verwende erweiterte Version
   isLoading: boolean;
   dateRange: DateRangeOption;
   onDateRangeChange?: (range: DateRangeOption) => void;
@@ -143,6 +155,8 @@ export default function ProjectDashboard({
   // Debug: Log bingData wenn es sich ändert
   useEffect(() => {
     console.log('[DEBUG] ProjectDashboard bingData:', data.bingData);
+    console.log('[DEBUG] bingData length:', data.bingData?.length || 0);
+    console.log('[DEBUG] bingData type:', typeof data.bingData);
   }, [data.bingData]);
 
   return (
@@ -285,6 +299,21 @@ export default function ProjectDashboard({
 
         {/* BING KI-ANALYSE */}
         <div className="mt-6 print:hidden">
+          {/* Debug Info */}
+          {(!data.bingData || data.bingData.length === 0) && (
+            <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <p className="text-sm text-yellow-800 font-medium">
+                🔍 Debug: Keine Bing-Daten vorhanden
+              </p>
+              <p className="text-xs text-yellow-600 mt-1">
+                bingData: {JSON.stringify(data.bingData)} (Type: {typeof data.bingData})
+              </p>
+              <p className="text-xs text-yellow-600">
+                Bitte prüfen Sie die Browser-Console für weitere Details.
+              </p>
+            </div>
+          )}
+          
           <BingAnalysisWidget 
             bingData={data.bingData || []}
             domain={domain}
