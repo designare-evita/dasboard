@@ -10,6 +10,7 @@ interface ExportButtonProps {
   chartRef?: React.RefObject<HTMLDivElement>;
   analysisText: string;
   projectId: string;
+  domain?: string; // ✅ NEU
   dateRange: string;
   kpis?: Array<{
     label: string;
@@ -22,6 +23,7 @@ interface ExportButtonProps {
 export default function ExportButton({ 
   analysisText, 
   projectId, 
+  domain,
   dateRange,
   kpis
 }: ExportButtonProps) {
@@ -32,25 +34,24 @@ export default function ExportButton({
     setIsGenerating(true);
 
     try {
-      // PDF Blob erstellen
       const blob = await pdf(
         <AnalysisReport 
           projectId={projectId}
+          domain={domain}
           dateRange={dateRange}
           summaryText={analysisText}
           kpis={kpis}
         />
       ).toBlob();
 
-      // Download auslösen
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `Report_${projectId}_${new Date().toISOString().slice(0,10)}.pdf`;
+      // Dateiname auch angepasst
+      link.download = `Report_${domain || projectId}_${new Date().toISOString().slice(0,10)}.pdf`;
       document.body.appendChild(link);
       link.click();
       
-      // Cleanup
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
 
@@ -68,7 +69,6 @@ export default function ExportButton({
     <button 
       onClick={handleDownload} 
       disabled={isGenerating}
-      // UPDATE: Farben auf das Blau angepasst (#188BDB ist ca. sky-600/700, hier Nutzung von arbitrary values für exakten Match)
       className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-[#188BDB] bg-[#188BDB]/10 hover:bg-[#188BDB]/20 border border-[#188BDB]/20 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       title="PDF Report herunterladen"
     >
