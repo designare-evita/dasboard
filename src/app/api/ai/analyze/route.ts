@@ -90,18 +90,32 @@ export async function POST(req: NextRequest) {
       .map((q: any) => `- "${q.query}" (Pos: ${q.position.toFixed(1)}, Klicks: ${q.clicks})`)
       .join('\n') || 'Keine Keywords';
 
-    // ✅ NEU: Conversion-Daten UND Engagement für Prompt formatieren
+    // ✅ NEU: Erweiterter Filter für Data Max
+    // Filtert Impressum, Datenschutz, Danke-Seiten und kryptische Pfade
     const topConverters = data.topConvertingPages
-      // --- FIX: Filter für Danke-Seiten ---
       ?.filter((p: any) => {
          const path = p.path.toLowerCase();
-         // Schließt typische Bestätigungsseiten aus
-         return !path.includes('danke') && 
-                !path.includes('thank') && 
-                !path.includes('success') && 
-                !path.includes('confirmation');
+         
+         // 1. Standard-Ausschlüsse
+         const isStandardExcluded = 
+            path.includes('danke') || 
+            path.includes('thank') || 
+            path.includes('success') || 
+            path.includes('confirmation') ||
+            path.includes('impressum') ||
+            path.includes('datenschutz') ||
+            path.includes('widerruf') ||
+            path.includes('agb');
+
+         // 2. Technische Ausschlüsse (Suche, 404, etc.)
+         const isTechnical = 
+            path.includes('search') ||
+            path.includes('suche') ||
+            path.includes('404') ||
+            path.includes('undefined');
+
+         return !isStandardExcluded && !isTechnical;
       })
-      // --- ENDE FIX ---
       .map((p: any) => {
          // Wir bauen einen smarten String:
          // Wenn Conversions da sind -> Fokus Conversion
@@ -112,9 +126,10 @@ export async function POST(req: NextRequest) {
            return `- "${p.path}": ${p.engagementRate}% Engagement (bei 0 Conversions)`;
          }
       })
-      .join('\n') || 'Keine Daten verfügbar.';
+      .slice(0, 10) // Begrenzung auf Top 10 für den Prompt
+      .join('\n') || 'Keine relevanten Content-Daten verfügbar.';
       
-    // ✅ FIX: (c: any) hinzugefügt, um den Build-Fehler zu beheben
+    // Fix: Typisierung für Channel Data
     const topChannels = data.channelData?.slice(0, 3)
       .map((c: any) => `${c.name} (${fmt(c.value)})`)
       .join(', ') || 'Keine Kanal-Daten';
@@ -139,7 +154,7 @@ export async function POST(req: NextRequest) {
       TOP KEYWORDS (Traffic):
       ${topKeywords}
 
-      TOP CONVERSION TREIBER (LANDINGPAGES):
+      TOP CONVERSION TREIBER (RELEVANTE LANDINGPAGES):
       ${topConverters}
       
       KANÄLE:
@@ -147,7 +162,7 @@ export async function POST(req: NextRequest) {
     `;
 
     // --- CACHE LOGIK ---
-    const cacheInputString = `${summaryData}|ROLE:${userRole}|V4_FULL_DATA`; 
+    const cacheInputString = `${summaryData}|ROLE:${userRole}|V5_FILTERED_DATA`; // Cache Key Update für neue Filter
     const inputHash = createHash(cacheInputString);
 
     const { rows: cacheRows } = await sql`
@@ -224,7 +239,7 @@ export async function POST(req: NextRequest) {
         SPALTE 2 (Analyse):
         1. <h4...>Status-Analyse:</h4> Kritische Analyse.
         2. <h4...>Handlungsempfehlung:</h4> Technische Schritte.
-        3. <h4...>Conversion Analyse:</h4> Welche Seiten bringen Umsatz?
+        3. <h4...>Conversion Analyse:</h4> Welche Seiten bringen Umsatz? (Ignoriere Impressum/Datenschutz falls noch vorhanden).
       `;
     } else {
       // === KUNDEN MODUS ===
