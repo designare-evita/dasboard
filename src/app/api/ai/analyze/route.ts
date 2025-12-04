@@ -86,17 +86,28 @@ export async function POST(req: NextRequest) {
       ? (data.aiTraffic.totalSessions / kpis.sessions.value * 100).toFixed(1)
       : '0';
 
-    const topKeywords = data.topQueries?.slice(0, 5)
+    // --- KEYWORD ANALYSE (NEU) ---
+    const allQueries = data.topQueries || [];
+
+    // 1. Top Traffic Bringer (Die Gewinner)
+    const topTraffic = allQueries.slice(0, 5)
       .map((q: any) => `- "${q.query}" (Pos: ${q.position.toFixed(1)}, Klicks: ${q.clicks})`)
       .join('\n') || 'Keine Keywords';
 
-    // ✅ NEU: Erweiterter Filter für Data Max
-    // Filtert Impressum, Datenschutz, Danke-Seiten und kryptische Pfade
+    // 2. SEO Chancen (Hohes Suchvolumen, aber Position 4-20)
+    // Das sind die "Low Hanging Fruits"
+    const seoOpportunities = allQueries
+      .filter((q: any) => q.position > 3 && q.position < 21) // Seite 1 unten bis Seite 2
+      .sort((a: any, b: any) => b.impressions - a.impressions) // Sortiert nach Potenzial (Impressionen)
+      .slice(0, 5)
+      .map((q: any) => `- "${q.query}" (Potenzial! Pos: ${q.position.toFixed(1)}, Impr: ${q.impressions})`)
+      .join('\n') || 'Keine spezifischen Chancen erkannt.';
+
+    // --- ENDE KEYWORD ANALYSE ---
+
     const topConverters = data.topConvertingPages
       ?.filter((p: any) => {
          const path = p.path.toLowerCase();
-         
-         // 1. Standard-Ausschlüsse
          const isStandardExcluded = 
             path.includes('danke') || 
             path.includes('thank') || 
@@ -107,7 +118,6 @@ export async function POST(req: NextRequest) {
             path.includes('widerruf') ||
             path.includes('agb');
 
-         // 2. Technische Ausschlüsse (Suche, 404, etc.)
          const isTechnical = 
             path.includes('search') ||
             path.includes('suche') ||
@@ -117,19 +127,15 @@ export async function POST(req: NextRequest) {
          return !isStandardExcluded && !isTechnical;
       })
       .map((p: any) => {
-         // Wir bauen einen smarten String:
-         // Wenn Conversions da sind -> Fokus Conversion
-         // Wenn KEINE Conversions da sind -> Fokus Engagement
          if (p.conversions > 0) {
            return `- "${p.path}": ${p.conversions} Conv. (Rate: ${p.conversionRate}%, Eng: ${p.engagementRate}%)`;
          } else {
            return `- "${p.path}": ${p.engagementRate}% Engagement (bei 0 Conversions)`;
          }
       })
-      .slice(0, 10) // Begrenzung auf Top 10 für den Prompt
+      .slice(0, 10)
       .join('\n') || 'Keine relevanten Content-Daten verfügbar.';
       
-    // Fix: Typisierung für Channel Data
     const topChannels = data.channelData?.slice(0, 3)
       .map((c: any) => `${c.name} (${fmt(c.value)})`)
       .join(', ') || 'Keine Kanal-Daten';
@@ -151,8 +157,11 @@ export async function POST(req: NextRequest) {
       - Interaktionsrate: ${fmt(kpis.engagementRate?.value)}%
       - KI-Anteil am Traffic: ${aiShare}%
       
-      TOP KEYWORDS (Traffic):
-      ${topKeywords}
+      TOP KEYWORDS (Aktueller Traffic):
+      ${topTraffic}
+
+      SEO CHANCEN (Verstecktes Potenzial - Hohe Nachfrage, Ranking verbesserungswürdig):
+      ${seoOpportunities}
 
       TOP CONVERSION TREIBER (RELEVANTE LANDINGPAGES):
       ${topConverters}
@@ -162,7 +171,7 @@ export async function POST(req: NextRequest) {
     `;
 
     // --- CACHE LOGIK ---
-    const cacheInputString = `${summaryData}|ROLE:${userRole}|V5_FILTERED_DATA`; // Cache Key Update für neue Filter
+    const cacheInputString = `${summaryData}|ROLE:${userRole}|V6_SEO_OPPS`; // Cache Key Update
     const inputHash = createHash(cacheInputString);
 
     const { rows: cacheRows } = await sql`
@@ -231,35 +240,36 @@ export async function POST(req: NextRequest) {
         1. <h4...>Zeitplan:</h4> Status, Monat.
         2. <h4...>Performance Kennzahlen:</h4> 
            <ul...>
-             <li...>Liste alle KPIs inkl. Conversions und Engagement.
+             <li...>Liste alle KPIs.
              <li...>Negative Trends ROT.
            </ul...>
         3. VISUAL ENDING: ${visualSuccessTemplate}
         
-        SPALTE 2 (Analyse):
+        SPALTE 2 (Analyse & SEO):
         1. <h4...>Status-Analyse:</h4> Kritische Analyse.
-        2. <h4...>Handlungsempfehlung:</h4> Technische Schritte.
-        3. <h4...>Conversion Analyse:</h4> Welche Seiten bringen Umsatz? (Ignoriere Impressum/Datenschutz falls noch vorhanden).
+        2. <h4...>SEO-Chancen (WICHTIG):</h4> Analysiere die "SEO CHANCEN" Daten. Nenne konkrete Keywords mit hohem Potenzial (Impressionen vs. Position) und empfiehl Optimierungen für diese.
+        3. <h4...>Conversion Analyse:</h4> Welche Seiten bringen Umsatz?
       `;
     } else {
       // === KUNDEN MODUS ===
       systemPrompt += `
-        ZIELGRUPPE: Kunde. Ton: Höflich, Positiv.
+        ZIELGRUPPE: Kunde. Ton: Höflich, Positiv, Verständlich.
         
         SPALTE 1 (Status & Zahlen):
         1. <h4...>Projekt-Laufzeit:</h4> Start, Ende, Monat.
         2. <h4...>Aktuelle Leistung:</h4>
            <ul...>
              <li...>Nutzer & Klassische Besucher.
-             <li...>Conversions (Erreichte Ziele) & Engagement.
+             <li...>Conversions & Engagement.
              <li...>KI-Sichtbarkeit: Füge hinzu: <br><span class="text-xs text-emerald-600 block mt-0.5">✔ Ihre Inhalte werden von KI (ChatGPT, Gemini) gefunden.</span>
            </ul...>
         3. VISUAL ENDING: ${visualSuccessTemplate}
         
         SPALTE 2 (Performance Analyse):
         1. Anrede: <p class="mb-4 font-medium">Sehr geehrte Kundin, sehr geehrter Kunde,</p>
-        2. <h4...>Zusammenfassung:</h4> Fließtext über Erfolge (Conversions hervorheben).
-        3. <h4...>Top Seiten (Umsatz):</h4> Nenne lobend die Seiten mit den meisten Conversions.
+        2. <h4...>Zusammenfassung:</h4> Fließtext über Erfolge.
+        3. <h4...>Top Seiten & Themen:</h4> Nenne die erfolgreichsten Seiten.
+        4. <h4...>Wachstumspotenzial:</h4> Erwähne 1-2 "SEO Chancen" (Keywords) aus den Daten, wo mit wenig Aufwand mehr Besucher möglich sind (Erkläre es einfach: "Hier suchen viele Leute, wir sind knapp vor Seite 1").
       `;
     }
 
