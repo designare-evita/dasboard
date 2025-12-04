@@ -10,13 +10,7 @@ interface Props {
   projectId: string;
   dateRange: DateRangeOption;
   chartRef?: React.RefObject<HTMLDivElement>;
-  
-  // ✅ PDF EXPORT: Zusätzliche Props
-  pieChartsRefs?: {
-    country?: React.RefObject<HTMLDivElement>;
-    channel?: React.RefObject<HTMLDivElement>;
-    device?: React.RefObject<HTMLDivElement>;
-  };
+  // ✅ UPDATE: Nur KPIs akzeptieren, keine komplexen Chart-Refs mehr
   kpis?: Array<{
     label: string;
     value: string | number;
@@ -29,7 +23,6 @@ export default function AiAnalysisWidget({
   projectId, 
   dateRange, 
   chartRef,
-  pieChartsRefs,
   kpis
 }: Props) {
   // Content States
@@ -261,7 +254,7 @@ export default function AiAnalysisWidget({
                analysisText={analysisContent} 
                projectId={projectId} 
                dateRange={dateRange}
-               pieChartsRefs={pieChartsRefs}
+               // ✅ FIX: Keine pieChartsRefs mehr übergeben!
                kpis={kpis}
              />
           )}
