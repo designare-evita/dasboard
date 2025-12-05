@@ -144,7 +144,7 @@ export default function TopQueriesList({
       <div className="p-4 bg-[#188BDB] rounded-t-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <ClockHistory className="text-white" size={20} />
-          <h3 className="text-lg font-semibold text-white">Top 100 Suchanfragen</h3>
+          <h3 className="text-lg font-semibold text-white">Top 100 Suchanfragen (Quelle: GSC)</h3>
           {rangeLabel && (
              <span className="text-xs text-white/90 bg-black/10 px-2 py-0.5 rounded-full ml-2 hidden sm:inline-block">
                {rangeLabel}
