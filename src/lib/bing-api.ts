@@ -7,8 +7,11 @@ const BING_API_ENDPOINT = 'https://ssl.bing.com/webmaster/api.svc/json/GetSearch
 export async function getBingData(siteUrl: string): Promise<BingDataPoint[]> {
   const apiKey = process.env.BING_API_KEY;
 
+  console.log('[BING] API Key vorhanden:', !!apiKey);
+  console.log('[BING] Site URL:', siteUrl);
+
   if (!apiKey) {
-    console.warn('Bing API Key fehlt in Environment Variables');
+    console.warn('[BING] API Key fehlt!');
     return [];
   }
 
