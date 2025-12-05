@@ -1,3 +1,4 @@
+
 // src/components/ProjectDashboard.tsx
 'use client';
 
@@ -22,7 +23,7 @@ import SemrushTopKeywords02 from '@/components/SemrushTopKeywords02';
 import GlobalHeader from '@/components/GlobalHeader';
 import ProjectTimelineWidget from '@/components/ProjectTimelineWidget'; 
 import AiAnalysisWidget from '@/components/AiAnalysisWidget';
-import BingAnalysisWidget from '@/components/BingAnalysisWidget';
+// ❌ ENTFERNT: import BingAnalysisWidget from '@/components/BingAnalysisWidget';
 import LandingPageChart from '@/components/charts/LandingPageChart';
 import { aggregateLandingPages } from '@/lib/utils';
 
@@ -140,13 +141,6 @@ export default function ProjectDashboard({
   const hasKampagne2Config = !!semrushTrackingId02;
   const safeApiErrors = (apiErrors as any) || {};
 
-  // Debug: Log bingData wenn es sich ändert
-  useEffect(() => {
-    console.log('[DEBUG] ProjectDashboard bingData:', data.bingData);
-    console.log('[DEBUG] bingData length:', data.bingData?.length || 0);
-    console.log('[DEBUG] bingData type:', typeof data.bingData);
-  }, [data.bingData]);
-
   return (
     <div className="min-h-screen flex flex-col dashboard-gradient relative">
       {isUpdating && (
@@ -259,7 +253,7 @@ export default function ProjectDashboard({
                  data={cleanLandingPages} 
                  isLoading={isLoading}
                  title="Top Landingpages"
-                 dateRange={dateRange} // ✅ HIER WICHTIG: DateRange übergeben
+                 dateRange={dateRange}
                />
                {!isLandingPagesVisible && isAdmin && (
                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -272,28 +266,28 @@ export default function ProjectDashboard({
           </div>
         )}
 
-        {/* PIE CHARTS: Hier übergeben wir jetzt dateRange */}
+        {/* PIE CHARTS */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6 print-pie-grid">
           <TableauPieChart 
             data={data.channelData} 
             title="Zugriffe nach Channel" 
             isLoading={isLoading} 
             error={safeApiErrors?.ga4} 
-            dateRange={dateRange} // ✅ NEU
+            dateRange={dateRange}
           />
           <TableauPieChart 
             data={data.countryData} 
             title="Zugriffe nach Land" 
             isLoading={isLoading} 
             error={safeApiErrors?.ga4} 
-            dateRange={dateRange} // ✅ NEU
+            dateRange={dateRange}
           />
           <TableauPieChart 
             data={data.deviceData} 
             title="Zugriffe nach Endgerät" 
             isLoading={isLoading} 
             error={safeApiErrors?.ga4} 
-            dateRange={dateRange} // ✅ NEU
+            dateRange={dateRange}
           />
         </div>
         
@@ -304,12 +298,7 @@ export default function ProjectDashboard({
           </div>
         )}
 
-        <BingAnalysisWidget 
-          bingData={data.bingData || []}
-          domain={domain}
-          dateRange={dateRange}
-          isLoading={isLoading}
-        />
+        {/* ❌ ENTFERNT: BingAnalysisWidget - Datenqualität der Bing API ist unzureichend */}
       </div>
     </div>
   );
