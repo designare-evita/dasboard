@@ -10,7 +10,8 @@ import {
   Grid,
   FileEarmarkBarGraph, 
   Globe,
-  Cpu // Neues Icon für den Lade-Screen
+  Cpu,
+  Binoculars // <--- NEUES ICON
 } from 'react-bootstrap-icons';
 import CtrBooster from '@/components/admin/ki/CtrBooster';
 
@@ -28,7 +29,8 @@ interface Keyword {
   impressions: number;
 }
 
-type Tab = 'questions' | 'ctr' | 'gap';
+// Neuer Tab 'spy' hinzugefügt
+type Tab = 'questions' | 'ctr' | 'gap' | 'spy';
 
 export default function KiToolPage() {
   const [activeTab, setActiveTab] = useState<Tab>('questions');
@@ -42,14 +44,13 @@ export default function KiToolPage() {
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [loadingData, setLoadingData] = useState(false);
   
-  // States für Generierung
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedContent, setGeneratedContent] = useState<string>('');
-  
-  // NEU: State für die Lightbox (Warten auf den ersten Token)
   const [isWaitingForStream, setIsWaitingForStream] = useState(false);
   
-  const [analyzeUrl, setAnalyzeUrl] = useState('');
+  // URL States
+  const [analyzeUrl, setAnalyzeUrl] = useState('');     // Meine URL (für Gap & Spy)
+  const [competitorUrl, setCompetitorUrl] = useState(''); // Konkurrenz URL (nur Spy)
 
   const outputRef = useRef<HTMLDivElement>(null);
 
@@ -77,6 +78,7 @@ export default function KiToolPage() {
       setKeywords([]);
       setGeneratedContent('');
       setAnalyzeUrl('');
+      // setCompetitorUrl(''); // Optional: Reset auch hier
       return;
     }
 
@@ -93,6 +95,8 @@ export default function KiToolPage() {
 
     if (activeTab === 'ctr') return;
 
+    // Keywords laden wir nur für Questions & Gap. Spy braucht sie eigentlich nicht zwingend, 
+    // aber wir lassen es so, falls du sie später im Prompt nutzen willst.
     async function fetchData() {
       setLoadingData(true);
       setKeywords([]);
@@ -105,7 +109,7 @@ export default function KiToolPage() {
              const errData = await res.json();
              throw new Error(errData.message || 'Fehler');
           }
-          toast.warning('Keine Daten verfügbar.');
+          // Silent fail oder Toast
           return;
         }
 
@@ -115,13 +119,13 @@ export default function KiToolPage() {
           const topKeywords = data.topQueries.slice(0, 30);
           setKeywords(topKeywords);
           
-        } else {
-          toast.info('Keine Keywords gefunden.');
+          if (activeTab === 'gap') {
+             setSelectedKeywords(topKeywords.slice(0, 10).map((k: Keyword) => k.query));
+          }
         }
 
       } catch (error) {
         console.error('❌ Fetch Error:', error);
-        toast.error('Fehler beim Abrufen der Projektdaten.');
       } finally {
         setLoadingData(false);
       }
@@ -140,31 +144,43 @@ export default function KiToolPage() {
 
   // --- GENERIERUNGS-LOGIK ---
   const handleAction = async () => {
-    if (selectedKeywords.length === 0 || !selectedProject) {
-      toast.error('Bitte wählen Sie ein Projekt und Keywords aus.');
-      return;
+    // Basic Checks
+    if (!selectedProject) {
+        toast.error('Bitte wählen Sie zuerst ein Projekt aus.');
+        return;
+    }
+
+    // Spezifische Checks je nach Tab
+    if (activeTab === 'questions' && selectedKeywords.length === 0) {
+        toast.error('Bitte wählen Sie Keywords aus.');
+        return;
+    }
+    if ((activeTab === 'gap' || activeTab === 'spy') && !analyzeUrl) {
+        toast.error('Bitte geben Sie Ihre URL ein.');
+        return;
+    }
+    if (activeTab === 'spy' && !competitorUrl) {
+        toast.error('Bitte geben Sie die URL des Konkurrenten ein.');
+        return;
     }
 
     setIsGenerating(true);
-    // NEU: Lightbox anzeigen
     setIsWaitingForStream(true); 
     setGeneratedContent('');
 
-    let endpoint = '/api/ai/generate-questions';
-    let body: any = {
-        keywords: selectedKeywords,
-        domain: selectedProject.domain,
-    };
+    let endpoint = '';
+    let body: any = {};
 
-    if (activeTab === 'gap') {
-        if (!analyzeUrl) {
-            toast.error('Bitte geben Sie eine URL zur Analyse ein.');
-            setIsGenerating(false);
-            setIsWaitingForStream(false);
-            return;
-        }
+    // Routing Logik
+    if (activeTab === 'questions') {
+        endpoint = '/api/ai/generate-questions';
+        body = { keywords: selectedKeywords, domain: selectedProject.domain };
+    } else if (activeTab === 'gap') {
         endpoint = '/api/ai/content-gap';
-        body = { ...body, url: analyzeUrl };
+        body = { keywords: selectedKeywords, url: analyzeUrl }; // domain nicht zwingend nötig
+    } else if (activeTab === 'spy') {
+        endpoint = '/api/ai/competitor-spy';
+        body = { myUrl: analyzeUrl, competitorUrl: competitorUrl };
     }
 
     try {
@@ -174,8 +190,6 @@ export default function KiToolPage() {
         body: JSON.stringify(body),
       });
       
-      // Sobald der Server antwortet (aber bevor wir den Text lesen),
-      // blenden wir die Lightbox aus, damit der User den Text fließen sieht.
       setIsWaitingForStream(false); 
 
       if (!response.ok) {
@@ -203,7 +217,6 @@ export default function KiToolPage() {
     } catch (error: any) {
       console.error('❌ Fehler:', error);
       toast.error(`Fehler: ${error.message}`);
-      // Sicherheitshalber Lightbox ausblenden bei Fehler
       setIsWaitingForStream(false);
     } finally {
       setIsGenerating(false);
@@ -214,7 +227,7 @@ export default function KiToolPage() {
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-8 relative">
       
-      {/* --- NEU: Lightbox / Overlay --- */}
+      {/* LIGHTBOX */}
       {isWaitingForStream && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/60 backdrop-blur-sm transition-all animate-in fade-in duration-300">
            <div className="bg-white p-8 rounded-2xl shadow-2xl border border-indigo-100 flex flex-col items-center gap-6 max-w-sm text-center transform scale-100 animate-in zoom-in-95 duration-300">
@@ -228,13 +241,12 @@ export default function KiToolPage() {
               <div>
                 <h3 className="text-xl font-bold text-gray-800 mb-1">KI @ Work</h3>
                 <p className="text-gray-500 text-sm leading-relaxed">
-                  {activeTab === 'gap' 
-                    ? 'Analysiere Webseite & finde Lücken...' 
-                    : 'Generiere kreative Fragen...'}
+                  {activeTab === 'gap' ? 'Analysiere Webseite...' : 
+                   activeTab === 'spy' ? 'Vergleiche mit Konkurrenz...' : 
+                   'Generiere Inhalte...'}
                 </p>
               </div>
 
-              {/* Ladebalken Animation */}
               <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
                 <div className="h-full bg-indigo-500 w-1/3 rounded-full animate-indeterminate-bar"></div>
               </div>
@@ -242,7 +254,7 @@ export default function KiToolPage() {
         </div>
       )}
 
-      {/* HEADER & PROJEKT WAHL */}
+      {/* HEADER */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-800 tracking-tight flex items-center gap-3">
@@ -281,41 +293,46 @@ export default function KiToolPage() {
 
       {/* TABS */}
       <div className="border-b border-gray-200">
-        <nav className="-mb-px flex space-x-8">
+        <nav className="-mb-px flex space-x-8 overflow-x-auto">
           <button
             onClick={() => setActiveTab('questions')}
             className={`
               flex items-center gap-2 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
-              ${activeTab === 'questions'
-                ? 'border-indigo-500 text-indigo-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
+              ${activeTab === 'questions' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}
             `}
           >
             <ChatText size={18} />
-            Fragen Generator
+            Fragen
           </button>
 
           <button
             onClick={() => setActiveTab('gap')}
             className={`
               flex items-center gap-2 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
-              ${activeTab === 'gap'
-                ? 'border-indigo-500 text-indigo-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
+              ${activeTab === 'gap' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}
             `}
           >
             <FileEarmarkBarGraph size={18} />
-            Content Gap
-            <span className="ml-1 px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-bold">PRO</span>
+            Gap Analyse
+          </button>
+
+          <button
+            onClick={() => setActiveTab('spy')}
+            className={`
+              flex items-center gap-2 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
+              ${activeTab === 'spy' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}
+            `}
+          >
+            <Binoculars size={18} />
+            Competitor Spy
+            <span className="ml-1 px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-600 text-[10px] font-bold">NEU</span>
           </button>
 
           <button
             onClick={() => setActiveTab('ctr')}
             className={`
               flex items-center gap-2 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
-              ${activeTab === 'ctr'
-                ? 'border-indigo-500 text-indigo-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
+              ${activeTab === 'ctr' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}
             `}
           >
             <RocketTakeoff size={18} />
@@ -327,116 +344,130 @@ export default function KiToolPage() {
       {/* CONTENT AREA */}
       {!selectedProjectId ? (
         <div className="text-center py-20 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-white shadow-sm mb-4">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-white shadow-sm mb-4">
             <Magic className="text-gray-300 text-2xl" />
-          </div>
-          <h3 className="text-lg font-medium text-gray-900">Kein Projekt ausgewählt</h3>
-          <p className="text-gray-500 mt-1">Bitte wählen Sie oben rechts ein Projekt aus, um die Tools zu nutzen.</p>
+            </div>
+            <h3 className="text-lg font-medium text-gray-900">Kein Projekt ausgewählt</h3>
+            <p className="text-gray-500 mt-1">Bitte wählen Sie oben rechts ein Projekt aus.</p>
         </div>
       ) : (
         <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
           
-          {(activeTab === 'questions' || activeTab === 'gap') && (
+          {(activeTab !== 'ctr') && (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
               
+              {/* LINKER BEREICH: INPUTS */}
               <div className="lg:col-span-4 space-y-6">
                 
-                {activeTab === 'gap' && (
-                  <div className="bg-white border border-gray-100 shadow-sm rounded-2xl p-6">
-                    <h2 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                        <Globe className="text-indigo-500" /> Zu prüfende URL
-                    </h2>
-                    <input 
-                        type="url" 
-                        value={analyzeUrl}
-                        onChange={(e) => setAnalyzeUrl(e.target.value)}
-                        placeholder="https://beispiel.de/unterseite"
-                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                    />
-                    <p className="text-xs text-gray-400 mt-2">
-                        Wir crawlen diese URL und vergleichen sie mit den Keywords unten.
+                {/* --- URL INPUTS FÜR SPY & GAP --- */}
+                {(activeTab === 'gap' || activeTab === 'spy') && (
+                  <div className="bg-white border border-gray-100 shadow-sm rounded-2xl p-6 space-y-4">
+                    
+                    {/* Input: MEINE URL */}
+                    <div>
+                        <h2 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                            <Globe className="text-indigo-500" /> Meine URL
+                        </h2>
+                        <input 
+                            type="url" 
+                            value={analyzeUrl}
+                            onChange={(e) => setAnalyzeUrl(e.target.value)}
+                            placeholder="https://meine-seite.de/artikel"
+                            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                        />
+                    </div>
+
+                    {/* Input: GEGNER URL (Nur bei Spy) */}
+                    {activeTab === 'spy' && (
+                        <div className="pt-2 border-t border-gray-50 animate-in slide-in-from-top-2">
+                            <h2 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                                <Binoculars className="text-rose-500" /> Konkurrenz URL
+                            </h2>
+                            <input 
+                                type="url" 
+                                value={competitorUrl}
+                                onChange={(e) => setCompetitorUrl(e.target.value)}
+                                placeholder="https://konkurrenz.de/besserer-artikel"
+                                className="w-full p-3 bg-rose-50 border border-rose-100 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 outline-none transition-all text-gray-700 placeholder-rose-300"
+                            />
+                        </div>
+                    )}
+                    
+                    <p className="text-xs text-gray-400">
+                        {activeTab === 'spy' 
+                         ? 'Wir vergleichen beide Seiten in Echtzeit.' 
+                         : 'Wir prüfen diese Seite auf fehlende Keywords.'}
                     </p>
                   </div>
                 )}
 
-                <div className="bg-white border border-gray-100 shadow-sm rounded-2xl p-6 flex flex-col h-[600px]">
-                  <div className="flex justify-between items-center mb-4">
-                    <h2 className="font-semibold text-gray-800">
-                        {activeTab === 'gap' ? 'Vergleichs-Keywords' : 'Basis Keywords'}
-                    </h2>
-                    <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full">
-                      {selectedKeywords.length} gewählt
-                    </span>
+                {/* --- KEYWORD LISTE (Nur sichtbar bei Questions oder Gap) --- */}
+                {(activeTab === 'questions' || activeTab === 'gap') && (
+                  <div className="bg-white border border-gray-100 shadow-sm rounded-2xl p-6 flex flex-col h-[500px]">
+                    <div className="flex justify-between items-center mb-4">
+                      <h2 className="font-semibold text-gray-800">Keywords</h2>
+                      <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full">
+                        {selectedKeywords.length}
+                      </span>
+                    </div>
+                    
+                    {loadingData ? (
+                        <div className="flex items-center justify-center flex-1"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600"></div></div>
+                    ) : keywords.length > 0 ? (
+                      <div className="overflow-y-auto flex-1 space-y-2 pr-2 custom-scrollbar">
+                        {keywords.map((kw, idx) => (
+                          <div 
+                            key={idx}
+                            onClick={() => toggleKeyword(kw.query)}
+                            className={`
+                              cursor-pointer p-2.5 rounded-lg border text-sm flex items-center gap-2 transition-all
+                              ${selectedKeywords.includes(kw.query) ? 'bg-indigo-50 border-indigo-200 text-indigo-800' : 'bg-white border-gray-100 hover:bg-gray-50'}
+                            `}
+                          >
+                             <div className={`w-4 h-4 rounded border flex items-center justify-center ${selectedKeywords.includes(kw.query) ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300'}`}>
+                                {selectedKeywords.includes(kw.query) && <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+                             </div>
+                             <span className="truncate flex-1">{kw.query}</span>
+                             <span className="text-xs text-gray-400 tabular-nums">{kw.clicks}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                        <div className="text-center text-sm text-gray-400 mt-10">Keine Daten</div>
+                    )}
                   </div>
-                  
-                  {loadingData ? (
-                    <div className="flex items-center justify-center flex-1 text-gray-400">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-                    </div>
-                  ) : keywords.length > 0 ? (
-                    <div className="overflow-y-auto flex-1 space-y-2 pr-2 custom-scrollbar">
-                      {keywords.map((kw, idx) => (
-                        <div 
-                          key={idx}
-                          onClick={() => toggleKeyword(kw.query)}
-                          className={`
-                            group flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all duration-200 select-none
-                            ${selectedKeywords.includes(kw.query) 
-                              ? 'bg-indigo-50 border-indigo-200 shadow-sm' 
-                              : 'bg-white border-gray-100 hover:border-indigo-200 hover:bg-gray-50'}
-                          `}
-                        >
-                          <div className={`
-                            w-5 h-5 rounded-md border flex items-center justify-center transition-colors
-                            ${selectedKeywords.includes(kw.query) ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 bg-white'}
-                          `}>
-                            {selectedKeywords.includes(kw.query) && (
-                              <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                              </svg>
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className={`text-sm font-medium truncate ${selectedKeywords.includes(kw.query) ? 'text-indigo-900' : 'text-gray-700'}`}>
-                              {kw.query}
-                            </p>
-                            <p className="text-xs text-gray-400 mt-0.5">
-                              Pos: {kw.position.toFixed(1)} • Klicks: {kw.clicks}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center text-sm text-gray-400 mt-10">
-                      Keine Daten verfügbar
-                    </div>
-                  )}
+                )}
 
-                  <div className="pt-4 mt-2 border-t border-gray-100">
+                {/* --- ACTION BUTTON --- */}
+                <div className="mt-4">
                     <button
                       onClick={handleAction}
-                      disabled={isGenerating || selectedKeywords.length === 0}
+                      disabled={isGenerating}
                       className={`
-                        w-full py-3 px-4 rounded-xl font-semibold text-white shadow-lg transition-all transform active:scale-95
-                        ${isGenerating || selectedKeywords.length === 0
+                        w-full py-3.5 px-4 rounded-xl font-bold text-white shadow-lg transition-all transform active:scale-95 flex items-center justify-center gap-2
+                        ${isGenerating
                           ? 'bg-gray-300 cursor-not-allowed shadow-none'
-                          : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:shadow-indigo-200'}
+                          : activeTab === 'spy' 
+                            ? 'bg-gradient-to-r from-rose-500 to-orange-500 hover:shadow-orange-200'
+                            : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:shadow-indigo-200'}
                       `}
                     >
-                      {isGenerating ? 'Arbeite...' : activeTab === 'gap' ? 'Gap Analyse starten 🕵️' : 'Fragen generieren ✨'}
+                      {isGenerating ? 'Arbeite...' : 
+                       activeTab === 'spy' ? <>Vergleich starten <Binoculars/></> :
+                       activeTab === 'gap' ? 'Gap Analyse starten 🕵️' : 
+                       'Fragen generieren ✨'}
                     </button>
-                  </div>
                 </div>
               </div>
 
+              {/* RECHTER BEREICH: OUTPUT */}
               <div className="lg:col-span-8">
                   <div className="bg-white border border-gray-100 shadow-xl rounded-2xl p-8 h-full min-h-[600px] flex flex-col relative overflow-hidden">
                      <div className="absolute top-0 right-0 w-64 h-64 bg-purple-100 rounded-full mix-blend-multiply filter blur-3xl opacity-30"></div>
                      <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-100 rounded-full mix-blend-multiply filter blur-3xl opacity-30"></div>
 
                      <h2 className="text-lg font-semibold text-gray-800 mb-4 z-10 flex items-center gap-2">
-                       {activeTab === 'gap' ? 'Analyse Ergebnis' : 'KI Ergebnis'}
+                       {activeTab === 'spy' ? 'Konkurrenz Analyse' : activeTab === 'gap' ? 'Content Gap Report' : 'KI Ergebnis'}
                      </h2>
 
                      <div 
@@ -445,16 +476,21 @@ export default function KiToolPage() {
                      >
                        {generatedContent ? generatedContent : (
                          <div className="h-full flex flex-col items-center justify-center text-gray-400 text-center p-8">
-                            {activeTab === 'gap' ? (
+                            {activeTab === 'spy' ? (
+                                <>
+                                    <Binoculars className="text-4xl mb-3 text-rose-200" />
+                                    <p className="font-medium text-gray-500">Wer ist besser?</p>
+                                    <p className="text-xs mt-2">Geben Sie links Ihre URL und die URL des Konkurrenten ein.</p>
+                                </>
+                            ) : activeTab === 'gap' ? (
                                 <>
                                     <FileEarmarkBarGraph className="text-4xl mb-3 text-indigo-200" />
-                                    <p className="font-medium text-gray-500">Bereit für die Analyse</p>
-                                    <p className="text-xs mt-2">Wählen Sie links Keywords aus, die auf der Seite vorkommen sollen.<br/>Geben Sie oben die passende URL ein.</p>
+                                    <p>URL eingeben & Keywords wählen.</p>
                                 </>
                             ) : (
                                 <>
                                     <Magic className="text-4xl mb-3 text-indigo-200" />
-                                    <p>Wählen Sie Keywords aus und starten Sie die Generierung.</p>
+                                    <p>Starten Sie den Fragen-Generator.</p>
                                 </>
                             )}
                          </div>
@@ -474,7 +510,6 @@ export default function KiToolPage() {
         </div>
       )}
       
-      {/* Styles für die Lade-Animation */}
       <style jsx global>{`
         @keyframes indeterminate-bar {
           0% { transform: translateX(-100%); }
