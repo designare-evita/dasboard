@@ -11,7 +11,6 @@ import {
 } from 'react-bootstrap-icons';
 import CtrBooster from '@/components/admin/ki/CtrBooster';
 
-// Typen für unsere Daten
 interface Project {
   id: string;
   email: string;
@@ -29,14 +28,12 @@ interface Keyword {
 type Tab = 'questions' | 'ctr';
 
 export default function KiToolPage() {
-  // --- STATE ---
   const [activeTab, setActiveTab] = useState<Tab>('questions');
   
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   
-  // State für Fragen Generator
   const [keywords, setKeywords] = useState<Keyword[]>([]);
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
@@ -52,6 +49,7 @@ export default function KiToolPage() {
         const res = await fetch('/api/projects');
         if (!res.ok) throw new Error('Fehler beim Laden der Projekte');
         const data = await res.json();
+        console.log('📦 Projekte geladen:', data.projects); // DEBUG
         setProjects(data.projects || []);
       } catch (error) {
         console.error(error);
@@ -65,7 +63,8 @@ export default function KiToolPage() {
 
   // --- 2. DATEN FÜR FRAGEN-GENERATOR LADEN ---
   useEffect(() => {
-    // Nur laden, wenn Projekt gewählt UND Tab aktiv ist
+    console.log('🔄 useEffect triggered:', { selectedProjectId, activeTab }); // DEBUG
+    
     if (!selectedProjectId || activeTab !== 'questions') {
       if (!selectedProjectId) {
         setKeywords([]);
@@ -75,31 +74,43 @@ export default function KiToolPage() {
     }
 
     const project = projects.find(p => p.id === selectedProjectId);
+    console.log('🎯 Gefundenes Projekt:', project); // DEBUG
     setSelectedProject(project || null);
 
     async function fetchData() {
       setLoadingData(true);
       setKeywords([]);
       try {
-        const res = await fetch(`/api/data?projectId=${selectedProjectId}&dateRange=30d`);
+        const url = `/api/data?projectId=${selectedProjectId}&dateRange=30d`;
+        console.log('📡 Fetching:', url); // DEBUG
+        
+        const res = await fetch(url);
+        
+        console.log('📡 Response Status:', res.status); // DEBUG
         
         if (!res.ok) {
           const errData = await res.json();
+          console.error('❌ API Error:', errData); // DEBUG
           if (res.status !== 404) throw new Error(errData.message || 'Fehler beim Laden der Daten');
           toast.warning('Für dieses Projekt sind keine Google-Daten verfügbar.');
           return;
         }
 
         const data = await res.json();
+        console.log('📊 API Response Data:', data); // DEBUG
+        console.log('📊 topQueries:', data.topQueries); // DEBUG
         
         if (data.topQueries && Array.isArray(data.topQueries)) {
-          setKeywords(data.topQueries.slice(0, 20)); // Top 20 laden
+          const topKeywords = data.topQueries.slice(0, 20);
+          console.log('✅ Keywords gesetzt:', topKeywords); // DEBUG
+          setKeywords(topKeywords);
         } else {
+          console.warn('⚠️ topQueries nicht gefunden oder kein Array'); // DEBUG
           toast.info('Keine Keywords für diesen Zeitraum gefunden.');
         }
 
       } catch (error) {
-        console.error(error);
+        console.error('❌ Fetch Error:', error); // DEBUG
         toast.error('Fehler beim Abrufen der Projektdaten.');
       } finally {
         setLoadingData(false);
@@ -109,22 +120,40 @@ export default function KiToolPage() {
     fetchData();
   }, [selectedProjectId, projects, activeTab]);
 
-  // --- HANDLER (Fragen Generator) ---
+  // --- DEBUG: Keywords State beobachten ---
+  useEffect(() => {
+    console.log('🔑 Keywords State geändert:', keywords.length, 'Keywords'); // DEBUG
+  }, [keywords]);
+
+  useEffect(() => {
+    console.log('✨ selectedKeywords geändert:', selectedKeywords); // DEBUG
+  }, [selectedKeywords]);
 
   const toggleKeyword = (query: string) => {
-    setSelectedKeywords(prev => 
-      prev.includes(query) 
+    console.log('👆 Toggle Keyword:', query); // DEBUG
+    setSelectedKeywords(prev => {
+      const newSelection = prev.includes(query) 
         ? prev.filter(k => k !== query)
-        : [...prev, query]
-    );
+        : [...prev, query];
+      console.log('👆 Neue Auswahl:', newSelection); // DEBUG
+      return newSelection;
+    });
   };
 
   const handleGenerate = async () => {
-    // ✅ FIX: Projekt direkt aus der Liste holen (statt 'selectedProject' State zu vertrauen)
+    console.log('🚀 handleGenerate aufgerufen'); // DEBUG
+    console.log('🚀 selectedProjectId:', selectedProjectId); // DEBUG
+    console.log('🚀 selectedKeywords:', selectedKeywords); // DEBUG
+    console.log('🚀 projects:', projects); // DEBUG
+    
     const currentProject = projects.find(p => p.id === selectedProjectId);
+    console.log('🚀 currentProject:', currentProject); // DEBUG
 
     if (selectedKeywords.length === 0 || !currentProject) {
+      console.error('❌ Abbruch - selectedKeywords.length:', selectedKeywords.length); // DEBUG
+      console.error('❌ Abbruch - currentProject:', currentProject); // DEBUG
       if(!currentProject) console.error("Projekt nicht gefunden (ID):", selectedProjectId);
+      toast.error('Bitte wählen Sie mindestens ein Keyword aus.'); // Benutzer-Feedback hinzugefügt
       return;
     }
 
@@ -132,16 +161,25 @@ export default function KiToolPage() {
     setGeneratedContent('');
 
     try {
+      const requestBody = {
+        keywords: selectedKeywords,
+        domain: currentProject.domain,
+      };
+      console.log('📤 Request Body:', requestBody); // DEBUG
+      
       const response = await fetch('/api/ai/generate-questions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          keywords: selectedKeywords,
-          domain: currentProject.domain, // ✅ Hier verwenden wir das gefundene Projekt
-        }),
+        body: JSON.stringify(requestBody),
       });
 
-      if (!response.ok) throw new Error(response.statusText);
+      console.log('📥 Response Status:', response.status); // DEBUG
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ API Error:', errorText); // DEBUG
+        throw new Error(response.statusText);
+      }
       if (!response.body) throw new Error('Kein Antwort-Stream verfügbar');
 
       const reader = response.body.getReader();
@@ -159,9 +197,11 @@ export default function KiToolPage() {
             outputRef.current.scrollTop = outputRef.current.scrollHeight;
         }
       }
+      
+      console.log('✅ Generierung abgeschlossen'); // DEBUG
 
     } catch (error) {
-      console.error('Generierungsfehler:', error);
+      console.error('❌ Generierungsfehler:', error);
       toast.error('Fehler bei der KI-Generierung.');
     } finally {
       setIsGenerating(false);
@@ -169,10 +209,20 @@ export default function KiToolPage() {
   };
 
   // --- RENDER ---
-
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-8">
       
+      {/* DEBUG INFO BOX */}
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-xs font-mono">
+        <strong>🐛 Debug Info:</strong>
+        <div>selectedProjectId: {selectedProjectId || 'leer'}</div>
+        <div>keywords.length: {keywords.length}</div>
+        <div>selectedKeywords: {selectedKeywords.join(', ') || 'keine'}</div>
+        <div>loadingData: {loadingData ? 'ja' : 'nein'}</div>
+        <div>isGenerating: {isGenerating ? 'ja' : 'nein'}</div>
+        <div>Button disabled: {(isGenerating || selectedKeywords.length === 0) ? 'JA' : 'NEIN'}</div>
+      </div>
+
       {/* HEADER & PROJEKT WAHL */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
@@ -183,7 +233,6 @@ export default function KiToolPage() {
           <p className="text-gray-500 mt-1">Nutzen Sie KI-Tools zur Optimierung Ihrer Inhalte.</p>
         </div>
 
-        {/* Globaler Projekt Selektor */}
         <div className="w-full md:w-80">
           <label className="block text-xs font-semibold text-gray-500 mb-1 ml-1 uppercase tracking-wider">Aktives Projekt</label>
           <div className="relative">
@@ -191,6 +240,7 @@ export default function KiToolPage() {
               className="w-full p-3 pl-10 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm appearance-none transition-all font-medium text-gray-700"
               value={selectedProjectId}
               onChange={(e) => {
+                console.log('🔀 Projekt gewechselt zu:', e.target.value); // DEBUG
                 setSelectedProjectId(e.target.value);
                 setSelectedKeywords([]); 
                 setGeneratedContent('');
@@ -257,11 +307,9 @@ export default function KiToolPage() {
       ) : (
         <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
           
-          {/* === TAB A: FRAGEN GENERATOR === */}
           {activeTab === 'questions' && (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
               
-              {/* LINKE SPALTE: Keywords */}
               <div className="lg:col-span-4 space-y-6">
                 <div className="bg-white border border-gray-100 shadow-sm rounded-2xl p-6 flex flex-col h-[600px]">
                   <div className="flex justify-between items-center mb-4">
@@ -310,7 +358,11 @@ export default function KiToolPage() {
                       ))}
                     </div>
                   ) : (
-                    <div className="text-center text-sm text-gray-400 mt-10">Keine Daten verfügbar</div>
+                    <div className="text-center text-sm text-gray-400 mt-10">
+                      Keine Daten verfügbar
+                      <br />
+                      <span className="text-xs">(Prüfen Sie die Browser-Konsole)</span>
+                    </div>
                   )}
 
                   <div className="pt-4 mt-2 border-t border-gray-100">
@@ -330,7 +382,6 @@ export default function KiToolPage() {
                 </div>
               </div>
 
-              {/* RECHTE SPALTE: Output */}
               <div className="lg:col-span-8">
                   <div className="bg-white border border-gray-100 shadow-xl rounded-2xl p-8 h-full min-h-[600px] flex flex-col relative overflow-hidden">
                      <div className="absolute top-0 right-0 w-64 h-64 bg-purple-100 rounded-full mix-blend-multiply filter blur-3xl opacity-30"></div>
@@ -355,7 +406,6 @@ export default function KiToolPage() {
             </div>
           )}
 
-          {/* === TAB B: CTR BOOSTER === */}
           {activeTab === 'ctr' && (
             <div className="w-full">
               <CtrBooster projectId={selectedProjectId} />
