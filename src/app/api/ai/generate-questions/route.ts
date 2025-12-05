@@ -31,11 +31,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'Fehlende Parameter' }, { status: 400 });
     }
 
-    // 3. KI Generierung (Mit stable Model 1.5)
-    // Wir nutzen 'gemini-1.5-flash', da 2.5 oft noch Preview/Experimental ist
+
     try {
       const result = streamText({
-        model: google('gemini-1.5-flash'), 
+        model: google('gemini-2.5-flash'), 
         system: "Du bist ein erfahrener SEO-Redakteur. Deine Aufgabe ist es, basierend auf Keywords relevante 'W-Fragen' (Wer, Wie, Was, Wo, Warum) zu generieren, die Nutzer suchen könnten. Formatiere die Antwort als saubere Liste.",
         prompt: `Analysiere die Domain "${domain}" und die folgenden Keywords: ${keywords.join(', ')}.\n\nGeneriere eine Liste relevanter W-Fragen.`,
         temperature: 0.7,
