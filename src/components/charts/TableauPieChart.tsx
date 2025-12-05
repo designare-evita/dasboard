@@ -1,7 +1,7 @@
 // src/components/charts/TableauPieChart.tsx
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   ResponsiveContainer,
   PieChart,
@@ -201,6 +201,13 @@ export default function TableauPieChart({
   dateRange
 }: TableauPieChartProps) {
 
+  // ✅ FIX: Datum nur Client-seitig berechnen um Hydration-Mismatch zu vermeiden
+  const [dateLabel, setDateLabel] = useState<string>('');
+  
+  useEffect(() => {
+    setDateLabel(getDateRangeLabel(dateRange));
+  }, [dateRange]);
+
   const chartData = useMemo(() => {
     if (!data) return [];
     const validData = data.filter(d => d.value > 0);
@@ -256,10 +263,10 @@ export default function TableauPieChart({
       </h3>
       <div className="flex items-center gap-2 text-xs text-gray-500 mb-2 flex-shrink-0">
         <span className="bg-gray-100 px-1.5 py-0.5 rounded text-gray-600 font-medium">Quelle: GA4</span>
-        {dateRange && (
+        {dateLabel && (
           <>
             <span className="text-gray-300">•</span>
-            <span>{getDateRangeLabel(dateRange)}</span>
+            <span>{dateLabel}</span>
           </>
         )}
       </div>
