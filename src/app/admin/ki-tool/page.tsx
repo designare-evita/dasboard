@@ -1,3 +1,4 @@
+// src/app/admin/ki-tool/page.tsx
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -119,7 +120,13 @@ export default function KiToolPage() {
   };
 
   const handleGenerate = async () => {
-    if (selectedKeywords.length === 0 || !selectedProject) return;
+    // ✅ FIX: Projekt direkt aus der Liste holen (statt 'selectedProject' State zu vertrauen)
+    const currentProject = projects.find(p => p.id === selectedProjectId);
+
+    if (selectedKeywords.length === 0 || !currentProject) {
+      if(!currentProject) console.error("Projekt nicht gefunden (ID):", selectedProjectId);
+      return;
+    }
 
     setIsGenerating(true);
     setGeneratedContent('');
@@ -130,7 +137,7 @@ export default function KiToolPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           keywords: selectedKeywords,
-          domain: selectedProject.domain,
+          domain: currentProject.domain, // ✅ Hier verwenden wir das gefundene Projekt
         }),
       });
 
