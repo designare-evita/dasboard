@@ -47,10 +47,9 @@ async function loadData(projectId: string, dateRange: string) {
   const projectUser = rows[0] as ExtendedUser;
 
   // 2. Hole Google Daten (Server-Side Cache / API)
+  // KORREKTUR: Wir übergeben das ganze User-Objekt, so wie es google-data-loader erwartet
   const dashboardData = await getOrFetchGoogleData(
-    projectId, 
-    projectUser.gsc_site_url || '', 
-    projectUser.ga4_property_id || '', 
+    projectUser, 
     dateRange
   );
 
@@ -115,7 +114,7 @@ export default async function ProjectPage({
         
         // Optionale Felder
         userRole={session.user.role}
-        safeApiErrors={dashboardData.safeApiErrors} // Fehlerzustände weiterreichen
+        safeApiErrors={dashboardData.safeApiErrors}
       />
     </Suspense>
   );
