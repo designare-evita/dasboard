@@ -8,7 +8,7 @@ import {
   Check, 
   GraphUpArrow, 
   Eye, 
-  percent 
+  Percent 
 } from 'react-bootstrap-icons';
 import { toast } from 'sonner';
 
