@@ -154,7 +154,7 @@ export default function KpiCardsGrid({
       
       {/* Volumen Metriken */}
       {renderCard('impressions', 'Impressionen', gscError, kpiInfo.impressions)}
-      {renderCard('sessions', 'Sitzungen', ga4Error, kpiInfo.sessions)}
+      {/* Sessions (Sitzungen) hier entfernt */}
       {renderCard('totalUsers', 'Besucher', ga4Error, kpiInfo.totalUsers)}
     </div>
   );
