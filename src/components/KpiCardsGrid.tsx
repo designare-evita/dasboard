@@ -11,9 +11,6 @@ import {
 } from '@/lib/dashboard-shared';
 import { InfoCircle } from 'react-bootstrap-icons';
 
-/**
- * Zeigt einen Tooltip mit Erklärung an
- */
 function InfoTooltip({ title, description }: { title: string; description: string }) {
   const [isVisible, setIsVisible] = useState(false);
 
