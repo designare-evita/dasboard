@@ -2,7 +2,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, Search, ArrowUp, ArrowDown, Dash } from 'react-bootstrap-icons';
+import { ChevronDown, ChevronUp, Search, ArrowUp, ArrowDown, Dash, InfoCircle } from 'react-bootstrap-icons';
 import { type DateRangeOption } from '@/components/DateRangeSelector';
 
 interface BingAnalysisWidgetProps {
@@ -20,29 +20,16 @@ export default function BingAnalysisWidget({
 }: BingAnalysisWidgetProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  // Helper function für dateRange Label
-  const getDateRangeLabel = (range: DateRangeOption): string => {
-    const rangeStr = String(range);
-    switch (rangeStr) {
-      case '7d': return '7 Tage';
-      case '30d': return '30 Tage';
-      case '3m': return '3 Monate';
-      case '6m': return '6 Monate';
-      case '12m': return '12 Monate';
-      default: return '30 Tage';
-    }
-  };
-
   if (isLoading) {
     return (
-      <div className="card-glass p-6">
+      <div className="card-glass p-6 mt-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
               <Search className="text-white" size={20} />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">Bing KI-Analyse</h3>
+              <h3 className="text-lg font-semibold text-gray-900">Bing Webmaster Tools</h3>
               <p className="text-xs text-gray-500">Laden...</p>
             </div>
           </div>
@@ -57,15 +44,15 @@ export default function BingAnalysisWidget({
 
   if (!bingData || bingData.length === 0) {
     return (
-      <div className="card-glass p-6">
+      <div className="card-glass p-6 mt-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
               <Search className="text-white" size={20} />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">Bing KI-Analyse</h3>
-              <p className="text-xs text-gray-500">{getDateRangeLabel(dateRange)}</p>
+              <h3 className="text-lg font-semibold text-gray-900">Bing Webmaster Tools</h3>
+              <p className="text-xs text-gray-500">Letzte 3 Monate</p>
             </div>
           </div>
         </div>
@@ -75,10 +62,10 @@ export default function BingAnalysisWidget({
             Keine Bing-Daten verfügbar
           </p>
           <p className="text-xs text-blue-700">
-            Die Bing Webmaster Tools API konnte keine Daten für diesen Zeitraum abrufen.
+            Die Bing Webmaster Tools API konnte keine Daten abrufen.
           </p>
           <p className="text-xs text-blue-600 mt-2">
-            Mögliche Gründe: Keine Bing-Konfiguration, keine Daten im gewählten Zeitraum, oder API-Fehler.
+            Mögliche Gründe: Keine Bing-Konfiguration, keine Daten vorhanden, oder API-Fehler.
           </p>
         </div>
       </div>
@@ -96,12 +83,6 @@ export default function BingAnalysisWidget({
     .sort((a, b) => (b.impressions || 0) - (a.impressions || 0))
     .slice(0, isExpanded ? 20 : 5);
 
-  const getTrendIcon = (value: number) => {
-    if (value > 0) return <ArrowUp className="text-green-600" size={14} />;
-    if (value < 0) return <ArrowDown className="text-red-600" size={14} />;
-    return <Dash className="text-gray-400" size={14} />;
-  };
-
   const getPositionColor = (position: number) => {
     if (position <= 3) return 'text-green-600 bg-green-50';
     if (position <= 10) return 'text-blue-600 bg-blue-50';
@@ -110,17 +91,17 @@ export default function BingAnalysisWidget({
   };
 
   return (
-    <div className="card-glass p-6">
+    <div className="card-glass p-6 mt-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
             <Search className="text-white" size={20} />
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-gray-900">Bing KI-Analyse</h3>
+            <h3 className="text-lg font-semibold text-gray-900">Bing Webmaster Tools</h3>
             <p className="text-xs text-gray-500">
-              {domain ? `${domain} • ` : ''}{getDateRangeLabel(dateRange)}
+              {domain ? `${domain} • ` : ''}Letzte 3 Monate
             </p>
           </div>
         </div>
@@ -138,6 +119,14 @@ export default function BingAnalysisWidget({
             </>
           )}
         </button>
+      </div>
+
+      {/* ✅ NEU: Hinweis zur API-Limitation */}
+      <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
+        <InfoCircle className="text-amber-600 flex-shrink-0" size={16} />
+        <p className="text-xs text-amber-800">
+          Die Bing API liefert aggregierte Daten der letzten 3 Monate. Der gewählte Zeitraum hat keinen Einfluss auf diese Ansicht.
+        </p>
       </div>
 
       {/* Stats Overview */}
