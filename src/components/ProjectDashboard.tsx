@@ -27,7 +27,7 @@ import LandingPageChart from '@/components/charts/LandingPageChart';
 import { aggregateLandingPages } from '@/lib/utils';
 
 interface ProjectDashboardProps {
-  data: ProjectDashboardData; // ✅ Verwende das Original-Interface (hat bereits bingData)
+  data: ProjectDashboardData;
   isLoading: boolean;
   dateRange: DateRangeOption;
   onDateRangeChange?: (range: DateRangeOption) => void;
@@ -181,15 +181,15 @@ export default function ProjectDashboard({
           <div className="mt-6 print:hidden">
             <AiAnalysisWidget 
               projectId={projectId}
-              domain={domain} // ✅ Domain wird übergeben
+              domain={domain}
               dateRange={dateRange}
               chartRef={chartRef}
-              kpis={exportKpis} // ✅ Nur für den PDF Export Button
+              kpis={exportKpis}
             />
           </div>
         )}
 
-        {/* KPI GRID: Hier nutzen wir weiterhin die normalen 'extendedKpis' für die Web-Ansicht */}
+        {/* KPI GRID */}
         <div className="mt-6 print-kpi-grid">
           {extendedKpis && (
             <TableauKpiGrid
@@ -210,7 +210,6 @@ export default function ProjectDashboard({
           />
         </div>
         
-        {/* ... Rest der Dashboard Komponenten unverändert ... */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mt-6 print-traffic-grid">
           <div className="xl:col-span-1 print-ai-card">
             <AiTrafficCard 
@@ -285,14 +284,12 @@ export default function ProjectDashboard({
           </div>
         )}
 
-          
-          <BingAnalysisWidget 
-            bingData={data.bingData || []}
-            domain={domain}
-            dateRange={dateRange}
-            isLoading={isLoading}
-          />
-        </div>
+        <BingAnalysisWidget 
+          bingData={data.bingData || []}
+          domain={domain}
+          dateRange={dateRange}
+          isLoading={isLoading}
+        />
       </div>
     </div>
   );
