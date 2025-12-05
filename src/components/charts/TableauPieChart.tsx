@@ -29,12 +29,52 @@ const KPI_COLORS = [
 
 const LIGHT_COLORS = ['#f59e0b', '#06b6d4', '#10b981', '#fcd34d'];
 
+// Hilfsfunktion für Datumsbereich-Anzeige
+const getDateRangeLabel = (dateRange?: string): string => {
+  if (!dateRange) return '';
+  
+  const today = new Date();
+  const formatDate = (date: Date) => date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  
+  let startDate: Date;
+  let endDate = today;
+  
+  switch (dateRange) {
+    case '7d':
+      startDate = new Date(today);
+      startDate.setDate(today.getDate() - 7);
+      break;
+    case '28d':
+      startDate = new Date(today);
+      startDate.setDate(today.getDate() - 28);
+      break;
+    case '90d':
+      startDate = new Date(today);
+      startDate.setDate(today.getDate() - 90);
+      break;
+    case '6m':
+      startDate = new Date(today);
+      startDate.setMonth(today.getMonth() - 6);
+      break;
+    case '12m':
+      startDate = new Date(today);
+      startDate.setFullYear(today.getFullYear() - 1);
+      break;
+    default:
+      startDate = new Date(today);
+      startDate.setDate(today.getDate() - 28);
+  }
+  
+  return `${formatDate(startDate)} - ${formatDate(endDate)}`;
+};
+
 interface TableauPieChartProps {
   data?: ChartEntry[];
   title: string;
   isLoading?: boolean;
   className?: string;
   error?: string | null;
+  dateRange?: string;
 }
 
 interface TooltipPayload {
@@ -157,7 +197,8 @@ export default function TableauPieChart({
   title,
   isLoading,
   className,
-  error
+  error,
+  dateRange
 }: TableauPieChartProps) {
 
   const chartData = useMemo(() => {
@@ -210,9 +251,18 @@ export default function TableauPieChart({
 
   return (
     <div className={cn('bg-white rounded-lg shadow-sm border border-gray-200 p-6 flex flex-col h-[350px] hover:shadow-md transition-shadow', className)}>
-      <h3 className="text-lg font-semibold text-gray-900 mb-2 flex-shrink-0">
+      <h3 className="text-lg font-semibold text-gray-900 mb-1 flex-shrink-0">
         {title}
       </h3>
+      <div className="flex items-center gap-2 text-xs text-gray-500 mb-2 flex-shrink-0">
+        <span className="bg-gray-100 px-1.5 py-0.5 rounded text-gray-600 font-medium">Quelle: GA4</span>
+        {dateRange && (
+          <>
+            <span className="text-gray-300">•</span>
+            <span>{getDateRangeLabel(dateRange)}</span>
+          </>
+        )}
+      </div>
       <div className="flex-grow min-h-0 relative">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
