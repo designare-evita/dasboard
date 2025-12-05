@@ -244,7 +244,7 @@ export default function AiTrafficCard({
       {/* Info-Text */}
       <div className="mt-4 pt-4 border-t border-gray-100">
         <p className="text-xs text-gray-500">
-          KI-Traffic umfasst Besuche von bekannten KI-Bots wie ChatGPT, Claude, Perplexity und Google Gemini.
+          KI-Traffic umfasst Besuche von bekannten KI-Bots wie ChatGPT, Claude, Perplexity und Google Gemini. | Quelle: GA4
         </p>
       </div>
     </div>
