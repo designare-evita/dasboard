@@ -176,7 +176,7 @@ export default function ProjectDashboard({
           </div>
         )}
 
-        {/* AI WIDGET: Hier übergeben wir die spezielle 'exportKpis' Liste und 'domain' */}
+        {/* AI WIDGET */}
         {projectId && (
           <div className="mt-6 print:hidden">
             <AiAnalysisWidget 
@@ -258,7 +258,8 @@ export default function ProjectDashboard({
                <LandingPageChart 
                  data={cleanLandingPages} 
                  isLoading={isLoading}
-                 title="Top Landingpages" 
+                 title="Top Landingpages"
+                 dateRange={dateRange} // ✅ HIER WICHTIG: DateRange übergeben
                />
                {!isLandingPagesVisible && isAdmin && (
                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -271,10 +272,29 @@ export default function ProjectDashboard({
           </div>
         )}
 
+        {/* PIE CHARTS: Hier übergeben wir jetzt dateRange */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6 print-pie-grid">
-          <TableauPieChart data={data.channelData} title="Zugriffe nach Channel" isLoading={isLoading} error={safeApiErrors?.ga4} />
-          <TableauPieChart data={data.countryData} title="Zugriffe nach Land" isLoading={isLoading} error={safeApiErrors?.ga4} />
-          <TableauPieChart data={data.deviceData} title="Zugriffe nach Endgerät" isLoading={isLoading} error={safeApiErrors?.ga4} />
+          <TableauPieChart 
+            data={data.channelData} 
+            title="Zugriffe nach Channel" 
+            isLoading={isLoading} 
+            error={safeApiErrors?.ga4} 
+            dateRange={dateRange} // ✅ NEU
+          />
+          <TableauPieChart 
+            data={data.countryData} 
+            title="Zugriffe nach Land" 
+            isLoading={isLoading} 
+            error={safeApiErrors?.ga4} 
+            dateRange={dateRange} // ✅ NEU
+          />
+          <TableauPieChart 
+            data={data.deviceData} 
+            title="Zugriffe nach Endgerät" 
+            isLoading={isLoading} 
+            error={safeApiErrors?.ga4} 
+            dateRange={dateRange} // ✅ NEU
+          />
         </div>
         
         {hasSemrushConfig && (
