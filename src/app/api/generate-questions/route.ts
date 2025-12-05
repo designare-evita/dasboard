@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     console.log('[AI Generate Questions] Starte Generierung für:', { domain, keywords: keywordList });
 
     const result = await streamText({
-      model: google('gemini-2.0-flash'),  // ← Geändert: "gemini-2.5-flash" existiert möglicherweise nicht
+      model: google('gemini-2.5-flash'),  // ← Geändert: "gemini-2.5-flash" existiert möglicherweise nicht
       system: "Du bist ein erfahrener SEO-Redakteur. Deine Aufgabe ist es, basierend auf Keywords relevante 'W-Fragen' (Wer, Wie, Was, Wo, Warum) zu generieren, die Nutzer suchen könnten. Formatiere die Antwort als saubere Liste.",
       prompt: `Analysiere die Domain "${domain}" und die folgenden Keywords: ${keywordList}.\n\nGeneriere eine Liste von 10-15 relevanten W-Fragen, die potentielle Besucher dieser Domain in Bezug auf die Keywords haben könnten.`,
       temperature: 0.7,
