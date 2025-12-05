@@ -13,10 +13,8 @@ import {
 } from 'recharts';
 import { ChartEntry } from '@/lib/dashboard-shared';
 import { cn } from '@/lib/utils';
-import { ExclamationTriangleFill } from 'react-bootstrap-icons'; 
+import { ExclamationTriangleFill, GraphUp, CheckCircleFill } from 'react-bootstrap-icons'; 
 import NoDataState from '@/components/NoDataState';
-import { format, subDays, subMonths } from 'date-fns';
-import { de } from 'date-fns/locale';
 
 // Farben definieren
 const KPI_COLORS = [
@@ -37,7 +35,6 @@ interface TableauPieChartProps {
   isLoading?: boolean;
   className?: string;
   error?: string | null;
-  dateRange?: string; 
 }
 
 interface TooltipPayload {
@@ -50,28 +47,75 @@ interface TooltipPayload {
 interface CustomTooltipProps {
   active?: boolean;
   payload?: TooltipPayload[];
-  totalValue?: number;
+  totalValue?: number; // ✅ NEU: Gesamt-Wert für manuelle %-Berechnung
 }
 
-// Custom Tooltip Component
 const CustomTooltip = ({ active, payload, totalValue }: CustomTooltipProps) => {
-  if (active && payload && payload.length && totalValue) {
-    const data = payload[0];
-    const percent = (data.value / totalValue) * 100;
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
     
+    // ✅ FIX: Prozentsatz sicher selbst berechnen
+    let percentValue = 0;
+    if (totalValue && totalValue > 0) {
+      percentValue = (data.value / totalValue) * 100;
+    } else if (typeof payload[0].percent === 'number') {
+      // Fallback auf Recharts Wert (falls vorhanden)
+      percentValue = payload[0].percent * 100;
+    }
+    
+    const color = payload[0].fill || data.fill;
+
     return (
-      <div className="bg-white/95 backdrop-blur-sm border border-gray-100 p-3 rounded-xl shadow-xl">
-        <div className="flex items-center gap-2 mb-1">
-          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: data.fill }} />
-          <span className="font-semibold text-gray-700 text-sm">{data.payload.name}</span>
+      <div className="bg-white px-3 py-2 rounded-lg shadow-xl border border-gray-200 min-w-[160px]">
+        {/* Header */}
+        <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-100">
+          <div 
+            className="w-2.5 h-2.5 rounded-full shadow-sm" 
+            style={{ backgroundColor: color }}
+          />
+          <span className="text-sm font-semibold text-gray-700">{data.name}</span>
         </div>
-        <div className="flex items-baseline gap-2 pl-4">
-          <span className="text-lg font-bold text-gray-900">
-            {data.value.toLocaleString()}
+
+        {/* Standard Werte */}
+        <div className="flex justify-between items-center mb-1 gap-4">
+          <span className="text-xs text-gray-500">Anteil:</span>
+          <span className="text-xs font-bold text-gray-900">{percentValue.toFixed(1)}%</span>
+        </div>
+        <div className="flex justify-between items-center mb-2 gap-4">
+          <span className="text-xs text-gray-500">Sitzungen:</span>
+          <span className="text-sm font-bold text-gray-900">
+            {new Intl.NumberFormat('de-DE').format(data.value)}
           </span>
-          <span className="text-xs font-medium text-gray-500">
-            ({percent.toFixed(1)}%)
-          </span>
+        </div>
+
+        {/* Footer Bereich für Extra Metrics */}
+        <div className="mt-2 pt-2 border-t border-gray-100 bg-gray-50 -mx-3 px-3 py-1 space-y-1.5">
+          
+          {/* 1. Interaktionsrate */}
+          {data.subValue && (
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-1.5">
+                <GraphUp size={11} className="text-purple-500" />
+                <span className="text-[11px] font-medium text-gray-600">{data.subLabel}:</span>
+              </div>
+              <span className="text-[11px] font-bold text-purple-700">
+                {data.subValue}
+              </span>
+            </div>
+          )}
+
+          {/* 2. Conversions */}
+          {data.subValue2 !== undefined && (
+             <div className="flex justify-between items-center">
+              <div className="flex items-center gap-1.5">
+                <CheckCircleFill size={11} className="text-emerald-600" />
+                <span className="text-[11px] font-medium text-gray-600">{data.subLabel2}:</span>
+              </div>
+              <span className="text-[11px] font-bold text-emerald-700">
+                {new Intl.NumberFormat('de-DE').format(data.subValue2)}
+              </span>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -79,28 +123,29 @@ const CustomTooltip = ({ active, payload, totalValue }: CustomTooltipProps) => {
   return null;
 };
 
-// Custom Label Render
-const renderCustomLabel = (props: PieLabelRenderProps) => {
-  const { cx, cy, midAngle, innerRadius, outerRadius, percent } = props;
+const renderCustomLabel = (props: PieLabelRenderProps & { index?: number }) => {
+  const { cx, cy, midAngle, innerRadius, outerRadius, percent, index } = props;
+
+  if (typeof midAngle !== 'number') return null;
+  if ((percent || 0) < 0.05) return null;
+
   const RADIAN = Math.PI / 180;
   const radius = Number(innerRadius) + (Number(outerRadius) - Number(innerRadius)) * 0.5;
-  
-  // FIX: Sicherstellen, dass midAngle definiert ist
-  const safeMidAngle = midAngle ?? 0;
-  
-  const x = Number(cx) + radius * Math.cos(-safeMidAngle * RADIAN);
-  const y = Number(cy) + radius * Math.sin(-safeMidAngle * RADIAN);
+  const x = Number(cx) + radius * Math.cos(-midAngle * RADIAN);
+  const y = Number(cy) + radius * Math.sin(-midAngle * RADIAN);
 
-  if ((percent || 0) < 0.05) return null;
+  const fillColor = (typeof index === 'number') ? KPI_COLORS[index % KPI_COLORS.length] : '#000';
+  const textColor = LIGHT_COLORS.includes(fillColor) ? '#0f172a' : '#ffffff';
 
   return (
     <text 
       x={x} 
       y={y} 
-      fill="white" 
-      textAnchor={x > Number(cx) ? 'start' : 'end'} 
+      fill={textColor} 
+      textAnchor="middle" 
       dominantBaseline="central"
-      className="text-[10px] font-bold pointer-events-none"
+      className="text-[11px] font-bold pointer-events-none"
+      style={{ textShadow: textColor === '#ffffff' ? '0px 0px 2px rgba(0,0,0,0.3)' : 'none' }}
     >
       {`${((percent || 0) * 100).toFixed(0)}%`}
     </text>
@@ -110,49 +155,31 @@ const renderCustomLabel = (props: PieLabelRenderProps) => {
 export default function TableauPieChart({
   data,
   title,
-  isLoading = false,
+  isLoading,
   className,
-  error,
-  dateRange = '30d' 
+  error
 }: TableauPieChartProps) {
-
-  // Berechnung des Datums für die Anzeige
-  const formattedDateRange = useMemo(() => {
-    const end = new Date();
-    let start = subDays(end, 30); // Default
-
-    switch (dateRange) {
-      case '7d': start = subDays(end, 7); break;
-      case '30d': start = subDays(end, 30); break;
-      case '3m': start = subMonths(end, 3); break;
-      case '6m': start = subMonths(end, 6); break;
-      case '12m': start = subMonths(end, 12); break;
-      default: start = subDays(end, 30);
-    }
-    return `${format(start, 'dd.MM.yyyy', { locale: de })} - ${format(end, 'dd.MM.yyyy', { locale: de })}`;
-  }, [dateRange]);
 
   const chartData = useMemo(() => {
     if (!data) return [];
-    return data
-      .filter(item => item.value > 0)
-      .sort((a, b) => b.value - a.value)
-      .map((entry, index) => ({
-        ...entry,
-        fill: KPI_COLORS[index % KPI_COLORS.length]
-      }));
+    const validData = data.filter(d => d.value > 0);
+    return validData.map((entry, index) => ({
+      ...entry,
+      fill: KPI_COLORS[index % KPI_COLORS.length]
+    }));
   }, [data]);
 
+  // ✅ NEU: Gesamtwert berechnen für %-Berechnung im Tooltip
   const totalValue = useMemo(() => {
     return chartData.reduce((acc, curr) => acc + curr.value, 0);
   }, [chartData]);
 
   if (isLoading) {
     return (
-      <div className={cn('card-glass p-6 flex flex-col h-[350px]', className)}>
-        <div className="h-6 w-1/3 bg-gray-100 rounded mb-4 animate-pulse" />
+      <div className={cn('bg-white rounded-lg shadow-sm border border-gray-200 p-6 flex flex-col h-[350px] animate-pulse', className)}>
+        <div className="h-6 bg-gray-200 rounded w-1/3 mb-4"></div>
         <div className="flex-grow flex items-center justify-center">
-          <div className="w-40 h-40 rounded-full border-4 border-gray-100 border-t-indigo-500 animate-spin" />
+          <div className="w-48 h-48 bg-gray-200 rounded-full"></div>
         </div>
       </div>
     );
@@ -160,25 +187,21 @@ export default function TableauPieChart({
 
   if (error) {
      return (
-        <div className={cn('card-glass p-6 flex flex-col h-[350px]', className)}>
-           <h3 className="text-lg font-semibold text-gray-900 mb-2 flex-shrink-0">
-             {title}
-           </h3>
-           <div className="flex-grow flex flex-col items-center justify-center text-center text-gray-400">
-             <ExclamationTriangleFill size={24} className="mb-2 text-amber-500/50" />
-             <p className="text-sm">Daten konnten nicht geladen werden</p>
-           </div>
+      <div className={cn('bg-white rounded-lg shadow-sm border border-gray-200 p-6 flex flex-col h-[350px]', className)}>
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">{title}</h3>
+        <div className="flex-grow flex flex-col items-center justify-center text-red-500 gap-2">
+          <ExclamationTriangleFill size={24} />
+          <p className="text-sm font-medium text-center">{error}</p>
         </div>
-     );
+      </div>
+    );
   }
 
-  if (!data || chartData.length === 0) {
+  if (!chartData || chartData.length === 0) {
     return (
       <div className={cn('bg-white rounded-lg shadow-sm border border-gray-200 p-6 flex flex-col h-[350px]', className)}>
-        <h3 className="text-lg font-semibold text-gray-900 mb-2 flex-shrink-0">
-          {title}
-        </h3>
-        <div className="flex-grow relative">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 self-start">{title}</h3>
+        <div className="flex-grow">
            <NoDataState message="Keine Daten für diesen Zeitraum" />
         </div>
       </div>
@@ -187,17 +210,9 @@ export default function TableauPieChart({
 
   return (
     <div className={cn('bg-white rounded-lg shadow-sm border border-gray-200 p-6 flex flex-col h-[350px] hover:shadow-md transition-shadow', className)}>
-      <h3 className="text-lg font-semibold text-gray-900 flex-shrink-0">
+      <h3 className="text-lg font-semibold text-gray-900 mb-2 flex-shrink-0">
         {title}
       </h3>
-      
-      {/* Quelle und Datum Block */}
-      <div className="text-[11px] text-gray-500 mt-1 mb-4 flex items-center gap-2">
-        <span className="font-medium bg-gray-100 px-1.5 py-0.5 rounded text-gray-600">Quelle: GA4</span>
-        <span className="text-gray-400">•</span>
-        <span>{formattedDateRange}</span>
-      </div>
-
       <div className="flex-grow min-h-0 relative">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
@@ -222,7 +237,7 @@ export default function TableauPieChart({
                 />
               ))}
             </Pie>
-            
+            {/* ✅ FIX: totalValue an Tooltip übergeben */}
             <Tooltip content={<CustomTooltip totalValue={totalValue} />} />
             <Legend 
               verticalAlign="bottom" 
