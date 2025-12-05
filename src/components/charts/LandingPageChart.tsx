@@ -4,14 +4,40 @@
 import React from 'react';
 import { ConvertingPageData } from '@/lib/dashboard-shared';
 import { FileEarmarkText } from 'react-bootstrap-icons';
+import { format, subDays, subMonths } from 'date-fns';
+import { de } from 'date-fns/locale';
 
 interface Props {
   data?: ConvertingPageData[];
   isLoading?: boolean;
   title?: string;
+  dateRange?: string; // Neu hinzugefügt für die Datumsanzeige
 }
 
-export default function LandingPageChart({ data, isLoading, title = "Top Landingpages" }: Props) {
+export default function LandingPageChart({ 
+  data, 
+  isLoading, 
+  title = "Top Landingpages",
+  dateRange = '30d' // Standardwert
+}: Props) {
+  
+  // Helper zur Berechnung des angezeigten Zeitraums
+  const getDateRangeString = (range: string) => {
+    const end = new Date();
+    let start = subDays(end, 30); // Default Fallback
+
+    switch (range) {
+      case '7d': start = subDays(end, 7); break;
+      case '30d': start = subDays(end, 30); break;
+      case '3m': start = subMonths(end, 3); break;
+      case '6m': start = subMonths(end, 6); break;
+      case '12m': start = subMonths(end, 12); break;
+      default: start = subDays(end, 30);
+    }
+
+    return `${format(start, 'dd.MM.yyyy', { locale: de })} - ${format(end, 'dd.MM.yyyy', { locale: de })}`;
+  };
+
   if (isLoading) {
     return <div className="h-[50vh] w-full bg-gray-50 rounded-xl animate-pulse flex items-center justify-center text-gray-400">Lade Daten...</div>;
   }
@@ -39,17 +65,26 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
 
   // Maximaler Wert für die Balkenbreite
   const maxNewUsers = Math.max(...sortedData.map(p => p.newUsers || 0));
+  const formattedDateRange = getDateRangeString(dateRange);
 
   return (
     <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex flex-col h-[50vh]">
       
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4 flex-shrink-0">
-        <h3 className="text-[18px] font-semibold text-gray-900 flex items-center gap-2">
-          <FileEarmarkText className="text-indigo-500" size={18} />
-          {title}
-        </h3>
-        <span className="text-xs text-gray-400">Sortiert nach Neuen Nutzern</span>
+      {/* Header Bereich */}
+      <div className="mb-4 flex-shrink-0 border-b border-gray-50 pb-2">
+        <div className="flex items-center justify-between">
+          <h3 className="text-[18px] font-semibold text-gray-900 flex items-center gap-2">
+            <FileEarmarkText className="text-indigo-500" size={18} />
+            {title}
+          </h3>
+          <span className="text-xs text-gray-400">Sortiert nach Neuen Nutzern</span>
+        </div>
+        {/* Neuer Untertitel mit Quelle und Datum */}
+        <div className="text-[11px] text-gray-500 mt-1 ml-7 flex items-center gap-2">
+          <span className="font-medium bg-gray-100 px-1.5 py-0.5 rounded text-gray-600">Quelle: GA4</span>
+          <span className="text-gray-400">•</span>
+          <span>{formattedDateRange}</span>
+        </div>
       </div>
 
       {/* Liste */}
@@ -73,7 +108,8 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
                   
                   {/* Linke Seite: Seitenname mit grünem Balken darunter */}
                   <div className="flex-1 min-w-0">
-                    <div className="text-[13px] text-gray-700 truncate mb-1" title={page.path}>
+                    {/* HIER GEÄNDERT: Schrift größer (15px) und etwas fetter (font-medium) */}
+                    <div className="text-[15px] font-medium text-gray-800 truncate mb-1" title={page.path}>
                       {page.path}
                     </div>
                     {/* Grüner Fortschrittsbalken */}
@@ -89,22 +125,22 @@ export default function LandingPageChart({ data, isLoading, title = "Top Landing
                   <div className="flex items-center gap-2 flex-shrink-0">
                     
                     {/* Neue Besucher - Grüner Badge (prominent) */}
-                    <div className="bg-emerald-500 text-white px-3 py-1.5 rounded-md text-[12px] font-semibold whitespace-nowrap min-w-[140px] text-center">
+                    <div className="bg-emerald-500 text-white px-3 py-1.5 rounded-md text-[12px] font-semibold whitespace-nowrap min-w-[140px] text-center shadow-sm">
                       {newUsers.toLocaleString()} Neue Besucher
                     </div>
 
                     {/* Sessions - Blauer Badge */}
-                    <div className="bg-sky-500 text-white px-2 py-1.5 rounded-md text-[11px] font-medium whitespace-nowrap min-w-[75px] text-center">
+                    <div className="bg-sky-500 text-white px-2 py-1.5 rounded-md text-[11px] font-medium whitespace-nowrap min-w-[75px] text-center shadow-sm">
                       {sessions.toLocaleString()} Sess.
                     </div>
 
                     {/* Engagement Rate - Türkis Badge */}
-                    <div className="bg-teal-500 text-white px-2 py-1.5 rounded-md text-[11px] font-medium whitespace-nowrap min-w-[70px] text-center">
+                    <div className="bg-teal-500 text-white px-2 py-1.5 rounded-md text-[11px] font-medium whitespace-nowrap min-w-[70px] text-center shadow-sm">
                       {engagementRate.toFixed(0)}% Rate
                     </div>
 
                     {/* Conversions - Grauer Badge */}
-                    <div className="bg-slate-400 text-white px-2 py-1.5 rounded-md text-[11px] font-medium whitespace-nowrap min-w-[65px] text-center">
+                    <div className="bg-slate-400 text-white px-2 py-1.5 rounded-md text-[11px] font-medium whitespace-nowrap min-w-[65px] text-center shadow-sm">
                       {conversions} Conv.
                     </div>
 
