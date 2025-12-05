@@ -8,8 +8,9 @@ import {
   RocketTakeoff, 
   Magic, 
   Grid,
-  FileEarmarkBarGraph, // Neues Icon für Analyse
-  Globe // Icon für URL
+  FileEarmarkBarGraph, 
+  Globe,
+  Cpu // Neues Icon für den Lade-Screen
 } from 'react-bootstrap-icons';
 import CtrBooster from '@/components/admin/ki/CtrBooster';
 
@@ -27,7 +28,6 @@ interface Keyword {
   impressions: number;
 }
 
-// "gap" als neuer Tab
 type Tab = 'questions' | 'ctr' | 'gap';
 
 export default function KiToolPage() {
@@ -42,11 +42,13 @@ export default function KiToolPage() {
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [loadingData, setLoadingData] = useState(false);
   
-  // States für Generierung (Fragen & Gap)
+  // States für Generierung
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedContent, setGeneratedContent] = useState<string>('');
   
-  // Spezieller State für Gap Analyse
+  // NEU: State für die Lightbox (Warten auf den ersten Token)
+  const [isWaitingForStream, setIsWaitingForStream] = useState(false);
+  
   const [analyzeUrl, setAnalyzeUrl] = useState('');
 
   const outputRef = useRef<HTMLDivElement>(null);
@@ -69,7 +71,7 @@ export default function KiToolPage() {
     fetchProjects();
   }, []);
 
-  // --- 2. DATEN LADEN & URL VORAUSFÜLLEN ---
+  // --- 2. DATEN LADEN ---
   useEffect(() => {
     if (!selectedProjectId) {
       setKeywords([]);
@@ -81,7 +83,6 @@ export default function KiToolPage() {
     const project = projects.find(p => p.id === selectedProjectId);
     setSelectedProject(project || null);
 
-    // URL vorausfüllen, wenn Projekt gewählt wird
     if (project) {
         let cleanDomain = project.domain;
         if (!cleanDomain.startsWith('http')) {
@@ -90,7 +91,6 @@ export default function KiToolPage() {
         setAnalyzeUrl(cleanDomain);
     }
 
-    // Nur Daten laden, wenn wir nicht im CTR Tab sind (der lädt selbst)
     if (activeTab === 'ctr') return;
 
     async function fetchData() {
@@ -98,7 +98,6 @@ export default function KiToolPage() {
       setKeywords([]);
       try {
         const url = `/api/data?projectId=${selectedProjectId}&dateRange=30d`;
-        
         const res = await fetch(url);
         
         if (!res.ok) {
@@ -113,14 +112,9 @@ export default function KiToolPage() {
         const data = await res.json();
         
         if (data.topQueries && Array.isArray(data.topQueries)) {
-          // Wir nehmen hier mehr Keywords für die Analyse mit (z.B. Top 50),
-          // zeigen aber vielleicht weniger an oder lassen den User wählen.
           const topKeywords = data.topQueries.slice(0, 30);
           setKeywords(topKeywords);
-          // Für Gap Analyse wählen wir standardmäßig alle Top 10 vor, damit der User direkt starten kann
-          if (activeTab === 'gap') {
-             setSelectedKeywords(topKeywords.slice(0, 10).map((k: Keyword) => k.query));
-          }
+          
         } else {
           toast.info('Keine Keywords gefunden.');
         }
@@ -144,7 +138,7 @@ export default function KiToolPage() {
     });
   };
 
-  // --- GENERIERUNGS-LOGIK (ZENTRALISIERT) ---
+  // --- GENERIERUNGS-LOGIK ---
   const handleAction = async () => {
     if (selectedKeywords.length === 0 || !selectedProject) {
       toast.error('Bitte wählen Sie ein Projekt und Keywords aus.');
@@ -152,9 +146,10 @@ export default function KiToolPage() {
     }
 
     setIsGenerating(true);
+    // NEU: Lightbox anzeigen
+    setIsWaitingForStream(true); 
     setGeneratedContent('');
 
-    // Endpunkt basierend auf Tab wählen
     let endpoint = '/api/ai/generate-questions';
     let body: any = {
         keywords: selectedKeywords,
@@ -165,13 +160,11 @@ export default function KiToolPage() {
         if (!analyzeUrl) {
             toast.error('Bitte geben Sie eine URL zur Analyse ein.');
             setIsGenerating(false);
+            setIsWaitingForStream(false);
             return;
         }
-        endpoint = '/api/ai/content-gap'; // Neue Route
-        body = {
-            ...body,
-            url: analyzeUrl
-        };
+        endpoint = '/api/ai/content-gap';
+        body = { ...body, url: analyzeUrl };
     }
 
     try {
@@ -181,7 +174,15 @@ export default function KiToolPage() {
         body: JSON.stringify(body),
       });
       
-      if (!response.ok) throw new Error(response.statusText);
+      // Sobald der Server antwortet (aber bevor wir den Text lesen),
+      // blenden wir die Lightbox aus, damit der User den Text fließen sieht.
+      setIsWaitingForStream(false); 
+
+      if (!response.ok) {
+          const errorDetail = await response.text();
+          throw new Error(errorDetail || response.statusText);
+      }
+      
       if (!response.body) throw new Error('Kein Stream');
 
       const reader = response.body.getReader();
@@ -199,9 +200,11 @@ export default function KiToolPage() {
         }
       }
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Fehler:', error);
-      toast.error('Fehler bei der KI-Analyse.');
+      toast.error(`Fehler: ${error.message}`);
+      // Sicherheitshalber Lightbox ausblenden bei Fehler
+      setIsWaitingForStream(false);
     } finally {
       setIsGenerating(false);
     }
@@ -209,8 +212,36 @@ export default function KiToolPage() {
 
   // --- RENDER ---
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-8">
+    <div className="p-6 max-w-7xl mx-auto space-y-8 relative">
       
+      {/* --- NEU: Lightbox / Overlay --- */}
+      {isWaitingForStream && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/60 backdrop-blur-sm transition-all animate-in fade-in duration-300">
+           <div className="bg-white p-8 rounded-2xl shadow-2xl border border-indigo-100 flex flex-col items-center gap-6 max-w-sm text-center transform scale-100 animate-in zoom-in-95 duration-300">
+              <div className="relative">
+                <div className="absolute inset-0 bg-indigo-500 blur-2xl opacity-20 animate-pulse rounded-full"></div>
+                <div className="relative z-10 bg-gradient-to-tr from-indigo-600 to-purple-600 p-4 rounded-xl shadow-lg">
+                   <Cpu className="text-white text-3xl animate-spin-slow" /> 
+                </div>
+              </div>
+              
+              <div>
+                <h3 className="text-xl font-bold text-gray-800 mb-1">KI @ Work</h3>
+                <p className="text-gray-500 text-sm leading-relaxed">
+                  {activeTab === 'gap' 
+                    ? 'Analysiere Webseite & finde Lücken...' 
+                    : 'Generiere kreative Fragen...'}
+                </p>
+              </div>
+
+              {/* Ladebalken Animation */}
+              <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                <div className="h-full bg-indigo-500 w-1/3 rounded-full animate-indeterminate-bar"></div>
+              </div>
+           </div>
+        </div>
+      )}
+
       {/* HEADER & PROJEKT WAHL */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
@@ -308,7 +339,6 @@ export default function KiToolPage() {
           {(activeTab === 'questions' || activeTab === 'gap') && (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
               
-              {/* LINKER BEREICH: URL INPUT (Nur bei Gap) + KEYWORDS */}
               <div className="lg:col-span-4 space-y-6">
                 
                 {activeTab === 'gap' && (
@@ -400,10 +430,8 @@ export default function KiToolPage() {
                 </div>
               </div>
 
-              {/* RECHTER BEREICH: OUTPUT */}
               <div className="lg:col-span-8">
                   <div className="bg-white border border-gray-100 shadow-xl rounded-2xl p-8 h-full min-h-[600px] flex flex-col relative overflow-hidden">
-                     {/* Bunter Hintergrund Blob nur bei Resultat oder Idle */}
                      <div className="absolute top-0 right-0 w-64 h-64 bg-purple-100 rounded-full mix-blend-multiply filter blur-3xl opacity-30"></div>
                      <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-100 rounded-full mix-blend-multiply filter blur-3xl opacity-30"></div>
 
@@ -445,6 +473,20 @@ export default function KiToolPage() {
           
         </div>
       )}
+      
+      {/* Styles für die Lade-Animation */}
+      <style jsx global>{`
+        @keyframes indeterminate-bar {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(300%); }
+        }
+        .animate-indeterminate-bar {
+          animation: indeterminate-bar 1.5s infinite linear;
+        }
+        .animate-spin-slow {
+            animation: spin 3s linear infinite;
+        }
+      `}</style>
     </div>
   );
 }
