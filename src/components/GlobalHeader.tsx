@@ -26,9 +26,8 @@ export default function GlobalHeader({
   const isAdmin = userRole === 'ADMIN' || userRole === 'SUPERADMIN';
 
   return (
-    // ✅ ÄNDERUNG: sticky, top-0, z-50 hinzugefügt. 
-    // bg-white/95 sorgt dafür, dass durchscrollender Inhalt nicht stört (passend zum Glass-Look).
-    <div className="sticky top-0 z-50 card-glass p-6 mb-6 print:hidden bg-white/95 backdrop-blur-sm transition-all duration-200 border-b border-gray-100">
+    // ✅ ÄNDERUNG: 'relative' für Mobile (scrollt weg), 'sm:sticky sm:top-0' für größere Screens (bleibt haften)
+    <div className="relative sm:sticky sm:top-0 z-50 card-glass p-6 mb-6 print:hidden bg-white/95 backdrop-blur-sm transition-all duration-200 border-b border-gray-100">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         
         {/* LINKE SEITE */}
