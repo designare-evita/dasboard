@@ -212,17 +212,6 @@ export default function KiToolPage() {
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-8">
       
-      {/* DEBUG INFO BOX */}
-      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-xs font-mono">
-        <strong>🐛 Debug Info:</strong>
-        <div>selectedProjectId: {selectedProjectId || 'leer'}</div>
-        <div>keywords.length: {keywords.length}</div>
-        <div>selectedKeywords: {selectedKeywords.join(', ') || 'keine'}</div>
-        <div>loadingData: {loadingData ? 'ja' : 'nein'}</div>
-        <div>isGenerating: {isGenerating ? 'ja' : 'nein'}</div>
-        <div>Button disabled: {(isGenerating || selectedKeywords.length === 0) ? 'JA' : 'NEIN'}</div>
-      </div>
-
       {/* HEADER & PROJEKT WAHL */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
@@ -388,7 +377,7 @@ export default function KiToolPage() {
                      <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-100 rounded-full mix-blend-multiply filter blur-3xl opacity-30"></div>
 
                      <h2 className="text-lg font-semibold text-gray-800 mb-4 z-10 flex items-center gap-2">
-                       <span className="text-2xl">📝</span> KI Ergebnis
+                       KI Ergebnis
                      </h2>
 
                      <div 
