@@ -9,14 +9,13 @@ import {
   List, 
   X, 
   BoxArrowRight, 
-  PersonCircle, 
   Speedometer2, 
   Folder, 
   CalendarWeek, 
   Gear,
   Magic // Das Icon für das KI-Tool
 } from 'react-bootstrap-icons';
-import { cn } from '@/lib/utils'; // Hilfsfunktion für Klassen, falls vorhanden (sonst optional)
+import { cn } from '@/lib/utils';
 
 export default function Header() {
   const { data: session } = useSession();
@@ -201,9 +200,4 @@ export default function Header() {
       )}
     </header>
   );
-}
-
-// Fallback für cn utility, falls nicht importiert
-function cn(...classes: (string | undefined | null | false)[]) {
-  return classes.filter(Boolean).join(' ');
 }
