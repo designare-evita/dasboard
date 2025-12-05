@@ -3,11 +3,11 @@ import { streamText } from 'ai';
 import * as cheerio from 'cheerio';
 import { NextRequest, NextResponse } from 'next/server';
 
-export const maxDuration = 60; // Erlaubt längere Laufzeit für Scraping + AI
+export const maxDuration = 60; // Längere Laufzeit für Scraping + AI erlauben
 
 export async function POST(req: NextRequest) {
   try {
-    const { url, keywords, domain } = await req.json();
+    const { url, keywords } = await req.json(); // 'domain' wird hier nicht zwingend gebraucht
 
     if (!url || !keywords || keywords.length === 0) {
       return NextResponse.json(
@@ -20,7 +20,8 @@ export async function POST(req: NextRequest) {
     console.log('🕷️ Scrape URL:', url);
     const pageRes = await fetch(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        // User-Agent, um nicht sofort geblockt zu werden
+        'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
       }
     });
 
@@ -32,12 +33,13 @@ export async function POST(req: NextRequest) {
     const $ = cheerio.load(html);
 
     // Unnötige Elemente entfernen
-    $('script, style, nav, footer, iframe, svg').remove();
+    $('script, style, nav, footer, iframe, svg, noscript').remove();
     
-    // Haupttext extrahieren (versucht, den Main-Content zu finden)
+    // Haupttext extrahieren
     const title = $('title').text().trim();
     const h1 = $('h1').text().trim();
-    const bodyText = $('body').text().replace(/\s+/g, ' ').trim().slice(0, 15000); // Limitieren auf ca. 15k Zeichen für Token-Limit
+    // Text bereinigen und limitieren (Token sparen)
+    const bodyText = $('body').text().replace(/\s+/g, ' ').trim().slice(0, 15000); 
 
     // 2. AI Prompt erstellen
     const prompt = `
@@ -48,7 +50,7 @@ export async function POST(req: NextRequest) {
       DIE DATEN:
       - Webseite: ${url}
       - Titel (H1/Title): ${title} / ${h1}
-      - Top Keywords aus Search Console (Nutzer suchen danach und finden diese Seite): ${keywords.join(', ')}
+      - Top Keywords aus Search Console: ${keywords.join(', ')}
 
       DER WEBSITEN-TEXT (Auszug):
       """
@@ -68,11 +70,13 @@ export async function POST(req: NextRequest) {
 
     // 3. AI Stream starten
     const result = streamText({
-      model: google('gemini-2.5-flash'), // Oder dein bevorzugtes Modell
+      model: google('gemini-2.5-flash'), // 'gemini-1.5-pro' ist meist die sicherere ID als 'latest'
       prompt: prompt,
     });
 
-    return result.toDataStreamResponse();
+    // FIX: Verwende toTextStreamResponse() statt toDataStreamResponse()
+    // Das behebt den TypeScript Fehler und passt zu deinem Frontend-Code.
+    return result.toTextStreamResponse();
 
   } catch (error: any) {
     console.error('❌ Content Gap Error:', error);
