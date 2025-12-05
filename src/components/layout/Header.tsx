@@ -1,238 +1,209 @@
 // src/components/layout/Header.tsx
 'use client';
 
+import React, { useState } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
-import { useSession, signOut } from 'next-auth/react';
 import { usePathname } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import NotificationBell from '@/components/NotificationBell';
-import { useState } from 'react';
+import { useSession, signOut } from 'next-auth/react';
 import { 
   List, 
   X, 
-  Briefcase, 
-  CalendarCheck, 
-  ShieldLock, 
-  Speedometer2, 
   BoxArrowRight, 
-  BoxArrowInRight,
-  HddNetwork // ✅ NEU: Icon
+  PersonCircle, 
+  Speedometer2, 
+  Folder, 
+  CalendarWeek, 
+  Gear,
+  Magic // Das Icon für das KI-Tool
 } from 'react-bootstrap-icons';
+import { cn } from '@/lib/utils'; // Hilfsfunktion für Klassen, falls vorhanden (sonst optional)
 
 export default function Header() {
-  const { data: session, status } = useSession();
-  const pathname = usePathname(); 
-  
+  const { data: session } = useSession();
+  const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const isAdmin = session?.user?.role === 'ADMIN' || session?.user?.role === 'SUPERADMIN'; 
-  const isSuperAdmin = session?.user?.role === 'SUPERADMIN'; // ✅ NEU
-  const isUser = session?.user?.role === 'BENUTZER'; 
+  const user = session?.user;
+  const role = user?.role;
+  const isAdmin = role === 'ADMIN' || role === 'SUPERADMIN';
 
-  // ✅ Logo-Logik (unverändert)
-  const defaultLogo = "/logo-data-peak.webp";
-  const logoSrc = session?.user?.logo_url || defaultLogo;
-  const priorityLoad = logoSrc === defaultLogo;
+  // Helper für aktive Links
+  const isActive = (path: string) => pathname === path;
 
-  if (pathname === '/login') { 
-    return null;
-  }
+  // Gemeinsame Link-Klassen
+  const linkBaseClass = "flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200";
+  const linkInactiveClass = "text-gray-600 hover:bg-gray-100 hover:text-indigo-600";
+  const linkActiveClass = "bg-indigo-50 text-indigo-700 shadow-sm";
 
-  const handleLinkClick = () => {
-    setIsMobileMenuOpen(false);
-  };
+  const getLinkClass = (path: string) => 
+    cn(linkBaseClass, isActive(path) ? linkActiveClass : linkInactiveClass);
 
   return (
-    <header className="bg-white shadow-md relative">
-      <nav className="w-full px-6 py-3 flex justify-between items-center">
-
-        {/* Linke Seite: Logo und Begrüßung */}
-        <div className="flex items-center space-x-4">
-          <Link href="/" onClick={handleLinkClick}>
-            <div className="relative h-[45px] w-[180px]">
-              <Image
-                src={logoSrc}
-                alt="Dashboard Logo"
-                fill
-                priority={priorityLoad}
-                onError={(e) => { 
-                  if (logoSrc !== defaultLogo) {
-                    (e.target as HTMLImageElement).src = defaultLogo;
-                  }
-                }}
-                className="object-contain"
-                sizes="180px"
-              />
-            </div>
-          </Link>
-
-          {status === 'authenticated' && (
-            <>
-              <span className="text-gray-600 underline underline-offset-6 hidden md:block">
-                Hallo, {session.user?.name ?? session.user?.email}
-              </span>
-            </>
-          )}
-        </div>
-
-        {/* Rechte Seite (Desktop) */}
-        <div className="hidden md:flex items-center space-x-4">
-          {status === 'authenticated' && (
-            <>
-              <NotificationBell />
-              {isAdmin && (
-                <Link href="/" passHref>
-                  <Button variant={pathname === '/' ? 'default' : 'outline'} className="gap-2">
-                    <Briefcase size={16} />
-                    Projekte
-                  </Button>
-                </Link>
-              )}
-              {isAdmin && (
-                <Link href="/admin/redaktionsplan" passHref>
-                  <Button variant={pathname === '/admin/redaktionsplan' ? 'default' : 'outline'} className="gap-2">
-                    <CalendarCheck size={16} />
-                    Redaktionspläne
-                  </Button>
-                </Link>
-              )}
-              {isAdmin && (
-                <Link href="/admin" passHref>
-                  <Button variant={pathname === '/admin' ? 'default' : 'outline'} className="gap-2">
-                    <ShieldLock size={16} />
-                    Admin-Bereich
-                  </Button>
-                </Link>
-              )}
-
-              {/* ✅ NEU: Button nur für Superadmin */}
-              {isSuperAdmin && (
-                <Link href="/admin/system" passHref>
-                  <Button 
-                    variant={pathname === '/admin/system' ? 'default' : 'outline'} 
-                    className="gap-2 text-indigo-600 border-indigo-200 hover:bg-indigo-50"
-                    title="System Status"
-                  >
-                    <HddNetwork size={16} />
-                    <span className="hidden lg:inline">System</span>
-                  </Button>
-                </Link>
-              )}
-
-              {isUser && (
-                <Link href="/" passHref>
-                  <Button variant={pathname === '/' ? 'default' : 'outline'} className="gap-2">
-                    <Speedometer2 size={16} />
-                    Dashboard
-                  </Button>
-                </Link>
-              )}
-              {isUser && (
-                <Link href="/dashboard/freigabe" passHref>
-                  <Button variant={pathname === '/dashboard/freigabe' ? 'default' : 'outline'} className="gap-2">
-                    <CalendarCheck size={16} />
-                    Redaktionsplan
-                  </Button>
-                </Link>
-              )}
-              <Button variant="outline" onClick={() => signOut({ callbackUrl: '/login' })} className="gap-2">
-                <BoxArrowRight size={16} />
-                Abmelden
-              </Button>
-            </>
-          )}
-          {status === 'unauthenticated' && (
-             <Link href="/login" passHref>
-               <Button variant="default" className="gap-2">
-                 <BoxArrowInRight size={16} />
-                 Anmelden
-               </Button>
-             </Link>
-          )}
-        </div>
-
-        {/* Hamburger-Button (Mobilgeräte) */}
-        <div className="md:hidden flex items-center">
-          {status === 'authenticated' && <NotificationBell />}
+    <header className="sticky top-0 z-50 w-full border-b border-gray-100 bg-white/80 backdrop-blur-xl shadow-sm">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between h-16 items-center">
           
-          <button
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="text-gray-600 hover:text-gray-900 p-2 ml-2"
-            aria-label="Menü umschalten"
-          >
-            {isMobileMenuOpen ? <X size={28} /> : <List size={28} />}
-          </button>
-        </div>
-      </nav>
+          {/* --- LOGO --- */}
+          <div className="flex-shrink-0 flex items-center gap-3">
+            <Link href="/" className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold shadow-md">
+                D
+              </div>
+              <span className="font-bold text-xl text-gray-800 tracking-tight hidden sm:block">
+                Designare
+              </span>
+            </Link>
+          </div>
 
-      {/* Mobiles Dropdown-Menü */}
-      {isMobileMenuOpen && status === 'authenticated' && (
-        <div 
-          className="md:hidden absolute top-full left-0 w-full bg-white shadow-lg border-t border-gray-100 z-50"
-          onClick={handleLinkClick}
-        >
-          <div className="flex flex-col space-y-2 p-4">
+          {/* --- DESKTOP NAVIGATION --- */}
+          <nav className="hidden md:flex space-x-1 items-center">
             
+            {/* Standard Links */}
+            <Link href="/" className={getLinkClass('/')}>
+              <Speedometer2 className="text-lg" />
+              <span>Dashboard</span>
+            </Link>
+
+            {/* --- ADMIN BEREICH --- */}
             {isAdmin && (
               <>
-                <Link href="/" passHref>
-                  <Button variant={pathname === '/' ? 'default' : 'outline'} className="w-full justify-start gap-2">
-                    <Briefcase size={16} />
-                    Projekte
-                  </Button>
-                </Link>
-                <Link href="/admin/redaktionsplan" passHref>
-                  <Button variant={pathname === '/admin/redaktionsplan' ? 'default' : 'outline'} className="w-full justify-start gap-2">
-                    <CalendarCheck size={16} />
-                    Redaktionspläne
-                  </Button>
-                </Link>
-                <Link href="/admin" passHref>
-                  <Button variant={pathname === '/admin' ? 'default' : 'outline'} className="w-full justify-start gap-2">
-                    <ShieldLock size={16} />
-                    Admin-Bereich
-                  </Button>
+                <div className="h-6 w-px bg-gray-200 mx-2" /> {/* Trennlinie */}
+                
+                <Link href="/admin/projects" className={getLinkClass('/admin/projects')}>
+                  <Folder className="text-lg" />
+                  <span>Projekte</span>
                 </Link>
 
-                {/* ✅ NEU: Mobile Link für Superadmin */}
-                {isSuperAdmin && (
-                  <Link href="/admin/system" passHref>
-                    <Button variant={pathname === '/admin/system' ? 'default' : 'outline'} className="w-full justify-start gap-2 text-indigo-600 border-indigo-200 bg-indigo-50">
-                      <HddNetwork size={16} />
-                      System Status
-                    </Button>
-                  </Link>
-                )}
-              </>
-            )}
-
-            {isUser && (
-              <>
-                <Link href="/" passHref>
-                  <Button variant={pathname === '/' ? 'default' : 'outline'} className="w-full justify-start gap-2">
-                    <Speedometer2 size={16} />
-                    Dashboard
-                  </Button>
+                <Link href="/admin/redaktionsplan" className={getLinkClass('/admin/redaktionsplan')}>
+                  <CalendarWeek className="text-lg" />
+                  <span>Redaktionspläne</span>
                 </Link>
-                <Link href="/dashboard/freigabe" passHref>
-                  <Button variant={pathname === '/dashboard/freigabe' ? 'default' : 'outline'} className="w-full justify-start gap-2">
-                    <CalendarCheck size={16} />
-                    Redaktionsplan
-                  </Button>
+
+                {/* ✨ NEUER KI TOOL BUTTON ✨ */}
+                <Link href="/admin/ki-tool" className={getLinkClass('/admin/ki-tool')}>
+                  <Magic className="text-lg" />
+                  <span>KI Tool</span>
+                </Link>
+
+                <Link href="/admin" className={getLinkClass('/admin')}>
+                  <Gear className="text-lg" />
+                  <span>Admin</span>
                 </Link>
               </>
             )}
+          </nav>
+
+          {/* --- RECHTS: USER & MOBILE TOGGLE --- */}
+          <div className="flex items-center gap-4">
             
-            <hr className="my-2" />
+            {/* User Dropdown / Info (Vereinfacht) */}
+            {user ? (
+              <div className="flex items-center gap-3 pl-4 border-l border-gray-200">
+                <div className="hidden md:flex flex-col items-end">
+                  <span className="text-sm font-semibold text-gray-700 leading-none">
+                    {user.email?.split('@')[0]}
+                  </span>
+                  <span className="text-[10px] text-gray-400 uppercase tracking-wider font-bold mt-1">
+                    {role}
+                  </span>
+                </div>
+                
+                <button 
+                  onClick={() => signOut()}
+                  className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                  title="Abmelden"
+                >
+                  <BoxArrowRight className="text-xl" />
+                </button>
+              </div>
+            ) : (
+              <Link href="/login" className="text-sm font-semibold text-indigo-600 hover:text-indigo-700">
+                Anmelden
+              </Link>
+            )}
 
-            <Button variant="outline" className="w-full justify-start gap-2" onClick={() => signOut({ callbackUrl: '/login' })}>
-              <BoxArrowRight size={16} />
-              Abmelden
-            </Button>
+            {/* Mobile Menu Button */}
+            <button
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="md:hidden p-2 rounded-md text-gray-600 hover:text-indigo-600 hover:bg-gray-100"
+            >
+              {isMobileMenuOpen ? <X size={24} /> : <List size={24} />}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* --- MOBILE MENU --- */}
+      {isMobileMenuOpen && (
+        <div className="md:hidden border-t border-gray-100 bg-white/95 backdrop-blur-xl">
+          <div className="px-4 pt-2 pb-6 space-y-2">
+            
+            <div className="py-2 text-xs font-bold text-gray-400 uppercase tracking-wider">
+              Menü
+            </div>
+            
+            <Link 
+              href="/" 
+              onClick={() => setIsMobileMenuOpen(false)}
+              className={cn("w-full", getLinkClass('/'))}
+            >
+              <Speedometer2 className="text-lg" />
+              <span>Dashboard</span>
+            </Link>
+
+            {/* --- ADMIN MOBILE --- */}
+            {isAdmin && (
+              <>
+                <div className="py-2 mt-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-t border-gray-100 pt-4">
+                  Verwaltung
+                </div>
+
+                <Link 
+                  href="/admin/projects" 
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={cn("w-full", getLinkClass('/admin/projects'))}
+                >
+                  <Folder className="text-lg" />
+                  <span>Projekte</span>
+                </Link>
+
+                <Link 
+                  href="/admin/redaktionsplan" 
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={cn("w-full", getLinkClass('/admin/redaktionsplan'))}
+                >
+                  <CalendarWeek className="text-lg" />
+                  <span>Redaktionspläne</span>
+                </Link>
+
+                {/* ✨ NEUER KI TOOL BUTTON (MOBIL) ✨ */}
+                <Link 
+                  href="/admin/ki-tool" 
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={cn("w-full", getLinkClass('/admin/ki-tool'))}
+                >
+                  <Magic className="text-lg" />
+                  <span>KI Content Tool</span>
+                </Link>
+
+                <Link 
+                  href="/admin" 
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={cn("w-full", getLinkClass('/admin'))}
+                >
+                  <Gear className="text-lg" />
+                  <span>Admin Bereich</span>
+                </Link>
+              </>
+            )}
           </div>
         </div>
       )}
     </header>
   );
+}
+
+// Fallback für cn utility, falls nicht importiert
+function cn(...classes: (string | undefined | null | false)[]) {
+  return classes.filter(Boolean).join(' ');
 }
