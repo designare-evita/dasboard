@@ -15,7 +15,6 @@ import { ChartEntry } from '@/lib/dashboard-shared';
 import { cn } from '@/lib/utils';
 import { ExclamationTriangleFill } from 'react-bootstrap-icons'; 
 import NoDataState from '@/components/NoDataState';
-// HINZUGEFÜGT: Imports für Datum
 import { format, subDays, subMonths } from 'date-fns';
 import { de } from 'date-fns/locale';
 
@@ -38,7 +37,7 @@ interface TableauPieChartProps {
   isLoading?: boolean;
   className?: string;
   error?: string | null;
-  dateRange?: string; // HINZUGEFÜGT: Prop für Datum
+  dateRange?: string; 
 }
 
 interface TooltipPayload {
@@ -85,8 +84,12 @@ const renderCustomLabel = (props: PieLabelRenderProps) => {
   const { cx, cy, midAngle, innerRadius, outerRadius, percent } = props;
   const RADIAN = Math.PI / 180;
   const radius = Number(innerRadius) + (Number(outerRadius) - Number(innerRadius)) * 0.5;
-  const x = Number(cx) + radius * Math.cos(-midAngle * RADIAN);
-  const y = Number(cy) + radius * Math.sin(-midAngle * RADIAN);
+  
+  // FIX: Sicherstellen, dass midAngle definiert ist
+  const safeMidAngle = midAngle ?? 0;
+  
+  const x = Number(cx) + radius * Math.cos(-safeMidAngle * RADIAN);
+  const y = Number(cy) + radius * Math.sin(-safeMidAngle * RADIAN);
 
   if ((percent || 0) < 0.05) return null;
 
@@ -110,10 +113,10 @@ export default function TableauPieChart({
   isLoading = false,
   className,
   error,
-  dateRange = '30d' // Standardwert
+  dateRange = '30d' 
 }: TableauPieChartProps) {
 
-  // HINZUGEFÜGT: Berechnung des Datums für die Anzeige
+  // Berechnung des Datums für die Anzeige
   const formattedDateRange = useMemo(() => {
     const end = new Date();
     let start = subDays(end, 30); // Default
@@ -188,7 +191,7 @@ export default function TableauPieChart({
         {title}
       </h3>
       
-      {/* HINZUGEFÜGT: Quelle und Datum Block (Design wie Top Landingpages) */}
+      {/* Quelle und Datum Block */}
       <div className="text-[11px] text-gray-500 mt-1 mb-4 flex items-center gap-2">
         <span className="font-medium bg-gray-100 px-1.5 py-0.5 rounded text-gray-600">Quelle: GA4</span>
         <span className="text-gray-400">•</span>
