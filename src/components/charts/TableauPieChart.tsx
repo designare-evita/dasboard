@@ -13,7 +13,7 @@ interface TableauPieChartProps {
   title: string;
   isLoading?: boolean;
   error?: string | null;
-  dateRange?: string; // Neu: Für die Datumsanzeige
+  dateRange?: string; 
 }
 
 export default function TableauPieChart({
@@ -24,7 +24,7 @@ export default function TableauPieChart({
   dateRange = '30d'
 }: TableauPieChartProps) {
 
-  // Datumsberechnung (gleiche Logik wie in LandingPageChart)
+  // Datumsberechnung
   const formattedDateRange = useMemo(() => {
     const end = new Date();
     let start = subDays(end, 30); // Default
@@ -71,7 +71,7 @@ export default function TableauPieChart({
           </h3>
         </div>
         
-        {/* Neuer Untertitel mit Quelle und Datum */}
+        {/* Untertitel mit Quelle und Datum */}
         <div className="text-[11px] text-gray-500 mt-1 ml-7 flex items-center gap-2">
           <span className="font-medium bg-gray-100/80 px-1.5 py-0.5 rounded text-gray-600">Quelle: GA4</span>
           <span className="text-gray-300">•</span>
@@ -93,14 +93,15 @@ export default function TableauPieChart({
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
-                data={validData}
+                // ✅ FIX: 'as any' behebt den TypeScript Fehler mit der fehlenden Index Signature
+                data={validData as any}
                 cx="50%"
                 cy="50%"
                 innerRadius={60}
                 outerRadius={80}
                 paddingAngle={5}
                 dataKey="value"
-                stroke="none" // Kein Rand für cleaneren Look
+                stroke="none"
               >
                 {validData.map((entry, index) => (
                   <Cell 
