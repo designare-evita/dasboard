@@ -2,6 +2,13 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
+import { 
+  ChatText, 
+  RocketTakeoff, 
+  Magic, 
+  Grid 
+} from 'react-bootstrap-icons';
+import CtrBooster from '@/components/admin/ki/CtrBooster';
 
 // Typen für unsere Daten
 interface Project {
@@ -18,19 +25,22 @@ interface Keyword {
   impressions: number;
 }
 
+type Tab = 'questions' | 'ctr';
+
 export default function KiToolPage() {
   // --- STATE ---
+  const [activeTab, setActiveTab] = useState<Tab>('questions');
+  
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   
+  // State für Fragen Generator
   const [keywords, setKeywords] = useState<Keyword[]>([]);
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>([]);
-  
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [loadingData, setLoadingData] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  
   const [generatedContent, setGeneratedContent] = useState<string>('');
   const outputRef = useRef<HTMLDivElement>(null);
 
@@ -52,11 +62,14 @@ export default function KiToolPage() {
     fetchProjects();
   }, []);
 
-  // --- 2. PROJEKTDATEN (KEYWORDS) LADEN ---
+  // --- 2. DATEN FÜR FRAGEN-GENERATOR LADEN ---
   useEffect(() => {
-    if (!selectedProjectId) {
-      setKeywords([]);
-      setGeneratedContent('');
+    // Nur laden, wenn Projekt gewählt UND Tab aktiv ist
+    if (!selectedProjectId || activeTab !== 'questions') {
+      if (!selectedProjectId) {
+        setKeywords([]);
+        setGeneratedContent('');
+      }
       return;
     }
 
@@ -67,12 +80,10 @@ export default function KiToolPage() {
       setLoadingData(true);
       setKeywords([]);
       try {
-        // Wir nutzen den existierenden Data-Endpoint
         const res = await fetch(`/api/data?projectId=${selectedProjectId}&dateRange=30d`);
         
         if (!res.ok) {
           const errData = await res.json();
-          // 404 ist okay (keine Daten), andere Fehler nicht
           if (res.status !== 404) throw new Error(errData.message || 'Fehler beim Laden der Daten');
           toast.warning('Für dieses Projekt sind keine Google-Daten verfügbar.');
           return;
@@ -80,7 +91,6 @@ export default function KiToolPage() {
 
         const data = await res.json();
         
-        // Wir erwarten topQueries im Format des Google-Loaders
         if (data.topQueries && Array.isArray(data.topQueries)) {
           setKeywords(data.topQueries.slice(0, 20)); // Top 20 laden
         } else {
@@ -96,9 +106,9 @@ export default function KiToolPage() {
     }
 
     fetchData();
-  }, [selectedProjectId, projects]);
+  }, [selectedProjectId, projects, activeTab]);
 
-  // --- HANDLER ---
+  // --- HANDLER (Fragen Generator) ---
 
   const toggleKeyword = (query: string) => {
     setSelectedKeywords(prev => 
@@ -108,215 +118,245 @@ export default function KiToolPage() {
     );
   };
 
-const handleGenerate = async () => {
-  if (selectedKeywords.length === 0 || !selectedProject) {
-    console.log('❌ Abbruch: Keine Keywords oder Projekt', { selectedKeywords, selectedProject });
-    return;
-  }
+  const handleGenerate = async () => {
+    if (selectedKeywords.length === 0 || !selectedProject) return;
 
-  console.log('🚀 Starte Generierung...', { keywords: selectedKeywords, domain: selectedProject.domain });
-  
-  setIsGenerating(true);
-  setGeneratedContent('');
+    setIsGenerating(true);
+    setGeneratedContent('');
 
-  try {
-    const response = await fetch('/api/generate-questions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        keywords: selectedKeywords,
-        domain: selectedProject.domain,
-      }),
-    });
+    try {
+      const response = await fetch('/api/ai/generate-questions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          keywords: selectedKeywords,
+          domain: selectedProject.domain,
+        }),
+      });
 
-    console.log('📡 Response Status:', response.status, response.statusText);
-    console.log('📡 Response Headers:', Object.fromEntries(response.headers.entries()));
+      if (!response.ok) throw new Error(response.statusText);
+      if (!response.body) throw new Error('Kein Antwort-Stream verfügbar');
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ Response nicht OK:', errorText);
-      throw new Error(`${response.status}: ${errorText}`);
-    }
-    
-    if (!response.body) {
-      console.error('❌ Kein Response Body');
-      throw new Error('Kein Antwort-Stream verfügbar');
-    }
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let done = false;
 
-    console.log('✅ Stream verfügbar, starte Lesen...');
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let done = false;
-    let fullContent = '';
-
-    while (!done) {
-      const { value, done: doneReading } = await reader.read();
-      done = doneReading;
-      
-      if (value) {
+      while (!done) {
+        const { value, done: doneReading } = await reader.read();
+        done = doneReading;
         const chunkValue = decoder.decode(value, { stream: true });
-        console.log('📦 Chunk empfangen:', chunkValue.length, 'Zeichen');
-        fullContent += chunkValue;
-        setGeneratedContent(fullContent);
+        
+        setGeneratedContent((prev) => prev + chunkValue);
+        
+        if (outputRef.current) {
+            outputRef.current.scrollTop = outputRef.current.scrollHeight;
+        }
       }
+
+    } catch (error) {
+      console.error('Generierungsfehler:', error);
+      toast.error('Fehler bei der KI-Generierung.');
+    } finally {
+      setIsGenerating(false);
     }
-
-    console.log('✅ Stream komplett. Gesamtlänge:', fullContent.length);
-
-  } catch (error) {
-    console.error('❌ Generierungsfehler:', error);
-    toast.error('Fehler bei der KI-Generierung.');
-  } finally {
-    setIsGenerating(false);
-  }
-};
+  };
 
   // --- RENDER ---
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-8">
       
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold text-gray-800 tracking-tight">KI Content Assistent</h1>
-        <p className="text-gray-500">Erstellen Sie relevante W-Fragen basierend auf echten Google-Daten.</p>
-      </div>
+      {/* HEADER & PROJEKT WAHL */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-800 tracking-tight flex items-center gap-3">
+            <Magic className="text-indigo-600" />
+            KI Content Suite
+          </h1>
+          <p className="text-gray-500 mt-1">Nutzen Sie KI-Tools zur Optimierung Ihrer Inhalte.</p>
+        </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        
-        {/* LINKE SPALTE: Steuerung (4 Cols) */}
-        <div className="lg:col-span-4 space-y-6">
-          
-          {/* 1. PROJEKT AUSWAHL */}
-          <div className="bg-white/80 backdrop-blur-md border border-gray-100 shadow-sm rounded-2xl p-6">
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Projekt wählen</label>
+        {/* Globaler Projekt Selektor */}
+        <div className="w-full md:w-80">
+          <label className="block text-xs font-semibold text-gray-500 mb-1 ml-1 uppercase tracking-wider">Aktives Projekt</label>
+          <div className="relative">
             <select
-              className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+              className="w-full p-3 pl-10 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm appearance-none transition-all font-medium text-gray-700"
               value={selectedProjectId}
               onChange={(e) => {
                 setSelectedProjectId(e.target.value);
-                setSelectedKeywords([]); // Reset Selection
+                setSelectedKeywords([]); 
+                setGeneratedContent('');
               }}
               disabled={loadingProjects}
             >
-              <option value="">-- Bitte wählen --</option>
+              <option value="">-- Projekt wählen --</option>
               {projects.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.domain} ({p.email})
+                  {p.domain}
                 </option>
               ))}
             </select>
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-indigo-500 pointer-events-none">
+              <Grid size={16} />
+            </div>
           </div>
+        </div>
+      </div>
 
-          {/* 2. KEYWORDS LISTE */}
-          {selectedProjectId && (
-            <div className="bg-white/80 backdrop-blur-md border border-gray-100 shadow-sm rounded-2xl p-6 flex flex-col h-[600px]">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="font-semibold text-gray-800">Top Keywords</h2>
-                <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full">
-                  {selectedKeywords.length} gewählt
-                </span>
-              </div>
+      {/* TABS */}
+      <div className="border-b border-gray-200">
+        <nav className="-mb-px flex space-x-8">
+          <button
+            onClick={() => setActiveTab('questions')}
+            className={`
+              flex items-center gap-2 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
+              ${activeTab === 'questions'
+                ? 'border-indigo-500 text-indigo-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
+            `}
+          >
+            <ChatText size={18} />
+            Fragen Generator
+          </button>
+
+          <button
+            onClick={() => setActiveTab('ctr')}
+            className={`
+              flex items-center gap-2 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
+              ${activeTab === 'ctr'
+                ? 'border-indigo-500 text-indigo-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
+            `}
+          >
+            <RocketTakeoff size={18} />
+            CTR Booster
+            {selectedProjectId && (
+               <span className="ml-1 px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-600 text-[10px] font-bold">NEU</span>
+            )}
+          </button>
+        </nav>
+      </div>
+
+      {/* CONTENT AREA */}
+      {!selectedProjectId ? (
+        <div className="text-center py-20 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-white shadow-sm mb-4">
+            <Magic className="text-gray-300 text-2xl" />
+          </div>
+          <h3 className="text-lg font-medium text-gray-900">Kein Projekt ausgewählt</h3>
+          <p className="text-gray-500 mt-1">Bitte wählen Sie oben rechts ein Projekt aus, um die Tools zu nutzen.</p>
+        </div>
+      ) : (
+        <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+          
+          {/* === TAB A: FRAGEN GENERATOR === */}
+          {activeTab === 'questions' && (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
               
-              {loadingData ? (
-                <div className="flex items-center justify-center flex-1 text-gray-400">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-                </div>
-              ) : keywords.length > 0 ? (
-                <div className="overflow-y-auto flex-1 space-y-2 pr-2 custom-scrollbar">
-                  {keywords.map((kw, idx) => (
-                    <div 
-                      key={idx}
-                      onClick={() => toggleKeyword(kw.query)}
+              {/* LINKE SPALTE: Keywords */}
+              <div className="lg:col-span-4 space-y-6">
+                <div className="bg-white border border-gray-100 shadow-sm rounded-2xl p-6 flex flex-col h-[600px]">
+                  <div className="flex justify-between items-center mb-4">
+                    <h2 className="font-semibold text-gray-800">Top Keywords</h2>
+                    <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full">
+                      {selectedKeywords.length} gewählt
+                    </span>
+                  </div>
+                  
+                  {loadingData ? (
+                    <div className="flex items-center justify-center flex-1 text-gray-400">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                    </div>
+                  ) : keywords.length > 0 ? (
+                    <div className="overflow-y-auto flex-1 space-y-2 pr-2 custom-scrollbar">
+                      {keywords.map((kw, idx) => (
+                        <div 
+                          key={idx}
+                          onClick={() => toggleKeyword(kw.query)}
+                          className={`
+                            group flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all duration-200 select-none
+                            ${selectedKeywords.includes(kw.query) 
+                              ? 'bg-indigo-50 border-indigo-200 shadow-sm' 
+                              : 'bg-white border-gray-100 hover:border-indigo-200 hover:bg-gray-50'}
+                          `}
+                        >
+                          <div className={`
+                            w-5 h-5 rounded-md border flex items-center justify-center transition-colors
+                            ${selectedKeywords.includes(kw.query) ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 bg-white'}
+                          `}>
+                            {selectedKeywords.includes(kw.query) && (
+                              <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                              </svg>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-sm font-medium truncate ${selectedKeywords.includes(kw.query) ? 'text-indigo-900' : 'text-gray-700'}`}>
+                              {kw.query}
+                            </p>
+                            <p className="text-xs text-gray-400 mt-0.5">
+                              Pos: {kw.position.toFixed(1)} • Klicks: {kw.clicks}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center text-sm text-gray-400 mt-10">Keine Daten verfügbar</div>
+                  )}
+
+                  <div className="pt-4 mt-2 border-t border-gray-100">
+                    <button
+                      onClick={handleGenerate}
+                      disabled={isGenerating || selectedKeywords.length === 0}
                       className={`
-                        group flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all duration-200
-                        ${selectedKeywords.includes(kw.query) 
-                          ? 'bg-indigo-50 border-indigo-200 shadow-sm' 
-                          : 'bg-white border-gray-100 hover:border-indigo-200 hover:bg-gray-50'}
+                        w-full py-3 px-4 rounded-xl font-semibold text-white shadow-lg transition-all transform active:scale-95
+                        ${isGenerating || selectedKeywords.length === 0
+                          ? 'bg-gray-300 cursor-not-allowed shadow-none'
+                          : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:shadow-indigo-200'}
                       `}
                     >
-                      <div className={`
-                        w-5 h-5 rounded-md border flex items-center justify-center transition-colors
-                        ${selectedKeywords.includes(kw.query) ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 bg-white'}
-                      `}>
-                        {selectedKeywords.includes(kw.query) && (
-                          <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                          </svg>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-medium truncate ${selectedKeywords.includes(kw.query) ? 'text-indigo-900' : 'text-gray-700'}`}>
-                          {kw.query}
-                        </p>
-                        <p className="text-xs text-gray-400 mt-0.5">
-                          Pos: {kw.position.toFixed(1)} • Klicks: {kw.clicks}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
+                      {isGenerating ? 'Generiere...' : 'Fragen generieren ✨'}
+                    </button>
+                  </div>
                 </div>
-              ) : (
-                <div className="text-center text-sm text-gray-400 mt-10">Keine Daten verfügbar</div>
-              )}
+              </div>
 
-              {/* GENERATE BUTTON */}
-              <div className="pt-4 mt-2 border-t border-gray-100">
-                <button
-                  onClick={handleGenerate}
-                  disabled={isGenerating || selectedKeywords.length === 0}
-                  className={`
-                    w-full py-3 px-4 rounded-xl font-semibold text-white shadow-lg transition-all transform active:scale-95
-                    ${isGenerating || selectedKeywords.length === 0
-                      ? 'bg-gray-300 cursor-not-allowed shadow-none'
-                      : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:shadow-indigo-200'}
-                  `}
-                >
-                  {isGenerating ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"/>
-                      Generiere...
-                    </span>
-                  ) : (
-                    'Fragen generieren ✨'
-                  )}
-                </button>
+              {/* RECHTE SPALTE: Output */}
+              <div className="lg:col-span-8">
+                  <div className="bg-white border border-gray-100 shadow-xl rounded-2xl p-8 h-full min-h-[600px] flex flex-col relative overflow-hidden">
+                     <div className="absolute top-0 right-0 w-64 h-64 bg-purple-100 rounded-full mix-blend-multiply filter blur-3xl opacity-30"></div>
+                     <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-100 rounded-full mix-blend-multiply filter blur-3xl opacity-30"></div>
+
+                     <h2 className="text-lg font-semibold text-gray-800 mb-4 z-10 flex items-center gap-2">
+                       <span className="text-2xl">📝</span> KI Ergebnis
+                     </h2>
+
+                     <div 
+                       ref={outputRef}
+                       className="flex-1 bg-gray-50/50 rounded-xl border border-gray-200/60 p-6 overflow-y-auto z-10 custom-scrollbar font-mono text-sm leading-relaxed text-gray-700 whitespace-pre-wrap"
+                     >
+                       {generatedContent ? generatedContent : (
+                         <div className="h-full flex flex-col items-center justify-center text-gray-400">
+                           <p>Wählen Sie Keywords aus und starten Sie die Generierung.</p>
+                         </div>
+                       )}
+                     </div>
+                  </div>
               </div>
             </div>
           )}
-        </div>
 
-        {/* RECHTE SPALTE: Output (8 Cols) */}
-        <div className="lg:col-span-8">
-            <div className="bg-white/90 backdrop-blur-xl border border-gray-100 shadow-xl rounded-2xl p-8 h-full min-h-[500px] flex flex-col relative overflow-hidden">
-               
-               {/* Decorative Background Blob */}
-               <div className="absolute top-0 right-0 w-64 h-64 bg-purple-100 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob"></div>
-               <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-100 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-2000"></div>
-
-               <h2 className="text-lg font-semibold text-gray-800 mb-4 z-10 flex items-center gap-2">
-                 <span className="text-2xl">📝</span> KI Ergebnis
-               </h2>
-
-               <div 
-                 ref={outputRef}
-                 className="flex-1 bg-gray-50/50 rounded-xl border border-gray-200/60 p-6 overflow-y-auto z-10 custom-scrollbar font-mono text-sm leading-relaxed text-gray-700 whitespace-pre-wrap"
-               >
-                 {generatedContent ? (
-                   generatedContent
-                 ) : (
-                   <div className="h-full flex flex-col items-center justify-center text-gray-400">
-                     <svg className="w-16 h-16 mb-4 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                     </svg>
-                     <p>Wählen Sie Keywords aus und starten Sie die Generierung.</p>
-                   </div>
-                 )}
-               </div>
+          {/* === TAB B: CTR BOOSTER === */}
+          {activeTab === 'ctr' && (
+            <div className="w-full">
+              <CtrBooster projectId={selectedProjectId} />
             </div>
+          )}
+          
         </div>
-
-      </div>
+      )}
     </div>
   );
 }
