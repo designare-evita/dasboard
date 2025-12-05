@@ -108,50 +108,69 @@ export default function KiToolPage() {
     );
   };
 
-  const handleGenerate = async () => {
-    if (selectedKeywords.length === 0 || !selectedProject) return;
+const handleGenerate = async () => {
+  if (selectedKeywords.length === 0 || !selectedProject) {
+    console.log('❌ Abbruch: Keine Keywords oder Projekt', { selectedKeywords, selectedProject });
+    return;
+  }
 
-    setIsGenerating(true);
-    setGeneratedContent(''); // Reset
+  console.log('🚀 Starte Generierung...', { keywords: selectedKeywords, domain: selectedProject.domain });
+  
+  setIsGenerating(true);
+  setGeneratedContent('');
 
-    try {
-      const response = await fetch('/api/ai/generate-questions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          keywords: selectedKeywords,
-          domain: selectedProject.domain,
-        }),
-      });
+  try {
+    const response = await fetch('/api/generate-questions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        keywords: selectedKeywords,
+        domain: selectedProject.domain,
+      }),
+    });
 
-      if (!response.ok) throw new Error(response.statusText);
-      if (!response.body) throw new Error('Kein Antwort-Stream verfügbar');
+    console.log('📡 Response Status:', response.status, response.statusText);
+    console.log('📡 Response Headers:', Object.fromEntries(response.headers.entries()));
 
-      // STREAMING READING LOGIC
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let done = false;
-
-      while (!done) {
-        const { value, done: doneReading } = await reader.read();
-        done = doneReading;
-        const chunkValue = decoder.decode(value, { stream: true });
-        
-        setGeneratedContent((prev) => prev + chunkValue);
-        
-        // Auto-Scroll nach unten
-        if (outputRef.current) {
-            outputRef.current.scrollTop = outputRef.current.scrollHeight;
-        }
-      }
-
-    } catch (error) {
-      console.error('Generierungsfehler:', error);
-      toast.error('Fehler bei der KI-Generierung.');
-    } finally {
-      setIsGenerating(false);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Response nicht OK:', errorText);
+      throw new Error(`${response.status}: ${errorText}`);
     }
-  };
+    
+    if (!response.body) {
+      console.error('❌ Kein Response Body');
+      throw new Error('Kein Antwort-Stream verfügbar');
+    }
+
+    console.log('✅ Stream verfügbar, starte Lesen...');
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let done = false;
+    let fullContent = '';
+
+    while (!done) {
+      const { value, done: doneReading } = await reader.read();
+      done = doneReading;
+      
+      if (value) {
+        const chunkValue = decoder.decode(value, { stream: true });
+        console.log('📦 Chunk empfangen:', chunkValue.length, 'Zeichen');
+        fullContent += chunkValue;
+        setGeneratedContent(fullContent);
+      }
+    }
+
+    console.log('✅ Stream komplett. Gesamtlänge:', fullContent.length);
+
+  } catch (error) {
+    console.error('❌ Generierungsfehler:', error);
+    toast.error('Fehler bei der KI-Generierung.');
+  } finally {
+    setIsGenerating(false);
+  }
+};
 
   // --- RENDER ---
 
