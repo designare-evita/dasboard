@@ -75,7 +75,8 @@ export default function TableauKpiGrid({
       {/* ZEILE 1: Traffic & Reichweite */}
       <div>
         <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 px-1">Traffic & Reichweite</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+        {/* Layout angepasst auf grid-cols-4, da Sessions entfernt wurde */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4 gap-4">
           
           <TableauKpiCard
             title="Impressionen"
@@ -135,31 +136,18 @@ export default function TableauKpiGrid({
             barComparison={getComparison(kpis.totalUsers)}
           />
 
-          <TableauKpiCard
-            title="Sessions"
-            description="Anzahl der einzelnen Sitzungen (Besuche), die auf Ihrer Website stattgefunden haben."
-            subtitle={dateSubtitle}
-            valueLabel={rangeLabel}
-            value={kpis.sessions.value}
-            change={kpis.sessions.change}
-            data={allChartData?.sessions}
-            color="#06b6d4"
-            error={ga4Error}
-            isLoading={isLoading}
-            barComparison={getComparison(kpis.sessions)}
-          />
+          {/* Sessions (Sitzungen) wurde hier entfernt */}
 
         </div>
       </div>
 
-      {/* ZEILE 2: Qualität & Interaktion (VORHER: Qualität & Engagement) */}
+      {/* ZEILE 2: Qualität & Interaktion */}
       <div>
         <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 px-1">Qualität & Interaktion</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4 gap-4">
           
           {kpis.engagementRate && (
             <TableauKpiCard
-              // ✅ HIER GEÄNDERT: Label korrigiert
               title="Interaktionsrate"
               description="Prozentsatz der Sitzungen mit Interaktion (länger als 10s, Conversion oder 2+ Seiten)."
               subtitle={dateSubtitle}
