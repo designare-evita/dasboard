@@ -7,7 +7,9 @@ import {
   ChatText, 
   RocketTakeoff, 
   Magic, 
-  Grid 
+  Grid,
+  FileEarmarkBarGraph, // Neues Icon für Analyse
+  Globe // Icon für URL
 } from 'react-bootstrap-icons';
 import CtrBooster from '@/components/admin/ki/CtrBooster';
 
@@ -25,7 +27,8 @@ interface Keyword {
   impressions: number;
 }
 
-type Tab = 'questions' | 'ctr';
+// "gap" als neuer Tab
+type Tab = 'questions' | 'ctr' | 'gap';
 
 export default function KiToolPage() {
   const [activeTab, setActiveTab] = useState<Tab>('questions');
@@ -38,8 +41,14 @@ export default function KiToolPage() {
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [loadingData, setLoadingData] = useState(false);
+  
+  // States für Generierung (Fragen & Gap)
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedContent, setGeneratedContent] = useState<string>('');
+  
+  // Spezieller State für Gap Analyse
+  const [analyzeUrl, setAnalyzeUrl] = useState('');
+
   const outputRef = useRef<HTMLDivElement>(null);
 
   // --- 1. PROJEKTE LADEN ---
@@ -49,7 +58,6 @@ export default function KiToolPage() {
         const res = await fetch('/api/projects');
         if (!res.ok) throw new Error('Fehler beim Laden der Projekte');
         const data = await res.json();
-        console.log('📦 Projekte geladen:', data.projects); // DEBUG
         setProjects(data.projects || []);
       } catch (error) {
         console.error(error);
@@ -61,56 +69,64 @@ export default function KiToolPage() {
     fetchProjects();
   }, []);
 
-  // --- 2. DATEN FÜR FRAGEN-GENERATOR LADEN ---
+  // --- 2. DATEN LADEN & URL VORAUSFÜLLEN ---
   useEffect(() => {
-    console.log('🔄 useEffect triggered:', { selectedProjectId, activeTab }); // DEBUG
-    
-    if (!selectedProjectId || activeTab !== 'questions') {
-      if (!selectedProjectId) {
-        setKeywords([]);
-        setGeneratedContent('');
-      }
+    if (!selectedProjectId) {
+      setKeywords([]);
+      setGeneratedContent('');
+      setAnalyzeUrl('');
       return;
     }
 
     const project = projects.find(p => p.id === selectedProjectId);
-    console.log('🎯 Gefundenes Projekt:', project); // DEBUG
     setSelectedProject(project || null);
+
+    // URL vorausfüllen, wenn Projekt gewählt wird
+    if (project) {
+        let cleanDomain = project.domain;
+        if (!cleanDomain.startsWith('http')) {
+            cleanDomain = `https://${cleanDomain}`;
+        }
+        setAnalyzeUrl(cleanDomain);
+    }
+
+    // Nur Daten laden, wenn wir nicht im CTR Tab sind (der lädt selbst)
+    if (activeTab === 'ctr') return;
 
     async function fetchData() {
       setLoadingData(true);
       setKeywords([]);
       try {
         const url = `/api/data?projectId=${selectedProjectId}&dateRange=30d`;
-        console.log('📡 Fetching:', url); // DEBUG
         
         const res = await fetch(url);
         
-        console.log('📡 Response Status:', res.status); // DEBUG
-        
         if (!res.ok) {
-          const errData = await res.json();
-          console.error('❌ API Error:', errData); // DEBUG
-          if (res.status !== 404) throw new Error(errData.message || 'Fehler beim Laden der Daten');
-          toast.warning('Für dieses Projekt sind keine Google-Daten verfügbar.');
+          if (res.status !== 404) {
+             const errData = await res.json();
+             throw new Error(errData.message || 'Fehler');
+          }
+          toast.warning('Keine Daten verfügbar.');
           return;
         }
 
         const data = await res.json();
-        console.log('📊 API Response Data:', data); // DEBUG
-        console.log('📊 topQueries:', data.topQueries); // DEBUG
         
         if (data.topQueries && Array.isArray(data.topQueries)) {
-          const topKeywords = data.topQueries.slice(0, 20);
-          console.log('✅ Keywords gesetzt:', topKeywords); // DEBUG
+          // Wir nehmen hier mehr Keywords für die Analyse mit (z.B. Top 50),
+          // zeigen aber vielleicht weniger an oder lassen den User wählen.
+          const topKeywords = data.topQueries.slice(0, 30);
           setKeywords(topKeywords);
+          // Für Gap Analyse wählen wir standardmäßig alle Top 10 vor, damit der User direkt starten kann
+          if (activeTab === 'gap') {
+             setSelectedKeywords(topKeywords.slice(0, 10).map((k: Keyword) => k.query));
+          }
         } else {
-          console.warn('⚠️ topQueries nicht gefunden oder kein Array'); // DEBUG
-          toast.info('Keine Keywords für diesen Zeitraum gefunden.');
+          toast.info('Keine Keywords gefunden.');
         }
 
       } catch (error) {
-        console.error('❌ Fetch Error:', error); // DEBUG
+        console.error('❌ Fetch Error:', error);
         toast.error('Fehler beim Abrufen der Projektdaten.');
       } finally {
         setLoadingData(false);
@@ -120,67 +136,53 @@ export default function KiToolPage() {
     fetchData();
   }, [selectedProjectId, projects, activeTab]);
 
-  // --- DEBUG: Keywords State beobachten ---
-  useEffect(() => {
-    console.log('🔑 Keywords State geändert:', keywords.length, 'Keywords'); // DEBUG
-  }, [keywords]);
-
-  useEffect(() => {
-    console.log('✨ selectedKeywords geändert:', selectedKeywords); // DEBUG
-  }, [selectedKeywords]);
-
   const toggleKeyword = (query: string) => {
-    console.log('👆 Toggle Keyword:', query); // DEBUG
     setSelectedKeywords(prev => {
-      const newSelection = prev.includes(query) 
+      return prev.includes(query) 
         ? prev.filter(k => k !== query)
         : [...prev, query];
-      console.log('👆 Neue Auswahl:', newSelection); // DEBUG
-      return newSelection;
     });
   };
 
-  const handleGenerate = async () => {
-    console.log('🚀 handleGenerate aufgerufen'); // DEBUG
-    console.log('🚀 selectedProjectId:', selectedProjectId); // DEBUG
-    console.log('🚀 selectedKeywords:', selectedKeywords); // DEBUG
-    console.log('🚀 projects:', projects); // DEBUG
-    
-    const currentProject = projects.find(p => p.id === selectedProjectId);
-    console.log('🚀 currentProject:', currentProject); // DEBUG
-
-    if (selectedKeywords.length === 0 || !currentProject) {
-      console.error('❌ Abbruch - selectedKeywords.length:', selectedKeywords.length); // DEBUG
-      console.error('❌ Abbruch - currentProject:', currentProject); // DEBUG
-      if(!currentProject) console.error("Projekt nicht gefunden (ID):", selectedProjectId);
-      toast.error('Bitte wählen Sie mindestens ein Keyword aus.'); // Benutzer-Feedback hinzugefügt
+  // --- GENERIERUNGS-LOGIK (ZENTRALISIERT) ---
+  const handleAction = async () => {
+    if (selectedKeywords.length === 0 || !selectedProject) {
+      toast.error('Bitte wählen Sie ein Projekt und Keywords aus.');
       return;
     }
 
     setIsGenerating(true);
     setGeneratedContent('');
 
-    try {
-      const requestBody = {
+    // Endpunkt basierend auf Tab wählen
+    let endpoint = '/api/ai/generate-questions';
+    let body: any = {
         keywords: selectedKeywords,
-        domain: currentProject.domain,
-      };
-      console.log('📤 Request Body:', requestBody); // DEBUG
-      
-      const response = await fetch('/api/ai/generate-questions', {
+        domain: selectedProject.domain,
+    };
+
+    if (activeTab === 'gap') {
+        if (!analyzeUrl) {
+            toast.error('Bitte geben Sie eine URL zur Analyse ein.');
+            setIsGenerating(false);
+            return;
+        }
+        endpoint = '/api/ai/content-gap'; // Neue Route
+        body = {
+            ...body,
+            url: analyzeUrl
+        };
+    }
+
+    try {
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify(body),
       });
-
-      console.log('📥 Response Status:', response.status); // DEBUG
       
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ API Error:', errorText); // DEBUG
-        throw new Error(response.statusText);
-      }
-      if (!response.body) throw new Error('Kein Antwort-Stream verfügbar');
+      if (!response.ok) throw new Error(response.statusText);
+      if (!response.body) throw new Error('Kein Stream');
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -190,19 +192,16 @@ export default function KiToolPage() {
         const { value, done: doneReading } = await reader.read();
         done = doneReading;
         const chunkValue = decoder.decode(value, { stream: true });
-        
         setGeneratedContent((prev) => prev + chunkValue);
         
         if (outputRef.current) {
             outputRef.current.scrollTop = outputRef.current.scrollHeight;
         }
       }
-      
-      console.log('✅ Generierung abgeschlossen'); // DEBUG
 
     } catch (error) {
-      console.error('❌ Generierungsfehler:', error);
-      toast.error('Fehler bei der KI-Generierung.');
+      console.error('❌ Fehler:', error);
+      toast.error('Fehler bei der KI-Analyse.');
     } finally {
       setIsGenerating(false);
     }
@@ -229,7 +228,6 @@ export default function KiToolPage() {
               className="w-full p-3 pl-10 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm appearance-none transition-all font-medium text-gray-700"
               value={selectedProjectId}
               onChange={(e) => {
-                console.log('🔀 Projekt gewechselt zu:', e.target.value); // DEBUG
                 setSelectedProjectId(e.target.value);
                 setSelectedKeywords([]); 
                 setGeneratedContent('');
@@ -267,6 +265,20 @@ export default function KiToolPage() {
           </button>
 
           <button
+            onClick={() => setActiveTab('gap')}
+            className={`
+              flex items-center gap-2 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
+              ${activeTab === 'gap'
+                ? 'border-indigo-500 text-indigo-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
+            `}
+          >
+            <FileEarmarkBarGraph size={18} />
+            Content Gap
+            <span className="ml-1 px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-bold">PRO</span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('ctr')}
             className={`
               flex items-center gap-2 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
@@ -277,9 +289,6 @@ export default function KiToolPage() {
           >
             <RocketTakeoff size={18} />
             CTR Booster
-            {selectedProjectId && (
-               <span className="ml-1 px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-600 text-[10px] font-bold">NEU</span>
-            )}
           </button>
         </nav>
       </div>
@@ -296,13 +305,35 @@ export default function KiToolPage() {
       ) : (
         <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
           
-          {activeTab === 'questions' && (
+          {(activeTab === 'questions' || activeTab === 'gap') && (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
               
+              {/* LINKER BEREICH: URL INPUT (Nur bei Gap) + KEYWORDS */}
               <div className="lg:col-span-4 space-y-6">
+                
+                {activeTab === 'gap' && (
+                  <div className="bg-white border border-gray-100 shadow-sm rounded-2xl p-6">
+                    <h2 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                        <Globe className="text-indigo-500" /> Zu prüfende URL
+                    </h2>
+                    <input 
+                        type="url" 
+                        value={analyzeUrl}
+                        onChange={(e) => setAnalyzeUrl(e.target.value)}
+                        placeholder="https://beispiel.de/unterseite"
+                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    />
+                    <p className="text-xs text-gray-400 mt-2">
+                        Wir crawlen diese URL und vergleichen sie mit den Keywords unten.
+                    </p>
+                  </div>
+                )}
+
                 <div className="bg-white border border-gray-100 shadow-sm rounded-2xl p-6 flex flex-col h-[600px]">
                   <div className="flex justify-between items-center mb-4">
-                    <h2 className="font-semibold text-gray-800">Top Keywords</h2>
+                    <h2 className="font-semibold text-gray-800">
+                        {activeTab === 'gap' ? 'Vergleichs-Keywords' : 'Basis Keywords'}
+                    </h2>
                     <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full">
                       {selectedKeywords.length} gewählt
                     </span>
@@ -349,14 +380,12 @@ export default function KiToolPage() {
                   ) : (
                     <div className="text-center text-sm text-gray-400 mt-10">
                       Keine Daten verfügbar
-                      <br />
-                      <span className="text-xs">(Prüfen Sie die Browser-Konsole)</span>
                     </div>
                   )}
 
                   <div className="pt-4 mt-2 border-t border-gray-100">
                     <button
-                      onClick={handleGenerate}
+                      onClick={handleAction}
                       disabled={isGenerating || selectedKeywords.length === 0}
                       className={`
                         w-full py-3 px-4 rounded-xl font-semibold text-white shadow-lg transition-all transform active:scale-95
@@ -365,19 +394,21 @@ export default function KiToolPage() {
                           : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:shadow-indigo-200'}
                       `}
                     >
-                      {isGenerating ? 'Generiere...' : 'Fragen generieren ✨'}
+                      {isGenerating ? 'Arbeite...' : activeTab === 'gap' ? 'Gap Analyse starten 🕵️' : 'Fragen generieren ✨'}
                     </button>
                   </div>
                 </div>
               </div>
 
+              {/* RECHTER BEREICH: OUTPUT */}
               <div className="lg:col-span-8">
                   <div className="bg-white border border-gray-100 shadow-xl rounded-2xl p-8 h-full min-h-[600px] flex flex-col relative overflow-hidden">
+                     {/* Bunter Hintergrund Blob nur bei Resultat oder Idle */}
                      <div className="absolute top-0 right-0 w-64 h-64 bg-purple-100 rounded-full mix-blend-multiply filter blur-3xl opacity-30"></div>
                      <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-100 rounded-full mix-blend-multiply filter blur-3xl opacity-30"></div>
 
                      <h2 className="text-lg font-semibold text-gray-800 mb-4 z-10 flex items-center gap-2">
-                       KI Ergebnis
+                       {activeTab === 'gap' ? 'Analyse Ergebnis' : 'KI Ergebnis'}
                      </h2>
 
                      <div 
@@ -385,8 +416,19 @@ export default function KiToolPage() {
                        className="flex-1 bg-gray-50/50 rounded-xl border border-gray-200/60 p-6 overflow-y-auto z-10 custom-scrollbar font-mono text-sm leading-relaxed text-gray-700 whitespace-pre-wrap"
                      >
                        {generatedContent ? generatedContent : (
-                         <div className="h-full flex flex-col items-center justify-center text-gray-400">
-                           <p>Wählen Sie Keywords aus und starten Sie die Generierung.</p>
+                         <div className="h-full flex flex-col items-center justify-center text-gray-400 text-center p-8">
+                            {activeTab === 'gap' ? (
+                                <>
+                                    <FileEarmarkBarGraph className="text-4xl mb-3 text-indigo-200" />
+                                    <p className="font-medium text-gray-500">Bereit für die Analyse</p>
+                                    <p className="text-xs mt-2">Wählen Sie links Keywords aus, die auf der Seite vorkommen sollen.<br/>Geben Sie oben die passende URL ein.</p>
+                                </>
+                            ) : (
+                                <>
+                                    <Magic className="text-4xl mb-3 text-indigo-200" />
+                                    <p>Wählen Sie Keywords aus und starten Sie die Generierung.</p>
+                                </>
+                            )}
                          </div>
                        )}
                      </div>
