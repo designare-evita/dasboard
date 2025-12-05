@@ -2,7 +2,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, Search, ArrowUp, ArrowDown, Dash, InfoCircle } from 'react-bootstrap-icons';
+import { ChevronDown, ChevronUp, Search, InfoCircle } from 'react-bootstrap-icons';
 import { type DateRangeOption } from '@/components/DateRangeSelector';
 
 interface BingAnalysisWidgetProps {
@@ -25,11 +25,11 @@ export default function BingAnalysisWidget({
       <div className="card-glass p-6 mt-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
               <Search className="text-white" size={20} />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">Bing Webmaster Tools</h3>
+              <h3 className="text-lg font-semibold text-gray-900">Bing Suche</h3>
               <p className="text-xs text-gray-500">Laden...</p>
             </div>
           </div>
@@ -47,12 +47,12 @@ export default function BingAnalysisWidget({
       <div className="card-glass p-6 mt-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
               <Search className="text-white" size={20} />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">Bing Webmaster Tools</h3>
-              <p className="text-xs text-gray-500">Letzte 3 Monate</p>
+              <h3 className="text-lg font-semibold text-gray-900">Bing Suche</h3>
+              <p className="text-xs text-gray-500">Organische Suchergebnisse</p>
             </div>
           </div>
         </div>
@@ -95,14 +95,15 @@ export default function BingAnalysisWidget({
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
             <Search className="text-white" size={20} />
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-gray-900">Bing Webmaster Tools</h3>
-            <p className="text-xs text-gray-500">
-              {domain ? `${domain} • ` : ''}Letzte 3 Monate
-            </p>
+            <h3 className="text-lg font-semibold text-gray-900">Bing Suche</h3>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500">Organische Suchergebnisse</span>
+              <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">Letzte 3 Monate</span>
+            </div>
           </div>
         </div>
         <button
@@ -121,31 +122,40 @@ export default function BingAnalysisWidget({
         </button>
       </div>
 
-      {/* ✅ NEU: Hinweis zur API-Limitation */}
-      <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
-        <InfoCircle className="text-amber-600 flex-shrink-0" size={16} />
-        <p className="text-xs text-amber-800">
-          Die Bing API liefert aggregierte Daten der letzten 3 Monate. Der gewählte Zeitraum hat keinen Einfluss auf diese Ansicht.
-        </p>
+      {/* Info-Box mit Erklärung */}
+      <div className="flex items-start gap-3 mb-5 px-4 py-3 bg-blue-50 border border-blue-200 rounded-lg">
+        <InfoCircle className="text-blue-600 flex-shrink-0 mt-0.5" size={16} />
+        <div className="text-xs text-blue-800">
+          <p className="font-medium mb-1">Was zeigt diese Ansicht?</p>
+          <p className="text-blue-700">
+            Daten aus den <strong>Microsoft Bing-Suche</strong>
+            Zeigt Keywords, über die Nutzer Ihre Website in der Bing-Suche gefunden haben. 
+            Die API liefert aggregierte Daten der letzten 3 Monate, unabhängig vom gewählten Dashboard-Zeitraum.
+          </p>
+        </div>
       </div>
 
       {/* Stats Overview */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4">
           <div className="text-xs font-medium text-blue-600 mb-1">Keywords</div>
-          <div className="text-2xl font-bold text-blue-900">{bingData.length}</div>
+          <div className="text-2xl font-bold text-blue-900">{bingData.length.toLocaleString('de-DE')}</div>
+          <div className="text-[10px] text-blue-600 mt-1">Suchanfragen</div>
         </div>
         <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4">
           <div className="text-xs font-medium text-green-600 mb-1">Klicks</div>
           <div className="text-2xl font-bold text-green-900">{totalClicks.toLocaleString('de-DE')}</div>
+          <div className="text-[10px] text-green-600 mt-1">Besucher via Bing</div>
         </div>
         <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-4">
           <div className="text-xs font-medium text-purple-600 mb-1">Impressionen</div>
           <div className="text-2xl font-bold text-purple-900">{totalImpressions.toLocaleString('de-DE')}</div>
+          <div className="text-[10px] text-purple-600 mt-1">Anzeigen in Suchergebnissen</div>
         </div>
         <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg p-4">
           <div className="text-xs font-medium text-orange-600 mb-1">Ø CTR</div>
           <div className="text-2xl font-bold text-orange-900">{avgCtr.toFixed(2)}%</div>
+          <div className="text-[10px] text-orange-600 mt-1">Klickrate</div>
         </div>
       </div>
 
@@ -217,7 +227,7 @@ export default function BingAnalysisWidget({
       <div className="mt-4 pt-4 border-t border-gray-200">
         <div className="flex items-center justify-between text-xs text-gray-500">
           <span>Ø Position: <span className="font-semibold text-gray-700">#{avgPosition.toFixed(1)}</span></span>
-          <span>Zeige {topKeywords.length} von {bingData.length} Keywords</span>
+          <span>Zeige {topKeywords.length} von {bingData.length.toLocaleString('de-DE')} Keywords</span>
         </div>
       </div>
     </div>
