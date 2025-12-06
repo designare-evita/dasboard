@@ -2,6 +2,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import Image from 'next/image'; // ✅ NEU: Image Import
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { 
@@ -11,7 +12,7 @@ import {
   Grid,
   FileEarmarkBarGraph, 
   Globe,
-  Cpu,
+  Cpu, // (Wird unten nicht mehr verwendet, aber Import bleibt drin, falls du es woanders brauchst)
   Binoculars
 } from 'react-bootstrap-icons';
 import CtrBooster from '@/components/admin/ki/CtrBooster';
@@ -222,8 +223,16 @@ export default function KiToolPage() {
            <div className="bg-white p-8 rounded-2xl shadow-2xl border border-indigo-100 flex flex-col items-center gap-6 max-w-sm text-center transform scale-100 animate-in zoom-in-95 duration-300">
               <div className="relative">
                 <div className="absolute inset-0 bg-indigo-500 blur-2xl opacity-20 animate-pulse rounded-full"></div>
-                <div className="relative z-10 bg-gradient-to-tr from-indigo-600 to-purple-600 p-4 rounded-xl shadow-lg">
-                   <Cpu className="text-white text-3xl animate-spin-slow" /> 
+                {/* ✅ ÄNDERUNG: Bild statt Icon-Box */}
+                <div className="relative z-10">
+                   <Image 
+                     src="/data-max-arbeitet.webp" 
+                     alt="KI arbeitet" 
+                     width={100} 
+                     height={100}
+                     className="object-contain"
+                     priority
+                   />
                 </div>
               </div>
               
