@@ -11,20 +11,19 @@ interface Props {
   data?: ConvertingPageData[];
   isLoading?: boolean;
   title?: string;
-  dateRange?: string; // Neu hinzugefügt für die Datumsanzeige
+  dateRange?: string; 
 }
 
 export default function LandingPageChart({ 
   data, 
   isLoading, 
   title = "Top Landingpages",
-  dateRange = '30d' // Standardwert
+  dateRange = '30d' 
 }: Props) {
   
-  // Helper zur Berechnung des angezeigten Zeitraums
   const getDateRangeString = (range: string) => {
     const end = new Date();
-    let start = subDays(end, 30); // Default Fallback
+    let start = subDays(end, 30); 
 
     switch (range) {
       case '7d': start = subDays(end, 7); break;
@@ -63,7 +62,6 @@ export default function LandingPageChart({
     );
   }
 
-  // Maximaler Wert für die Balkenbreite
   const maxNewUsers = Math.max(...sortedData.map(p => p.newUsers || 0));
   const formattedDateRange = getDateRangeString(dateRange);
 
@@ -72,7 +70,9 @@ export default function LandingPageChart({
       
       {/* Header Bereich */}
       <div className="mb-4 flex-shrink-0 border-b border-gray-50 pb-2">
-        <div className="flex items-center justify-between">
+        
+        {/* Zeile 1: Titel und Sortierung */}
+        <div className="flex items-center justify-between mb-1">
           <h3 className="text-[18px] font-semibold text-gray-900 flex items-center gap-2">
             <FileEarmarkText className="text-indigo-500" size={18} />
             {title}
@@ -80,27 +80,32 @@ export default function LandingPageChart({
           <span className="text-xs text-gray-400">Sortiert nach Neuen Nutzern</span>
         </div>
         
-        {/* Neuer Untertitel mit Quelle und Datum */}
-        <div className="text-[11px] text-gray-500 mt-1 ml-7 flex items-center gap-2">
-          <span className="font-medium bg-gray-100 px-1.5 py-0.5 rounded text-gray-600">Quelle: GA4</span>
-          <span className="text-gray-400">•</span>
-          <span>{formattedDateRange}</span>
-        </div>
+        {/* Zeile 2: Kombiniert (Links: Quelle, Rechts: Legende) */}
+        <div className="ml-7 flex flex-wrap items-center justify-between gap-4 mt-1">
+          
+          {/* Linke Seite: Quelle & Datum */}
+          <div className="text-[11px] text-gray-500 flex items-center gap-2">
+            <span className="font-medium bg-gray-100 px-1.5 py-0.5 rounded text-gray-600">Quelle: GA4</span>
+            <span className="text-gray-400">•</span>
+            <span>{formattedDateRange}</span>
+          </div>
 
-        {/* NEU: Legende für die Metriken - RECHTSBÜNDIG */}
-        <div className="mt-3 flex flex-wrap justify-end gap-x-4 gap-y-1">
-          <span className="text-[10px] text-gray-500 flex items-center gap-1.5">
-             <span className="w-2 h-2 rounded-full bg-sky-500"></span>
-             Sessions = Gesamtsitzungen
-          </span>
-          <span className="text-[10px] text-gray-500 flex items-center gap-1.5">
-             <span className="w-2 h-2 rounded-full bg-teal-500"></span>
-             Rate = Interaktionsrate
-          </span>
-          <span className="text-[10px] text-gray-500 flex items-center gap-1.5">
-             <span className="w-2 h-2 rounded-full bg-slate-400"></span>
-             Conv. = Schlüsselereignisse (z.B. Anfrage)
-          </span>
+          {/* Rechte Seite: Legende (Rechtsbündig in der gleichen Zeile) */}
+          <div className="flex items-center gap-x-4">
+            <span className="text-[10px] text-gray-500 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-sky-500"></span>
+              Sessions = Gesamtsitzungen
+            </span>
+            <span className="text-[10px] text-gray-500 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-teal-500"></span>
+              Rate = Interaktionsrate
+            </span>
+            <span className="text-[10px] text-gray-500 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-slate-400"></span>
+              Conv. = Schlüsselereignisse (z.B. Anfrage)
+            </span>
+          </div>
+          
         </div>
       </div>
 
@@ -113,23 +118,18 @@ export default function LandingPageChart({
             const engagementRate = page.engagementRate || 0;
             const conversions = page.conversions || 0;
             
-            // Balkenbreite relativ zum Maximum (max 60% der verfügbaren Breite)
             const barWidthPercent = maxNewUsers > 0 
               ? Math.max((newUsers / maxNewUsers) * 60, 2) 
               : 2;
 
             return (
               <div key={i} className="group">
-                {/* Zeile */}
                 <div className="flex items-center gap-3 py-2 hover:bg-gray-50 rounded-lg px-2 transition-colors">
                   
-                  {/* Linke Seite: Seitenname mit grünem Balken darunter */}
                   <div className="flex-1 min-w-0">
-                    {/* HIER GEÄNDERT: Schrift größer (15px) und etwas fetter (font-medium) */}
                     <div className="text-[15px] font-medium text-gray-800 truncate mb-1" title={page.path}>
                       {page.path}
                     </div>
-                    {/* Grüner Fortschrittsbalken */}
                     <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                       <div 
                         className="h-full bg-emerald-500 rounded-full transition-all duration-500"
@@ -138,29 +138,19 @@ export default function LandingPageChart({
                     </div>
                   </div>
 
-                  {/* Rechte Seite: Metriken als Badges */}
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    
-                    {/* Neue Besucher - Grüner Badge (prominent) */}
                     <div className="bg-emerald-500 text-white px-3 py-1.5 rounded-md text-[12px] font-semibold whitespace-nowrap min-w-[140px] text-center shadow-sm">
                       {newUsers.toLocaleString()} Neue Besucher
                     </div>
-
-                    {/* Sessions - Blauer Badge */}
                     <div className="bg-sky-500 text-white px-2 py-1.5 rounded-md text-[11px] font-medium whitespace-nowrap min-w-[75px] text-center shadow-sm">
                       {sessions.toLocaleString()} Sess.
                     </div>
-
-                    {/* Engagement Rate - Türkis Badge */}
                     <div className="bg-teal-500 text-white px-2 py-1.5 rounded-md text-[11px] font-medium whitespace-nowrap min-w-[70px] text-center shadow-sm">
                       {engagementRate.toFixed(0)}% Rate
                     </div>
-
-                    {/* Conversions - Grauer Badge */}
                     <div className="bg-slate-400 text-white px-2 py-1.5 rounded-md text-[11px] font-medium whitespace-nowrap min-w-[65px] text-center shadow-sm">
                       {conversions} Conv.
                     </div>
-
                   </div>
                 </div>
               </div>
