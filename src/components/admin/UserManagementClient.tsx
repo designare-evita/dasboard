@@ -1,13 +1,13 @@
+// src/components/admin/UserManagementClient.tsx
 'use client';
 
 import { useRouter } from 'next/navigation';
 import { useState, FormEvent } from 'react';
 import Link from 'next/link';
-// ✅ WICHTIG: Importiere den User Typ aus den neuen Schemas
 import type { User } from '@/lib/schemas';
 import {
   Pencil, Trash, PersonPlus, ArrowRepeat, People, PersonVideo, Briefcase,
-  Globe, CalendarRange, CheckCircleFill, Circle, Link45deg
+  Globe, CalendarRange, CheckCircleFill, Circle, Link45deg, Search // ✅ Search importiert
 } from 'react-bootstrap-icons'; 
 import { toast } from 'sonner';
 import LogoManager from '@/app/admin/LogoManager';
@@ -24,13 +24,22 @@ interface Props {
 export default function UserManagementClient({ initialUsers, sessionUser }: Props) {
   const router = useRouter();
   
-  // Wir starten mit den Daten vom Server (kein initiales Loading mehr!)
   const [users, setUsers] = useState<User[]>(initialUsers);
   const [selectedRole, setSelectedRole] = useState<'BENUTZER' | 'ADMIN'>('BENUTZER');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isTimelineActive, setIsTimelineActive] = useState(false);
+  
+  // ✅ NEU: Such-State
+  const [searchTerm, setSearchTerm] = useState('');
 
   const isSuperAdmin = sessionUser.role === 'SUPERADMIN';
+
+  // ✅ NEU: Filter-Logik (wie in ProjectsClientView)
+  const filteredUsers = users.filter(user => 
+    user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (user.domain && user.domain.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (user.mandant_id && user.mandant_id.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
 
   const getRoleStyle = (role: string) => {
     switch (role) {
@@ -41,16 +50,13 @@ export default function UserManagementClient({ initialUsers, sessionUser }: Prop
     }
   };
 
-  // Funktion zum Neuladen der Liste (nach Create/Delete)
   const refreshUsers = async () => {
     try {
-      // Wir nutzen router.refresh() für Server-Side Refresh oder fetch für manuelles Update.
-      // Hier manuell fetch, um UI Konsistenz zu wahren ohne Full Page Reload Flackern.
       const response = await fetch('/api/users');
       if (response.ok) {
         const data = await response.json();
         setUsers(data);
-        router.refresh(); // Hält Server-Cache synchron
+        router.refresh();
       }
     } catch (e) {
       console.error(e);
@@ -103,7 +109,6 @@ export default function UserManagementClient({ initialUsers, sessionUser }: Prop
   const handleDelete = async (userId: string) => {
     if (!window.confirm('Nutzer wirklich löschen?')) return;
     
-    // OPTIMISTIC UI: Sofort aus der Liste entfernen
     const previousUsers = [...users];
     setUsers(users.filter(u => u.id !== userId));
     
@@ -117,7 +122,6 @@ export default function UserManagementClient({ initialUsers, sessionUser }: Prop
       toast.success('Benutzer gelöscht');
       router.refresh();
     } catch (error) {
-      // Rollback bei Fehler
       setUsers(previousUsers);
       toast.dismiss(loadingToast);
       toast.error('Löschen fehlgeschlagen', { description: error instanceof Error ? error.message : 'Unbekannter Fehler' });
@@ -283,14 +287,33 @@ export default function UserManagementClient({ initialUsers, sessionUser }: Prop
 
       {/* LISTE (Rechts) */}
       <div className="lg:col-span-2 bg-white p-6 rounded-lg shadow-md border border-gray-200">
-        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-          <People size={22} /> Vorhandene Nutzer
-        </h2>
-        {users.length === 0 ? (
-          <div className="text-center text-gray-400 p-8"><People size={32} className="mx-auto mb-2" /><p>Keine Benutzer gefunden.</p></div>
+        
+        {/* ✅ NEU: Header mit Suchfeld */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4 border-b border-gray-100 pb-4">
+            <h2 className="text-xl font-bold flex items-center gap-2 text-gray-900">
+                <People size={22} className="text-indigo-600" /> Vorhandene Nutzer
+            </h2>
+            
+            <div className="relative w-full sm:w-64">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                <input
+                  type="text"
+                  placeholder="Suchen..."
+                  className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm bg-gray-50 focus:bg-white"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+            </div>
+        </div>
+
+        {filteredUsers.length === 0 ? (
+          <div className="text-center text-gray-400 p-8">
+            <People size={32} className="mx-auto mb-2" />
+            <p>{users.length === 0 ? 'Keine Benutzer vorhanden.' : 'Keine Ergebnisse für deine Suche.'}</p>
+          </div>
         ) : (
           <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {users.map((user) => (
+            {filteredUsers.map((user) => ( // ✅ Nutzt jetzt filteredUsers
                 <li key={user.id} className="p-4 border rounded-lg flex flex-col justify-between gap-3 transition-colors hover:bg-gray-50 shadow-sm h-full animate-in fade-in duration-300">
                   <div className="flex-1 overflow-hidden">
                     <div className="flex justify-between items-start">
