@@ -26,11 +26,10 @@ export default function GlobalHeader({
   const isAdmin = userRole === 'ADMIN' || userRole === 'SUPERADMIN';
 
   return (
-    // ✅ ÄNDERUNG: 'relative' für Mobile (scrollt weg), 'sm:sticky sm:top-0' für größere Screens (bleibt haften)
     <div className="relative sm:sticky sm:top-0 z-50 card-glass p-6 mb-6 print:hidden bg-white/95 backdrop-blur-sm transition-all duration-200 border-b border-gray-100">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         
-        {/* LINKE SEITE */}
+        {/* LINKE SEITE (Jetzt kompakter) */}
         <div className="flex items-center gap-5">
           <div className="flex items-center gap-2 text-indigo-600 bg-indigo-50/80 p-3 rounded-xl backdrop-blur-sm shadow-sm border border-indigo-100/50">
              <Globe size={28} />
@@ -50,15 +49,7 @@ export default function GlobalHeader({
              </div>
 
              <div className="flex flex-col gap-1">
-               {projectId && (
-                  <span className="text-[10px] text-gray-400 font-mono tracking-wide">ID: {projectId}</span>
-               )}
-               
-               <span className="text-gray-500 text-xs flex items-center gap-1">
-                 <span>Google Updates: 48h</span>
-                 <span className="text-gray-300">•</span>
-                 <span>Semrush Updates: 14 Tage</span>
-               </span>
+               {/* ID und Updates wurden hier entfernt und nach rechts verschoben */}
                
                {userEmail && (
                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 mt-1 rounded-full text-[10px] font-bold tracking-wider bg-gradient-to-r from-emerald-50 to-teal-50 text-emerald-700 border border-emerald-100/80 shadow-sm w-fit">
@@ -74,8 +65,24 @@ export default function GlobalHeader({
           </div>
         </div>
 
-        {/* RECHTE SEITE */}
-        <div className="w-full sm:w-auto">
+        {/* RECHTE SEITE (Mit ID & Updates über dem Picker) */}
+        <div className="w-full sm:w-auto flex flex-col gap-2 sm:items-end">
+          
+          {/* ✅ NEU: Info Block hier oben platziert */}
+          <div className="flex flex-col sm:items-end gap-0.5">
+            {projectId && (
+               <span className="text-[10px] text-gray-400 font-mono tracking-wide">
+                 ID: {projectId}
+               </span>
+            )}
+            
+            <span className="text-gray-500 text-[10px] flex items-center gap-1">
+              <span>Google Updates: 48h</span>
+              <span className="text-gray-300">•</span>
+              <span>Semrush Updates: 14 Tage</span>
+            </span>
+          </div>
+
           <DateRangeSelector
             value={dateRange}
             onChange={onDateRangeChange}
