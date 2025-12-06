@@ -28,9 +28,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff'
   },
   header: { 
-    marginBottom: 25, 
+    marginBottom: 20, 
     borderBottom: `2px solid ${PRIMARY_COLOR}`, 
-    paddingBottom: 15, 
+    paddingBottom: 10, 
     flexDirection: 'row', 
     justifyContent: 'space-between', 
     alignItems: 'center' 
@@ -43,10 +43,10 @@ const styles = StyleSheet.create({
   logo: {
     width: 50,
     height: 50,
-    marginRight: 15,
-    objectFit: 'cover'
+    marginRight: 10,
+    objectFit: 'contain'
   },
-  title: { fontSize: 22, fontWeight: 'bold', color: '#111827', marginBottom: 4 },
+  title: { fontSize: 20, fontWeight: 'bold', color: '#111827', marginBottom: 4 },
   subtitle: { fontSize: 12, color: '#6b7280', fontWeight: 'bold' },
   metaContainer: { alignItems: 'flex-end' },
   meta: { fontSize: 9, color: '#6b7280', marginBottom: 2 },
