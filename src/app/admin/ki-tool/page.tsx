@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
+import { Button } from '@/components/ui/button'; // <--- NEU: UI Button Import
 import { 
   ChatText, 
   RocketTakeoff, 
@@ -11,7 +12,7 @@ import {
   FileEarmarkBarGraph, 
   Globe,
   Cpu,
-  Binoculars // <--- NEUES ICON
+  Binoculars
 } from 'react-bootstrap-icons';
 import CtrBooster from '@/components/admin/ki/CtrBooster';
 
@@ -29,7 +30,6 @@ interface Keyword {
   impressions: number;
 }
 
-// Neuer Tab 'spy' hinzugefügt
 type Tab = 'questions' | 'ctr' | 'gap' | 'spy';
 
 export default function KiToolPage() {
@@ -49,8 +49,8 @@ export default function KiToolPage() {
   const [isWaitingForStream, setIsWaitingForStream] = useState(false);
   
   // URL States
-  const [analyzeUrl, setAnalyzeUrl] = useState('');     // Meine URL (für Gap & Spy)
-  const [competitorUrl, setCompetitorUrl] = useState(''); // Konkurrenz URL (nur Spy)
+  const [analyzeUrl, setAnalyzeUrl] = useState('');     
+  const [competitorUrl, setCompetitorUrl] = useState(''); 
 
   const outputRef = useRef<HTMLDivElement>(null);
 
@@ -78,7 +78,6 @@ export default function KiToolPage() {
       setKeywords([]);
       setGeneratedContent('');
       setAnalyzeUrl('');
-      // setCompetitorUrl(''); // Optional: Reset auch hier
       return;
     }
 
@@ -95,8 +94,6 @@ export default function KiToolPage() {
 
     if (activeTab === 'ctr') return;
 
-    // Keywords laden wir nur für Questions & Gap. Spy braucht sie eigentlich nicht zwingend, 
-    // aber wir lassen es so, falls du sie später im Prompt nutzen willst.
     async function fetchData() {
       setLoadingData(true);
       setKeywords([]);
@@ -109,7 +106,6 @@ export default function KiToolPage() {
              const errData = await res.json();
              throw new Error(errData.message || 'Fehler');
           }
-          // Silent fail oder Toast
           return;
         }
 
@@ -140,13 +136,11 @@ export default function KiToolPage() {
 
   // --- GENERIERUNGS-LOGIK ---
   const handleAction = async () => {
-    // Basic Checks
     if (!selectedProject) {
         toast.error('Bitte wählen Sie zuerst ein Projekt aus.');
         return;
     }
 
-    // Spezifische Checks je nach Tab
     if (activeTab === 'questions' && selectedKeywords.length === 0) {
         toast.error('Bitte wählen Sie Keywords aus.');
         return;
@@ -167,13 +161,12 @@ export default function KiToolPage() {
     let endpoint = '';
     let body: any = {};
 
-    // Routing Logik
     if (activeTab === 'questions') {
         endpoint = '/api/ai/generate-questions';
         body = { keywords: selectedKeywords, domain: selectedProject.domain };
     } else if (activeTab === 'gap') {
         endpoint = '/api/ai/content-gap';
-        body = { keywords: selectedKeywords, url: analyzeUrl }; // domain nicht zwingend nötig
+        body = { keywords: selectedKeywords, url: analyzeUrl }; 
     } else if (activeTab === 'spy') {
         endpoint = '/api/ai/competitor-spy';
         body = { myUrl: analyzeUrl, competitorUrl: competitorUrl };
@@ -436,23 +429,23 @@ export default function KiToolPage() {
 
                 {/* --- ACTION BUTTON --- */}
                 <div className="mt-4">
-                    <button
+                    <Button
                       onClick={handleAction}
                       disabled={isGenerating}
                       className={`
-                        w-full py-3.5 px-4 rounded-xl font-bold text-white shadow-lg transition-all transform active:scale-95 flex items-center justify-center gap-2
+                        w-full h-auto py-4 px-4 rounded-xl font-bold text-white shadow-lg transition-all transform active:scale-95 flex items-center justify-center gap-2
                         ${isGenerating
                           ? 'bg-gray-300 cursor-not-allowed shadow-none'
                           : activeTab === 'spy' 
-                            ? 'bg-gradient-to-r from-rose-500 to-orange-500 hover:shadow-orange-200'
-                            : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:shadow-indigo-200'}
+                            ? 'bg-gradient-to-r from-rose-500 to-orange-500 hover:shadow-orange-200 border-0'
+                            : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:shadow-indigo-200 border-0'}
                       `}
                     >
                       {isGenerating ? 'Arbeite...' : 
                        activeTab === 'spy' ? <>Vergleich starten <Binoculars/></> :
                        activeTab === 'gap' ? 'Gap Analyse starten 🕵️' : 
                        'Fragen generieren ✨'}
-                    </button>
+                    </Button>
                 </div>
               </div>
 
