@@ -17,7 +17,11 @@ const ACCENT_BG = '#e0f2fe';
 
 const styles = StyleSheet.create({
   page: { 
-    padding: 40, 
+    // ✅ KORREKTUR: Padding aufgeteilt und unten erhöht (80), damit Text nicht in den Footer läuft
+    paddingTop: 40,
+    paddingLeft: 40,
+    paddingRight: 40,
+    paddingBottom: 80, 
     fontFamily: 'Poppins',
     fontSize: 10, 
     color: '#333',
@@ -169,7 +173,7 @@ const parseContentToBlocks = (html: string): Block[] => {
   return blocks;
 };
 
-// ✅ FIX: "•" (Bullet) wird jetzt hier entfernt, damit es im PDF nicht doppelt erscheint
+// "•" (Bullet) wird hier entfernt, damit es im PDF nicht doppelt erscheint
 const stripTags = (str: string) => {
   return str
     .replace(/<br\s*\/?>/gi, '\n')
