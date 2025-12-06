@@ -29,26 +29,13 @@ export default function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [shake, setShake] = useState(0);
 
-  // Referenz für das Video Element
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // ✅ NEU: Robusterer Play-Mechanismus
+  // Reset Logic beim Erfolg
   useEffect(() => {
     if (isSuccess && videoRef.current) {
-      const video = videoRef.current;
-      
-      // Browser-Policy-Sicherheit: Explizit stummschalten
-      video.muted = true;
-      video.currentTime = 0;
-      
-      const playPromise = video.play();
-      
-      // Fehler beim Abspielen abfangen (z.B. Browser-Blockaden)
-      if (playPromise !== undefined) {
-        playPromise.catch((error) => {
-          console.log("Video Play Error:", error);
-        });
-      }
+      videoRef.current.muted = true;
+      videoRef.current.load();
     }
   }, [isSuccess]);
 
@@ -79,22 +66,23 @@ export default function LoginForm() {
       setError('E-Mail oder Passwort ist falsch.');
       setShake(prev => prev + 1);
     } else {
-      // ERFOLG: Karte drehen
+      // ✅ ERFOLG
       setIsSuccess(true);
       
+      // ✅ 7 Sekunden warten vor Weiterleitung
       setTimeout(() => {
         router.push(callbackUrl);
         router.refresh();
-      }, 3000); 
+      }, 7000); 
     }
   };
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100 p-4">
-      {/* 3D Perspective Container */}
+      {/* 3D Container */}
       <div className="w-full max-w-md h-[500px]" style={{ perspective: '1000px' }}>
         
-        {/* Die rotierende Karte */}
+        {/* Rotierende Karte */}
         <motion.div
           className="relative w-full h-full"
           initial={{ rotateY: 0 }}
@@ -103,7 +91,7 @@ export default function LoginForm() {
           style={{ transformStyle: 'preserve-3d' }}
         >
           
-          {/* ================= VORDERSEITE (LOGIN FORM) ================= */}
+          {/* ================= VORDERSEITE (LOGIN) ================= */}
           <div 
             className="absolute inset-0 w-full h-full bg-white rounded-xl shadow-2xl p-8 backface-hidden flex flex-col"
             style={{ backfaceVisibility: 'hidden' }}
@@ -130,9 +118,7 @@ export default function LoginForm() {
               >
                 {/* EMAIL */}
                 <div className="space-y-1">
-                  <label className="block text-sm font-medium text-gray-700 ml-1">
-                    E-Mail Adresse
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 ml-1">E-Mail Adresse</label>
                   <div className="relative group">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 group-focus-within:text-[#188bdb] transition-colors">
                       <Envelope size={18} />
@@ -151,9 +137,7 @@ export default function LoginForm() {
 
                 {/* PASSWORT */}
                 <div className="space-y-1">
-                  <label className="block text-sm font-medium text-gray-700 ml-1">
-                    Passwort
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 ml-1">Passwort</label>
                   <div className="relative group">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 group-focus-within:text-[#188bdb] transition-colors">
                       <Lock size={18} />
@@ -164,8 +148,8 @@ export default function LoginForm() {
                       value={password}
                       onChange={handlePasswordChange}
                       className="block w-full pl-10 pr-10 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#188bdb]/20 focus:border-[#188bdb] transition-all bg-gray-50 focus:bg-white outline-none text-gray-900 placeholder-gray-400"
-                      disabled={isLoading || isSuccess}
                       placeholder="••••••••"
+                      disabled={isLoading || isSuccess}
                     />
                     <button
                       type="button"
@@ -179,7 +163,7 @@ export default function LoginForm() {
                 </div>
               </motion.div>
 
-              {/* ERROR MESSAGE */}
+              {/* ERROR */}
               {error && (
                 <motion.div 
                   initial={{ opacity: 0, height: 0 }}
@@ -191,7 +175,7 @@ export default function LoginForm() {
                 </motion.div>
               )}
 
-              {/* SUBMIT BUTTON */}
+              {/* BUTTON */}
               <div>
                 <button
                   type="submit"
@@ -214,7 +198,7 @@ export default function LoginForm() {
             </form>
           </div>
 
-          {/* ================= RÜCKSEITE (VIDEO & DATEN) ================= */}
+          {/* ================= RÜCKSEITE (VIDEO) ================= */}
           <div 
             className="absolute inset-0 w-full h-full bg-white rounded-xl shadow-2xl p-8 flex flex-col items-center justify-center text-center space-y-6"
             style={{ 
@@ -222,16 +206,25 @@ export default function LoginForm() {
               transform: 'rotateY(180deg)' 
             }}
           >
-            <div className="relative w-48 h-48 overflow-hidden rounded-lg">
-               <video
-                ref={videoRef}
-                src="/data-max-intro.mp4" 
-                loop
-                muted
-                playsInline
-                preload="auto"
-                className="w-full h-full object-cover pointer-events-none" 
-              />
+            {/* ✅ UPDATED VIDEO CONTAINER */}
+            <div className="relative w-full max-w-[320px] aspect-video rounded-xl overflow-hidden shadow-inner bg-black mx-auto">
+               {isSuccess && (
+                 <video
+                  ref={videoRef}
+                  src="/data-max.mp4" 
+                  autoPlay 
+                  muted 
+                  loop 
+                  playsInline
+                  preload="auto"
+                  onCanPlay={(e) => {
+                    e.currentTarget.muted = true;
+                    e.currentTarget.play().catch(() => {});
+                  }}
+                  // object-cover verhindert schwarze Balken durch Hineinzoomen
+                  className="absolute inset-0 w-full h-full object-cover pointer-events-none" 
+                />
+               )}
             </div>
 
             <div className="space-y-2">
@@ -243,7 +236,7 @@ export default function LoginForm() {
                 Dateninitialisierung läuft...
               </p>
               <p className="text-sm text-gray-400">
-                Sie werden gleich weitergeleitet.
+                Sie werden in Kürze weitergeleitet.
               </p>
             </div>
           </div>
