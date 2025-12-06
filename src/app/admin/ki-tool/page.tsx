@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/button'; // Nutzt die gleiche Button-Komponente wie der Header
+import { Button } from '@/components/ui/button';
 import { 
   ChatText, 
   RocketTakeoff, 
@@ -429,11 +429,16 @@ export default function KiToolPage() {
 
                 {/* --- ACTION BUTTON --- */}
                 <div className="mt-4">
-                    {/* BUTTON GEÄNDERT: Jetzt Standard-Design ohne Gradients */}
+                    {/* Button Design Update:
+                       - text-base: Schrift 2px größer (von text-sm auf text-base)
+                       - py-4: Padding oben/unten 8px mehr (von py-2 auf py-4)
+                       - h-auto: Damit die Höhe flexibel bleibt
+                       - text-white: Erzwingt weiße Icons und Schrift
+                    */}
                     <Button
                       onClick={handleAction}
                       disabled={isGenerating}
-                      className="w-full gap-2" 
+                      className="w-full h-auto py-4 text-base gap-2 text-white" 
                     >
                       {isGenerating ? 'Arbeite...' : 
                        activeTab === 'spy' ? <>Vergleich starten <Binoculars/></> :
