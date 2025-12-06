@@ -4,7 +4,8 @@
 import Image from 'next/image';
 import { signIn } from 'next-auth/react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { useState } from 'react';
+// ✅ NEU: useEffect und useRef hinzugefügt
+import { useState, useRef, useEffect } from 'react'; 
 import { 
   BoxArrowInRight, 
   ExclamationTriangleFill, 
@@ -28,6 +29,17 @@ export default function LoginForm() {
   
   const [showPassword, setShowPassword] = useState(false);
   const [shake, setShake] = useState(0);
+
+  // ✅ NEU: Referenz für das Video Element
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // ✅ NEU: Überwacht "isSuccess". Wenn true -> Video auf 0 setzen und abspielen
+  useEffect(() => {
+    if (isSuccess && videoRef.current) {
+      videoRef.current.currentTime = 0; // Auf 0 Sekunden setzen
+      videoRef.current.play();          // Video starten
+    }
+  }, [isSuccess]);
 
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (error) setError('');
@@ -56,10 +68,9 @@ export default function LoginForm() {
       setError('E-Mail oder Passwort ist falsch.');
       setShake(prev => prev + 1);
     } else {
-      // ✅ ERFOLG: Karte drehen
+      // ✅ ERFOLG: Karte drehen (löst auch den useEffect aus)
       setIsSuccess(true);
       
-      // ✅ UPDATE: 3 Sekunden warten für Animation & Text
       setTimeout(() => {
         router.push(callbackUrl);
         router.refresh();
@@ -192,7 +203,7 @@ export default function LoginForm() {
             </form>
           </div>
 
-          {/* ================= RÜCKSEITE (VIDEO & DATEN INITIALISIERUNG) ================= */}
+          {/* ================= RÜCKSEITE (VIDEO & DATEN) ================= */}
           <div 
             className="absolute inset-0 w-full h-full bg-white rounded-xl shadow-2xl p-8 flex flex-col items-center justify-center text-center space-y-6"
             style={{ 
@@ -200,15 +211,15 @@ export default function LoginForm() {
               transform: 'rotateY(180deg)' 
             }}
           >
-            {/* VIDEO - Ohne Pulsieren */}
-            <div className="relative w-48 h-48">
+            <div className="relative w-48 h-48 overflow-hidden rounded-lg"> {/* Optional: rounded-lg für Video-Ecken */}
                <video
-                src="/date-max-intro.mp4"  /* <-- Bitte Dateiendung prüfen (mp4/webm) */
-                autoPlay
+                ref={videoRef}
+                src="/data-max.mp4" 
                 loop
                 muted
                 playsInline
-                className="w-full h-full object-contain pointer-events-none" 
+                // ✅ NEU: object-cover verhindert schwarze Balken (füllt die Box aus)
+                className="w-full h-full object-cover pointer-events-none" 
               />
             </div>
 
