@@ -1,6 +1,7 @@
 /* src/components/pdf/AnalysisReport.tsx */
 import React from 'react';
-import { Page, Text, View, Document, StyleSheet, Font } from '@react-pdf/renderer';
+import { Page, Text, View, Document, StyleSheet, Font, Image } from '@react-pdf/renderer';
+import { format, subDays, subMonths } from 'date-fns';
 
 // Fonts laden
 Font.register({
@@ -17,7 +18,6 @@ const ACCENT_BG = '#e0f2fe';
 
 const styles = StyleSheet.create({
   page: { 
-    // ✅ KORREKTUR: Padding aufgeteilt und unten erhöht (80), damit Text nicht in den Footer läuft
     paddingTop: 40,
     paddingLeft: 40,
     paddingRight: 40,
@@ -35,8 +35,22 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between', 
     alignItems: 'center' 
   },
+  // Container für Logo + Titel
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12
+  },
+  logo: {
+    width: 50,
+    height: 50,
+    borderRadius: 25, // Rundes Bild
+    marginRight: 15,
+    objectFit: 'cover'
+  },
   title: { fontSize: 22, fontWeight: 'bold', color: '#111827', marginBottom: 4 },
   subtitle: { fontSize: 12, color: '#6b7280', fontWeight: 'bold' },
+  
   metaContainer: { alignItems: 'flex-end' },
   meta: { fontSize: 9, color: '#6b7280', marginBottom: 2 },
   
@@ -85,7 +99,7 @@ const styles = StyleSheet.create({
     width: 10,
     fontSize: 10,
     color: PRIMARY_COLOR,
-    marginTop: 2 // Feinjustierung damit Bullet auf Höhe der ersten Zeile ist
+    marginTop: 2 
   },
   listContent: {
     flex: 1,
@@ -123,6 +137,29 @@ interface ReportProps {
   summaryText: string;
   kpis?: KpiData[];
 }
+
+// --- Helper: Datumsbereich formatieren ---
+const formatDateRangeText = (range: string): string => {
+  const today = new Date();
+  let start = today;
+  
+  // Berechnung basierend auf dem Code (30d, 3m etc.)
+  switch (range) {
+    case '30d': start = subDays(today, 30); break;
+    case '3m': start = subMonths(today, 3); break;
+    case '6m': start = subMonths(today, 6); break;
+    case '12m': start = subMonths(today, 12); break;
+    // Falls ein benutzerdefiniertes Format oder "7d" kommt, hier erweitern
+    default: 
+      // Fallback: Wenn es kein bekannter Code ist, geben wir den String direkt zurück 
+      // (oder berechnen 30d als Standard)
+      if (range === '7d') start = subDays(today, 7);
+      else return range; 
+  }
+
+  // Format: 05.11. - 05.12.2025
+  return `${format(start, 'dd.MM.')} - ${format(today, 'dd.MM.yyyy')}`;
+};
 
 // --- PARSER LOGIK ---
 type Block = 
@@ -173,7 +210,6 @@ const parseContentToBlocks = (html: string): Block[] => {
   return blocks;
 };
 
-// "•" (Bullet) wird hier entfernt, damit es im PDF nicht doppelt erscheint
 const stripTags = (str: string) => {
   return str
     .replace(/<br\s*\/?>/gi, '\n')
@@ -181,7 +217,7 @@ const stripTags = (str: string) => {
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
     .replace(/&quot;/g, '"')
-    .replace(/•/g, '') // <--- ENTFERNT DAS DOPPELTE BULLET AUS DEM TEXT
+    .replace(/•/g, '') 
     .replace(/\s+/g, ' ')
     .trim();
 };
@@ -201,6 +237,8 @@ export const AnalysisReport = ({
 }: ReportProps) => {
   
   const contentBlocks = parseContentToBlocks(summaryText);
+  // Datumsbereich berechnen
+  const formattedDateRange = formatDateRangeText(dateRange);
 
   return (
     <Document>
@@ -208,12 +246,21 @@ export const AnalysisReport = ({
         
         {/* HEADER */}
         <View style={styles.header}>
-          <View>
-            <Text style={styles.title}>Performance Report</Text>
-            <Text style={styles.subtitle}>{domain || projectId}</Text>
+          <View style={styles.headerLeft}>
+            {/* ✅ NEU: Bild hinzugefügt */}
+            <Image 
+              src="/data-max-stolz.webp" 
+              style={styles.logo} 
+            />
+            <View>
+              <Text style={styles.title}>Performance Report</Text>
+              <Text style={styles.subtitle}>{domain || projectId}</Text>
+            </View>
           </View>
+          
           <View style={styles.metaContainer}>
-            <Text style={styles.meta}>Zeitraum: {dateRange}</Text>
+            {/* ✅ NEU: Formatiertes Datum */}
+            <Text style={styles.meta}>Zeitraum: {formattedDateRange}</Text>
             <Text style={styles.meta}>Datum: {new Date().toLocaleDateString('de-DE')}</Text>
             <Text style={[styles.meta, { color: PRIMARY_COLOR, fontWeight: 'bold', marginTop: 4 }]}>
               DATA PEAK AI
@@ -270,9 +317,7 @@ export const AnalysisReport = ({
                 <View key={index} style={styles.listContainer}>
                   {block.items.map((item, idx) => (
                     <View key={idx} style={styles.listItem}>
-                      {/* Unser eigener Bullet Point */}
                       <Text style={styles.bullet}>•</Text>
-                      {/* Der bereinigte Text (ohne zweites Bullet) */}
                       <Text style={styles.listContent}>{item}</Text>
                     </View>
                   ))}
