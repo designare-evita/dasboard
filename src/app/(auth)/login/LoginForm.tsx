@@ -4,7 +4,6 @@
 import Image from 'next/image';
 import { signIn } from 'next-auth/react';
 import { useSearchParams, useRouter } from 'next/navigation';
-// ✅ NEU: useEffect und useRef hinzugefügt
 import { useState, useRef, useEffect } from 'react'; 
 import { 
   BoxArrowInRight, 
@@ -30,14 +29,26 @@ export default function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [shake, setShake] = useState(0);
 
-  // ✅ NEU: Referenz für das Video Element
+  // Referenz für das Video Element
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // ✅ NEU: Überwacht "isSuccess". Wenn true -> Video auf 0 setzen und abspielen
+  // ✅ NEU: Robusterer Play-Mechanismus
   useEffect(() => {
     if (isSuccess && videoRef.current) {
-      videoRef.current.currentTime = 0; // Auf 0 Sekunden setzen
-      videoRef.current.play();          // Video starten
+      const video = videoRef.current;
+      
+      // Browser-Policy-Sicherheit: Explizit stummschalten
+      video.muted = true;
+      video.currentTime = 0;
+      
+      const playPromise = video.play();
+      
+      // Fehler beim Abspielen abfangen (z.B. Browser-Blockaden)
+      if (playPromise !== undefined) {
+        playPromise.catch((error) => {
+          console.log("Video Play Error:", error);
+        });
+      }
     }
   }, [isSuccess]);
 
@@ -68,7 +79,7 @@ export default function LoginForm() {
       setError('E-Mail oder Passwort ist falsch.');
       setShake(prev => prev + 1);
     } else {
-      // ✅ ERFOLG: Karte drehen (löst auch den useEffect aus)
+      // ERFOLG: Karte drehen
       setIsSuccess(true);
       
       setTimeout(() => {
@@ -153,8 +164,8 @@ export default function LoginForm() {
                       value={password}
                       onChange={handlePasswordChange}
                       className="block w-full pl-10 pr-10 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#188bdb]/20 focus:border-[#188bdb] transition-all bg-gray-50 focus:bg-white outline-none text-gray-900 placeholder-gray-400"
-                      placeholder="••••••••"
                       disabled={isLoading || isSuccess}
+                      placeholder="••••••••"
                     />
                     <button
                       type="button"
@@ -211,14 +222,14 @@ export default function LoginForm() {
               transform: 'rotateY(180deg)' 
             }}
           >
-            <div className="relative w-48 h-48 overflow-hidden rounded-lg"> {/* Optional: rounded-lg für Video-Ecken */}
+            <div className="relative w-48 h-48 overflow-hidden rounded-lg">
                <video
                 ref={videoRef}
                 src="/data-max.mp4" 
                 loop
                 muted
                 playsInline
-                // ✅ NEU: object-cover verhindert schwarze Balken (füllt die Box aus)
+                preload="auto"
                 className="w-full h-full object-cover pointer-events-none" 
               />
             </div>
