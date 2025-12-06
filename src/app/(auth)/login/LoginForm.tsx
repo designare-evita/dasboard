@@ -225,7 +225,7 @@ export default function LoginForm() {
             <div className="relative w-48 h-48 overflow-hidden rounded-lg">
                <video
                 ref={videoRef}
-                src="/data-max.mp4" 
+                src="/data-max-intro.mp4" 
                 loop
                 muted
                 playsInline
