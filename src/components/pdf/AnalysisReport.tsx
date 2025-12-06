@@ -35,7 +35,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between', 
     alignItems: 'center' 
   },
-  // Container für Logo + Titel
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -44,13 +43,12 @@ const styles = StyleSheet.create({
   logo: {
     width: 50,
     height: 50,
-    borderRadius: 25, // Rundes Bild
+    borderRadius: 25, 
     marginRight: 15,
     objectFit: 'cover'
   },
   title: { fontSize: 22, fontWeight: 'bold', color: '#111827', marginBottom: 4 },
   subtitle: { fontSize: 12, color: '#6b7280', fontWeight: 'bold' },
-  
   metaContainer: { alignItems: 'flex-end' },
   meta: { fontSize: 9, color: '#6b7280', marginBottom: 2 },
   
@@ -136,6 +134,7 @@ interface ReportProps {
   dateRange: string;
   summaryText: string;
   kpis?: KpiData[];
+  baseUrl?: string; // ✅ NEU: BaseURL Prop für absolute Pfade
 }
 
 // --- Helper: Datumsbereich formatieren ---
@@ -143,21 +142,16 @@ const formatDateRangeText = (range: string): string => {
   const today = new Date();
   let start = today;
   
-  // Berechnung basierend auf dem Code (30d, 3m etc.)
   switch (range) {
     case '30d': start = subDays(today, 30); break;
     case '3m': start = subMonths(today, 3); break;
     case '6m': start = subMonths(today, 6); break;
     case '12m': start = subMonths(today, 12); break;
-    // Falls ein benutzerdefiniertes Format oder "7d" kommt, hier erweitern
     default: 
-      // Fallback: Wenn es kein bekannter Code ist, geben wir den String direkt zurück 
-      // (oder berechnen 30d als Standard)
       if (range === '7d') start = subDays(today, 7);
       else return range; 
   }
 
-  // Format: 05.11. - 05.12.2025
   return `${format(start, 'dd.MM.')} - ${format(today, 'dd.MM.yyyy')}`;
 };
 
@@ -170,9 +164,7 @@ type Block =
 const parseContentToBlocks = (html: string): Block[] => {
   const blocks: Block[] = [];
   const cleanHtml = html.replace(/\r\n/g, '\n');
-  
   const regex = /<(h[1-6]|p|ul)[^>]*>([\s\S]*?)<\/\1>/gi;
-  
   let lastIndex = 0;
   let match;
   
@@ -181,32 +173,23 @@ const parseContentToBlocks = (html: string): Block[] => {
       const rawText = cleanHtml.substring(lastIndex, match.index).trim();
       if (rawText) blocks.push({ type: 'paragraph', content: stripTags(rawText) });
     }
-    
     const tag = match[1].toLowerCase();
     const content = match[2];
-    
-    if (tag.startsWith('h')) {
-      blocks.push({ type: 'heading', content: stripTags(content) });
-    } else if (tag === 'p') {
-      blocks.push({ type: 'paragraph', content: stripTags(content) });
-    } else if (tag === 'ul') {
+    if (tag.startsWith('h')) blocks.push({ type: 'heading', content: stripTags(content) });
+    else if (tag === 'p') blocks.push({ type: 'paragraph', content: stripTags(content) });
+    else if (tag === 'ul') {
       const items: string[] = [];
       const liRegex = /<li[^>]*>([\s\S]*?)<\/li>/gi;
       let liMatch;
-      while ((liMatch = liRegex.exec(content)) !== null) {
-        items.push(stripTags(liMatch[1]));
-      }
+      while ((liMatch = liRegex.exec(content)) !== null) items.push(stripTags(liMatch[1]));
       if (items.length > 0) blocks.push({ type: 'list', items });
     }
-    
     lastIndex = regex.lastIndex;
   }
-  
   if (lastIndex < cleanHtml.length) {
     const rawText = cleanHtml.substring(lastIndex).trim();
     if (rawText) blocks.push({ type: 'paragraph', content: stripTags(rawText) });
   }
-  
   return blocks;
 };
 
@@ -233,12 +216,18 @@ export const AnalysisReport = ({
   domain, 
   dateRange, 
   summaryText, 
-  kpis
+  kpis,
+  baseUrl = '' // ✅ Default leer
 }: ReportProps) => {
   
   const contentBlocks = parseContentToBlocks(summaryText);
-  // Datumsbereich berechnen
   const formattedDateRange = formatDateRangeText(dateRange);
+
+  // ✅ LOGIK: Absolute URL erzwingen wenn baseUrl vorhanden
+  // WICHTIG: Verwenden Sie hier .png oder .jpg, WebP macht oft Probleme!
+  const imageSrc = baseUrl 
+    ? `${baseUrl}/data-max-stolz.png` // Absoluter Pfad für Server
+    : '/data-max-stolz.png';           // Relativer Pfad für Client (Fallback)
 
   return (
     <Document>
@@ -247,9 +236,9 @@ export const AnalysisReport = ({
         {/* HEADER */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            {/* ✅ NEU: Bild hinzugefügt */}
+            {/* ✅ Bild Integration */}
             <Image 
-              src="/data-max-stolz.webp" 
+              src={imageSrc} 
               style={styles.logo} 
             />
             <View>
@@ -259,7 +248,6 @@ export const AnalysisReport = ({
           </View>
           
           <View style={styles.metaContainer}>
-            {/* ✅ NEU: Formatiertes Datum */}
             <Text style={styles.meta}>Zeitraum: {formattedDateRange}</Text>
             <Text style={styles.meta}>Datum: {new Date().toLocaleDateString('de-DE')}</Text>
             <Text style={[styles.meta, { color: PRIMARY_COLOR, fontWeight: 'bold', marginTop: 4 }]}>
@@ -296,21 +284,12 @@ export const AnalysisReport = ({
         {/* KI ANALYSE */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>KI-Analyse</Text>
-          
           {contentBlocks.map((block, index) => {
             if (block.type === 'heading') {
-              return (
-                <Text key={index} style={styles.blockHeading}>
-                  {block.content}
-                </Text>
-              );
+              return <Text key={index} style={styles.blockHeading}>{block.content}</Text>;
             }
             if (block.type === 'paragraph') {
-              return (
-                <Text key={index} style={styles.blockParagraph}>
-                  {block.content}
-                </Text>
-              );
+              return <Text key={index} style={styles.blockParagraph}>{block.content}</Text>;
             }
             if (block.type === 'list') {
               return (
