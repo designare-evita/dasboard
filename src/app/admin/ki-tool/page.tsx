@@ -213,7 +213,6 @@ export default function KiToolPage() {
   };
 
   // --- RENDER ---
-  // ÄNDERUNG: 'w-full' statt 'max-w-7xl mx-auto' für volle Breite
   return (
     <div className="p-6 w-full space-y-8 relative">
       
@@ -506,7 +505,6 @@ export default function KiToolPage() {
               <p><span className="font-semibold text-gray-800 text-xs uppercase tracking-wide">Aktion:</span> Generiert Fragen aus Keywords.</p>
               <p><span className="font-semibold text-gray-800 text-xs uppercase tracking-wide">Ziel:</span> Neue Content-Ideen finden.</p>
               
-              {/* ÄNDERUNG: Zusatztext für KI */}
               <p className="pt-2 text-xs text-gray-500 border-t border-gray-50 mt-2">
                 💡 Wichtig für KI wie ChatGPT, Gemini usw. (Suchintention etc.)
               </p>
@@ -522,6 +520,11 @@ export default function KiToolPage() {
            <div className="text-sm text-gray-600 space-y-2 leading-relaxed">
               <p><span className="font-semibold text-gray-800 text-xs uppercase tracking-wide">Aktion:</span> Prüft URL auf fehlende Keywords.</p>
               <p><span className="font-semibold text-gray-800 text-xs uppercase tracking-wide">Ziel:</span> Rankings verbessern.</p>
+              
+              {/* NEU: Tip */}
+              <p className="pt-2 text-xs text-gray-500 border-t border-gray-50 mt-2">
+                💡 Deckt inhaltliche Lücken auf für bessere Rankings (Holistic Content).
+              </p>
            </div>
         </div>
 
@@ -534,6 +537,11 @@ export default function KiToolPage() {
            <div className="text-sm text-gray-600 space-y-2 leading-relaxed">
               <p><span className="font-semibold text-gray-800 text-xs uppercase tracking-wide">Aktion:</span> Vergleich eigene vs. Konkurrenz URL.</p>
               <p><span className="font-semibold text-gray-800 text-xs uppercase tracking-wide">Ziel:</span> Wettbewerbsvorteile sichern.</p>
+              
+              {/* NEU: Tip */}
+              <p className="pt-2 text-xs text-gray-500 border-t border-gray-50 mt-2">
+                💡 Enttarnt Strategien & Strukturen der Konkurrenz (Benchmarking).
+              </p>
            </div>
         </div>
 
@@ -546,6 +554,11 @@ export default function KiToolPage() {
            <div className="text-sm text-gray-600 space-y-2 leading-relaxed">
               <p><span className="font-semibold text-gray-800 text-xs uppercase tracking-wide">Aktion:</span> Optimiert Titel & Beschreibung.</p>
               <p><span className="font-semibold text-gray-800 text-xs uppercase tracking-wide">Ziel:</span> Klickrate (CTR) erhöhen.</p>
+              
+              {/* NEU: Tip */}
+              <p className="pt-2 text-xs text-gray-500 border-t border-gray-50 mt-2">
+                 💡 Mehr Klicks senden positive Signale an den Google-Algorithmus.
+              </p>
            </div>
         </div>
 
