@@ -1,8 +1,8 @@
-
 // src/components/ProjectDashboard.tsx
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
+import Image from 'next/image'; // ✅ NEU: Für das Data-Max Bild
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { Eye, EyeSlash } from 'react-bootstrap-icons'; 
 import { 
@@ -23,7 +23,6 @@ import SemrushTopKeywords02 from '@/components/SemrushTopKeywords02';
 import GlobalHeader from '@/components/GlobalHeader';
 import ProjectTimelineWidget from '@/components/ProjectTimelineWidget'; 
 import AiAnalysisWidget from '@/components/AiAnalysisWidget';
-// ❌ ENTFERNT: import BingAnalysisWidget from '@/components/BingAnalysisWidget';
 import LandingPageChart from '@/components/charts/LandingPageChart';
 import { aggregateLandingPages } from '@/lib/utils';
 
@@ -108,7 +107,7 @@ export default function ProjectDashboard({
     return aggregateLandingPages(data.topConvertingPages || []);
   }, [data.topConvertingPages]);
 
-  // 2. Daten NUR für den PDF Export (Deine Wunsch-Reihenfolge)
+  // 2. Daten NUR für den PDF Export
   const exportKpis = useMemo(() => {
     if (!extendedKpis) return [];
     
@@ -119,7 +118,6 @@ export default function ProjectDashboard({
       { label: 'Sitzungen', value: extendedKpis.sessions.value.toLocaleString('de-DE'), change: extendedKpis.sessions.change },
       { label: 'Engagement', value: extendedKpis.engagementRate.value.toFixed(1), change: extendedKpis.engagementRate.change, unit: '%' },
       { label: 'Conversions', value: extendedKpis.conversions.value.toLocaleString('de-DE'), change: extendedKpis.conversions.change },
-      // AI Traffic statt Bounce Rate
       { label: 'KI-Traffic', value: (data.aiTraffic?.totalUsers || 0).toLocaleString('de-DE'), change: data.aiTraffic?.totalUsersChange || 0 }, 
       { label: 'Ø Zeit', value: extendedKpis.avgEngagementTime.value.toLocaleString('de-DE'), change: extendedKpis.avgEngagementTime.change },
     ];
@@ -143,14 +141,36 @@ export default function ProjectDashboard({
 
   return (
     <div className="min-h-screen flex flex-col dashboard-gradient relative">
+      
+      {/* ✅ NEU: Stylishe Lightbox statt einfachem Spinner */}
       {isUpdating && (
-        <div className="fixed inset-0 z-[9999] bg-black/40 backdrop-blur-[2px] flex items-center justify-center">
-          <div className="bg-white px-8 py-6 rounded-xl shadow-2xl flex flex-col items-center gap-4">
-            <div className="w-12 h-12 border-4 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
-            <div className="text-center">
-              <h4 className="text-gray-900 font-semibold mb-1">Daten werden aktualisiert</h4>
-            </div>
-          </div>
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-white/70 backdrop-blur-md transition-all animate-in fade-in duration-300">
+           <div className="bg-white p-8 rounded-3xl shadow-2xl border border-gray-100 flex flex-col items-center gap-6 max-w-md w-full text-center transform scale-100 animate-in zoom-in-95 duration-300">
+              
+              {/* Bild Container */}
+              <div className="relative w-full flex justify-center">
+                 <Image 
+                   src="/data-max-arbeitet.webp" 
+                   alt="Data Max arbeitet" 
+                   width={400} 
+                   height={400}
+                   className="h-[200px] w-auto object-contain"
+                   priority
+                 />
+              </div>
+              
+              <div>
+                <h3 className="text-xl font-bold text-gray-800 mb-1">Daten werden aktualisiert</h3>
+                <p className="text-gray-500 text-sm leading-relaxed">
+                  Rufe aktuelle Metriken von Google & Semrush ab...
+                </p>
+              </div>
+
+              {/* Progress Bar */}
+              <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                <div className="h-full bg-indigo-500 w-1/3 rounded-full animate-indeterminate-bar"></div>
+              </div>
+           </div>
         </div>
       )}
       
@@ -298,8 +318,18 @@ export default function ProjectDashboard({
           </div>
         )}
 
-        {/* ❌ ENTFERNT: BingAnalysisWidget - Datenqualität der Bing API ist unzureichend */}
       </div>
+
+      {/* ✅ NEU: Animation Styles für den Progress Bar */}
+      <style jsx global>{`
+        @keyframes indeterminate-bar {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(300%); }
+        }
+        .animate-indeterminate-bar {
+          animation: indeterminate-bar 1.5s infinite linear;
+        }
+      `}</style>
     </div>
   );
 }
