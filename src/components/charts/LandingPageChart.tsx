@@ -79,6 +79,7 @@ export default function LandingPageChart({
           </h3>
           <span className="text-xs text-gray-400">Sortiert nach Neuen Nutzern</span>
         </div>
+        
         {/* Neuer Untertitel mit Quelle und Datum */}
         <div className="text-[11px] text-gray-500 mt-1 ml-7 flex items-center gap-2">
           <span className="font-medium bg-gray-100 px-1.5 py-0.5 rounded text-gray-600">Quelle: GA4</span>
@@ -86,8 +87,8 @@ export default function LandingPageChart({
           <span>{formattedDateRange}</span>
         </div>
 
-        {/* NEU: Legende für die Metriken */}
-        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 ml-1">
+        {/* NEU: Legende für die Metriken - RECHTSBÜNDIG */}
+        <div className="mt-3 flex flex-wrap justify-end gap-x-4 gap-y-1">
           <span className="text-[10px] text-gray-500 flex items-center gap-1.5">
              <span className="w-2 h-2 rounded-full bg-sky-500"></span>
              Sessions = Gesamtsitzungen
