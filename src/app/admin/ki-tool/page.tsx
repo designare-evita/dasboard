@@ -12,7 +12,8 @@ import {
   FileEarmarkBarGraph, 
   Globe,
   Cpu,
-  Binoculars
+  Binoculars,
+  LightningCharge // Optional für Design-Elemente
 } from 'react-bootstrap-icons';
 import CtrBooster from '@/components/admin/ki/CtrBooster';
 
@@ -330,7 +331,7 @@ export default function KiToolPage() {
         </nav>
       </div>
 
-      {/* CONTENT AREA */}
+      {/* MAIN CONTENT AREA */}
       {!selectedProjectId ? (
         <div className="text-center py-20 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-white shadow-sm mb-4">
@@ -390,7 +391,7 @@ export default function KiToolPage() {
                   </div>
                 )}
 
-                {/* --- KEYWORD LISTE (Nur sichtbar bei Questions oder Gap) --- */}
+                {/* --- KEYWORD LISTE --- */}
                 {(activeTab === 'questions' || activeTab === 'gap') && (
                   <div className="bg-white border border-gray-100 shadow-sm rounded-2xl p-6 flex flex-col h-[500px]">
                     <div className="flex justify-between items-center mb-4">
@@ -429,12 +430,6 @@ export default function KiToolPage() {
 
                 {/* --- ACTION BUTTON --- */}
                 <div className="mt-4">
-                    {/* Button Design Update:
-                       - text-base: Schrift 2px größer (von text-sm auf text-base)
-                       - py-4: Padding oben/unten 8px mehr (von py-2 auf py-4)
-                       - h-auto: Damit die Höhe flexibel bleibt
-                       - text-white: Erzwingt weiße Icons und Schrift
-                    */}
                     <Button
                       onClick={handleAction}
                       disabled={isGenerating}
@@ -497,6 +492,59 @@ export default function KiToolPage() {
           
         </div>
       )}
+
+      {/* --- NEUER BEREICH: MODUL INFO-BOXEN (IMMER SICHTBAR) --- */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 pt-10 border-t border-gray-200 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        
+        {/* Box 1: Fragen */}
+        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+           <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center mb-4 text-indigo-600">
+              <ChatText size={20} />
+           </div>
+           <h3 className="font-bold text-gray-900 mb-2">Fragen Generator</h3>
+           <div className="text-sm text-gray-600 space-y-2 leading-relaxed">
+              <p><span className="font-semibold text-gray-800 text-xs uppercase tracking-wide">Aktion:</span> Generiert Fragen aus Keywords.</p>
+              <p><span className="font-semibold text-gray-800 text-xs uppercase tracking-wide">Ziel:</span> Neue Content-Ideen finden.</p>
+           </div>
+        </div>
+
+        {/* Box 2: Gap Analyse */}
+        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+           <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center mb-4 text-indigo-600">
+              <FileEarmarkBarGraph size={20} />
+           </div>
+           <h3 className="font-bold text-gray-900 mb-2">Gap Analyse</h3>
+           <div className="text-sm text-gray-600 space-y-2 leading-relaxed">
+              <p><span className="font-semibold text-gray-800 text-xs uppercase tracking-wide">Aktion:</span> Prüft URL auf fehlende Keywords.</p>
+              <p><span className="font-semibold text-gray-800 text-xs uppercase tracking-wide">Ziel:</span> Rankings verbessern.</p>
+           </div>
+        </div>
+
+        {/* Box 3: Competitor Spy */}
+        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+           <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center mb-4 text-indigo-600">
+              <Binoculars size={20} />
+           </div>
+           <h3 className="font-bold text-gray-900 mb-2">Competitor Spy</h3>
+           <div className="text-sm text-gray-600 space-y-2 leading-relaxed">
+              <p><span className="font-semibold text-gray-800 text-xs uppercase tracking-wide">Aktion:</span> Vergleich eigene vs. Konkurrenz URL.</p>
+              <p><span className="font-semibold text-gray-800 text-xs uppercase tracking-wide">Ziel:</span> Wettbewerbsvorteile sichern.</p>
+           </div>
+        </div>
+
+        {/* Box 4: CTR Booster */}
+        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+           <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center mb-4 text-indigo-600">
+              <RocketTakeoff size={20} />
+           </div>
+           <h3 className="font-bold text-gray-900 mb-2">CTR Booster</h3>
+           <div className="text-sm text-gray-600 space-y-2 leading-relaxed">
+              <p><span className="font-semibold text-gray-800 text-xs uppercase tracking-wide">Aktion:</span> Optimiert Titel & Beschreibung.</p>
+              <p><span className="font-semibold text-gray-800 text-xs uppercase tracking-wide">Ziel:</span> Klickrate (CTR) erhöhen.</p>
+           </div>
+        </div>
+
+      </div>
       
       <style jsx global>{`
         @keyframes indeterminate-bar {
