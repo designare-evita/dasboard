@@ -452,11 +452,16 @@ export default function KiToolPage() {
                        {activeTab === 'spy' ? 'Konkurrenz Analyse' : activeTab === 'gap' ? 'Content Gap Report' : 'KI Ergebnis'}
                      </h2>
 
+                     {/* HIER IST DIE KORREKTUR: 
+                         Wir nutzen 'dangerouslySetInnerHTML', um das HTML vom Server zu rendern.
+                     */}
                      <div 
                        ref={outputRef}
                        className="flex-1 bg-gray-50/50 rounded-xl border border-gray-200/60 p-6 overflow-y-auto z-10 custom-scrollbar font-mono text-sm leading-relaxed text-gray-700 whitespace-pre-wrap"
                      >
-                       {generatedContent ? generatedContent : (
+                       {generatedContent ? (
+                         <div dangerouslySetInnerHTML={{ __html: generatedContent }} />
+                       ) : (
                          <div className="h-full flex flex-col items-center justify-center text-gray-400 text-center p-8">
                             {activeTab === 'spy' ? (
                                 <>
