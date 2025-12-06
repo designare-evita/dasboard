@@ -4,7 +4,6 @@ import { streamText } from 'ai';
 import * as cheerio from 'cheerio';
 import { NextRequest, NextResponse } from 'next/server';
 
-// Initialisierung (wie gehabt)
 const google = createGoogleGenerativeAI({
   apiKey: process.env.GEMINI_API_KEY || '',
 });
@@ -12,7 +11,7 @@ const google = createGoogleGenerativeAI({
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
-// Hilfsfunktion zum Scrapen einer einzelnen URL
+// Hilfsfunktion zum Scrapen
 async function scrapeUrl(url: string) {
   const res = await fetch(url, {
     headers: {
@@ -25,14 +24,12 @@ async function scrapeUrl(url: string) {
   const html = await res.text();
   const $ = cheerio.load(html);
   
-  // Cleanup
   $('script, style, nav, footer, iframe, svg, noscript, head').remove();
   
   const title = $('title').text().trim();
-  const h1 = $('h1').text().trim();
-  const text = $('body').text().replace(/\s+/g, ' ').trim().slice(0, 12000); // Etwas kürzer fassen pro Seite
+  const text = $('body').text().replace(/\s+/g, ' ').trim().slice(0, 12000); 
   
-  return { url, title, h1, text };
+  return { url, title, text };
 }
 
 export async function POST(req: NextRequest) {
@@ -43,43 +40,53 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'Beide URLs sind erforderlich.' }, { status: 400 });
     }
 
-    // 1. BEIDE Seiten parallel scrapen (schneller!)
-    console.log('🕷️ Starte Vergleich:', myUrl, 'vs', competitorUrl);
-    
-    // Promise.all wartet, bis BEIDE fertig sind
+    // 1. Scraping
     const [myData, competitorData] = await Promise.all([
-      scrapeUrl(myUrl).catch(e => ({ error: true, msg: e.message, url: myUrl })),
-      scrapeUrl(competitorUrl).catch(e => ({ error: true, msg: e.message, url: competitorUrl }))
+      scrapeUrl(myUrl).catch(e => ({ error: true, msg: e.message, url: myUrl, title: 'Fehler', text: '' })),
+      scrapeUrl(competitorUrl).catch(e => ({ error: true, msg: e.message, url: competitorUrl, title: 'Fehler', text: '' }))
     ]);
 
-    // Fehlerprüfung
-    if ('error' in myData) throw new Error(`Konnte DEINE URL nicht lesen: ${myData.msg}`);
-    if ('error' in competitorData) throw new Error(`Konnte GEGNER URL nicht lesen: ${competitorData.msg}`);
-
-    // 2. Prompt bauen
+    // 2. Prompt (HTML & TAILWIND STRIKT)
     const prompt = `
-      Du bist ein knallharter SEO-Stratege. Vergleiche zwei Webseiten zum gleichen Thema.
-      
+      Du bist ein knallharter SEO-Stratege. Vergleiche zwei Webseiten.
+
       SEITE A (Meine Seite):
       - Titel: ${myData.title}
       - Text-Auszug: """${myData.text}"""
       
-      SEITE B (Konkurrenz / Platz 1):
+      SEITE B (Konkurrenz / Gewinner):
       - Titel: ${competitorData.title}
       - Text-Auszug: """${competitorData.text}"""
+
+      REGELN FÜR FORMATIERUNG (STRIKT BEFOLGEN):
+      1. VERWENDE KEIN MARKDOWN! (Keine **, keine ##, keine * Listen).
+      2. Nutze IMMER den HTML-Tag für Fettschrift: <strong class="font-bold text-gray-900">Dein Text</strong>
+      3. Nutze AUSSCHLIESSLICH HTML-Tags mit Tailwind-Klassen.
+
+      STYLING VORGABEN:
+      - Überschriften: <h3 class="font-bold text-indigo-900 mt-8 mb-4 text-lg flex items-center gap-2">TITEL</h3>
+      - Fließtext: <p class="mb-4 leading-relaxed text-gray-600 text-sm">TEXT</p>
+      - Listen: <ul class="space-y-3 mb-6 list-none pl-0">
+      - Listen-Items: <li class="flex items-start gap-3 text-sm text-gray-700 bg-gray-50 p-3 rounded-lg border border-gray-100"><span class="text-rose-500 font-bold mt-0.5 text-lg">vs</span> <span>Inhalt...</span></li>
+      - Empfehlungs-Box: <div class="bg-indigo-50/50 p-5 rounded-xl border border-indigo-100 my-6 shadow-sm">
+      - Badges: <span class="bg-rose-100 text-rose-700 px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider">Besser bei B</span>
+
+      AUFGABE (Erstelle diesen HTML Report):
       
-      AUFGABE:
-      Warum ist Seite B besser? Finde die Unterschiede.
+      1. <h3...>🏆 Warum rankt Seite B besser?</h3>
+         Fasse kurz zusammen, was der "Unique Selling Point" oder der inhaltliche Vorteil von Seite B ist.
       
-      1. **Inhaltliche Lücken (Content Gap):** Welche Themen/Unterpunkte behandelt B, die bei A fehlen?
-      2. **Struktur & Lesbarkeit:** Nutzt B bessere Listen, Tabellen oder kürzere Absätze?
-      3. **Tonalität & Ansprache:** Ist B emotionaler, direkter oder wissenschaftlicher?
-      4. **Unique Selling Point:** Was macht B besonders gut?
-      
-      FAZIT & EMPFEHLUNG:
-      Gib 3 konkrete Schritte, wie Seite A (Ich) den Inhalt verbessern kann, um Seite B zu schlagen.
-      
-      Antworte direkt, ehrlich und nutze Markdown.
+      2. <h3...>🥊 Der direkte Vergleich (Inhalt & Struktur)</h3>
+         Erstelle eine Liste der Unterschiede.
+         Nutze für jeden Punkt die Listen-Item Struktur. Beginne jeden Punkt mit <strong class="font-bold text-gray-900">Thema:</strong>.
+         Analysiere: Fehlende Themen bei A, bessere Lesbarkeit bei B, emotionalere Ansprache bei B.
+
+      3. <h3...>🚀 Masterplan: So schlagen wir Seite B (3 Schritte)</h3>
+         Nutze die "Empfehlungs-Box" für diesen gesamten Abschnitt.
+         Gib 3 nummerierte, knallharte Handlungsempfehlungen (HTML Liste innerhalb der Box).
+         Was muss Seite A konkret tun (Text erweitern, Tabelle einfügen, Title ändern)?
+
+      Antworte direkt mit dem HTML-Code.
     `;
 
     // 3. Stream starten
