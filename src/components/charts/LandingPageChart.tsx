@@ -85,6 +85,22 @@ export default function LandingPageChart({
           <span className="text-gray-400">•</span>
           <span>{formattedDateRange}</span>
         </div>
+
+        {/* NEU: Legende für die Metriken */}
+        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 ml-1">
+          <span className="text-[10px] text-gray-500 flex items-center gap-1.5">
+             <span className="w-2 h-2 rounded-full bg-sky-500"></span>
+             Sessions = Gesamtsitzungen
+          </span>
+          <span className="text-[10px] text-gray-500 flex items-center gap-1.5">
+             <span className="w-2 h-2 rounded-full bg-teal-500"></span>
+             Rate = Interaktionsrate
+          </span>
+          <span className="text-[10px] text-gray-500 flex items-center gap-1.5">
+             <span className="w-2 h-2 rounded-full bg-slate-400"></span>
+             Conv. = Schlüsselereignisse (z.B. Anfrage)
+          </span>
+        </div>
       </div>
 
       {/* Liste */}
