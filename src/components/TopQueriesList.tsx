@@ -2,7 +2,6 @@
 'use client';
 
 import React, { useState } from 'react';
-// ✅ NEU: Icons importieren
 import { ClockHistory, FunnelFill, ExclamationTriangleFill, Search, X, Trophy, Award, CheckCircleFill } from 'react-bootstrap-icons';
 import { cn } from '@/lib/utils';
 import { type DateRangeOption, getRangeLabel } from '@/components/DateRangeSelector';
@@ -66,7 +65,6 @@ export default function TopQueriesList({
     });
   }, [queries, sortField, sortDirection, searchTerm]);
 
-  // ✅ NEU: Helper für Ranking Badges
   const renderRankingBadge = (position: number) => {
     const rounded = Math.round(position);
     
@@ -95,7 +93,6 @@ export default function TopQueriesList({
       );
     }
     
-    // Default > 10
     return (
       <span className="text-gray-500 font-medium text-xs">
         {position.toFixed(1)}
@@ -105,7 +102,8 @@ export default function TopQueriesList({
 
   if (isLoading) {
     return (
-      <div className={cn("bg-white rounded-lg shadow-md border border-gray-200 card-glass", className)}>
+      // ÄNDERUNG: shadow-md -> shadow-sm
+      <div className={cn("bg-white rounded-lg shadow-sm border border-gray-200 card-glass", className)}>
         <div className="p-4 bg-[#188BDB] rounded-t-lg">
           <div className="flex items-center gap-2 text-white">
             <ClockHistory size={20} />
@@ -121,7 +119,8 @@ export default function TopQueriesList({
 
   if (error) {
     return (
-      <div className={cn("bg-white rounded-lg shadow-md border border-gray-200 card-glass", className)}>
+      // ÄNDERUNG: shadow-md -> shadow-sm
+      <div className={cn("bg-white rounded-lg shadow-sm border border-gray-200 card-glass", className)}>
         <div className="p-4 bg-[#188BDB] rounded-t-lg">
           <div className="flex items-center gap-2 text-white">
             <ClockHistory size={20} />
@@ -138,7 +137,8 @@ export default function TopQueriesList({
   }
 
   return (
-    <div className={cn("bg-white rounded-lg shadow-md border border-gray-200 flex flex-col card-glass", className)}>
+    // ÄNDERUNG: shadow-md -> shadow-sm (Haupt-Container)
+    <div className={cn("bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col card-glass", className)}>
       
       {/* Header */}
       <div className="p-4 bg-[#188BDB] rounded-t-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -207,7 +207,6 @@ export default function TopQueriesList({
                     <td className="px-4 py-3 text-sm text-gray-900 text-right border-r border-gray-200 whitespace-nowrap">{query.impressions.toLocaleString('de-DE')}</td>
                     <td className="px-4 py-3 text-sm text-gray-900 text-right border-r border-gray-200 whitespace-nowrap">{(query.ctr * 100).toFixed(1)}%</td>
                     
-                    {/* ✅ KORREKTUR: Neue Badges */}
                     <td className="px-4 py-3 text-right whitespace-nowrap">
                       <div className="flex justify-end">
                         {renderRankingBadge(query.position)}
@@ -225,8 +224,8 @@ export default function TopQueriesList({
       <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 rounded-b-lg">
         <div className="flex flex-wrap items-center justify-between gap-4 text-xs text-gray-600">
           <div className="flex items-center gap-4">
-            <span>∑ Klicks: <span className="font-semibold text-gray-900">{displayedQueries.reduce((sum, q) => sum + q.clicks, 0).toLocaleString('de-DE')}</span></span>
-            <span>∑ Impressionen: <span className="font-semibold text-gray-900">{displayedQueries.reduce((sum, q) => sum + q.impressions, 0).toLocaleString('de-DE')}</span></span>
+            <span>Klicks: <span className="font-semibold text-gray-900">{displayedQueries.reduce((sum, q) => sum + q.clicks, 0).toLocaleString('de-DE')}</span></span>
+            <span>Impressionen: <span className="font-semibold text-gray-900">{displayedQueries.reduce((sum, q) => sum + q.impressions, 0).toLocaleString('de-DE')}</span></span>
           </div>
         </div>
       </div>
