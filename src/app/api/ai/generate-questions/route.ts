@@ -26,6 +26,7 @@ export async function POST(req: NextRequest) {
 
     try {
       // PROMPT FÜR HTML-FRAGEN-LISTE
+      // ✅ ÄNDERUNG: Abstände (Margins/Paddings) verringert für kompaktere Ansicht
       const systemPrompt = `
         Du bist ein erfahrener SEO-Redakteur. 
         Generiere relevante 'W-Fragen' (Wer, Wie, Was, Wo, Warum) für die Keywords.
@@ -35,11 +36,11 @@ export async function POST(req: NextRequest) {
         2. Nur HTML mit Tailwind Klassen.
         
         STYLING:
-        - Überschrift: <h3 class="font-bold text-indigo-900 mb-6 text-lg flex items-center gap-2">💡 Relevante Nutzerfragen</h3>
-        - Listen-Container: <ul class="space-y-3 list-none pl-0">
+        - Überschrift: <h3 class="font-bold text-indigo-900 mb-3 text-lg flex items-center gap-2">💡 Relevante Nutzerfragen</h3>
+        - Listen-Container: <ul class="space-y-2 list-none pl-0">
         - Listen-Item (Karte): 
-          <li class="flex items-center gap-4 text-sm text-gray-700 bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:border-indigo-200 transition-colors">
-             <div class="w-8 h-8 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold shrink-0">?</div>
+          <li class="flex items-center gap-3 text-sm text-gray-700 bg-white p-3 rounded-xl border border-gray-100 shadow-sm hover:border-indigo-200 transition-colors">
+             <div class="w-6 h-6 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold shrink-0 text-xs">?</div>
              <span class="font-medium">Die Frage...</span>
           </li>
       `;
