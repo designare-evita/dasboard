@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import Image from 'next/image'; // ✅ NEU: Image Import
+import Image from 'next/image'; 
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { 
@@ -12,7 +12,7 @@ import {
   Grid,
   FileEarmarkBarGraph, 
   Globe,
-  Cpu, // (Wird unten nicht mehr verwendet, aber Import bleibt drin, falls du es woanders brauchst)
+  Cpu,
   Binoculars
 } from 'react-bootstrap-icons';
 import CtrBooster from '@/components/admin/ki/CtrBooster';
@@ -217,23 +217,23 @@ export default function KiToolPage() {
   return (
     <div className="p-6 w-full space-y-8 relative">
       
-      {/* LIGHTBOX */}
+      {/* LIGHTBOX (Angepasst) */}
       {isWaitingForStream && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/60 backdrop-blur-sm transition-all animate-in fade-in duration-300">
-           <div className="bg-white p-8 rounded-2xl shadow-2xl border border-indigo-100 flex flex-col items-center gap-6 max-w-sm text-center transform scale-100 animate-in zoom-in-95 duration-300">
-              <div className="relative">
-                <div className="absolute inset-0 bg-indigo-500 blur-2xl opacity-20 animate-pulse rounded-full"></div>
-                {/* ✅ ÄNDERUNG: Bild statt Icon-Box */}
-                <div className="relative z-10">
-                   <Image 
-                     src="/data-max-arbeitet.webp" 
-                     alt="KI arbeitet" 
-                     width={100} 
-                     height={100}
-                     className="object-contain"
-                     priority
-                   />
-                </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/70 backdrop-blur-md transition-all animate-in fade-in duration-300">
+           {/* Box: Rein weiß, etwas breiter für das Bild */}
+           <div className="bg-white p-8 rounded-3xl shadow-2xl border border-gray-100 flex flex-col items-center gap-6 max-w-md w-full text-center transform scale-100 animate-in zoom-in-95 duration-300">
+              
+              {/* Bild Container ohne Hintergrund-Glow */}
+              <div className="relative w-full flex justify-center">
+                 <Image 
+                   src="/data-max-arbeitet.webp" 
+                   alt="KI arbeitet" 
+                   width={400} 
+                   height={400}
+                   // ✅ Hier: Höhe auf 200px fixiert, Breite passt sich an (contain)
+                   className="h-[200px] w-auto object-contain"
+                   priority
+                 />
               </div>
               
               <div>
@@ -461,9 +461,6 @@ export default function KiToolPage() {
                        {activeTab === 'spy' ? 'Konkurrenz Analyse' : activeTab === 'gap' ? 'Content Gap Report' : 'KI Ergebnis'}
                      </h2>
 
-                     {/* HIER IST DIE KORREKTUR: 
-                         Wir nutzen 'dangerouslySetInnerHTML', um das HTML vom Server zu rendern.
-                     */}
                      <div 
                        ref={outputRef}
                        className="flex-1 bg-gray-50/50 rounded-xl border border-gray-200/60 p-6 overflow-y-auto z-10 custom-scrollbar font-mono text-sm leading-relaxed text-gray-700 whitespace-pre-wrap"
