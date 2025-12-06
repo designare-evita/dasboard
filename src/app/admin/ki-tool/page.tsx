@@ -118,11 +118,7 @@ export default function KiToolPage() {
         if (data.topQueries && Array.isArray(data.topQueries)) {
           const topKeywords = data.topQueries.slice(0, 30);
           setKeywords(topKeywords);
-          
-          if (activeTab === 'gap') {
-             setSelectedKeywords(topKeywords.slice(0, 10).map((k: Keyword) => k.query));
           }
-        }
 
       } catch (error) {
         console.error('❌ Fetch Error:', error);
