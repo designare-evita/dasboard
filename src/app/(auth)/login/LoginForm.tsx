@@ -86,7 +86,7 @@ export default function LoginForm() {
             className="absolute inset-0 w-full h-full bg-white rounded-xl shadow-2xl p-8 backface-hidden flex flex-col"
             style={{ backfaceVisibility: 'hidden' }}
           >
-            {/* LOGO - ✅ UPDATE: Größe angepasst */}
+            {/* LOGO */}
             <div className="flex justify-center mb-8">
               <div className="relative w-[240px] h-[60px]">
                 <Image
@@ -192,7 +192,7 @@ export default function LoginForm() {
             </form>
           </div>
 
-          {/* ================= RÜCKSEITE (DATEN INITIALISIERUNG) ================= */}
+          {/* ================= RÜCKSEITE (VIDEO & DATEN INITIALISIERUNG) ================= */}
           <div 
             className="absolute inset-0 w-full h-full bg-white rounded-xl shadow-2xl p-8 flex flex-col items-center justify-center text-center space-y-6"
             style={{ 
@@ -200,19 +200,17 @@ export default function LoginForm() {
               transform: 'rotateY(180deg)' 
             }}
           >
-            {/* Pulsierendes Bild */}
-            <motion.div 
-              className="relative w-48 h-48"
-              animate={{ scale: [1, 1.05, 1] }}
-              transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
-            >
-              <Image
-                src="/data-max.webp"
-                alt="Data Initialization"
-                fill
-                className="object-contain"
+            {/* VIDEO - Ohne Pulsieren */}
+            <div className="relative w-48 h-48">
+               <video
+                src="/date-max-intro.mp4"  /* <-- Bitte Dateiendung prüfen (mp4/webm) */
+                autoPlay
+                loop
+                muted
+                playsInline
+                className="w-full h-full object-contain pointer-events-none" 
               />
-            </motion.div>
+            </div>
 
             <div className="space-y-2">
               <h3 className="text-xl font-bold text-gray-900 flex items-center justify-center gap-2">
