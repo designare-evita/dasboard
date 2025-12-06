@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/button'; // <--- NEU: UI Button Import
+import { Button } from '@/components/ui/button'; // Nutzt die gleiche Button-Komponente wie der Header
 import { 
   ChatText, 
   RocketTakeoff, 
@@ -429,17 +429,11 @@ export default function KiToolPage() {
 
                 {/* --- ACTION BUTTON --- */}
                 <div className="mt-4">
+                    {/* BUTTON GEÄNDERT: Jetzt Standard-Design ohne Gradients */}
                     <Button
                       onClick={handleAction}
                       disabled={isGenerating}
-                      className={`
-                        w-full h-auto py-4 px-4 rounded-xl font-bold text-white shadow-lg transition-all transform active:scale-95 flex items-center justify-center gap-2
-                        ${isGenerating
-                          ? 'bg-gray-300 cursor-not-allowed shadow-none'
-                          : activeTab === 'spy' 
-                            ? 'bg-gradient-to-r from-rose-500 to-orange-500 hover:shadow-orange-200 border-0'
-                            : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:shadow-indigo-200 border-0'}
-                      `}
+                      className="w-full gap-2" 
                     >
                       {isGenerating ? 'Arbeite...' : 
                        activeTab === 'spy' ? <>Vergleich starten <Binoculars/></> :
