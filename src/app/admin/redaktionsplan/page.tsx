@@ -26,7 +26,7 @@ import {
   CalendarEvent, 
   ClockHistory,
   ChatSquareText,
-  EnvelopeCheck // NEU: Icon für Email-Bestätigung
+  EnvelopeCheck 
 } from 'react-bootstrap-icons';
 
 // Typdefinition
@@ -95,6 +95,9 @@ function RedaktionsplanContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
   const [message, setMessage] = useState('');
+  
+  // NEU: Suchzustand für Projekte
+  const [projectSearch, setProjectSearch] = useState('');
   
   const [savedCommentId, setSavedCommentId] = useState<number | null>(null);
   
@@ -173,9 +176,8 @@ function RedaktionsplanContent() {
 
       if (!response.ok) throw new Error('Kommentar konnte nicht gespeichert werden');
       
-      // ✅ LÄNGERE DAUER (60 Sekunden) & Feedback
       setSavedCommentId(landingpageId);
-      setTimeout(() => setSavedCommentId(null), 60000); // 60000ms = 1 Minute
+      setTimeout(() => setSavedCommentId(null), 60000); 
 
     } catch (error) {
       console.error(error);
@@ -260,6 +262,27 @@ function RedaktionsplanContent() {
         )}
 
         <div className="bg-white p-6 rounded-lg shadow-md mb-6">
+          
+          {/* NEU: Suchfeld für Projekte */}
+          <div className="mb-4">
+            <label htmlFor="projectSearch" className="block text-sm font-semibold text-gray-700 mb-2">
+              Projekt suchen
+            </label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search className="text-gray-400" size={16} />
+              </div>
+              <input
+                id="projectSearch"
+                type="text"
+                value={projectSearch}
+                onChange={(e) => setProjectSearch(e.target.value)}
+                placeholder="Domain oder E-Mail suchen..."
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+          </div>
+
           <label htmlFor="projectSelect" className="block text-sm font-semibold text-gray-700 mb-2">Projekt auswählen</label>
           <select
             id="projectSelect"
@@ -269,7 +292,15 @@ function RedaktionsplanContent() {
             className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
             <option value="">{isLoadingProjects ? 'Lade Projekte...' : '-- Bitte wählen --'}</option>
-            {projects.map((p) => <option key={p.id} value={p.id}>{p.domain || p.email}</option>)}
+            {projects
+              .filter(p => {
+                if (!projectSearch) return true;
+                const searchLower = projectSearch.toLowerCase();
+                const domain = p.domain?.toLowerCase() || '';
+                const email = p.email?.toLowerCase() || '';
+                return domain.includes(searchLower) || email.includes(searchLower);
+              })
+              .map((p) => <option key={p.id} value={p.id}>{p.domain || p.email}</option>)}
           </select>
         </div>
 
