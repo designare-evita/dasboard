@@ -53,6 +53,7 @@ export async function POST(req: NextRequest) {
       .slice(0, 15000); 
 
     // 3. Prompt erstellen (MIT STRIKTER HTML-BOLD REGEL)
+    // ✅ ÄNDERUNG: Margins und Paddings in den STYLING VORGABEN stark reduziert
     const prompt = `
       Du bist ein Senior SEO-Experte. Führe eine "Content Gap Analyse" durch.
 
@@ -78,13 +79,13 @@ export async function POST(req: NextRequest) {
       3. Nutze AUSSCHLIESSLICH HTML-Tags mit Tailwind-Klassen.
       
       STYLING VORGABEN (Nutze genau diese Klassen):
-      - Überschriften: <h3 class="font-bold text-indigo-900 mt-8 mb-4 text-lg flex items-center gap-2">TITEL</h3>
-      - Fließtext: <p class="mb-4 leading-relaxed text-gray-600 text-sm">TEXT</p>
-      - Listen-Container: <ul class="space-y-3 mb-6 list-none pl-0">
-      - Listen-Items: <li class="flex items-start gap-3 text-sm text-gray-700 bg-gray-50 p-3 rounded-lg border border-gray-100"><span class="text-indigo-500 font-bold mt-0.5 text-lg">•</span> <span><strong class="font-bold text-gray-900">Thema:</strong> Inhalt...</span></li>
+      - Überschriften: <h3 class="font-bold text-indigo-900 mt-4 mb-2 text-lg flex items-center gap-2">TITEL</h3>
+      - Fließtext: <p class="mb-2 leading-relaxed text-gray-600 text-sm">TEXT</p>
+      - Listen-Container: <ul class="space-y-2 mb-4 list-none pl-0">
+      - Listen-Items: <li class="flex items-start gap-2 text-sm text-gray-700 bg-gray-50 p-2.5 rounded-lg border border-gray-100"><span class="text-indigo-500 font-bold mt-0.5 text-lg leading-none">•</span> <span><strong class="font-bold text-gray-900">Thema:</strong> Inhalt...</span></li>
       - Keywords hervorheben: <span class="font-semibold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded text-xs uppercase tracking-wide">KEYWORD</span>
-      - Optimierungs-Box: <div class="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 my-4 space-y-2">
-      - Label (z.B. Original/Besser): <span class="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">LABEL</span>
+      - Optimierungs-Box: <div class="bg-indigo-50/50 p-3 rounded-xl border border-indigo-100 my-3 space-y-1.5">
+      - Label (z.B. Original/Besser): <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">LABEL</span>
 
       AUFGABE:
       Analysiere, wie gut der Text die Keywords abdeckt. Erstelle folgenden HTML-Report:
