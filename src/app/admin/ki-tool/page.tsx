@@ -12,8 +12,7 @@ import {
   FileEarmarkBarGraph, 
   Globe,
   Cpu,
-  Binoculars,
-  LightningCharge // Optional für Design-Elemente
+  Binoculars
 } from 'react-bootstrap-icons';
 import CtrBooster from '@/components/admin/ki/CtrBooster';
 
@@ -214,8 +213,9 @@ export default function KiToolPage() {
   };
 
   // --- RENDER ---
+  // ÄNDERUNG: 'w-full' statt 'max-w-7xl mx-auto' für volle Breite
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-8 relative">
+    <div className="p-6 w-full space-y-8 relative">
       
       {/* LIGHTBOX */}
       {isWaitingForStream && (
@@ -493,7 +493,7 @@ export default function KiToolPage() {
         </div>
       )}
 
-      {/* --- NEUER BEREICH: MODUL INFO-BOXEN (IMMER SICHTBAR) --- */}
+      {/* --- MODUL INFO-BOXEN (Volle Breite, immer sichtbar) --- */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 pt-10 border-t border-gray-200 animate-in fade-in slide-in-from-bottom-4 duration-500">
         
         {/* Box 1: Fragen */}
@@ -505,6 +505,11 @@ export default function KiToolPage() {
            <div className="text-sm text-gray-600 space-y-2 leading-relaxed">
               <p><span className="font-semibold text-gray-800 text-xs uppercase tracking-wide">Aktion:</span> Generiert Fragen aus Keywords.</p>
               <p><span className="font-semibold text-gray-800 text-xs uppercase tracking-wide">Ziel:</span> Neue Content-Ideen finden.</p>
+              
+              {/* ÄNDERUNG: Zusatztext für KI */}
+              <p className="pt-2 text-xs text-gray-500 border-t border-gray-50 mt-2">
+                💡 Wichtig für KI wie ChatGPT, Gemini usw. (Suchintention etc.)
+              </p>
            </div>
         </div>
 
