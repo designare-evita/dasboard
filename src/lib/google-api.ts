@@ -22,6 +22,7 @@ interface TopQueryData {
   impressions: number;
   ctr: number;
   position: number;
+  url?: string;
 }
 
 export interface AiTrafficData {
