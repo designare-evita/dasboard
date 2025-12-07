@@ -1,4 +1,4 @@
-// src/components/charts/LandingPageChart.tsx
+ // src/components/charts/LandingPageChart.tsx
 'use client';
 
 import React, { useState } from 'react';
@@ -115,19 +115,19 @@ export default function LandingPageChart({
             <span>{formattedDateRange}</span>
           </div>
 
-          {/* Rechte Seite: Legende (Rechtsbündig in der gleichen Zeile) */}
+          {/* Rechte Seite: Legende (Rechtsbündig - ORIGINAL TEXT WIEDERHERGESTELLT) */}
           <div className="flex items-center gap-x-4">
             <span className="text-[10px] text-gray-500 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-sky-500"></span>
-              Sessions
+              Sessions = Gesamtsitzungen
             </span>
             <span className="text-[10px] text-gray-500 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-teal-500"></span>
-              Rate
+              Rate = Interaktionsrate
             </span>
             <span className="text-[10px] text-gray-500 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-slate-400"></span>
-              Conv.
+              Conv. = Schlüsselereignisse (z.B. Anfrage)
             </span>
           </div>
           
