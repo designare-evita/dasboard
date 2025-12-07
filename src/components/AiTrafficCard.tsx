@@ -1,16 +1,13 @@
 // src/components/AiTrafficCard.tsx
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Cpu, GraphUp, People, ArrowUp, ArrowDown, ExclamationTriangleFill } from 'react-bootstrap-icons';
 import { cn } from '@/lib/utils';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
-
-// --- KORREKTUR 1: Importiere AiTrafficCardProps von der Typen-Datei ---
 import type { AiTrafficCardProps } from '@/types/ai-traffic';
-// (ChartPoint-Import wird nicht mehr direkt hier benötigt, da es in AiTrafficCardProps enthalten ist)
 
-// (ChangeIndicator Hilfskomponente bleibt unverändert)
+// Hilfskomponente für Änderungsindikator
 const ChangeIndicator: React.FC<{ change?: number }> = ({ change }) => {
   if (!change) {
     return null;
@@ -27,9 +24,6 @@ const ChangeIndicator: React.FC<{ change?: number }> = ({ change }) => {
   );
 };
 
-// --- KORREKTUR 2: Lokales Interface entfernt ---
-// interface AiTrafficCardProps { ... } // <--- WURDE ENTFERNT
-
 export default function AiTrafficCard({
   totalSessions = 0,
   totalUsers = 0,
@@ -41,25 +35,44 @@ export default function AiTrafficCard({
   isLoading = false,
   dateRange = '30d',
   className,
-  error // Fehler-Prop - kein Default nötig, da optional
-}: AiTrafficCardProps) { // <-- Verwendet jetzt den importierten Typ
+  error
+}: AiTrafficCardProps) {
 
-  // (Rest der Logik bleibt 1:1 gleich)
   const safePercentage = typeof percentage === 'number' && !isNaN(percentage) ? percentage : 0;
   const safeTotalSessions = typeof totalSessions === 'number' && !isNaN(totalSessions) ? totalSessions : 0;
   const safeTotalUsers = typeof totalUsers === 'number' && !isNaN(totalUsers) ? totalUsers : 0;
   const safeTopAiSources = Array.isArray(topAiSources) ? topAiSources : [];
   const safeTrend = Array.isArray(trend) ? trend : [];
 
-  const rangeLabels: Record<string, string> = {
-    '30d': 'Letzte 30 Tage',
-    '3m': 'Letzte 3 Monate',
-    '6m': 'Letzte 6 Monate',
-    '12m': 'Letzte 12 Monate',
-  };
-  const rangeLabel = rangeLabels[dateRange] || 'Letzte 30 Tage';
+  // --- NEU: Dynamische Datumsberechnung für die Anzeige wie im Screenshot ---
+  const formattedDateRange = useMemo(() => {
+    const endDate = new Date();
+    const startDate = new Date();
 
-  // (Ladezustand-JSX bleibt unverändert)
+    switch (dateRange) {
+      case '30d':
+        startDate.setDate(endDate.getDate() - 30);
+        break;
+      case '3m':
+        startDate.setMonth(endDate.getMonth() - 3);
+        break;
+      case '6m':
+        startDate.setMonth(endDate.getMonth() - 6);
+        break;
+      case '12m':
+        startDate.setFullYear(endDate.getFullYear() - 1);
+        break;
+      default:
+        startDate.setDate(endDate.getDate() - 30);
+    }
+
+    const formatDate = (date: Date) => 
+      date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+    return `${formatDate(startDate)} - ${formatDate(endDate)}`;
+  }, [dateRange]);
+
+  // Ladezustand
   if (isLoading) {
     return (
       <div className={cn("bg-white rounded-lg shadow-md border border-gray-200 p-6", className)}>
@@ -76,12 +89,11 @@ export default function AiTrafficCard({
     );
   }
 
-  // --- Layout (Fehlerbehandlung aus vorherigem Schritt bleibt erhalten) ---
   return (
     <div className={cn("bg-white rounded-lg shadow-md border border-gray-200 p-6 flex flex-col", className)}>
       
       {/* Header */}
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between mb-1">
         <div className="flex items-center gap-2">
           <Cpu className="text-purple-600" size={24} />
           <h3 className="text-lg font-semibold text-gray-900">KI-Traffic</h3>
@@ -93,7 +105,17 @@ export default function AiTrafficCard({
           </div>
         )}
       </div>
-      <p className="text-xs text-gray-500 mb-4">{rangeLabel}</p>
+
+      {/* --- NEU: Quelle und Datum im Stil des Screenshots --- */}
+      <div className="flex items-center gap-2 mb-5 text-sm">
+        <span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded text-xs font-semibold">
+          Quelle: GA4
+        </span>
+        <span className="text-gray-400 text-xs">•</span>
+        <span className="text-gray-500 text-xs">
+          {formattedDateRange}
+        </span>
+      </div>
 
       {/* Fehler-Zustand */}
       {error ? (
@@ -215,12 +237,10 @@ export default function AiTrafficCard({
                         const date = new Date(value);
                         return `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1).toString().padStart(2, '0')}.${date.getFullYear()}`;
                       }}
-                      // (Der Formatter ist korrekt, da er 'value' von ChartPoint erwartet)
                       formatter={(value: number) => [value.toLocaleString('de-DE'), 'Sitzungen']}
                     />
                     <Area
                       type="monotone"
-                      // (dataKey="value" ist korrekt, da ProjectDashboard die Daten mappt)
                       dataKey="value"
                       stroke="#8b5cf6"
                       strokeWidth={2}
@@ -241,10 +261,10 @@ export default function AiTrafficCard({
         </div>
       )} 
         
-      {/* Info-Text */}
+      {/* Footer Info-Text */}
       <div className="mt-4 pt-4 border-t border-gray-100">
         <p className="text-xs text-gray-500">
-          KI-Traffic umfasst Besuche von bekannten KI-Bots wie ChatGPT, Claude, Perplexity und Google Gemini. | Quelle: GA4
+          KI-Traffic umfasst Besuche von bekannten KI-Bots wie ChatGPT, Claude, Perplexity und Google Gemini.
         </p>
       </div>
     </div>
