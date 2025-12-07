@@ -13,7 +13,8 @@ import {
   FileEarmarkBarGraph, 
   Globe,
   Binoculars,
-  GraphUpArrow
+  GraphUpArrow,
+  Search
 } from 'react-bootstrap-icons';
 import CtrBooster from '@/components/admin/ki/CtrBooster';
 
@@ -52,6 +53,9 @@ export default function KiToolPage() {
   // URL States
   const [analyzeUrl, setAnalyzeUrl] = useState('');     
   const [competitorUrl, setCompetitorUrl] = useState(''); 
+  
+  // NEU: Trend Radar Thema
+  const [trendTopic, setTrendTopic] = useState('');
 
   const outputRef = useRef<HTMLDivElement>(null);
 
@@ -79,6 +83,7 @@ export default function KiToolPage() {
       setKeywords([]);
       setGeneratedContent('');
       setAnalyzeUrl('');
+      setTrendTopic('');
       return;
     }
 
@@ -155,6 +160,11 @@ export default function KiToolPage() {
         toast.error('Bitte geben Sie die URL des Konkurrenten ein.');
         return;
     }
+    // NEU: Validierung für Trend Radar
+    if (activeTab === 'trends' && !trendTopic.trim()) {
+        toast.error('Bitte geben Sie ein Thema oder eine Branche ein.');
+        return;
+    }
 
     setIsGenerating(true);
     setIsWaitingForStream(true); 
@@ -174,11 +184,11 @@ export default function KiToolPage() {
         body = { myUrl: analyzeUrl, competitorUrl: competitorUrl };
     } else if (activeTab === 'trends') {
         endpoint = '/api/ai/trend-radar';
-        // Falls Keywords ausgewählt, nutze diese - sonst Top 5 aus GSC
-        const keywordsForTrends = selectedKeywords.length > 0 
-          ? selectedKeywords 
-          : keywords.slice(0, 5).map(k => k.query);
-        body = { domain: selectedProject.domain, keywords: keywordsForTrends };
+        // NEU: Sende das Thema statt Domain-Name
+        body = { 
+          domain: selectedProject.domain, 
+          topic: trendTopic.trim(),
+        };
     }
 
     try {
@@ -247,7 +257,7 @@ export default function KiToolPage() {
                 <p className="text-gray-500 text-sm leading-relaxed">
                   {activeTab === 'gap' ? 'Analysiere Webseite...' : 
                    activeTab === 'spy' ? 'Vergleiche mit Konkurrenz...' : 
-                   activeTab === 'trends' ? 'Scanne aktuelle Trends...' :
+                   activeTab === 'trends' ? 'Recherchiere Keyword-Trends...' :
                    'Generiere Inhalte...'}
                 </p>
               </div>
@@ -279,6 +289,7 @@ export default function KiToolPage() {
                 setSelectedProjectId(e.target.value);
                 setSelectedKeywords([]); 
                 setGeneratedContent('');
+                setTrendTopic('');
               }}
               disabled={loadingProjects}
             >
@@ -417,41 +428,59 @@ export default function KiToolPage() {
                   </div>
                 )}
 
-                {/* --- TREND RADAR INFO BOX --- */}
+                {/* --- TREND RADAR: THEMEN EINGABE --- */}
                 {activeTab === 'trends' && (
                   <div className="bg-white border border-gray-100 shadow-sm rounded-2xl p-6 space-y-4">
-                    <div className="text-center py-4">
-                      <div className="w-16 h-16 bg-gradient-to-br from-emerald-100 to-indigo-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <div className="text-center pb-4 border-b border-gray-100">
+                      <div className="w-14 h-14 bg-gradient-to-br from-emerald-100 to-indigo-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
                         <GraphUpArrow className="text-2xl text-indigo-600" />
                       </div>
-                      <h3 className="font-bold text-gray-900 mb-2">Trend Radar</h3>
-                      <p className="text-sm text-gray-500 mb-4">
-                        Analysiert aktuelle Google Trends und findet relevante Content-Chancen für <strong className="text-gray-700">{selectedProject?.domain}</strong>.
+                      <h3 className="font-bold text-gray-900">Trend Radar</h3>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Finde Content-Chancen für <strong className="text-gray-700">{selectedProject?.domain}</strong>
                       </p>
-                      <div className="bg-gray-50 rounded-lg p-3 text-xs text-gray-500 space-y-1">
-                        <p>✓ Daily Trends (Deutschland)</p>
-                        <p>✓ Steigende Suchanfragen</p>
-                        <p>✓ Branchenfilter via KI</p>
-                      </div>
                     </div>
                     
-                    {keywords.length > 0 && (
-                      <div className="pt-4 border-t border-gray-100">
-                        <p className="text-xs text-gray-500 mb-2">
-                          <strong>Tipp:</strong> Wähle unten Keywords aus, um branchenspezifischere Trends zu erhalten.
-                        </p>
+                    {/* THEMEN INPUT */}
+                    <div>
+                      <label className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                        <Search className="text-emerald-500" /> Thema / Branche
+                      </label>
+                      <input 
+                        type="text" 
+                        value={trendTopic}
+                        onChange={(e) => setTrendTopic(e.target.value)}
+                        placeholder="z.B. Familienrecht, Zahnarzt, Fitness..."
+                        className="w-full p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all text-gray-700 placeholder-emerald-400"
+                      />
+                      <p className="text-xs text-gray-400 mt-2">
+                        Geben Sie das Thema ein, für das Sie Keyword-Trends finden möchten.
+                      </p>
+                    </div>
+
+                    {/* Beispiele */}
+                    <div className="pt-3 border-t border-gray-100">
+                      <p className="text-xs text-gray-500 mb-2">Beispiele:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {['Arbeitsrecht', 'Scheidung Anwalt', 'Immobilienrecht', 'Steuerberater'].map((example) => (
+                          <button
+                            key={example}
+                            onClick={() => setTrendTopic(example)}
+                            className="px-2.5 py-1 bg-gray-100 hover:bg-indigo-100 text-gray-600 hover:text-indigo-700 rounded-lg text-xs transition-colors"
+                          >
+                            {example}
+                          </button>
+                        ))}
                       </div>
-                    )}
+                    </div>
                   </div>
                 )}
 
                 {/* --- KEYWORD LISTE --- */}
-                {(activeTab === 'questions' || activeTab === 'gap' || activeTab === 'trends') && (
+                {(activeTab === 'questions' || activeTab === 'gap') && (
                   <div className="bg-white border border-gray-100 shadow-sm rounded-2xl p-6 flex flex-col h-[500px]">
                     <div className="flex justify-between items-center mb-4">
-                      <h2 className="font-semibold text-gray-800">
-                        {activeTab === 'trends' ? 'Keywords (Optional)' : 'Keywords'}
-                      </h2>
+                      <h2 className="font-semibold text-gray-800">Keywords</h2>
                       <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full">
                         {selectedKeywords.length}
                       </span>
@@ -479,9 +508,7 @@ export default function KiToolPage() {
                         ))}
                       </div>
                     ) : (
-                        <div className="text-center text-sm text-gray-400 mt-10">
-                          {activeTab === 'trends' ? 'Keine Keywords – Trends werden trotzdem analysiert.' : 'Keine Daten'}
-                        </div>
+                        <div className="text-center text-sm text-gray-400 mt-10">Keine Daten</div>
                     )}
                   </div>
                 )}
@@ -494,7 +521,7 @@ export default function KiToolPage() {
                       className="w-full h-auto py-4 text-base gap-2 text-white" 
                     >
                       {isGenerating ? 'Arbeite...' : 
-                       activeTab === 'trends' ? <>Trends analysieren <GraphUpArrow/></> :
+                       activeTab === 'trends' ? <>Trends recherchieren <GraphUpArrow/></> :
                        activeTab === 'spy' ? <>Vergleich starten <Binoculars/></> :
                        activeTab === 'gap' ? 'Gap Analyse starten 🕵️' : 
                        'Fragen generieren ✨'}
@@ -509,7 +536,7 @@ export default function KiToolPage() {
                      <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-100 rounded-full mix-blend-multiply filter blur-3xl opacity-30"></div>
 
                      <h2 className="text-lg font-semibold text-gray-800 mb-4 z-10 flex items-center gap-2">
-                       {activeTab === 'trends' ? 'Trend Report' :
+                       {activeTab === 'trends' ? 'Keyword Trends' :
                         activeTab === 'spy' ? 'Konkurrenz Analyse' : 
                         activeTab === 'gap' ? 'Content Gap Report' : 
                         'KI Ergebnis'}
@@ -526,8 +553,8 @@ export default function KiToolPage() {
                             {activeTab === 'trends' ? (
                                 <>
                                     <GraphUpArrow className="text-4xl mb-3 text-emerald-200" />
-                                    <p className="font-medium text-gray-500">Was ist gerade gefragt?</p>
-                                    <p className="text-xs mt-2">Klicken Sie auf &quot;Trends analysieren&quot; um aktuelle Chancen zu entdecken.</p>
+                                    <p className="font-medium text-gray-500">Keyword-Trends entdecken</p>
+                                    <p className="text-xs mt-2">Geben Sie links ein Thema ein und starten Sie die Recherche.</p>
                                 </>
                             ) : activeTab === 'spy' ? (
                                 <>
@@ -621,7 +648,7 @@ export default function KiToolPage() {
            </div>
            <h3 className="font-bold text-gray-900 mb-2">Trend Radar</h3>
            <div className="text-sm text-gray-600 space-y-2 leading-relaxed">
-              <p><span className="font-semibold text-gray-800 text-xs uppercase tracking-wide">Aktion:</span> Scannt aktuelle Google Trends.</p>
+              <p><span className="font-semibold text-gray-800 text-xs uppercase tracking-wide">Aktion:</span> Findet Keyword-Trends für ein Thema.</p>
               <p><span className="font-semibold text-gray-800 text-xs uppercase tracking-wide">Ziel:</span> Content-Chancen früh erkennen.</p>
               
               <p className="pt-2 text-xs text-gray-500 border-t border-gray-50 mt-2">
