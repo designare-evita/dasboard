@@ -1,55 +1,48 @@
 // src/next-auth.d.ts
-import 'next-auth';
-// KORREKTUR 1: DefaultUser importieren
 import { DefaultSession, User as DefaultUser } from 'next-auth';
+import { JWT as DefaultJWT } from 'next-auth/jwt';
 
 declare module 'next-auth' {
-  
   /**
-   * KORREKTUR 2: Die User-Schnittstelle erweitern.
-   * Dies ist der Typ, der vom `authorize`-Callback zurückgegeben
-   * und an den `jwt`-Callback beim Login übergeben wird.
+   * Erweiterung des User-Objekts (wie es aus der DB kommt)
    */
   interface User extends DefaultUser {
+    id: string;
     role: 'BENUTZER' | 'ADMIN' | 'SUPERADMIN';
     mandant_id?: string | null;
     permissions?: string[];
     logo_url?: string | null;
     gsc_site_url?: string | null;
+    redaktionsplan_url?: string | null; // NEU: Feld aus der Datenbank
   }
 
   /**
-   * Extends the built-in session type to include our custom properties.
+   * Erweiterung der Session (was im Frontend verfügbar ist)
    */
   interface Session {
-    // These are the properties we are adding
-    accessToken?: string;
-    refreshToken?: string;
-
-    // This extends the existing user object
     user: {
       id: string;
       role: 'BENUTZER' | 'ADMIN' | 'SUPERADMIN';
       mandant_id?: string | null;
       permissions?: string[];
       logo_url?: string | null;
-      gsc_site_url?: string | null; // ✅ HINZUGEFÜGT
+      gsc_site_url?: string | null;
+      hasRedaktionsplan: boolean; // NEU: Berechnetes Flag für den Button
     } & DefaultSession['user'];
   }
 }
 
 declare module 'next-auth/jwt' {
   /**
-   * Extends the built-in JWT type.
+   * Erweiterung des JWT Tokens
    */
-  interface JWT {
+  interface JWT extends DefaultJWT {
     id: string;
-    accessToken?: string;
-    refreshToken?: string;
     role: 'BENUTZER' | 'ADMIN' | 'SUPERADMIN';
     mandant_id?: string | null;
     permissions?: string[];
     logo_url?: string | null;
-    gsc_site_url?: string | null; // ✅ HINZUGEFÜGT
+    gsc_site_url?: string | null;
+    hasRedaktionsplan: boolean; // NEU
   }
 }
