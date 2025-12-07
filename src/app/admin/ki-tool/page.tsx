@@ -12,8 +12,8 @@ import {
   Grid,
   FileEarmarkBarGraph, 
   Globe,
-  Cpu,
-  Binoculars
+  Binoculars,
+  GraphUpArrow
 } from 'react-bootstrap-icons';
 import CtrBooster from '@/components/admin/ki/CtrBooster';
 
@@ -31,7 +31,7 @@ interface Keyword {
   impressions: number;
 }
 
-type Tab = 'questions' | 'ctr' | 'gap' | 'spy';
+type Tab = 'questions' | 'ctr' | 'gap' | 'spy' | 'trends';
 
 export default function KiToolPage() {
   const [activeTab, setActiveTab] = useState<Tab>('questions');
@@ -93,7 +93,8 @@ export default function KiToolPage() {
         setAnalyzeUrl(cleanDomain);
     }
 
-    if (activeTab === 'ctr') return;
+    // Für CTR und Trends keine Keywords laden
+    if (activeTab === 'ctr' || activeTab === 'trends') return;
 
     async function fetchData() {
       setLoadingData(true);
@@ -115,7 +116,7 @@ export default function KiToolPage() {
         if (data.topQueries && Array.isArray(data.topQueries)) {
           const topKeywords = data.topQueries.slice(0, 30);
           setKeywords(topKeywords);
-          }
+        }
 
       } catch (error) {
         console.error('❌ Fetch Error:', error);
@@ -160,7 +161,7 @@ export default function KiToolPage() {
     setGeneratedContent('');
 
     let endpoint = '';
-    let body: any = {};
+    let body: Record<string, unknown> = {};
 
     if (activeTab === 'questions') {
         endpoint = '/api/ai/generate-questions';
@@ -171,6 +172,13 @@ export default function KiToolPage() {
     } else if (activeTab === 'spy') {
         endpoint = '/api/ai/competitor-spy';
         body = { myUrl: analyzeUrl, competitorUrl: competitorUrl };
+    } else if (activeTab === 'trends') {
+        endpoint = '/api/ai/trend-radar';
+        // Falls Keywords ausgewählt, nutze diese - sonst Top 5 aus GSC
+        const keywordsForTrends = selectedKeywords.length > 0 
+          ? selectedKeywords 
+          : keywords.slice(0, 5).map(k => k.query);
+        body = { domain: selectedProject.domain, keywords: keywordsForTrends };
     }
 
     try {
@@ -204,9 +212,10 @@ export default function KiToolPage() {
         }
       }
 
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
       console.error('❌ Fehler:', error);
-      toast.error(`Fehler: ${error.message}`);
+      toast.error(`Fehler: ${errorMessage}`);
       setIsWaitingForStream(false);
     } finally {
       setIsGenerating(false);
@@ -217,20 +226,17 @@ export default function KiToolPage() {
   return (
     <div className="p-6 w-full space-y-8 relative">
       
-      {/* LIGHTBOX (Angepasst) */}
+      {/* LIGHTBOX */}
       {isWaitingForStream && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/70 backdrop-blur-md transition-all animate-in fade-in duration-300">
-           {/* Box: Rein weiß, etwas breiter für das Bild */}
            <div className="bg-white p-8 rounded-3xl shadow-2xl border border-gray-100 flex flex-col items-center gap-6 max-w-md w-full text-center transform scale-100 animate-in zoom-in-95 duration-300">
               
-              {/* Bild Container ohne Hintergrund-Glow */}
               <div className="relative w-full flex justify-center">
                  <Image 
                    src="/data-max-arbeitet.webp" 
                    alt="KI arbeitet" 
                    width={400} 
                    height={400}
-                   // ✅ Hier: Höhe auf 200px fixiert, Breite passt sich an (contain)
                    className="h-[200px] w-auto object-contain"
                    priority
                  />
@@ -241,6 +247,7 @@ export default function KiToolPage() {
                 <p className="text-gray-500 text-sm leading-relaxed">
                   {activeTab === 'gap' ? 'Analysiere Webseite...' : 
                    activeTab === 'spy' ? 'Vergleiche mit Konkurrenz...' : 
+                   activeTab === 'trends' ? 'Scanne aktuelle Trends...' :
                    'Generiere Inhalte...'}
                 </p>
               </div>
@@ -323,7 +330,18 @@ export default function KiToolPage() {
           >
             <Binoculars size={18} />
             Competitor Spy
-            <span className="ml-1 px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-600 text-[10px] font-bold">NEU</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('trends')}
+            className={`
+              flex items-center gap-2 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
+              ${activeTab === 'trends' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}
+            `}
+          >
+            <GraphUpArrow size={18} />
+            Trend Radar
+            <span className="ml-1 px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-600 text-[10px] font-bold">NEU</span>
           </button>
 
           <button
@@ -399,11 +417,41 @@ export default function KiToolPage() {
                   </div>
                 )}
 
+                {/* --- TREND RADAR INFO BOX --- */}
+                {activeTab === 'trends' && (
+                  <div className="bg-white border border-gray-100 shadow-sm rounded-2xl p-6 space-y-4">
+                    <div className="text-center py-4">
+                      <div className="w-16 h-16 bg-gradient-to-br from-emerald-100 to-indigo-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                        <GraphUpArrow className="text-2xl text-indigo-600" />
+                      </div>
+                      <h3 className="font-bold text-gray-900 mb-2">Trend Radar</h3>
+                      <p className="text-sm text-gray-500 mb-4">
+                        Analysiert aktuelle Google Trends und findet relevante Content-Chancen für <strong className="text-gray-700">{selectedProject?.domain}</strong>.
+                      </p>
+                      <div className="bg-gray-50 rounded-lg p-3 text-xs text-gray-500 space-y-1">
+                        <p>✓ Daily Trends (Deutschland)</p>
+                        <p>✓ Steigende Suchanfragen</p>
+                        <p>✓ Branchenfilter via KI</p>
+                      </div>
+                    </div>
+                    
+                    {keywords.length > 0 && (
+                      <div className="pt-4 border-t border-gray-100">
+                        <p className="text-xs text-gray-500 mb-2">
+                          <strong>Tipp:</strong> Wähle unten Keywords aus, um branchenspezifischere Trends zu erhalten.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* --- KEYWORD LISTE --- */}
-                {(activeTab === 'questions' || activeTab === 'gap') && (
+                {(activeTab === 'questions' || activeTab === 'gap' || activeTab === 'trends') && (
                   <div className="bg-white border border-gray-100 shadow-sm rounded-2xl p-6 flex flex-col h-[500px]">
                     <div className="flex justify-between items-center mb-4">
-                      <h2 className="font-semibold text-gray-800">Keywords</h2>
+                      <h2 className="font-semibold text-gray-800">
+                        {activeTab === 'trends' ? 'Keywords (Optional)' : 'Keywords'}
+                      </h2>
                       <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full">
                         {selectedKeywords.length}
                       </span>
@@ -431,7 +479,9 @@ export default function KiToolPage() {
                         ))}
                       </div>
                     ) : (
-                        <div className="text-center text-sm text-gray-400 mt-10">Keine Daten</div>
+                        <div className="text-center text-sm text-gray-400 mt-10">
+                          {activeTab === 'trends' ? 'Keine Keywords – Trends werden trotzdem analysiert.' : 'Keine Daten'}
+                        </div>
                     )}
                   </div>
                 )}
@@ -444,6 +494,7 @@ export default function KiToolPage() {
                       className="w-full h-auto py-4 text-base gap-2 text-white" 
                     >
                       {isGenerating ? 'Arbeite...' : 
+                       activeTab === 'trends' ? <>Trends analysieren <GraphUpArrow/></> :
                        activeTab === 'spy' ? <>Vergleich starten <Binoculars/></> :
                        activeTab === 'gap' ? 'Gap Analyse starten 🕵️' : 
                        'Fragen generieren ✨'}
@@ -458,7 +509,10 @@ export default function KiToolPage() {
                      <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-100 rounded-full mix-blend-multiply filter blur-3xl opacity-30"></div>
 
                      <h2 className="text-lg font-semibold text-gray-800 mb-4 z-10 flex items-center gap-2">
-                       {activeTab === 'spy' ? 'Konkurrenz Analyse' : activeTab === 'gap' ? 'Content Gap Report' : 'KI Ergebnis'}
+                       {activeTab === 'trends' ? 'Trend Report' :
+                        activeTab === 'spy' ? 'Konkurrenz Analyse' : 
+                        activeTab === 'gap' ? 'Content Gap Report' : 
+                        'KI Ergebnis'}
                      </h2>
 
                      <div 
@@ -469,7 +523,13 @@ export default function KiToolPage() {
                          <div dangerouslySetInnerHTML={{ __html: generatedContent }} />
                        ) : (
                          <div className="h-full flex flex-col items-center justify-center text-gray-400 text-center p-8">
-                            {activeTab === 'spy' ? (
+                            {activeTab === 'trends' ? (
+                                <>
+                                    <GraphUpArrow className="text-4xl mb-3 text-emerald-200" />
+                                    <p className="font-medium text-gray-500">Was ist gerade gefragt?</p>
+                                    <p className="text-xs mt-2">Klicken Sie auf &quot;Trends analysieren&quot; um aktuelle Chancen zu entdecken.</p>
+                                </>
+                            ) : activeTab === 'spy' ? (
                                 <>
                                     <Binoculars className="text-4xl mb-3 text-rose-200" />
                                     <p className="font-medium text-gray-500">Wer ist besser?</p>
@@ -504,7 +564,7 @@ export default function KiToolPage() {
       )}
 
       {/* --- MODUL INFO-BOXEN (Volle Breite, immer sichtbar) --- */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 pt-10 border-t border-gray-200 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 pt-10 border-t border-gray-200 animate-in fade-in slide-in-from-bottom-4 duration-500">
         
         {/* Box 1: Fragen */}
         <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
@@ -532,7 +592,6 @@ export default function KiToolPage() {
               <p><span className="font-semibold text-gray-800 text-xs uppercase tracking-wide">Aktion:</span> Prüft URL auf fehlende Keywords.</p>
               <p><span className="font-semibold text-gray-800 text-xs uppercase tracking-wide">Ziel:</span> Rankings verbessern.</p>
               
-              {/* NEU: Tip */}
               <p className="pt-2 text-xs text-gray-500 border-t border-gray-50 mt-2">
                 💡 Deckt inhaltliche Lücken auf für bessere Rankings (Holistic Content).
               </p>
@@ -549,14 +608,29 @@ export default function KiToolPage() {
               <p><span className="font-semibold text-gray-800 text-xs uppercase tracking-wide">Aktion:</span> Vergleich eigene vs. Konkurrenz URL.</p>
               <p><span className="font-semibold text-gray-800 text-xs uppercase tracking-wide">Ziel:</span> Wettbewerbsvorteile sichern.</p>
               
-              {/* NEU: Tip */}
               <p className="pt-2 text-xs text-gray-500 border-t border-gray-50 mt-2">
                 💡 Enttarnt Strategien & Strukturen der Konkurrenz (Benchmarking).
               </p>
            </div>
         </div>
 
-        {/* Box 4: CTR Booster */}
+        {/* Box 4: Trend Radar */}
+        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+           <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center mb-4 text-emerald-600">
+              <GraphUpArrow size={20} />
+           </div>
+           <h3 className="font-bold text-gray-900 mb-2">Trend Radar</h3>
+           <div className="text-sm text-gray-600 space-y-2 leading-relaxed">
+              <p><span className="font-semibold text-gray-800 text-xs uppercase tracking-wide">Aktion:</span> Scannt aktuelle Google Trends.</p>
+              <p><span className="font-semibold text-gray-800 text-xs uppercase tracking-wide">Ziel:</span> Content-Chancen früh erkennen.</p>
+              
+              <p className="pt-2 text-xs text-gray-500 border-t border-gray-50 mt-2">
+                💡 First-Mover-Vorteil: Ranke für Trends bevor die Konkurrenz reagiert.
+              </p>
+           </div>
+        </div>
+
+        {/* Box 5: CTR Booster */}
         <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
            <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center mb-4 text-indigo-600">
               <RocketTakeoff size={20} />
@@ -566,7 +640,6 @@ export default function KiToolPage() {
               <p><span className="font-semibold text-gray-800 text-xs uppercase tracking-wide">Aktion:</span> Optimiert Titel & Beschreibung.</p>
               <p><span className="font-semibold text-gray-800 text-xs uppercase tracking-wide">Ziel:</span> Klickrate (CTR) erhöhen.</p>
               
-              {/* NEU: Tip */}
               <p className="pt-2 text-xs text-gray-500 border-t border-gray-50 mt-2">
                  💡 Mehr Klicks senden positive Signale an den Google-Algorithmus.
               </p>
