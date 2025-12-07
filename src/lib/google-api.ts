@@ -206,19 +206,73 @@ export async function getTopQueries(
       requestBody: {
         startDate,
         endDate,
-        dimensions: ['query'],
-        rowLimit: 100, 
+        dimensions: ['query', 'page'], // ✅ UPDATE: Page Dimension dazu
+        rowLimit: 500, // ✅ UPDATE: Mehr Zeilen laden, um Aggregation zu ermöglichen
       },
     });
 
     const rows = res.data.rows || [];
-    return rows.map(row => ({
-      query: row.keys?.[0] || '(not set)',
-      clicks: row.clicks || 0,
-      impressions: row.impressions || 0,
-      ctr: row.ctr || 0,
-      position: row.position || 0,
-    }));
+    
+    // ✅ NEU: Aggregation Logic (Gruppieren nach Query, Top URL ermitteln)
+    const queryMap = new Map<string, {
+      clicks: number;
+      impressions: number;
+      positionSum: number;
+      count: number;
+      topUrl: string;
+      maxClicksForUrl: number;
+    }>();
+
+    for (const row of rows) {
+      const query = row.keys?.[0] || '(not set)';
+      const url = row.keys?.[1] || '';
+      const clicks = row.clicks || 0;
+      const impressions = row.impressions || 0;
+      const position = row.position || 0;
+      
+      if (!queryMap.has(query)) {
+        queryMap.set(query, {
+          clicks: 0,
+          impressions: 0,
+          positionSum: 0,
+          count: 0,
+          topUrl: url,
+          maxClicksForUrl: clicks
+        });
+      }
+      
+      const entry = queryMap.get(query)!;
+      entry.clicks += clicks;
+      entry.impressions += impressions;
+      // Gewichtete Position (simple approximation: position * impressions)
+      entry.positionSum += (position * impressions); 
+      
+      // Bestimme die Haupt-URL (die mit den meisten Klicks für dieses Keyword)
+      if (clicks > entry.maxClicksForUrl) {
+        entry.maxClicksForUrl = clicks;
+        entry.topUrl = url;
+      }
+    }
+    
+    // Zurück in Array wandeln
+    const results: TopQueryData[] = [];
+    for (const [query, data] of queryMap.entries()) {
+        const avgPosition = data.impressions > 0 ? data.positionSum / data.impressions : 0;
+        const ctr = data.impressions > 0 ? data.clicks / data.impressions : 0;
+        
+        results.push({
+            query,
+            clicks: data.clicks,
+            impressions: data.impressions,
+            ctr,
+            position: avgPosition,
+            url: data.topUrl // ✅ URL wird gesetzt
+        });
+    }
+
+    // Sortieren nach Clicks
+    return results.sort((a, b) => b.clicks - a.clicks).slice(0, 100);
+
   } catch (error) {
     console.error('GSC TopQueries Error:', error);
     return [];
