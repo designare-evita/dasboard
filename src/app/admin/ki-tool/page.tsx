@@ -15,7 +15,8 @@ import {
   Binoculars,
   GraphUpArrow,
   Search,
-  GeoAlt
+  GeoAlt,
+  PlusCircle
 } from 'react-bootstrap-icons';
 import CtrBooster from '@/components/admin/ki/CtrBooster';
 
@@ -65,7 +66,10 @@ export default function KiToolPage() {
   
   // Trend Radar States
   const [trendTopic, setTrendTopic] = useState('');
-  const [trendCountry, setTrendCountry] = useState('AT'); // Default: Österreich
+  const [trendCountry, setTrendCountry] = useState('AT');
+  
+  // NEU: Eigene Keywords Eingabe
+  const [customKeywords, setCustomKeywords] = useState('');
 
   const outputRef = useRef<HTMLDivElement>(null);
 
@@ -94,6 +98,7 @@ export default function KiToolPage() {
       setGeneratedContent('');
       setAnalyzeUrl('');
       setTrendTopic('');
+      setCustomKeywords('');
       return;
     }
 
@@ -151,6 +156,28 @@ export default function KiToolPage() {
     });
   };
 
+  // Kombiniere ausgewählte Keywords + eigene Keywords
+  const getAllKeywords = (): string[] => {
+    const selected = [...selectedKeywords];
+    
+    // Eigene Keywords aus Textfeld parsen (Komma oder Newline getrennt)
+    if (customKeywords.trim()) {
+      const custom = customKeywords
+        .split(/[,\n]+/)
+        .map(k => k.trim())
+        .filter(k => k.length > 0);
+      
+      // Duplikate vermeiden
+      custom.forEach(k => {
+        if (!selected.includes(k)) {
+          selected.push(k);
+        }
+      });
+    }
+    
+    return selected;
+  };
+
   // --- GENERIERUNGS-LOGIK ---
   const handleAction = async () => {
     if (!selectedProject) {
@@ -158,11 +185,21 @@ export default function KiToolPage() {
         return;
     }
 
-    if (activeTab === 'questions' && selectedKeywords.length === 0) {
-        toast.error('Bitte wählen Sie Keywords aus.');
+    const allKeywords = getAllKeywords();
+
+    if (activeTab === 'questions' && allKeywords.length === 0) {
+        toast.error('Bitte wählen Sie Keywords aus oder geben Sie eigene ein.');
         return;
     }
-    if ((activeTab === 'gap' || activeTab === 'spy') && !analyzeUrl) {
+    if (activeTab === 'gap' && !analyzeUrl) {
+        toast.error('Bitte geben Sie Ihre URL ein.');
+        return;
+    }
+    if (activeTab === 'gap' && allKeywords.length === 0) {
+        toast.error('Bitte wählen Sie Keywords aus oder geben Sie eigene ein.');
+        return;
+    }
+    if (activeTab === 'spy' && !analyzeUrl) {
         toast.error('Bitte geben Sie Ihre URL ein.');
         return;
     }
@@ -184,10 +221,10 @@ export default function KiToolPage() {
 
     if (activeTab === 'questions') {
         endpoint = '/api/ai/generate-questions';
-        body = { keywords: selectedKeywords, domain: selectedProject.domain };
+        body = { keywords: allKeywords, domain: selectedProject.domain };
     } else if (activeTab === 'gap') {
         endpoint = '/api/ai/content-gap';
-        body = { keywords: selectedKeywords, url: analyzeUrl }; 
+        body = { keywords: allKeywords, url: analyzeUrl }; 
     } else if (activeTab === 'spy') {
         endpoint = '/api/ai/competitor-spy';
         body = { myUrl: analyzeUrl, competitorUrl: competitorUrl };
@@ -242,6 +279,9 @@ export default function KiToolPage() {
       setIsGenerating(false);
     }
   };
+
+  // Berechne Gesamtzahl der Keywords
+  const totalKeywordCount = getAllKeywords().length;
 
   // --- RENDER ---
   return (
@@ -301,6 +341,7 @@ export default function KiToolPage() {
                 setSelectedKeywords([]); 
                 setGeneratedContent('');
                 setTrendTopic('');
+                setCustomKeywords('');
               }}
               disabled={loadingProjects}
             >
@@ -482,9 +523,6 @@ export default function KiToolPage() {
                           </option>
                         ))}
                       </select>
-                      <p className="text-xs text-gray-400 mt-2">
-                        Keyword-Daten werden für diese Region abgerufen.
-                      </p>
                     </div>
 
                     {/* Beispiele */}
@@ -505,41 +543,76 @@ export default function KiToolPage() {
                   </div>
                 )}
 
-                {/* --- KEYWORD LISTE --- */}
+                {/* --- KEYWORD LISTE (für Fragen & Gap) --- */}
                 {(activeTab === 'questions' || activeTab === 'gap') && (
-                  <div className="bg-white border border-gray-100 shadow-sm rounded-2xl p-6 flex flex-col h-[500px]">
-                    <div className="flex justify-between items-center mb-4">
-                      <h2 className="font-semibold text-gray-800">Keywords</h2>
-                      <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full">
-                        {selectedKeywords.length}
-                      </span>
-                    </div>
-                    
-                    {loadingData ? (
-                        <div className="flex items-center justify-center flex-1"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600"></div></div>
-                    ) : keywords.length > 0 ? (
-                      <div className="overflow-y-auto flex-1 space-y-2 pr-2 custom-scrollbar">
-                        {keywords.map((kw, idx) => (
-                          <div 
-                            key={idx}
-                            onClick={() => toggleKeyword(kw.query)}
-                            className={`
-                              cursor-pointer p-2.5 rounded-lg border text-sm flex items-center gap-2 transition-all
-                              ${selectedKeywords.includes(kw.query) ? 'bg-indigo-50 border-indigo-200 text-indigo-800' : 'bg-white border-gray-100 hover:bg-gray-50'}
-                            `}
-                          >
-                             <div className={`w-4 h-4 rounded border flex items-center justify-center ${selectedKeywords.includes(kw.query) ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300'}`}>
-                                {selectedKeywords.includes(kw.query) && <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
-                             </div>
-                             <span className="truncate flex-1">{kw.query}</span>
-                             <span className="text-xs text-gray-400 tabular-nums">{kw.clicks}</span>
-                          </div>
-                        ))}
+                  <>
+                    {/* GSC Keywords */}
+                    <div className="bg-white border border-gray-100 shadow-sm rounded-2xl p-6 flex flex-col h-[350px]">
+                      <div className="flex justify-between items-center mb-4">
+                        <h2 className="font-semibold text-gray-800">Keywords aus GSC</h2>
+                        <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full">
+                          {selectedKeywords.length} gewählt
+                        </span>
                       </div>
-                    ) : (
-                        <div className="text-center text-sm text-gray-400 mt-10">Keine Daten</div>
+                      
+                      {loadingData ? (
+                          <div className="flex items-center justify-center flex-1"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600"></div></div>
+                      ) : keywords.length > 0 ? (
+                        <div className="overflow-y-auto flex-1 space-y-2 pr-2 custom-scrollbar">
+                          {keywords.map((kw, idx) => (
+                            <div 
+                              key={idx}
+                              onClick={() => toggleKeyword(kw.query)}
+                              className={`
+                                cursor-pointer p-2.5 rounded-lg border text-sm flex items-center gap-2 transition-all
+                                ${selectedKeywords.includes(kw.query) ? 'bg-indigo-50 border-indigo-200 text-indigo-800' : 'bg-white border-gray-100 hover:bg-gray-50'}
+                              `}
+                            >
+                               <div className={`w-4 h-4 rounded border flex items-center justify-center ${selectedKeywords.includes(kw.query) ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300'}`}>
+                                  {selectedKeywords.includes(kw.query) && <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+                               </div>
+                               <span className="truncate flex-1">{kw.query}</span>
+                               <span className="text-xs text-gray-400 tabular-nums">{kw.clicks}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                          <div className="text-center text-sm text-gray-400 mt-10">Keine GSC-Daten verfügbar</div>
+                      )}
+                    </div>
+
+                    {/* EIGENE KEYWORDS EINGABE */}
+                    <div className="bg-white border border-gray-100 shadow-sm rounded-2xl p-6">
+                      <div className="flex justify-between items-center mb-3">
+                        <h2 className="font-semibold text-gray-800 flex items-center gap-2">
+                          <PlusCircle className="text-emerald-500" /> Eigene Keywords
+                        </h2>
+                        {customKeywords.trim() && (
+                          <span className="text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
+                            +{customKeywords.split(/[,\n]+/).filter(k => k.trim()).length}
+                          </span>
+                        )}
+                      </div>
+                      
+                      <textarea
+                        value={customKeywords}
+                        onChange={(e) => setCustomKeywords(e.target.value)}
+                        placeholder="Keywords eingeben (Komma oder Zeilenumbruch getrennt)&#10;&#10;z.B.:&#10;keyword 1, keyword 2&#10;keyword 3"
+                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all resize-none h-24"
+                      />
+                      <p className="text-xs text-gray-400 mt-2">
+                        Zusätzliche Keywords die nicht in GSC sind.
+                      </p>
+                    </div>
+
+                    {/* GESAMT KEYWORDS ANZEIGE */}
+                    {totalKeywordCount > 0 && (
+                      <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3 flex items-center justify-between">
+                        <span className="text-sm text-indigo-700">Gesamt Keywords:</span>
+                        <span className="font-bold text-indigo-700">{totalKeywordCount}</span>
+                      </div>
                     )}
-                  </div>
+                  </>
                 )}
 
                 {/* --- ACTION BUTTON --- */}
@@ -594,12 +667,14 @@ export default function KiToolPage() {
                             ) : activeTab === 'gap' ? (
                                 <>
                                     <FileEarmarkBarGraph className="text-4xl mb-3 text-indigo-200" />
-                                    <p>URL eingeben & Keywords wählen.</p>
+                                    <p className="font-medium text-gray-500">Content Gap Analyse</p>
+                                    <p className="text-xs mt-2">URL eingeben & Keywords wählen oder eigene eingeben.</p>
                                 </>
                             ) : (
                                 <>
                                     <Magic className="text-4xl mb-3 text-indigo-200" />
-                                    <p>Starten Sie den Fragen-Generator.</p>
+                                    <p className="font-medium text-gray-500">Fragen Generator</p>
+                                    <p className="text-xs mt-2">Keywords wählen oder eigene eingeben.</p>
                                 </>
                             )}
                          </div>
