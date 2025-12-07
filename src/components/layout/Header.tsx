@@ -13,7 +13,6 @@ import {
   X, 
   Briefcase, 
   CalendarCheck, 
-  ShieldLock, 
   Speedometer2, 
   BoxArrowRight, 
   BoxArrowInRight,
@@ -30,9 +29,8 @@ export default function Header() {
   const isAdmin = session?.user?.role === 'ADMIN' || session?.user?.role === 'SUPERADMIN'; 
   const isSuperAdmin = session?.user?.role === 'SUPERADMIN'; 
   const isUser = session?.user?.role === 'BENUTZER'; 
-  
-  // NEU: Prüfen, ob der User einen Redaktionsplan hat
-  // (Greift auf die in Schritt 1 & 2 definierte Variable zu)
+
+  // NEU: Prüfen, ob der Plan zugewiesen ist
   const hasRedaktionsplan = session?.user?.hasRedaktionsplan;
 
   // Logo-Logik
@@ -137,7 +135,7 @@ export default function Header() {
                 </Button>
               </Link>
               
-              {/* NEU: Button wird nur angezeigt, wenn hasRedaktionsplan wahr ist */}
+              {/* NEU: Button nur rendern, wenn hasRedaktionsplan true ist */}
               {hasRedaktionsplan && (
                 <Link href="/dashboard/freigabe" passHref>
                   <Button 
@@ -235,7 +233,7 @@ export default function Header() {
                   </Button>
                 </Link>
                 
-                {/* NEU: Auch im mobilen Menü nur anzeigen, wenn Plan vorhanden */}
+                {/* NEU: Auch im Mobile Menu nur anzeigen, wenn hasRedaktionsplan true ist */}
                 {hasRedaktionsplan && (
                   <Link href="/dashboard/freigabe" passHref>
                     <Button variant={pathname === '/dashboard/freigabe' ? 'default' : 'outline'} className="w-full justify-start gap-2">
