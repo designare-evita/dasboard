@@ -1,8 +1,10 @@
 // src/app/api/ai/trend-radar/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
+import { sql } from '@vercel/postgres';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { streamText } from 'ai';
+import crypto from 'node:crypto';
 
 const google = createGoogleGenerativeAI({
   apiKey: process.env.GEMINI_API_KEY || '',
@@ -16,6 +18,9 @@ const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY || '';
 const RAPIDAPI_HOST = 'google-keyword-insight1.p.rapidapi.com';
 const BASE_URL = 'https://google-keyword-insight1.p.rapidapi.com';
 
+// Cache-Dauer: 24 Stunden
+const CACHE_DURATION_HOURS = 24;
+
 // Typen für RapidAPI Response
 interface KeywordData {
   keyword: string;
@@ -28,13 +33,18 @@ interface KeywordData {
   intent?: string;
 }
 
-// Hilfsfunktion: Trend aus Array berechnen (steigend/fallend/stabil)
-function analyzeTrend(trendArray: number[]): { direction: string; percentage: number } {
-  if (!trendArray || trendArray.length < 2) {
+// Hash für Cache-Key
+function createHash(data: string): string {
+  return crypto.createHash('sha256').update(data).digest('hex');
+}
+
+// Trend aus Array berechnen
+function analyzeTrend(trendArray: number[] | undefined | null): { direction: string; percentage: number } {
+  // Sicherheitsprüfung
+  if (!trendArray || !Array.isArray(trendArray) || trendArray.length < 2) {
     return { direction: 'stabil', percentage: 0 };
   }
   
-  // Vergleiche letzte 3 Monate mit vorherigen 3 Monaten
   const recentMonths = trendArray.slice(-3);
   const previousMonths = trendArray.slice(-6, -3);
   
@@ -52,16 +62,72 @@ function analyzeTrend(trendArray: number[]): { direction: string; percentage: nu
   return { direction: 'stabil', percentage: Math.round(change) };
 }
 
-// Keyword Suggestions für ein Hauptkeyword abrufen
+// ============================================
+// CACHE FUNKTIONEN
+// ============================================
+
+async function getCachedKeywords(cacheKey: string): Promise<KeywordData[] | null> {
+  try {
+    const { rows } = await sql`
+      SELECT data 
+      FROM trend_radar_cache
+      WHERE cache_key = ${cacheKey}
+        AND created_at > NOW() - INTERVAL '24 hours'
+      LIMIT 1
+    `;
+    
+    if (rows.length > 0 && rows[0].data) {
+      console.log(`[Trend Radar] ✅ Cache HIT`);
+      const data = rows[0].data;
+      // Falls data ein String ist, parsen
+      return typeof data === 'string' ? JSON.parse(data) : data;
+    }
+    
+    console.log(`[Trend Radar] ❌ Cache MISS`);
+    return null;
+  } catch (error) {
+    console.log('[Trend Radar] Cache-Fehler (Tabelle existiert evtl. nicht):', error);
+    return null;
+  }
+}
+
+async function setCachedKeywords(cacheKey: string, data: KeywordData[]): Promise<void> {
+  try {
+    const jsonData = JSON.stringify(data);
+    
+    await sql`
+      INSERT INTO trend_radar_cache (cache_key, data, created_at)
+      VALUES (${cacheKey}, ${jsonData}::jsonb, NOW())
+      ON CONFLICT (cache_key) 
+      DO UPDATE SET data = ${jsonData}::jsonb, created_at = NOW()
+    `;
+    
+    console.log(`[Trend Radar] 💾 Cache gespeichert`);
+  } catch (error) {
+    console.error('[Trend Radar] Cache speichern fehlgeschlagen:', error);
+  }
+}
+
+// ============================================
+// API FUNKTIONEN
+// ============================================
+
 async function fetchKeywordSuggestions(
   keyword: string, 
   location: string = 'AT', 
   lang: string = 'de'
 ): Promise<KeywordData[]> {
+  const cacheKey = createHash(`suggestions:${keyword}:${location}:${lang}`);
+  
+  // 1. Cache prüfen
+  const cached = await getCachedKeywords(cacheKey);
+  if (cached && Array.isArray(cached)) return cached;
+
+  // 2. API aufrufen
   try {
     const url = `${BASE_URL}/keysuggest/?keyword=${encodeURIComponent(keyword)}&location=${location}&lang=${lang}&return_intent=true`;
     
-    console.log(`[Trend Radar] Fetching: ${url}`);
+    console.log(`[Trend Radar] 🌐 API Call: keysuggest für "${keyword}"`);
     
     const response = await fetch(url, {
       method: 'GET',
@@ -72,16 +138,48 @@ async function fetchKeywordSuggestions(
     });
 
     if (!response.ok) {
-      console.error(`[Trend Radar] RapidAPI Error: ${response.status} ${response.statusText}`);
+      const errorText = await response.text();
+      console.error(`[Trend Radar] RapidAPI Error: ${response.status}`, errorText);
       return [];
     }
 
     const data = await response.json();
     
-    // API gibt Array direkt zurück oder als { keywords: [...] }
-    const keywords = Array.isArray(data) ? data : (data.keywords || []);
+    console.log(`[Trend Radar] Raw Response Type:`, typeof data, Array.isArray(data));
     
-    console.log(`[Trend Radar] Received ${keywords.length} keywords for "${keyword}"`);
+    // Verschiedene Response-Formate handhaben
+    let keywords: KeywordData[] = [];
+    
+    if (Array.isArray(data)) {
+      keywords = data;
+    } else if (data && typeof data === 'object') {
+      if (Array.isArray(data.keywords)) {
+        keywords = data.keywords;
+      } else if (Array.isArray(data.data)) {
+        keywords = data.data;
+      } else if (Array.isArray(data.results)) {
+        keywords = data.results;
+      }
+    }
+    
+    // Sicherstellen dass jedes Keyword die erwartete Struktur hat
+    keywords = keywords.map(kw => ({
+      keyword: kw.keyword || kw.term || kw.query || 'Unbekannt',
+      search_volume: Number(kw.search_volume) || Number(kw.volume) || 0,
+      competition: kw.competition || 'unknown',
+      competition_index: Number(kw.competition_index) || 0,
+      low_bid: Number(kw.low_bid) || 0,
+      high_bid: Number(kw.high_bid) || 0,
+      trend: Array.isArray(kw.trend) ? kw.trend : [],
+      intent: kw.intent || undefined,
+    }));
+    
+    console.log(`[Trend Radar] ✅ ${keywords.length} Keywords erhalten`);
+    
+    // 3. In Cache speichern
+    if (keywords.length > 0) {
+      await setCachedKeywords(cacheKey, keywords);
+    }
     
     return keywords;
   } catch (error) {
@@ -90,17 +188,23 @@ async function fetchKeywordSuggestions(
   }
 }
 
-// Top Keywords (Opportunity Keywords) abrufen
 async function fetchTopKeywords(
   keyword: string,
   location: string = 'AT',
   lang: string = 'de',
   num: number = 15
 ): Promise<KeywordData[]> {
+  const cacheKey = createHash(`topkeys:${keyword}:${location}:${lang}:${num}`);
+  
+  // 1. Cache prüfen
+  const cached = await getCachedKeywords(cacheKey);
+  if (cached && Array.isArray(cached)) return cached;
+
+  // 2. API aufrufen
   try {
     const url = `${BASE_URL}/topkeys/?keyword=${encodeURIComponent(keyword)}&location=${location}&lang=${lang}&num=${num}`;
     
-    console.log(`[Trend Radar] Fetching Top Keywords: ${url}`);
+    console.log(`[Trend Radar] 🌐 API Call: topkeys für "${keyword}"`);
     
     const response = await fetch(url, {
       method: 'GET',
@@ -111,14 +215,46 @@ async function fetchTopKeywords(
     });
 
     if (!response.ok) {
-      console.error(`[Trend Radar] TopKeys Error: ${response.status}`);
+      const errorText = await response.text();
+      console.error(`[Trend Radar] TopKeys Error: ${response.status}`, errorText);
       return [];
     }
 
     const data = await response.json();
-    const keywords = Array.isArray(data) ? data : (data.keywords || []);
     
-    console.log(`[Trend Radar] Received ${keywords.length} top keywords`);
+    // Verschiedene Response-Formate handhaben
+    let keywords: KeywordData[] = [];
+    
+    if (Array.isArray(data)) {
+      keywords = data;
+    } else if (data && typeof data === 'object') {
+      if (Array.isArray(data.keywords)) {
+        keywords = data.keywords;
+      } else if (Array.isArray(data.data)) {
+        keywords = data.data;
+      } else if (Array.isArray(data.results)) {
+        keywords = data.results;
+      }
+    }
+    
+    // Struktur normalisieren
+    keywords = keywords.map(kw => ({
+      keyword: kw.keyword || kw.term || kw.query || 'Unbekannt',
+      search_volume: Number(kw.search_volume) || Number(kw.volume) || 0,
+      competition: kw.competition || 'unknown',
+      competition_index: Number(kw.competition_index) || 0,
+      low_bid: Number(kw.low_bid) || 0,
+      high_bid: Number(kw.high_bid) || 0,
+      trend: Array.isArray(kw.trend) ? kw.trend : [],
+      intent: kw.intent || undefined,
+    }));
+    
+    console.log(`[Trend Radar] ✅ ${keywords.length} Top-Keywords erhalten`);
+    
+    // 3. In Cache speichern
+    if (keywords.length > 0) {
+      await setCachedKeywords(cacheKey, keywords);
+    }
     
     return keywords;
   } catch (error) {
@@ -127,6 +263,10 @@ async function fetchTopKeywords(
   }
 }
 
+// ============================================
+// MAIN HANDLER
+// ============================================
+
 export async function POST(req: NextRequest) {
   try {
     const session = await auth();
@@ -134,57 +274,60 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
     }
 
-    const { domain, keywords } = await req.json();
+    const body = await req.json();
+    const { domain, keywords: inputKeywords } = body;
 
     if (!domain) {
       return NextResponse.json({ message: 'Domain fehlt' }, { status: 400 });
     }
 
-    // Prüfe ob API Key vorhanden
     if (!RAPIDAPI_KEY) {
       console.error('[Trend Radar] RAPIDAPI_KEY nicht konfiguriert!');
       return NextResponse.json({ message: 'API nicht konfiguriert' }, { status: 500 });
     }
 
     console.log(`[Trend Radar] Start für Domain: ${domain}`);
+    console.log(`[Trend Radar] Input Keywords:`, inputKeywords);
 
-    // Bestimme Suchbegriff aus Domain oder Keywords
+    // Sicherstellen dass keywords ein Array ist
+    const keywords = Array.isArray(inputKeywords) ? inputKeywords : [];
+
+    // Suchbegriff bestimmen
     let searchTerm = '';
-    if (keywords && keywords.length > 0) {
-      // Nutze erstes Keyword
+    if (keywords.length > 0 && typeof keywords[0] === 'string') {
       searchTerm = keywords[0];
     } else {
-      // Extrahiere Branche aus Domain
-      const domainParts = domain.replace(/^(https?:\/\/)?(www\.)?/, '').split('.')[0];
-      searchTerm = domainParts;
+      // Extrahiere aus Domain
+      const domainClean = domain.replace(/^(https?:\/\/)?(www\.)?/, '').split('.')[0];
+      searchTerm = domainClean;
     }
 
     console.log(`[Trend Radar] Suchbegriff: ${searchTerm}`);
 
-    // 1. Keyword Suggestions abrufen
+    // Daten abrufen
     const suggestions = await fetchKeywordSuggestions(searchTerm, 'AT', 'de');
-    
-    // 2. Top/Opportunity Keywords abrufen
     const topKeywords = await fetchTopKeywords(searchTerm, 'AT', 'de', 10);
     
-    // 3. Daten aufbereiten
     const hasData = suggestions.length > 0 || topKeywords.length > 0;
 
-    // Steigende Keywords identifizieren (basierend auf Trend-Array)
+    console.log(`[Trend Radar] Suggestions: ${suggestions.length}, TopKeys: ${topKeywords.length}`);
+
+    // Steigende Keywords (mit Sicherheitsprüfung)
     const risingKeywords = suggestions
       .filter(kw => {
+        if (!kw || !kw.trend) return false;
         const trend = analyzeTrend(kw.trend);
         return trend.direction === 'steigend' || trend.direction === 'neu';
       })
-      .sort((a, b) => b.search_volume - a.search_volume)
+      .sort((a, b) => (b.search_volume || 0) - (a.search_volume || 0))
       .slice(0, 10);
 
     // High-Volume Keywords
     const highVolumeKeywords = [...suggestions]
-      .sort((a, b) => b.search_volume - a.search_volume)
+      .sort((a, b) => (b.search_volume || 0) - (a.search_volume || 0))
       .slice(0, 10);
 
-    // Prompt-Daten erstellen
+    // Prompt-Daten
     const trendsData = hasData ? `
 KEYWORD RECHERCHE ERGEBNISSE (Live-Daten via RapidAPI):
 
@@ -192,46 +335,46 @@ KEYWORD RECHERCHE ERGEBNISSE (Live-Daten via RapidAPI):
 ${risingKeywords.length > 0 
   ? risingKeywords.map(kw => {
       const trend = analyzeTrend(kw.trend);
-      return `- "${kw.keyword}" | Suchvolumen: ${kw.search_volume.toLocaleString('de-DE')}/Monat | Trend: ${trend.direction} (${trend.percentage > 0 ? '+' : ''}${trend.percentage}%) | Wettbewerb: ${kw.competition} | Intent: ${kw.intent || 'N/A'}`;
+      return `- "${kw.keyword}" | Suchvolumen: ${(kw.search_volume || 0).toLocaleString('de-DE')}/Monat | Trend: ${trend.direction} (${trend.percentage > 0 ? '+' : ''}${trend.percentage}%) | Wettbewerb: ${kw.competition || 'N/A'} | Intent: ${kw.intent || 'N/A'}`;
     }).join('\n')
   : 'Keine steigenden Keywords identifiziert.'}
 
 📊 TOP KEYWORDS NACH SUCHVOLUMEN:
 ${highVolumeKeywords.length > 0
   ? highVolumeKeywords.map(kw => {
-      const trend = analyzeTrend(kw.trend);
-      return `- "${kw.keyword}" | ${kw.search_volume.toLocaleString('de-DE')}/Monat | Wettbewerb: ${kw.competition} (${kw.competition_index}/100) | CPC: €${kw.low_bid.toFixed(2)}-${kw.high_bid.toFixed(2)}`;
+      return `- "${kw.keyword}" | ${(kw.search_volume || 0).toLocaleString('de-DE')}/Monat | Wettbewerb: ${kw.competition || 'N/A'} (${kw.competition_index || 0}/100) | CPC: €${(kw.low_bid || 0).toFixed(2)}-${(kw.high_bid || 0).toFixed(2)}`;
     }).join('\n')
   : 'Keine Daten.'}
 
 🎯 OPPORTUNITY KEYWORDS (Hohes Potenzial):
 ${topKeywords.length > 0
   ? topKeywords.map(kw => {
-      return `- "${kw.keyword}" | Suchvolumen: ${kw.search_volume.toLocaleString('de-DE')}/Monat | Wettbewerb: ${kw.competition}`;
+      return `- "${kw.keyword}" | Suchvolumen: ${(kw.search_volume || 0).toLocaleString('de-DE')}/Monat | Wettbewerb: ${kw.competition || 'N/A'}`;
     }).join('\n')
   : 'Keine Opportunity Keywords gefunden.'}
 
 PROJEKT-KONTEXT:
 - Domain: ${domain}
 - Analysierter Suchbegriff: ${searchTerm}
-- Weitere Keywords: ${keywords?.slice(1).join(', ') || 'Keine'}
+- Weitere Keywords: ${keywords.slice(1).join(', ') || 'Keine'}
 ` : `
 HINWEIS: Keine Daten von der Keyword API erhalten.
-Analysiere basierend auf Domain und verfügbarem Kontext.
 
 PROJEKT-KONTEXT:
 - Domain: ${domain}
-- Keywords: ${keywords?.join(', ') || 'Keine'}
+- Suchbegriff: ${searchTerm}
+- Keywords: ${keywords.join(', ') || 'Keine'}
+
+Bitte generiere Empfehlungen basierend auf der Domain und allgemeinem SEO-Wissen.
 `;
 
     // System Prompt
     const systemPrompt = `
-Du bist ein SEO-Stratege und Trend-Analyst. Deine Aufgabe ist es, Keyword-Daten zu analysieren und Content-Chancen zu identifizieren.
+Du bist ein SEO-Stratege und Trend-Analyst. Analysiere Keyword-Daten und identifiziere Content-Chancen.
 
 REGELN FÜR FORMATIERUNG (STRIKT BEFOLGEN):
 1. VERWENDE KEIN MARKDOWN! (Keine **, keine ##, keine * Listen).
-2. Nutze IMMER HTML-Tags für Formatierung.
-3. Nutze AUSSCHLIESSLICH HTML-Tags mit Tailwind-Klassen.
+2. Nutze AUSSCHLIESSLICH HTML-Tags mit Tailwind-Klassen.
 
 STYLING VORGABEN:
 - Überschriften: <h3 class="font-bold text-indigo-900 mt-6 mb-3 text-lg flex items-center gap-2">TITEL</h3>
@@ -248,7 +391,7 @@ STYLING VORGABEN:
       <span class="bg-white px-2 py-1 rounded text-xs text-indigo-600 border border-indigo-100">Content-Idee</span>
     </div>
   </div>
-- Opportunity-Karte (für Low Competition):
+- Opportunity-Karte:
   <div class="flex items-center justify-between bg-emerald-50 p-3 rounded-lg border border-emerald-100 mb-2">
     <div>
       <span class="font-medium text-gray-800">KEYWORD</span>
@@ -267,49 +410,36 @@ STYLING VORGABEN:
   </div>
 
 AUFGABE:
-Analysiere die Keyword-Daten und erstelle einen actionable Report.
 
 ${hasData ? `
 1. <h3...>📡 Datenübersicht</h3>
-   Zeige ein Statistik-Grid mit:
-   - Anzahl analysierter Keywords
-   - Durchschnittliches Suchvolumen
-   - Keywords mit steigendem Trend
-   Füge das Erfolgs-Badge "Live-Daten ✓" hinzu.
+   Statistik-Grid mit: Anzahl Keywords, Durchschnittliches Suchvolumen, Steigende Keywords.
+   Füge "Live-Daten ✓" Badge hinzu.
 ` : `
-1. <h3...>📡 Branchen-Analyse</h3>
-   Erkenne die Branche aus Domain und Keywords. Gib allgemeine Empfehlungen.
+1. <h3...>📡 Analyse</h3>
+   Erkläre kurz die Situation und gib allgemeine Empfehlungen für die Domain.
 `}
 
 2. <h3...>🔥 Top 5 Content-Chancen</h3>
-   Wähle die 5 besten Keywords für neuen Content.
-   Kriterien: Hohes Suchvolumen + steigender Trend + machbarer Wettbewerb
-   Nutze die Trend-Karte für jedes Keyword.
-   - Zeige Suchvolumen als Badge
-   - Erkläre WARUM dieses Keyword Potenzial hat
-   - Gib eine konkrete Content-Idee (Blogpost-Titel, Landingpage, FAQ...)
+   Wähle die 5 besten Keywords. Nutze Trend-Karten.
+   - Suchvolumen als Badge
+   - Warum hat es Potenzial?
+   - Konkrete Content-Idee
 
 3. <h3...>🎯 Quick Wins (Low Competition)</h3>
-   Identifiziere 3-5 Keywords mit niedrigem Wettbewerb aber gutem Volumen.
-   Nutze die Opportunity-Karte.
-   Das sind Keywords, für die schnell gerankt werden kann.
+   3-5 Keywords mit niedrigem Wettbewerb. Nutze Opportunity-Karten.
 
 4. <h3...>📈 Trend-Analyse</h3>
-   Welche Themen/Keywords steigen gerade?
-   Erkläre die Muster und was sie für die Content-Strategie bedeuten.
+   Welche Themen steigen? Was bedeutet das für die Strategie?
 
 5. <h3...>💡 Sofort-Empfehlung</h3>
-   Nutze die Empfehlungs-Box (weißer Text auf indigo Hintergrund).
-   
-   Struktur:
-   - Haupt-Empfehlung: "Erstellen Sie JETZT Content für [Keyword], weil [Grund]."
+   Empfehlungs-Box mit:
+   - "Erstellen Sie JETZT Content für [X], weil [Y]."
    - 3 konkrete nächste Schritte
-   - Priorisierung: Was zuerst?
 
-Antworte direkt mit HTML. Keine Einleitung, kein Markdown.
+Antworte direkt mit HTML.
 `;
 
-    // Stream starten
     const result = streamText({
       model: google('gemini-2.5-flash'),
       system: systemPrompt,
