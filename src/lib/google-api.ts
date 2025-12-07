@@ -3,6 +3,7 @@
 import { google } from 'googleapis';
 import { JWT } from 'google-auth-library';
 import { ChartEntry } from '@/lib/dashboard-shared';
+import type { TopQueryData } from '@/types/dashboard';
 
 // --- Typdefinitionen ---
 
@@ -16,14 +17,6 @@ interface DateRangeData {
   daily: DailyDataPoint[];
 }
 
-interface TopQueryData {
-  query: string;
-  clicks: number;
-  impressions: number;
-  ctr: number;
-  position: number;
-  url?: string;
-}
 
 export interface AiTrafficData {
   totalSessions: number;
