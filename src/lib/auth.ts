@@ -1,33 +1,30 @@
-// src/lib/auth.ts
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import { sql } from '@vercel/postgres';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import type { NextAuthConfig } from 'next-auth';
+import type { User } from 'next-auth'; // WICHTIG: User Typ importieren
 
 export const authConfig = {
   pages: {
     signIn: '/login',
   },
   callbacks: {
-    // 1. Daten vom User-Objekt (aus authorize) ins Token schreiben
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        // Typ-Assertion, da wir wissen, dass die DB diese Werte liefert
         token.role = user.role as 'BENUTZER' | 'ADMIN' | 'SUPERADMIN';
         token.mandant_id = user.mandant_id;
         token.permissions = user.permissions;
         token.logo_url = user.logo_url;
         token.gsc_site_url = user.gsc_site_url;
-
-        // NEU: Prüfen, ob eine Redaktionsplan-URL existiert
+        
+        // Prüfen, ob eine Redaktionsplan-URL existiert (DB Feld -> Boolean Flag)
         token.hasRedaktionsplan = !!user.redaktionsplan_url && user.redaktionsplan_url.length > 0;
       }
       return token;
     },
-    // 2. Daten vom Token in die Session schreiben (für den Client)
     async session({ session, token }) {
       if (token && session.user) {
         session.user.id = token.id;
@@ -36,8 +33,6 @@ export const authConfig = {
         session.user.permissions = token.permissions;
         session.user.logo_url = token.logo_url;
         session.user.gsc_site_url = token.gsc_site_url;
-        
-        // NEU: Flag übergeben
         session.user.hasRedaktionsplan = token.hasRedaktionsplan;
       }
       return session;
@@ -57,7 +52,6 @@ export const authConfig = {
   providers: [
     Credentials({
       async authorize(credentials) {
-        // Validierung der Eingaben
         const parsedCredentials = z
           .object({ email: z.string().email(), password: z.string().min(6) })
           .safeParse(credentials);
@@ -65,8 +59,6 @@ export const authConfig = {
         if (parsedCredentials.success) {
           const { email, password } = parsedCredentials.data;
           
-          // User aus der Datenbank holen
-          // WICHTIG: redaktionsplan_url hier mit abfragen!
           const { rows } = await sql`
             SELECT 
               id, 
@@ -85,10 +77,10 @@ export const authConfig = {
 
           if (!user) return null;
 
-          // Passwort prüfen
           const passwordsMatch = await bcrypt.compare(password, user.password);
           if (passwordsMatch) {
-            return user;
+            // WICHTIG: Hier casten wir das Ergebnis explizit auf den User-Typ
+            return user as User;
           }
         }
 
@@ -99,5 +91,4 @@ export const authConfig = {
   ],
 } satisfies NextAuthConfig;
 
-// Exportiere die NextAuth-Funktionen für die Nutzung in der App
 export const { auth, signIn, signOut, handlers } = NextAuth(authConfig);
