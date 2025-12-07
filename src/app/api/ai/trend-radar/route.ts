@@ -30,21 +30,6 @@ interface KeywordData {
   intent?: string;
 }
 
-// Rohe API Response (kann verschiedene Felder haben)
-interface RawKeywordData {
-  keyword?: string;
-  term?: string;
-  query?: string;
-  search_volume?: number;
-  volume?: number;
-  competition?: string;
-  competition_index?: number;
-  low_bid?: number;
-  high_bid?: number;
-  trend?: number[];
-  intent?: string;
-}
-
 // Hash für Cache-Key
 function createHash(data: string): string {
   return crypto.createHash('sha256').update(data).digest('hex');
@@ -73,17 +58,44 @@ function analyzeTrend(trendArray: number[] | undefined | null): { direction: str
   return { direction: 'stabil', percentage: Math.round(change) };
 }
 
-// Raw Data zu KeywordData normalisieren
-function normalizeKeyword(raw: RawKeywordData): KeywordData {
+// Raw Data zu KeywordData normalisieren - ERWEITERT
+function normalizeKeyword(raw: Record<string, unknown>): KeywordData {
+  // Versuche das Keyword aus verschiedenen möglichen Feldern zu extrahieren
+  const keywordValue = 
+    raw.keyword || 
+    raw.text ||
+    raw.term || 
+    raw.query || 
+    raw.key ||
+    raw.name ||
+    raw.phrase ||
+    raw.search_term ||
+    raw.searchTerm ||
+    raw.kw ||
+    // Falls es ein Array ist, nimm den ersten Wert
+    (Array.isArray(raw) ? raw[0] : null) ||
+    'Unbekannt';
+
+  // Suchvolumen aus verschiedenen Feldern
+  const volumeValue = 
+    raw.search_volume ||
+    raw.searchVolume ||
+    raw.volume ||
+    raw.avg_monthly_searches ||
+    raw.avgMonthlySearches ||
+    raw.monthly_searches ||
+    raw.searches ||
+    0;
+
   return {
-    keyword: raw.keyword || raw.term || raw.query || 'Unbekannt',
-    search_volume: Number(raw.search_volume) || Number(raw.volume) || 0,
-    competition: raw.competition || 'unknown',
-    competition_index: Number(raw.competition_index) || 0,
-    low_bid: Number(raw.low_bid) || 0,
-    high_bid: Number(raw.high_bid) || 0,
+    keyword: String(keywordValue),
+    search_volume: Number(volumeValue) || 0,
+    competition: String(raw.competition || raw.comp || 'unknown'),
+    competition_index: Number(raw.competition_index || raw.competitionIndex || raw.comp_index || 0),
+    low_bid: Number(raw.low_bid || raw.lowBid || raw.cpc_low || 0),
+    high_bid: Number(raw.high_bid || raw.highBid || raw.cpc_high || raw.cpc || 0),
     trend: Array.isArray(raw.trend) ? raw.trend : [],
-    intent: raw.intent || undefined,
+    intent: raw.intent ? String(raw.intent) : undefined,
   };
 }
 
@@ -145,7 +157,9 @@ async function fetchKeywordSuggestions(
   
   // 1. Cache prüfen
   const cached = await getCachedKeywords(cacheKey);
-  if (cached && Array.isArray(cached)) return cached;
+  if (cached && Array.isArray(cached) && cached.length > 0 && cached[0].keyword !== 'Unbekannt') {
+    return cached;
+  }
 
   // 2. API aufrufen
   try {
@@ -169,32 +183,63 @@ async function fetchKeywordSuggestions(
 
     const data = await response.json();
     
+    // 🔍 DEBUG: Logge die komplette Response-Struktur
+    console.log(`[Trend Radar] 📦 Response Type: ${typeof data}, IsArray: ${Array.isArray(data)}`);
+    console.log(`[Trend Radar] 📦 Response Keys: ${data ? Object.keys(data).join(', ') : 'null'}`);
+    
+    // Erstes Element loggen um Struktur zu sehen
+    if (Array.isArray(data) && data.length > 0) {
+      console.log(`[Trend Radar] 📦 First Item Keys: ${Object.keys(data[0]).join(', ')}`);
+      console.log(`[Trend Radar] 📦 First Item Sample:`, JSON.stringify(data[0]).slice(0, 500));
+    } else if (data && typeof data === 'object') {
+      const firstKey = Object.keys(data)[0];
+      if (firstKey && Array.isArray(data[firstKey]) && data[firstKey].length > 0) {
+        console.log(`[Trend Radar] 📦 First Item in "${firstKey}":`, JSON.stringify(data[firstKey][0]).slice(0, 500));
+      }
+    }
+
     // Verschiedene Response-Formate handhaben
-    let rawKeywords: RawKeywordData[] = [];
+    let rawKeywords: Record<string, unknown>[] = [];
     
     if (Array.isArray(data)) {
       rawKeywords = data;
     } else if (data && typeof data === 'object') {
-      if (Array.isArray(data.keywords)) {
-        rawKeywords = data.keywords;
-      } else if (Array.isArray(data.data)) {
-        rawKeywords = data.data;
-      } else if (Array.isArray(data.results)) {
-        rawKeywords = data.results;
+      // Versuche verschiedene bekannte Wrapper-Keys
+      const possibleKeys = ['keywords', 'data', 'results', 'items', 'suggestions', 'keyword_ideas', 'keyword_list'];
+      for (const key of possibleKeys) {
+        if (Array.isArray(data[key])) {
+          rawKeywords = data[key];
+          console.log(`[Trend Radar] 📦 Found keywords in "${key}"`);
+          break;
+        }
+      }
+      
+      // Falls immer noch leer, nimm das erste Array das wir finden
+      if (rawKeywords.length === 0) {
+        for (const key of Object.keys(data)) {
+          if (Array.isArray(data[key]) && data[key].length > 0) {
+            rawKeywords = data[key];
+            console.log(`[Trend Radar] 📦 Using first array found: "${key}"`);
+            break;
+          }
+        }
       }
     }
     
     // Normalisieren
     const keywords = rawKeywords.map(normalizeKeyword);
     
-    console.log(`[Trend Radar] ✅ ${keywords.length} Keywords erhalten`);
+    // Filtere "Unbekannt" raus falls vorhanden
+    const validKeywords = keywords.filter(kw => kw.keyword !== 'Unbekannt');
     
-    // 3. In Cache speichern
-    if (keywords.length > 0) {
-      await setCachedKeywords(cacheKey, keywords);
+    console.log(`[Trend Radar] ✅ ${validKeywords.length} gültige Keywords erhalten`);
+    
+    // 3. In Cache speichern (nur wenn gültige Keywords)
+    if (validKeywords.length > 0) {
+      await setCachedKeywords(cacheKey, validKeywords);
     }
     
-    return keywords;
+    return validKeywords;
   } catch (error) {
     console.error('[Trend Radar] Fetch Error:', error);
     return [];
@@ -211,7 +256,9 @@ async function fetchTopKeywords(
   
   // 1. Cache prüfen
   const cached = await getCachedKeywords(cacheKey);
-  if (cached && Array.isArray(cached)) return cached;
+  if (cached && Array.isArray(cached) && cached.length > 0 && cached[0].keyword !== 'Unbekannt') {
+    return cached;
+  }
 
   // 2. API aufrufen
   try {
@@ -235,32 +282,48 @@ async function fetchTopKeywords(
 
     const data = await response.json();
     
+    // 🔍 DEBUG
+    console.log(`[Trend Radar] 📦 TopKeys Response Type: ${typeof data}, IsArray: ${Array.isArray(data)}`);
+    if (Array.isArray(data) && data.length > 0) {
+      console.log(`[Trend Radar] 📦 TopKeys First Item Keys: ${Object.keys(data[0]).join(', ')}`);
+    }
+
     // Verschiedene Response-Formate handhaben
-    let rawKeywords: RawKeywordData[] = [];
+    let rawKeywords: Record<string, unknown>[] = [];
     
     if (Array.isArray(data)) {
       rawKeywords = data;
     } else if (data && typeof data === 'object') {
-      if (Array.isArray(data.keywords)) {
-        rawKeywords = data.keywords;
-      } else if (Array.isArray(data.data)) {
-        rawKeywords = data.data;
-      } else if (Array.isArray(data.results)) {
-        rawKeywords = data.results;
+      const possibleKeys = ['keywords', 'data', 'results', 'items', 'suggestions', 'top_keywords'];
+      for (const key of possibleKeys) {
+        if (Array.isArray(data[key])) {
+          rawKeywords = data[key];
+          break;
+        }
+      }
+      
+      if (rawKeywords.length === 0) {
+        for (const key of Object.keys(data)) {
+          if (Array.isArray(data[key]) && data[key].length > 0) {
+            rawKeywords = data[key];
+            break;
+          }
+        }
       }
     }
     
     // Normalisieren
     const keywords = rawKeywords.map(normalizeKeyword);
+    const validKeywords = keywords.filter(kw => kw.keyword !== 'Unbekannt');
     
-    console.log(`[Trend Radar] ✅ ${keywords.length} Top-Keywords erhalten`);
+    console.log(`[Trend Radar] ✅ ${validKeywords.length} gültige Top-Keywords erhalten`);
     
     // 3. In Cache speichern
-    if (keywords.length > 0) {
-      await setCachedKeywords(cacheKey, keywords);
+    if (validKeywords.length > 0) {
+      await setCachedKeywords(cacheKey, validKeywords);
     }
     
-    return keywords;
+    return validKeywords;
   } catch (error) {
     console.error('[Trend Radar] TopKeys Fetch Error:', error);
     return [];
@@ -290,7 +353,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'API nicht konfiguriert' }, { status: 500 });
     }
 
-    console.log(`[Trend Radar] Start für Domain: ${domain}`);
+    console.log(`[Trend Radar] ========== START ==========`);
+    console.log(`[Trend Radar] Domain: ${domain}`);
 
     // Sicherstellen dass keywords ein Array ist
     const keywords: string[] = Array.isArray(inputKeywords) ? inputKeywords : [];
@@ -304,13 +368,15 @@ export async function POST(req: NextRequest) {
       searchTerm = domainClean;
     }
 
-    console.log(`[Trend Radar] Suchbegriff: ${searchTerm}`);
+    console.log(`[Trend Radar] Suchbegriff: "${searchTerm}"`);
 
     // Daten abrufen
     const suggestions = await fetchKeywordSuggestions(searchTerm, 'AT', 'de');
     const topKeywords = await fetchTopKeywords(searchTerm, 'AT', 'de', 10);
     
     const hasData = suggestions.length > 0 || topKeywords.length > 0;
+
+    console.log(`[Trend Radar] Ergebnis: ${suggestions.length} Suggestions, ${topKeywords.length} TopKeys`);
 
     // Steigende Keywords
     const risingKeywords = suggestions
