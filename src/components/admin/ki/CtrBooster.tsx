@@ -1,3 +1,4 @@
+// src/components/admin/ki/CtrBooster.tsx
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -23,6 +24,7 @@ interface KeywordData {
   impressions: number;
   ctr: number; // Erwartet 0.05 für 5%
   position: number;
+  url?: string; // ✅ NEU: URL Feld hinzugefügt
 }
 
 interface AiSuggestion {
@@ -51,7 +53,7 @@ export default function CtrBooster({ projectId }: CtrBoosterProps) {
     async function loadData() {
       setLoading(true);
       try {
-        // A) Projektdaten für Domain holen (leichtgewichtiger Call)
+        // A) Projektdaten für Domain holen
         const projectRes = await fetch('/api/projects');
         if (projectRes.ok) {
            const projectData = await projectRes.json();
@@ -112,7 +114,9 @@ export default function CtrBooster({ projectId }: CtrBoosterProps) {
           keyword: keywordData.query,
           currentCtr: (keywordData.ctr * 100).toFixed(2) + '%',
           currentPosition: keywordData.position,
-          domain: domain
+          domain: domain,
+          // Optional: URL mitgeben für besseren Kontext (falls die KI die Seite crawlen könnte)
+          url: keywordData.url 
         }),
       });
 
@@ -193,7 +197,7 @@ export default function CtrBooster({ projectId }: CtrBoosterProps) {
         <table className="w-full text-sm text-left">
           <thead className="bg-gray-50 text-gray-600 font-medium border-b border-gray-100">
             <tr>
-              <th className="px-6 py-3 w-1/3">Keyword</th>
+              <th className="px-6 py-3 w-1/3">Keyword & URL</th> {/* Header angepasst */}
               <th className="px-6 py-3 text-center">Position</th>
               <th className="px-6 py-3 text-center">CTR (Aktuell)</th>
               <th className="px-6 py-3 text-center">Impressionen</th>
@@ -210,8 +214,16 @@ export default function CtrBooster({ projectId }: CtrBoosterProps) {
                 <React.Fragment key={kw.query}>
                   {/* HAUPTZEILE */}
                   <tr className={`hover:bg-gray-50/80 transition-colors ${isExpanded ? 'bg-indigo-50/30' : ''}`}>
-                    <td className="px-6 py-4 font-medium text-gray-800">
-                      {kw.query}
+                    <td className="px-6 py-4">
+                       {/* ✅ NEU: Keyword + URL Anzeige */}
+                      <div className="font-medium text-gray-800">
+                        {kw.query}
+                      </div>
+                      {kw.url && (
+                        <div className="text-[11px] text-gray-400 mt-1 truncate max-w-[300px]" title={kw.url}>
+                          {kw.url}
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-center text-gray-600">
                       {kw.position.toFixed(1)}
