@@ -1,7 +1,43 @@
+// designare-evita/dasboard/dasboard-51c35db465e734e54d24d3ac7e57518724990087/next.config.mjs
 import { withSentryConfig } from '@sentry/nextjs';
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'www.ag-consulting.at',
+        port: '',
+        pathname: '/**',
+      },
+      // Neue Domains:
+      {
+        protocol: 'https',
+        hostname: 'max-online.at',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'www.max-online.at',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'designare.at',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'www.designare.at',
+        port: '',
+        pathname: '/**',
+      },
+    ],
+  },
   // WICHTIG: Damit @react-pdf/renderer im App Router funktioniert
   experimental: {
     serverComponentsExternalPackages: ['@react-pdf/renderer'],
