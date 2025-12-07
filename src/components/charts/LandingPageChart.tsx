@@ -1,9 +1,9 @@
 // src/components/charts/LandingPageChart.tsx
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { ConvertingPageData } from '@/lib/dashboard-shared';
-import { FileEarmarkText } from 'react-bootstrap-icons';
+import { FileEarmarkText, Search } from 'react-bootstrap-icons';
 import { format, subDays, subMonths } from 'date-fns';
 import { de } from 'date-fns/locale';
 
@@ -21,6 +21,9 @@ export default function LandingPageChart({
   dateRange = '30d' 
 }: Props) {
   
+  // State für das Suchfeld
+  const [searchTerm, setSearchTerm] = useState('');
+
   const getDateRangeString = (range: string) => {
     const end = new Date();
     let start = subDays(end, 30); 
@@ -45,24 +48,31 @@ export default function LandingPageChart({
     return <div className="h-[50vh] w-full bg-gray-50 rounded-xl flex items-center justify-center text-gray-400">Keine Daten verfügbar</div>;
   }
 
+  // Daten filtern und sortieren
   const sortedData = [...data]
     .filter(item => item.newUsers !== undefined && item.newUsers !== null) 
     .filter(item => {
       const path = item.path?.toLowerCase() || '';
-      return !path.includes('danke') && !path.includes('impressum') && !path.includes('datenschutz');
+      
+      // Standard-Ausschlüsse
+      if (path.includes('danke') || path.includes('impressum') || path.includes('datenschutz')) {
+        return false;
+      }
+      
+      // Suchfilter anwenden
+      if (searchTerm && !path.includes(searchTerm.toLowerCase())) {
+        return false;
+      }
+
+      return true;
     })
     .sort((a, b) => (b.newUsers || 0) - (a.newUsers || 0))
     .slice(0, 50);
 
-  if (sortedData.length === 0) {
-    return (
-      <div className="h-[50vh] w-full bg-gray-50 rounded-xl flex items-center justify-center text-gray-400">
-        Keine validen Daten
-      </div>
-    );
-  }
-
-  const maxNewUsers = Math.max(...sortedData.map(p => p.newUsers || 0));
+  const maxNewUsers = sortedData.length > 0 
+    ? Math.max(...sortedData.map(p => p.newUsers || 0)) 
+    : 0;
+    
   const formattedDateRange = getDateRangeString(dateRange);
 
   return (
@@ -71,13 +81,28 @@ export default function LandingPageChart({
       {/* Header Bereich */}
       <div className="mb-4 flex-shrink-0 border-b border-gray-50 pb-2">
         
-        {/* Zeile 1: Titel und Sortierung */}
-        <div className="flex items-center justify-between mb-1">
-          <h3 className="text-[18px] font-semibold text-gray-900 flex items-center gap-2">
-            <FileEarmarkText className="text-indigo-500" size={18} />
-            {title}
-          </h3>
-          <span className="text-xs text-gray-400">Sortiert nach Neuen Nutzern</span>
+        {/* Zeile 1: Titel, Sortierhinweis und Suche */}
+        <div className="flex items-center justify-between mb-2">
+          {/* Links: Titel und Sortierhinweis nebeneinander */}
+          <div className="flex items-baseline gap-3">
+            <h3 className="text-[18px] font-semibold text-gray-900 flex items-center gap-2">
+              <FileEarmarkText className="text-indigo-500" size={18} />
+              {title}
+            </h3>
+            <span className="text-xs text-gray-400">Sortiert nach Neuen Nutzern</span>
+          </div>
+          
+          {/* Rechts: Suchfeld */}
+          <div className="relative">
+            <input 
+              type="text" 
+              placeholder="Suchen..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-8 pr-3 py-1 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 w-48 text-gray-700 placeholder-gray-400"
+            />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" size={12} />
+          </div>
         </div>
         
         {/* Zeile 2: Kombiniert (Links: Quelle, Rechts: Legende) */}
@@ -94,70 +119,76 @@ export default function LandingPageChart({
           <div className="flex items-center gap-x-4">
             <span className="text-[10px] text-gray-500 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-sky-500"></span>
-              Sessions = Gesamtsitzungen
+              Sessions
             </span>
             <span className="text-[10px] text-gray-500 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-teal-500"></span>
-              Rate = Interaktionsrate
+              Rate
             </span>
             <span className="text-[10px] text-gray-500 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-slate-400"></span>
-              Conv. = Schlüsselereignisse (z.B. Anfrage)
+              Conv.
             </span>
           </div>
           
         </div>
       </div>
 
-      {/* Liste */}
-      <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
-        <div className="space-y-1">
-          {sortedData.map((page, i) => {
-            const newUsers = page.newUsers || 0;
-            const sessions = page.sessions || 0;
-            const engagementRate = page.engagementRate || 0;
-            const conversions = page.conversions || 0;
-            
-            const barWidthPercent = maxNewUsers > 0 
-              ? Math.max((newUsers / maxNewUsers) * 60, 2) 
-              : 2;
+      {/* Liste oder Leerer Zustand */}
+      {sortedData.length === 0 ? (
+        <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
+          {searchTerm ? 'Keine Landingpages für diese Suche gefunden' : 'Keine validen Daten'}
+        </div>
+      ) : (
+        <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+          <div className="space-y-1">
+            {sortedData.map((page, i) => {
+              const newUsers = page.newUsers || 0;
+              const sessions = page.sessions || 0;
+              const engagementRate = page.engagementRate || 0;
+              const conversions = page.conversions || 0;
+              
+              const barWidthPercent = maxNewUsers > 0 
+                ? Math.max((newUsers / maxNewUsers) * 60, 2) 
+                : 2;
 
-            return (
-              <div key={i} className="group">
-                <div className="flex items-center gap-3 py-2 hover:bg-gray-50 rounded-lg px-2 transition-colors">
-                  
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[15px] font-medium text-gray-800 truncate mb-1" title={page.path}>
-                      {page.path}
+              return (
+                <div key={i} className="group">
+                  <div className="flex items-center gap-3 py-2 hover:bg-gray-50 rounded-lg px-2 transition-colors">
+                    
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[15px] font-medium text-gray-800 truncate mb-1" title={page.path}>
+                        {page.path}
+                      </div>
+                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                          style={{ width: `${barWidthPercent}%` }}
+                        />
+                      </div>
                     </div>
-                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-emerald-500 rounded-full transition-all duration-500"
-                        style={{ width: `${barWidthPercent}%` }}
-                      />
-                    </div>
-                  </div>
 
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <div className="bg-emerald-500 text-white px-3 py-1.5 rounded-md text-[12px] font-semibold whitespace-nowrap min-w-[140px] text-center shadow-sm">
-                      {newUsers.toLocaleString()} Neue Besucher
-                    </div>
-                    <div className="bg-sky-500 text-white px-2 py-1.5 rounded-md text-[11px] font-medium whitespace-nowrap min-w-[75px] text-center shadow-sm">
-                      {sessions.toLocaleString()} Sess.
-                    </div>
-                    <div className="bg-teal-500 text-white px-2 py-1.5 rounded-md text-[11px] font-medium whitespace-nowrap min-w-[70px] text-center shadow-sm">
-                      {engagementRate.toFixed(0)}% Rate
-                    </div>
-                    <div className="bg-slate-400 text-white px-2 py-1.5 rounded-md text-[11px] font-medium whitespace-nowrap min-w-[65px] text-center shadow-sm">
-                      {conversions} Conv.
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <div className="bg-emerald-500 text-white px-3 py-1.5 rounded-md text-[12px] font-semibold whitespace-nowrap min-w-[140px] text-center shadow-sm">
+                        {newUsers.toLocaleString()} Neue Besucher
+                      </div>
+                      <div className="bg-sky-500 text-white px-2 py-1.5 rounded-md text-[11px] font-medium whitespace-nowrap min-w-[75px] text-center shadow-sm">
+                        {sessions.toLocaleString()} Sess.
+                      </div>
+                      <div className="bg-teal-500 text-white px-2 py-1.5 rounded-md text-[11px] font-medium whitespace-nowrap min-w-[70px] text-center shadow-sm">
+                        {engagementRate.toFixed(0)}% Rate
+                      </div>
+                      <div className="bg-slate-400 text-white px-2 py-1.5 rounded-md text-[11px] font-medium whitespace-nowrap min-w-[65px] text-center shadow-sm">
+                        {conversions} Conv.
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
