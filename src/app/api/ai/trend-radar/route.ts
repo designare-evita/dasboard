@@ -18,6 +18,14 @@ const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY || '';
 const RAPIDAPI_HOST = 'google-keyword-insight1.p.rapidapi.com';
 const BASE_URL = 'https://google-keyword-insight1.p.rapidapi.com';
 
+// Länder-Labels für den Prompt
+const COUNTRY_LABELS: Record<string, string> = {
+  'AT': 'Österreich',
+  'DE': 'Deutschland', 
+  'CH': 'Schweiz',
+  'US': 'USA',
+};
+
 // Typen
 interface KeywordData {
   keyword: string;
@@ -35,7 +43,7 @@ function createHash(data: string): string {
   return crypto.createHash('sha256').update(data).digest('hex');
 }
 
-// Trend aus Array berechnen
+// Trend berechnen
 function analyzeTrend(trendArray: number[] | undefined | null): { direction: string; percentage: number } {
   if (!trendArray || !Array.isArray(trendArray) || trendArray.length < 2) {
     return { direction: 'stabil', percentage: 0 };
@@ -58,24 +66,12 @@ function analyzeTrend(trendArray: number[] | undefined | null): { direction: str
   return { direction: 'stabil', percentage: Math.round(change) };
 }
 
-// Raw Data zu KeywordData normalisieren
+// Raw Data normalisieren
 function normalizeKeyword(raw: Record<string, unknown>): KeywordData {
   const keywordValue = 
-    raw.keyword || 
-    raw.text ||
-    raw.term || 
-    raw.query || 
-    raw.key ||
-    raw.name ||
-    raw.phrase ||
-    'Unbekannt';
+    raw.keyword || raw.text || raw.term || raw.query || raw.key || raw.name || raw.phrase || 'Unbekannt';
 
-  const volumeValue = 
-    raw.search_volume ||
-    raw.searchVolume ||
-    raw.volume ||
-    raw.avg_monthly_searches ||
-    0;
+  const volumeValue = raw.search_volume || raw.searchVolume || raw.volume || raw.avg_monthly_searches || 0;
 
   return {
     keyword: String(keywordValue),
@@ -108,10 +104,8 @@ async function getCachedKeywords(cacheKey: string): Promise<KeywordData[] | null
       const data = rows[0].data;
       return typeof data === 'string' ? JSON.parse(data) : data;
     }
-    
     return null;
-  } catch (error) {
-    console.log('[Trend Radar] Cache-Fehler (ignoriert)');
+  } catch {
     return null;
   }
 }
@@ -119,15 +113,14 @@ async function getCachedKeywords(cacheKey: string): Promise<KeywordData[] | null
 async function setCachedKeywords(cacheKey: string, data: KeywordData[]): Promise<void> {
   try {
     const jsonData = JSON.stringify(data);
-    
     await sql`
       INSERT INTO trend_radar_cache (cache_key, data, created_at)
       VALUES (${cacheKey}, ${jsonData}::jsonb, NOW())
       ON CONFLICT (cache_key) 
       DO UPDATE SET data = ${jsonData}::jsonb, created_at = NOW()
     `;
-  } catch (error) {
-    console.error('[Trend Radar] Cache speichern fehlgeschlagen');
+  } catch {
+    // Ignore cache errors
   }
 }
 
@@ -137,12 +130,11 @@ async function setCachedKeywords(cacheKey: string, data: KeywordData[]): Promise
 
 async function fetchKeywordSuggestions(
   topic: string, 
-  location: string = 'AT', 
-  lang: string = 'de'
+  location: string,
+  lang: string
 ): Promise<KeywordData[]> {
-  const cacheKey = createHash(`suggestions:${topic}:${location}:${lang}:v2`);
+  const cacheKey = createHash(`suggestions:${topic}:${location}:${lang}:v3`);
   
-  // Cache prüfen
   const cached = await getCachedKeywords(cacheKey);
   if (cached && cached.length > 0 && cached[0].keyword !== 'Unbekannt') {
     return cached;
@@ -151,7 +143,7 @@ async function fetchKeywordSuggestions(
   try {
     const url = `${BASE_URL}/keysuggest/?keyword=${encodeURIComponent(topic)}&location=${location}&lang=${lang}&return_intent=true`;
     
-    console.log(`[Trend Radar] 🌐 API: keysuggest für "${topic}"`);
+    console.log(`[Trend Radar] 🌐 API: keysuggest "${topic}" (${location}/${lang})`);
     
     const response = await fetch(url, {
       method: 'GET',
@@ -168,9 +160,7 @@ async function fetchKeywordSuggestions(
 
     const data = await response.json();
     
-    // Response parsen
     let rawKeywords: Record<string, unknown>[] = [];
-    
     if (Array.isArray(data)) {
       rawKeywords = data;
     } else if (data && typeof data === 'object') {
@@ -183,14 +173,12 @@ async function fetchKeywordSuggestions(
       }
     }
     
-    // Normalisieren und filtern
     const keywords = rawKeywords
       .map(normalizeKeyword)
       .filter(kw => kw.keyword !== 'Unbekannt' && kw.keyword.length > 0);
     
-    console.log(`[Trend Radar] ✅ ${keywords.length} Keywords erhalten`);
+    console.log(`[Trend Radar] ✅ ${keywords.length} Keywords`);
     
-    // Cache speichern
     if (keywords.length > 0) {
       await setCachedKeywords(cacheKey, keywords);
     }
@@ -204,13 +192,12 @@ async function fetchKeywordSuggestions(
 
 async function fetchTopKeywords(
   topic: string,
-  location: string = 'AT',
-  lang: string = 'de',
+  location: string,
+  lang: string,
   num: number = 20
 ): Promise<KeywordData[]> {
-  const cacheKey = createHash(`topkeys:${topic}:${location}:${lang}:${num}:v2`);
+  const cacheKey = createHash(`topkeys:${topic}:${location}:${lang}:${num}:v3`);
   
-  // Cache prüfen
   const cached = await getCachedKeywords(cacheKey);
   if (cached && cached.length > 0 && cached[0].keyword !== 'Unbekannt') {
     return cached;
@@ -219,7 +206,7 @@ async function fetchTopKeywords(
   try {
     const url = `${BASE_URL}/topkeys/?keyword=${encodeURIComponent(topic)}&location=${location}&lang=${lang}&num=${num}`;
     
-    console.log(`[Trend Radar] 🌐 API: topkeys für "${topic}"`);
+    console.log(`[Trend Radar] 🌐 API: topkeys "${topic}" (${location}/${lang})`);
     
     const response = await fetch(url, {
       method: 'GET',
@@ -236,9 +223,7 @@ async function fetchTopKeywords(
 
     const data = await response.json();
     
-    // Response parsen
     let rawKeywords: Record<string, unknown>[] = [];
-    
     if (Array.isArray(data)) {
       rawKeywords = data;
     } else if (data && typeof data === 'object') {
@@ -251,14 +236,12 @@ async function fetchTopKeywords(
       }
     }
     
-    // Normalisieren und filtern
     const keywords = rawKeywords
       .map(normalizeKeyword)
       .filter(kw => kw.keyword !== 'Unbekannt' && kw.keyword.length > 0);
     
-    console.log(`[Trend Radar] ✅ ${keywords.length} Top-Keywords erhalten`);
+    console.log(`[Trend Radar] ✅ ${keywords.length} Top-Keywords`);
     
-    // Cache speichern
     if (keywords.length > 0) {
       await setCachedKeywords(cacheKey, keywords);
     }
@@ -282,7 +265,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { domain, topic } = body;
+    const { domain, topic, country = 'AT', lang = 'de' } = body;
 
     if (!domain) {
       return NextResponse.json({ message: 'Domain fehlt' }, { status: 400 });
@@ -297,20 +280,20 @@ export async function POST(req: NextRequest) {
     }
 
     const searchTopic = topic.trim();
+    const countryLabel = COUNTRY_LABELS[country] || country;
     
     console.log(`[Trend Radar] ========== START ==========`);
     console.log(`[Trend Radar] Domain: ${domain}`);
     console.log(`[Trend Radar] Thema: "${searchTopic}"`);
+    console.log(`[Trend Radar] Region: ${country} (${lang})`);
 
-    // Daten abrufen für das eingegebene THEMA (nicht Domain!)
-    const suggestions = await fetchKeywordSuggestions(searchTopic, 'AT', 'de');
-    const topKeywords = await fetchTopKeywords(searchTopic, 'AT', 'de', 20);
+    // Daten abrufen mit dynamischem Land/Sprache
+    const suggestions = await fetchKeywordSuggestions(searchTopic, country, lang);
+    const topKeywords = await fetchTopKeywords(searchTopic, country, lang, 20);
     
     const hasData = suggestions.length > 0 || topKeywords.length > 0;
 
-    console.log(`[Trend Radar] Ergebnis: ${suggestions.length} Suggestions, ${topKeywords.length} TopKeys`);
-
-    // Alle Keywords zusammenführen und deduplizieren
+    // Deduplizieren
     const allKeywords = [...suggestions, ...topKeywords];
     const uniqueKeywords = allKeywords.reduce((acc, kw) => {
       if (!acc.find(k => k.keyword.toLowerCase() === kw.keyword.toLowerCase())) {
@@ -319,7 +302,7 @@ export async function POST(req: NextRequest) {
       return acc;
     }, [] as KeywordData[]);
 
-    // Steigende Keywords
+    // Kategorisieren
     const risingKeywords = uniqueKeywords
       .filter(kw => {
         const trend = analyzeTrend(kw.trend);
@@ -328,20 +311,19 @@ export async function POST(req: NextRequest) {
       .sort((a, b) => b.search_volume - a.search_volume)
       .slice(0, 10);
 
-    // High-Volume Keywords
     const highVolumeKeywords = [...uniqueKeywords]
       .sort((a, b) => b.search_volume - a.search_volume)
       .slice(0, 15);
 
-    // Low Competition Keywords (gute Chancen)
     const lowCompetitionKeywords = uniqueKeywords
       .filter(kw => kw.competition_index < 50 && kw.search_volume > 10)
       .sort((a, b) => b.search_volume - a.search_volume)
       .slice(0, 10);
 
-    // Prompt-Daten
+    // Prompt
     const trendsData = hasData ? `
-KEYWORD RECHERCHE FÜR THEMA: "${searchTopic}"
+KEYWORD RECHERCHE FÜR: "${searchTopic}"
+Region: ${countryLabel}
 Domain: ${domain}
 
 📊 TOP KEYWORDS NACH SUCHVOLUMEN:
@@ -369,30 +351,32 @@ ${lowCompetitionKeywords.length > 0
 
 GESAMT: ${uniqueKeywords.length} einzigartige Keywords analysiert
 ` : `
-HINWEIS: Keine Keyword-Daten für "${searchTopic}" gefunden.
+HINWEIS: Keine Keyword-Daten für "${searchTopic}" in ${countryLabel} gefunden.
 
 Mögliche Gründe:
 - Das Thema ist sehr speziell
 - Andere Schreibweise probieren
+- Andere Region testen
 
 Domain: ${domain}
 `;
 
     // System Prompt
     const systemPrompt = `
-Du bist ein SEO-Stratege. Analysiere die Keyword-Daten und erstelle einen actionable Report für die Domain.
+Du bist ein SEO-Stratege. Analysiere die Keyword-Daten und erstelle einen actionable Report.
 
-WICHTIG: Die Keywords stammen aus einer echten Keyword-Recherche für das Thema "${searchTopic}".
-Die Domain "${domain}" möchte für diese Keywords ranken.
+WICHTIG: 
+- Keywords stammen aus einer Recherche für "${searchTopic}" in ${countryLabel}
+- Die Domain "${domain}" möchte für diese Keywords ranken
 
 REGELN FÜR FORMATIERUNG:
 1. KEIN MARKDOWN! Nur HTML mit Tailwind.
-2. Nutze die vorgegebenen Styling-Klassen.
 
 STYLING:
 - Überschriften: <h3 class="font-bold text-indigo-900 mt-6 mb-3 text-lg flex items-center gap-2">TITEL</h3>
 - Fließtext: <p class="mb-3 leading-relaxed text-gray-600 text-sm">TEXT</p>
 - Erfolgs-Badge: <span class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full text-xs font-bold">Live-Daten ✓</span>
+- Region-Badge: <span class="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full text-xs font-bold">${countryLabel}</span>
 - Statistik-Grid:
   <div class="grid grid-cols-3 gap-3 my-4">
     <div class="bg-white p-3 rounded-lg border border-gray-100 text-center">
@@ -400,18 +384,18 @@ STYLING:
       <div class="text-xs text-gray-500">LABEL</div>
     </div>
   </div>
-- Keyword-Karte (für Top Keywords): 
+- Keyword-Karte: 
   <div class="bg-gradient-to-r from-indigo-50 to-purple-50 p-4 rounded-xl border border-indigo-100 mb-3">
     <div class="flex items-center justify-between mb-2">
       <span class="font-bold text-gray-900">KEYWORD</span>
       <span class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full text-xs font-bold">VOLUME/Monat</span>
     </div>
-    <p class="text-sm text-gray-600 mb-2">Warum dieses Keyword? Content-Empfehlung.</p>
+    <p class="text-sm text-gray-600 mb-2">Warum relevant? Content-Empfehlung.</p>
     <div class="flex flex-wrap gap-2">
       <span class="bg-white px-2 py-1 rounded text-xs text-indigo-600 border border-indigo-100">Content-Idee</span>
     </div>
   </div>
-- Quick-Win Karte (Low Competition):
+- Quick-Win Karte:
   <div class="flex items-center justify-between bg-emerald-50 p-3 rounded-lg border border-emerald-100 mb-2">
     <div>
       <span class="font-medium text-gray-800">KEYWORD</span>
@@ -425,34 +409,24 @@ STYLING:
 AUFGABE:
 
 1. <h3>📡 Datenübersicht</h3>
+   - Zeige Live-Daten ✓ und Region-Badge
    - Statistik-Grid: Anzahl Keywords | Ø Suchvolumen | Steigende Keywords
-   - Füge "Live-Daten ✓" Badge hinzu
-   - Kurze Einordnung der Daten
+   - Kurze Einordnung
 
 2. <h3>🔥 Top 5 Content-Chancen</h3>
-   Wähle die 5 BESTEN Keywords für neuen Content. Kriterien:
-   - Hohes Suchvolumen
-   - Passt zur Domain/Branche
-   - Realistisch zu ranken
-   
-   Für jedes Keyword eine Keyword-Karte mit:
-   - Konkreter Content-Idee (Blogpost-Titel, Landingpage-Konzept)
-   - Warum ist es relevant?
+   Die 5 BESTEN Keywords für neuen Content.
+   Für jedes: Keyword-Karte mit konkreter Content-Idee.
 
 3. <h3>🎯 Quick Wins (Niedrige Konkurrenz)</h3>
-   3-5 Keywords mit niedrigem Wettbewerb. Nutze Quick-Win Karten.
-   Das sind Keywords wo schnell Rankings möglich sind.
+   3-5 Keywords mit niedrigem Wettbewerb. Quick-Win Karten.
 
 4. <h3>📈 Trend-Einschätzung</h3>
-   - Welche Keywords steigen?
-   - Saisonale Muster?
-   - Was bedeutet das für die Content-Strategie?
+   Welche Keywords steigen? Was bedeutet das?
 
 5. <h3>💡 Sofort-Empfehlung</h3>
    Empfehlungs-Box mit:
    - EINE klare Haupt-Empfehlung
-   - 3 konkrete nächste Schritte
-   - Priorisierung
+   - 3 konkrete Schritte
 
 Antworte direkt mit HTML.
 `;
@@ -469,9 +443,6 @@ Antworte direkt mit HTML.
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
     console.error('❌ Trend Radar Error:', error);
-    return NextResponse.json(
-      { message: errorMessage },
-      { status: 500 }
-    );
+    return NextResponse.json({ message: errorMessage }, { status: 500 });
   }
 }
