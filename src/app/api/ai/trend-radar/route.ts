@@ -18,10 +18,7 @@ const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY || '';
 const RAPIDAPI_HOST = 'google-keyword-insight1.p.rapidapi.com';
 const BASE_URL = 'https://google-keyword-insight1.p.rapidapi.com';
 
-// Cache-Dauer: 24 Stunden
-const CACHE_DURATION_HOURS = 24;
-
-// Typen für RapidAPI Response
+// Typen
 interface KeywordData {
   keyword: string;
   search_volume: number;
@@ -33,6 +30,21 @@ interface KeywordData {
   intent?: string;
 }
 
+// Rohe API Response (kann verschiedene Felder haben)
+interface RawKeywordData {
+  keyword?: string;
+  term?: string;
+  query?: string;
+  search_volume?: number;
+  volume?: number;
+  competition?: string;
+  competition_index?: number;
+  low_bid?: number;
+  high_bid?: number;
+  trend?: number[];
+  intent?: string;
+}
+
 // Hash für Cache-Key
 function createHash(data: string): string {
   return crypto.createHash('sha256').update(data).digest('hex');
@@ -40,7 +52,6 @@ function createHash(data: string): string {
 
 // Trend aus Array berechnen
 function analyzeTrend(trendArray: number[] | undefined | null): { direction: string; percentage: number } {
-  // Sicherheitsprüfung
   if (!trendArray || !Array.isArray(trendArray) || trendArray.length < 2) {
     return { direction: 'stabil', percentage: 0 };
   }
@@ -62,6 +73,20 @@ function analyzeTrend(trendArray: number[] | undefined | null): { direction: str
   return { direction: 'stabil', percentage: Math.round(change) };
 }
 
+// Raw Data zu KeywordData normalisieren
+function normalizeKeyword(raw: RawKeywordData): KeywordData {
+  return {
+    keyword: raw.keyword || raw.term || raw.query || 'Unbekannt',
+    search_volume: Number(raw.search_volume) || Number(raw.volume) || 0,
+    competition: raw.competition || 'unknown',
+    competition_index: Number(raw.competition_index) || 0,
+    low_bid: Number(raw.low_bid) || 0,
+    high_bid: Number(raw.high_bid) || 0,
+    trend: Array.isArray(raw.trend) ? raw.trend : [],
+    intent: raw.intent || undefined,
+  };
+}
+
 // ============================================
 // CACHE FUNKTIONEN
 // ============================================
@@ -79,14 +104,13 @@ async function getCachedKeywords(cacheKey: string): Promise<KeywordData[] | null
     if (rows.length > 0 && rows[0].data) {
       console.log(`[Trend Radar] ✅ Cache HIT`);
       const data = rows[0].data;
-      // Falls data ein String ist, parsen
       return typeof data === 'string' ? JSON.parse(data) : data;
     }
     
     console.log(`[Trend Radar] ❌ Cache MISS`);
     return null;
   } catch (error) {
-    console.log('[Trend Radar] Cache-Fehler (Tabelle existiert evtl. nicht):', error);
+    console.log('[Trend Radar] Cache-Fehler:', error);
     return null;
   }
 }
@@ -145,34 +169,23 @@ async function fetchKeywordSuggestions(
 
     const data = await response.json();
     
-    console.log(`[Trend Radar] Raw Response Type:`, typeof data, Array.isArray(data));
-    
     // Verschiedene Response-Formate handhaben
-    let keywords: KeywordData[] = [];
+    let rawKeywords: RawKeywordData[] = [];
     
     if (Array.isArray(data)) {
-      keywords = data;
+      rawKeywords = data;
     } else if (data && typeof data === 'object') {
       if (Array.isArray(data.keywords)) {
-        keywords = data.keywords;
+        rawKeywords = data.keywords;
       } else if (Array.isArray(data.data)) {
-        keywords = data.data;
+        rawKeywords = data.data;
       } else if (Array.isArray(data.results)) {
-        keywords = data.results;
+        rawKeywords = data.results;
       }
     }
     
-    // Sicherstellen dass jedes Keyword die erwartete Struktur hat
-    keywords = keywords.map(kw => ({
-      keyword: kw.keyword || kw.term || kw.query || 'Unbekannt',
-      search_volume: Number(kw.search_volume) || Number(kw.volume) || 0,
-      competition: kw.competition || 'unknown',
-      competition_index: Number(kw.competition_index) || 0,
-      low_bid: Number(kw.low_bid) || 0,
-      high_bid: Number(kw.high_bid) || 0,
-      trend: Array.isArray(kw.trend) ? kw.trend : [],
-      intent: kw.intent || undefined,
-    }));
+    // Normalisieren
+    const keywords = rawKeywords.map(normalizeKeyword);
     
     console.log(`[Trend Radar] ✅ ${keywords.length} Keywords erhalten`);
     
@@ -223,31 +236,22 @@ async function fetchTopKeywords(
     const data = await response.json();
     
     // Verschiedene Response-Formate handhaben
-    let keywords: KeywordData[] = [];
+    let rawKeywords: RawKeywordData[] = [];
     
     if (Array.isArray(data)) {
-      keywords = data;
+      rawKeywords = data;
     } else if (data && typeof data === 'object') {
       if (Array.isArray(data.keywords)) {
-        keywords = data.keywords;
+        rawKeywords = data.keywords;
       } else if (Array.isArray(data.data)) {
-        keywords = data.data;
+        rawKeywords = data.data;
       } else if (Array.isArray(data.results)) {
-        keywords = data.results;
+        rawKeywords = data.results;
       }
     }
     
-    // Struktur normalisieren
-    keywords = keywords.map(kw => ({
-      keyword: kw.keyword || kw.term || kw.query || 'Unbekannt',
-      search_volume: Number(kw.search_volume) || Number(kw.volume) || 0,
-      competition: kw.competition || 'unknown',
-      competition_index: Number(kw.competition_index) || 0,
-      low_bid: Number(kw.low_bid) || 0,
-      high_bid: Number(kw.high_bid) || 0,
-      trend: Array.isArray(kw.trend) ? kw.trend : [],
-      intent: kw.intent || undefined,
-    }));
+    // Normalisieren
+    const keywords = rawKeywords.map(normalizeKeyword);
     
     console.log(`[Trend Radar] ✅ ${keywords.length} Top-Keywords erhalten`);
     
@@ -287,17 +291,15 @@ export async function POST(req: NextRequest) {
     }
 
     console.log(`[Trend Radar] Start für Domain: ${domain}`);
-    console.log(`[Trend Radar] Input Keywords:`, inputKeywords);
 
     // Sicherstellen dass keywords ein Array ist
-    const keywords = Array.isArray(inputKeywords) ? inputKeywords : [];
+    const keywords: string[] = Array.isArray(inputKeywords) ? inputKeywords : [];
 
     // Suchbegriff bestimmen
     let searchTerm = '';
     if (keywords.length > 0 && typeof keywords[0] === 'string') {
       searchTerm = keywords[0];
     } else {
-      // Extrahiere aus Domain
       const domainClean = domain.replace(/^(https?:\/\/)?(www\.)?/, '').split('.')[0];
       searchTerm = domainClean;
     }
@@ -310,21 +312,18 @@ export async function POST(req: NextRequest) {
     
     const hasData = suggestions.length > 0 || topKeywords.length > 0;
 
-    console.log(`[Trend Radar] Suggestions: ${suggestions.length}, TopKeys: ${topKeywords.length}`);
-
-    // Steigende Keywords (mit Sicherheitsprüfung)
+    // Steigende Keywords
     const risingKeywords = suggestions
       .filter(kw => {
-        if (!kw || !kw.trend) return false;
         const trend = analyzeTrend(kw.trend);
         return trend.direction === 'steigend' || trend.direction === 'neu';
       })
-      .sort((a, b) => (b.search_volume || 0) - (a.search_volume || 0))
+      .sort((a, b) => b.search_volume - a.search_volume)
       .slice(0, 10);
 
     // High-Volume Keywords
     const highVolumeKeywords = [...suggestions]
-      .sort((a, b) => (b.search_volume || 0) - (a.search_volume || 0))
+      .sort((a, b) => b.search_volume - a.search_volume)
       .slice(0, 10);
 
     // Prompt-Daten
@@ -335,21 +334,21 @@ KEYWORD RECHERCHE ERGEBNISSE (Live-Daten via RapidAPI):
 ${risingKeywords.length > 0 
   ? risingKeywords.map(kw => {
       const trend = analyzeTrend(kw.trend);
-      return `- "${kw.keyword}" | Suchvolumen: ${(kw.search_volume || 0).toLocaleString('de-DE')}/Monat | Trend: ${trend.direction} (${trend.percentage > 0 ? '+' : ''}${trend.percentage}%) | Wettbewerb: ${kw.competition || 'N/A'} | Intent: ${kw.intent || 'N/A'}`;
+      return `- "${kw.keyword}" | Suchvolumen: ${kw.search_volume.toLocaleString('de-DE')}/Monat | Trend: ${trend.direction} (${trend.percentage > 0 ? '+' : ''}${trend.percentage}%) | Wettbewerb: ${kw.competition} | Intent: ${kw.intent || 'N/A'}`;
     }).join('\n')
   : 'Keine steigenden Keywords identifiziert.'}
 
 📊 TOP KEYWORDS NACH SUCHVOLUMEN:
 ${highVolumeKeywords.length > 0
   ? highVolumeKeywords.map(kw => {
-      return `- "${kw.keyword}" | ${(kw.search_volume || 0).toLocaleString('de-DE')}/Monat | Wettbewerb: ${kw.competition || 'N/A'} (${kw.competition_index || 0}/100) | CPC: €${(kw.low_bid || 0).toFixed(2)}-${(kw.high_bid || 0).toFixed(2)}`;
+      return `- "${kw.keyword}" | ${kw.search_volume.toLocaleString('de-DE')}/Monat | Wettbewerb: ${kw.competition} (${kw.competition_index}/100) | CPC: €${kw.low_bid.toFixed(2)}-${kw.high_bid.toFixed(2)}`;
     }).join('\n')
   : 'Keine Daten.'}
 
 🎯 OPPORTUNITY KEYWORDS (Hohes Potenzial):
 ${topKeywords.length > 0
   ? topKeywords.map(kw => {
-      return `- "${kw.keyword}" | Suchvolumen: ${(kw.search_volume || 0).toLocaleString('de-DE')}/Monat | Wettbewerb: ${kw.competition || 'N/A'}`;
+      return `- "${kw.keyword}" | Suchvolumen: ${kw.search_volume.toLocaleString('de-DE')}/Monat | Wettbewerb: ${kw.competition}`;
     }).join('\n')
   : 'Keine Opportunity Keywords gefunden.'}
 
