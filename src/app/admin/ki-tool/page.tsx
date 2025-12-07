@@ -14,7 +14,8 @@ import {
   Globe,
   Binoculars,
   GraphUpArrow,
-  Search
+  Search,
+  GeoAlt
 } from 'react-bootstrap-icons';
 import CtrBooster from '@/components/admin/ki/CtrBooster';
 
@@ -33,6 +34,14 @@ interface Keyword {
 }
 
 type Tab = 'questions' | 'ctr' | 'gap' | 'spy' | 'trends';
+
+// Länder-Optionen
+const COUNTRIES = [
+  { code: 'AT', label: '🇦🇹 Österreich', lang: 'de' },
+  { code: 'DE', label: '🇩🇪 Deutschland', lang: 'de' },
+  { code: 'CH', label: '🇨🇭 Schweiz', lang: 'de' },
+  { code: 'US', label: '🇺🇸 USA', lang: 'en' },
+];
 
 export default function KiToolPage() {
   const [activeTab, setActiveTab] = useState<Tab>('questions');
@@ -54,8 +63,9 @@ export default function KiToolPage() {
   const [analyzeUrl, setAnalyzeUrl] = useState('');     
   const [competitorUrl, setCompetitorUrl] = useState(''); 
   
-  // NEU: Trend Radar Thema
+  // Trend Radar States
   const [trendTopic, setTrendTopic] = useState('');
+  const [trendCountry, setTrendCountry] = useState('AT'); // Default: Österreich
 
   const outputRef = useRef<HTMLDivElement>(null);
 
@@ -160,7 +170,6 @@ export default function KiToolPage() {
         toast.error('Bitte geben Sie die URL des Konkurrenten ein.');
         return;
     }
-    // NEU: Validierung für Trend Radar
     if (activeTab === 'trends' && !trendTopic.trim()) {
         toast.error('Bitte geben Sie ein Thema oder eine Branche ein.');
         return;
@@ -184,10 +193,12 @@ export default function KiToolPage() {
         body = { myUrl: analyzeUrl, competitorUrl: competitorUrl };
     } else if (activeTab === 'trends') {
         endpoint = '/api/ai/trend-radar';
-        // NEU: Sende das Thema statt Domain-Name
+        const selectedCountry = COUNTRIES.find(c => c.code === trendCountry);
         body = { 
           domain: selectedProject.domain, 
           topic: trendTopic.trim(),
+          country: trendCountry,
+          lang: selectedCountry?.lang || 'de',
         };
     }
 
@@ -450,11 +461,29 @@ export default function KiToolPage() {
                         type="text" 
                         value={trendTopic}
                         onChange={(e) => setTrendTopic(e.target.value)}
-                        placeholder="z.B. Familienrecht, Zahnarzt, Fitness..."
+                        placeholder="z.B. Rechtsanwalt Wien, SEO Agentur..."
                         className="w-full p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all text-gray-700 placeholder-emerald-400"
                       />
+                    </div>
+
+                    {/* LÄNDER DROPDOWN */}
+                    <div>
+                      <label className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                        <GeoAlt className="text-indigo-500" /> Region
+                      </label>
+                      <select
+                        value={trendCountry}
+                        onChange={(e) => setTrendCountry(e.target.value)}
+                        className="w-full p-3 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-gray-700"
+                      >
+                        {COUNTRIES.map((country) => (
+                          <option key={country.code} value={country.code}>
+                            {country.label}
+                          </option>
+                        ))}
+                      </select>
                       <p className="text-xs text-gray-400 mt-2">
-                        Geben Sie das Thema ein, für das Sie Keyword-Trends finden möchten.
+                        Keyword-Daten werden für diese Region abgerufen.
                       </p>
                     </div>
 
@@ -462,7 +491,7 @@ export default function KiToolPage() {
                     <div className="pt-3 border-t border-gray-100">
                       <p className="text-xs text-gray-500 mb-2">Beispiele:</p>
                       <div className="flex flex-wrap gap-2">
-                        {['Arbeitsrecht', 'Scheidung Anwalt', 'Immobilienrecht', 'Steuerberater'].map((example) => (
+                        {['Rechtsanwalt Wien', 'SEO Agentur', 'Zahnarzt Linz', 'Nachhilfe Mathematik'].map((example) => (
                           <button
                             key={example}
                             onClick={() => setTrendTopic(example)}
@@ -554,7 +583,7 @@ export default function KiToolPage() {
                                 <>
                                     <GraphUpArrow className="text-4xl mb-3 text-emerald-200" />
                                     <p className="font-medium text-gray-500">Keyword-Trends entdecken</p>
-                                    <p className="text-xs mt-2">Geben Sie links ein Thema ein und starten Sie die Recherche.</p>
+                                    <p className="text-xs mt-2">Geben Sie links ein Thema ein und wählen Sie die Region.</p>
                                 </>
                             ) : activeTab === 'spy' ? (
                                 <>
