@@ -77,7 +77,7 @@ export default function GlobalHeader({
             )}
             
             <span className="text-gray-500 text-[10px] flex items-center gap-1">
-              <span>Google Updates: 48h</span>
+              <span>Google Updates: 24h</span>
               <span className="text-gray-300">•</span>
               <span>Semrush Updates: 14 Tage</span>
             </span>
