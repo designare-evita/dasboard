@@ -11,14 +11,14 @@ const google = createGoogleGenerativeAI({
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
-// CMS-Erkennung - VERBESSERT mit Scoring-System
+// CMS-Erkennung mit Scoring-System
 function detectCMS(html: string, $: cheerio.CheerioAPI): { cms: string; confidence: string; hints: string[]; isCustom: boolean } {
   const hints: string[] = [];
   const htmlLower = html.toLowerCase();
   
-  let cmsScores: Record<string, number> = {};
+  const cmsScores: Record<string, number> = {};
   
-  // WordPress Checks
+  // WordPress
   if (htmlLower.includes('wp-content')) cmsScores['WordPress'] = (cmsScores['WordPress'] || 0) + 3;
   if (htmlLower.includes('wp-includes')) cmsScores['WordPress'] = (cmsScores['WordPress'] || 0) + 3;
   if ($('meta[name="generator"][content*="WordPress"]').length > 0) cmsScores['WordPress'] = (cmsScores['WordPress'] || 0) + 5;
@@ -30,10 +30,9 @@ function detectCMS(html: string, $: cheerio.CheerioAPI): { cms: string; confiden
   
   // Wix
   if (htmlLower.includes('wix.com') || htmlLower.includes('wixsite.com')) cmsScores['Wix'] = (cmsScores['Wix'] || 0) + 5;
-  if (htmlLower.includes('_wix_browser_sess')) cmsScores['Wix'] = (cmsScores['Wix'] || 0) + 3;
   
   // Squarespace
-  if (htmlLower.includes('squarespace.com') || htmlLower.includes('static1.squarespace.com')) cmsScores['Squarespace'] = (cmsScores['Squarespace'] || 0) + 5;
+  if (htmlLower.includes('squarespace.com')) cmsScores['Squarespace'] = (cmsScores['Squarespace'] || 0) + 5;
   
   // Webflow
   if (htmlLower.includes('webflow.com') || $('html[data-wf-site]').length > 0) cmsScores['Webflow'] = (cmsScores['Webflow'] || 0) + 5;
@@ -57,13 +56,11 @@ function detectCMS(html: string, $: cheerio.CheerioAPI): { cms: string; confiden
   if ($('meta[name="generator"][content*="Ghost"]').length > 0) cmsScores['Ghost'] = (cmsScores['Ghost'] || 0) + 5;
   
   // HubSpot
-  if (htmlLower.includes('hs-scripts.com') || htmlLower.includes('hubspot')) cmsScores['HubSpot CMS'] = (cmsScores['HubSpot CMS'] || 0) + 4;
+  if (htmlLower.includes('hs-scripts.com')) cmsScores['HubSpot CMS'] = (cmsScores['HubSpot CMS'] || 0) + 4;
   
-  // Generator Tag als Fallback
+  // Generator Tag
   const generator = $('meta[name="generator"]').attr('content');
-  if (generator) {
-    hints.push(`Generator-Tag: ${generator}`);
-  }
+  if (generator) hints.push(`Generator-Tag: ${generator}`);
   
   // Höchsten Score finden
   const sortedCMS = Object.entries(cmsScores).sort((a, b) => b[1] - a[1]);
@@ -71,7 +68,6 @@ function detectCMS(html: string, $: cheerio.CheerioAPI): { cms: string; confiden
   if (sortedCMS.length > 0 && sortedCMS[0][1] >= 4) {
     const detectedCMS = sortedCMS[0][0];
     
-    // WordPress Details
     if (detectedCMS === 'WordPress') {
       const themeMatch = html.match(/wp-content\/themes\/([^\/'"]+)/);
       if (themeMatch) hints.push(`Theme: ${themeMatch[1]}`);
@@ -83,251 +79,243 @@ function detectCMS(html: string, $: cheerio.CheerioAPI): { cms: string; confiden
       }
     }
     
-    return { 
-      cms: detectedCMS, 
-      confidence: sortedCMS[0][1] >= 6 ? 'hoch' : 'mittel', 
-      hints,
-      isCustom: false
-    };
+    return { cms: detectedCMS, confidence: sortedCMS[0][1] >= 6 ? 'hoch' : 'mittel', hints, isCustom: false };
   }
   
-  // CUSTOM / SELBSTPROGRAMMIERT erkennen
-  // Wenn KEINE CMS-Signaturen gefunden wurden = wahrscheinlich custom
+  // Custom erkennen
   const hasNoCMSSignatures = Object.keys(cmsScores).length === 0 || Math.max(...Object.values(cmsScores)) < 3;
   
   if (hasNoCMSSignatures) {
-    // Weitere Hinweise für Custom-Entwicklung sammeln
-    if (htmlLower.includes('vite') || htmlLower.includes('@vite')) hints.push('Vite Build-Tool erkannt');
-    if (htmlLower.includes('webpack')) hints.push('Webpack erkannt');
-    if (htmlLower.includes('parcel')) hints.push('Parcel erkannt');
-    if (html.match(/\.(min\.)?js\?v=/)) hints.push('Versionierte Assets (professionell)');
-    if ($('link[rel="manifest"]').length > 0) hints.push('PWA-fähig (Web App Manifest)');
+    if (htmlLower.includes('vite')) hints.push('Vite Build-Tool');
+    if (htmlLower.includes('webpack')) hints.push('Webpack');
+    if ($('link[rel="manifest"]').length > 0) hints.push('PWA-fähig');
+    if ($('main').length > 0 || $('article').length > 0) hints.push('Semantisches HTML');
+    hints.push('Keine CMS-Signaturen erkannt');
     
-    // Clean Code Indikatoren
-    const hasCleanStructure = $('main').length > 0 || $('article').length > 0 || $('section').length > 0;
-    if (hasCleanStructure) hints.push('Semantisches HTML (professionell)');
-    
-    hints.push('Keine Standard-CMS-Signaturen gefunden');
-    
-    return {
-      cms: 'Custom / Selbstprogrammiert',
-      confidence: 'hoch',
-      hints,
-      isCustom: true
-    };
+    return { cms: 'Custom / Selbstprogrammiert', confidence: 'hoch', hints, isCustom: true };
   }
   
-  return { 
-    cms: 'Nicht eindeutig erkannt', 
-    confidence: 'niedrig', 
-    hints,
-    isCustom: false
-  };
+  return { cms: 'Nicht erkannt', confidence: 'niedrig', hints, isCustom: false };
 }
 
-// Technologie-Stack erkennen - ERWEITERT
+// Tech-Stack erkennen
 function detectTechStack(html: string, $: cheerio.CheerioAPI): string[] {
   const stack: string[] = [];
   const htmlLower = html.toLowerCase();
   
-  // JavaScript Frameworks (genauer prüfen)
+  // JS Frameworks
   if (htmlLower.includes('react') && !htmlLower.includes('reaction')) stack.push('React');
-  if ((htmlLower.includes('vue') && htmlLower.includes('.vue')) || html.includes('v-if=') || html.includes('v-for=') || html.includes(':class=')) stack.push('Vue.js');
-  if (htmlLower.includes('angular') || html.includes('ng-') || html.includes('*ngFor')) stack.push('Angular');
-  if (htmlLower.includes('svelte')) stack.push('Svelte');
-  if (htmlLower.includes('alpine') || html.includes('x-data=') || html.includes('x-show=')) stack.push('Alpine.js');
+  if (html.includes('v-if=') || html.includes('v-for=') || html.includes(':class=')) stack.push('Vue.js');
+  if (html.includes('ng-') || html.includes('*ngFor')) stack.push('Angular');
+  if (html.includes('x-data=') || html.includes('x-show=')) stack.push('Alpine.js');
   
-  // CSS Frameworks
-  if (htmlLower.includes('bootstrap') && !htmlLower.includes('bootstrap-icons')) stack.push('Bootstrap');
-  if (html.match(/class="[^"]*\b(flex|grid|p-\d|m-\d|text-sm|bg-|rounded-)/)) stack.push('Tailwind CSS');
-  if (htmlLower.includes('bulma')) stack.push('Bulma');
+  // CSS
+  if (htmlLower.includes('bootstrap')) stack.push('Bootstrap');
+  if (html.match(/class="[^"]*\b(flex |grid |p-\d|m-\d|text-sm|bg-|rounded-)/)) stack.push('Tailwind CSS');
   
-  // Analytics & Tracking
-  if (htmlLower.includes('google-analytics') || htmlLower.includes('gtag(') || htmlLower.includes('/ga.js')) stack.push('Google Analytics');
-  if (htmlLower.includes('gtm.js') || htmlLower.includes('googletagmanager.com')) stack.push('Google Tag Manager');
-  if (htmlLower.includes('facebook.net/') && htmlLower.includes('fbevents')) stack.push('Facebook Pixel');
-  if (htmlLower.includes('hotjar.com')) stack.push('Hotjar');
+  // Analytics
+  if (htmlLower.includes('gtag(') || htmlLower.includes('google-analytics')) stack.push('Google Analytics');
+  if (htmlLower.includes('googletagmanager.com')) stack.push('Google Tag Manager');
+  if (htmlLower.includes('hotjar')) stack.push('Hotjar');
   if (htmlLower.includes('clarity.ms')) stack.push('Microsoft Clarity');
-  if (htmlLower.includes('matomo') || htmlLower.includes('piwik')) stack.push('Matomo Analytics');
   
-  // CDNs & Performance
+  // CDN
   if (htmlLower.includes('cloudflare')) stack.push('Cloudflare');
-  if (htmlLower.includes('jsdelivr.net')) stack.push('jsDelivr CDN');
-  if (htmlLower.includes('unpkg.com')) stack.push('unpkg CDN');
-  if (htmlLower.includes('cdnjs.cloudflare.com')) stack.push('cdnjs');
+  if (htmlLower.includes('jsdelivr')) stack.push('jsDelivr CDN');
   
   // Libraries
-  if (htmlLower.includes('jquery') && !htmlLower.includes('jquery-migrate')) stack.push('jQuery');
-  if (htmlLower.includes('gsap') || htmlLower.includes('greensock')) stack.push('GSAP Animation');
-  if (htmlLower.includes('three.js') || htmlLower.includes('threejs')) stack.push('Three.js (3D)');
-  if (htmlLower.includes('lottie')) stack.push('Lottie Animations');
-  
-  // Sonstige Tools
-  if (htmlLower.includes('recaptcha')) stack.push('reCAPTCHA');
-  if (htmlLower.includes('hcaptcha')) stack.push('hCaptcha');
-  if (htmlLower.includes('cookiebot') || htmlLower.includes('cookie-consent') || htmlLower.includes('cookieconsent')) stack.push('Cookie Consent');
+  if (htmlLower.includes('jquery')) stack.push('jQuery');
+  if (htmlLower.includes('gsap')) stack.push('GSAP Animation');
+  if (htmlLower.includes('lottie')) stack.push('Lottie');
   
   return [...new Set(stack)];
 }
 
-// NEUE FUNKTION: Besondere Features erkennen
+// Features erkennen
 function detectSpecialFeatures(html: string, $: cheerio.CheerioAPI): string[] {
   const features: string[] = [];
   const htmlLower = html.toLowerCase();
   
-  // KI / Chatbot / Assistent
+  // KI/Chatbot
   if (
-    htmlLower.includes('chatbot') || 
-    htmlLower.includes('chat-widget') ||
-    htmlLower.includes('ai-assistant') ||
-    htmlLower.includes('ki-assistent') ||
-    htmlLower.includes('openai') ||
-    htmlLower.includes('gpt') ||
-    htmlLower.includes('anthropic') ||
-    htmlLower.includes('claude') ||
-    htmlLower.includes('gemini') ||
-    html.includes('voiceflow') ||
-    html.includes('botpress') ||
-    html.includes('dialogflow') ||
-    html.includes('intercom') ||
-    html.includes('drift') ||
-    html.includes('crisp') ||
-    html.includes('tidio') ||
-    html.includes('zendesk') ||
-    $('[class*="chat"]').length > 2 ||
-    $('[id*="chat"]').length > 0 ||
-    $('[class*="bot"]').length > 0 ||
-    $('[class*="assistant"]').length > 0
+    htmlLower.includes('chatbot') || htmlLower.includes('chat-widget') ||
+    htmlLower.includes('ai-assistant') || htmlLower.includes('ki-assistent') ||
+    htmlLower.includes('openai') || htmlLower.includes('gpt') ||
+    htmlLower.includes('voiceflow') || htmlLower.includes('intercom') ||
+    htmlLower.includes('tidio') || htmlLower.includes('crisp') ||
+    $('[class*="chat"]').length > 2 || $('[id*="chat"]').length > 0
   ) {
     features.push('🤖 KI-Assistent / Chatbot');
   }
   
   // Live Chat
-  if (
-    htmlLower.includes('livechat') ||
-    htmlLower.includes('live-chat') ||
-    htmlLower.includes('tawk.to') ||
-    htmlLower.includes('olark') ||
-    htmlLower.includes('freshchat')
-  ) {
+  if (htmlLower.includes('livechat') || htmlLower.includes('tawk.to')) {
     features.push('💬 Live-Chat Support');
   }
   
-  // Video Content
-  if (
-    $('video').length > 0 ||
-    htmlLower.includes('youtube.com/embed') ||
-    htmlLower.includes('vimeo.com') ||
-    htmlLower.includes('wistia')
-  ) {
+  // Video
+  if ($('video').length > 0 || htmlLower.includes('youtube.com/embed') || htmlLower.includes('vimeo')) {
     features.push('🎬 Video-Content');
   }
   
   // Animationen
-  if (
-    htmlLower.includes('gsap') ||
-    htmlLower.includes('lottie') ||
-    htmlLower.includes('animate.css') ||
-    htmlLower.includes('aos.js') ||
-    html.includes('data-aos=') ||
-    $('[class*="animate-"]').length > 3
-  ) {
-    features.push('✨ Animationen/Micro-Interactions');
+  if (htmlLower.includes('gsap') || htmlLower.includes('lottie') || html.includes('data-aos=')) {
+    features.push('✨ Animationen');
   }
   
   // Dark Mode
-  if (
-    htmlLower.includes('dark-mode') ||
-    htmlLower.includes('darkmode') ||
-    html.includes('dark:') ||
-    $('[class*="dark"]').length > 5
-  ) {
-    features.push('🌙 Dark Mode Support');
+  if (html.includes('dark:') || htmlLower.includes('dark-mode')) {
+    features.push('🌙 Dark Mode');
   }
   
   // PWA
-  if (
-    $('link[rel="manifest"]').length > 0 ||
-    htmlLower.includes('serviceworker') ||
-    htmlLower.includes('service-worker')
-  ) {
-    features.push('📱 Progressive Web App (PWA)');
+  if ($('link[rel="manifest"]').length > 0) {
+    features.push('📱 Progressive Web App');
   }
   
   // E-Commerce
-  if (
-    htmlLower.includes('add-to-cart') ||
-    htmlLower.includes('warenkorb') ||
-    htmlLower.includes('shop') ||
-    htmlLower.includes('product') ||
-    htmlLower.includes('woocommerce') ||
-    $('[class*="cart"]').length > 0 ||
-    $('[class*="price"]').length > 2
-  ) {
-    features.push('🛒 E-Commerce Funktionen');
+  if (htmlLower.includes('warenkorb') || htmlLower.includes('add-to-cart') || htmlLower.includes('woocommerce')) {
+    features.push('🛒 E-Commerce / Shop');
   }
   
-  // Booking/Kalender
-  if (
-    htmlLower.includes('calendly') ||
-    htmlLower.includes('booking') ||
-    htmlLower.includes('termin') ||
-    htmlLower.includes('appointment') ||
-    htmlLower.includes('cal.com')
-  ) {
+  // Booking
+  if (htmlLower.includes('calendly') || htmlLower.includes('booking') || htmlLower.includes('termin')) {
     features.push('📅 Online-Terminbuchung');
   }
   
   // Newsletter
-  if (
-    htmlLower.includes('newsletter') ||
-    htmlLower.includes('mailchimp') ||
-    htmlLower.includes('convertkit') ||
-    htmlLower.includes('klaviyo') ||
-    htmlLower.includes('sendinblue') ||
-    $('input[type="email"]').length > 0
-  ) {
-    features.push('📧 Newsletter-Anmeldung');
+  if (htmlLower.includes('newsletter') || htmlLower.includes('mailchimp')) {
+    features.push('📧 Newsletter');
   }
   
-  // Schema/Structured Data
-  if (
-    $('script[type="application/ld+json"]').length > 0
-  ) {
-    features.push('📊 Strukturierte Daten (Schema.org)');
+  // Schema
+  if ($('script[type="application/ld+json"]').length > 0) {
+    features.push('📊 Strukturierte Daten');
   }
   
-  // Social Proof
-  if (
-    htmlLower.includes('testimonial') ||
-    htmlLower.includes('review') ||
-    htmlLower.includes('bewertung') ||
-    htmlLower.includes('kundenstimm') ||
-    $('[class*="testimonial"]').length > 0
-  ) {
-    features.push('⭐ Testimonials/Bewertungen');
+  // Testimonials
+  if (htmlLower.includes('testimonial') || htmlLower.includes('bewertung') || htmlLower.includes('kundenstimm')) {
+    features.push('⭐ Testimonials');
   }
   
-  // Mehrsprachigkeit
-  if (
-    $('link[hreflang]').length > 1 ||
-    htmlLower.includes('language-switcher') ||
-    htmlLower.includes('wpml') ||
-    htmlLower.includes('polylang') ||
-    $('[class*="lang-"]').length > 1
-  ) {
+  // Mehrsprachig
+  if ($('link[hreflang]').length > 1 || htmlLower.includes('wpml')) {
     features.push('🌍 Mehrsprachig');
+  }
+  
+  // Blog
+  if (htmlLower.includes('/blog') || htmlLower.includes('artikel') || htmlLower.includes('beitrag')) {
+    features.push('📝 Blog / News');
+  }
+  
+  // Portfolio/Referenzen
+  if (htmlLower.includes('portfolio') || htmlLower.includes('referenz') || htmlLower.includes('projekt')) {
+    features.push('🖼️ Portfolio / Referenzen');
+  }
+  
+  // FAQ
+  if (htmlLower.includes('faq') || htmlLower.includes('häufige fragen')) {
+    features.push('❓ FAQ-Bereich');
   }
   
   return features;
 }
 
-// Hilfsfunktion zum Scrapen - VERBESSERT
+// Kontaktdaten extrahieren
+function extractContactInfo(html: string, $: cheerio.CheerioAPI): { 
+  emails: string[]; 
+  phones: string[]; 
+  names: string[];
+  address: string;
+  social: string[];
+} {
+  const emails: string[] = [];
+  const phones: string[] = [];
+  const names: string[] = [];
+  const social: string[] = [];
+  let address = '';
+  
+  // Emails aus href="mailto:"
+  $('a[href^="mailto:"]').each((_, el) => {
+    const email = $(el).attr('href')?.replace('mailto:', '').split('?')[0];
+    if (email && !emails.includes(email)) emails.push(email);
+  });
+  
+  // Emails aus Text (Regex)
+  const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+  const emailMatches = html.match(emailRegex);
+  if (emailMatches) {
+    emailMatches.forEach(e => {
+      if (!emails.includes(e) && !e.includes('example') && !e.includes('wixpress')) {
+        emails.push(e);
+      }
+    });
+  }
+  
+  // Telefon aus href="tel:"
+  $('a[href^="tel:"]').each((_, el) => {
+    const phone = $(el).attr('href')?.replace('tel:', '').replace(/\s/g, '');
+    if (phone && !phones.includes(phone)) phones.push(phone);
+  });
+  
+  // Telefon aus Text (österreichische/deutsche Formate)
+  const phoneRegex = /(?:\+43|0043|0)\s*\d{1,4}[\s/-]?\d{2,4}[\s/-]?\d{2,4}[\s/-]?\d{0,4}/g;
+  const phoneMatches = html.match(phoneRegex);
+  if (phoneMatches) {
+    phoneMatches.slice(0, 3).forEach(p => {
+      const cleaned = p.replace(/\s/g, '');
+      if (!phones.includes(cleaned) && cleaned.length >= 8) phones.push(p.trim());
+    });
+  }
+  
+  // Social Media
+  const socialPlatforms = ['facebook', 'instagram', 'linkedin', 'twitter', 'xing', 'youtube', 'tiktok'];
+  socialPlatforms.forEach(platform => {
+    const link = $(`a[href*="${platform}.com"], a[href*="${platform}.at"]`).first().attr('href');
+    if (link) social.push(link);
+  });
+  
+  // Namen aus strukturierten Daten oder Meta
+  const schemaScript = $('script[type="application/ld+json"]').first().html();
+  if (schemaScript) {
+    try {
+      const schema = JSON.parse(schemaScript);
+      if (schema.name) names.push(schema.name);
+      if (schema.author?.name) names.push(schema.author.name);
+      if (schema.address?.streetAddress) {
+        address = `${schema.address.streetAddress}, ${schema.address.postalCode} ${schema.address.addressLocality}`;
+      }
+    } catch {}
+  }
+  
+  // Name aus Copyright oder Footer
+  const footerText = $('footer').text();
+  const copyrightMatch = footerText.match(/©\s*\d{4}\s*([^|•\n]+)/);
+  if (copyrightMatch && copyrightMatch[1].trim().length < 50) {
+    names.push(copyrightMatch[1].trim());
+  }
+  
+  // Adresse aus Footer/Kontakt
+  const addressMatch = html.match(/(\d{4})\s+([A-Za-zäöüÄÖÜß\s-]+),?\s*(Austria|Österreich|Deutschland|Germany|Schweiz)?/i);
+  if (addressMatch && !address) {
+    address = addressMatch[0];
+  }
+  
+  return { 
+    emails: [...new Set(emails)].slice(0, 3), 
+    phones: [...new Set(phones)].slice(0, 2),
+    names: [...new Set(names)].slice(0, 2),
+    address,
+    social: social.slice(0, 4)
+  };
+}
+
+// Scrapen
 async function scrapeUrl(url: string) {
   const res = await fetch(url, {
     headers: {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+      'Accept': 'text/html,application/xhtml+xml',
       'Accept-Language': 'de-DE,de;q=0.9,en;q=0.8',
     }
   });
@@ -337,95 +325,63 @@ async function scrapeUrl(url: string) {
   const html = await res.text();
   const $ = cheerio.load(html);
   
-  // WICHTIG: Title & Meta ZUERST auslesen (vor dem Entfernen von head)
-  const title = $('title').text().trim() || '';
-  const metaDesc = $('meta[name="description"]').attr('content')?.trim() || '';
-  const ogTitle = $('meta[property="og:title"]').attr('content')?.trim() || '';
-  const ogDesc = $('meta[property="og:description"]').attr('content')?.trim() || '';
-  const canonical = $('link[rel="canonical"]').attr('href') || '';
+  // Meta ZUERST auslesen
+  const title = $('title').text().trim() || $('meta[property="og:title"]').attr('content') || '';
+  const metaDesc = $('meta[name="description"]').attr('content')?.trim() || $('meta[property="og:description"]').attr('content') || '';
   
-  // CMS, Tech & Features erkennen BEVOR wir Tags entfernen
+  // CMS, Tech, Features erkennen
   const cmsInfo = detectCMS(html, $);
   const techStack = detectTechStack(html, $);
   const specialFeatures = detectSpecialFeatures(html, $);
+  const contactInfo = extractContactInfo(html, $);
   
-  // Strukturierte Daten auslesen
+  // Schema
   const schemaScripts = $('script[type="application/ld+json"]');
-  const hasSchema = schemaScripts.length > 0;
   let schemaTypes: string[] = [];
   schemaScripts.each((_, el) => {
     try {
-      const schemaContent = $(el).html();
-      if (schemaContent) {
-        const parsed = JSON.parse(schemaContent);
-        if (parsed['@type']) {
-          schemaTypes.push(parsed['@type']);
-        }
-      }
+      const parsed = JSON.parse($(el).html() || '');
+      if (parsed['@type']) schemaTypes.push(parsed['@type']);
     } catch {}
   });
   
-  // Jetzt aufräumen für Content-Analyse
+  // Aufräumen für Content
   $('script, style, nav, footer, iframe, svg, noscript, head').remove();
   
-  // H1 - alle sammeln
-  const h1Elements = $('h1');
-  const h1 = h1Elements.first().text().trim();
-  const h1Count = h1Elements.length;
-  
-  // H2 - alle sammeln mit Text
+  const h1 = $('h1').first().text().trim();
   const h2Elements: string[] = [];
   $('h2').each((_, el) => {
     const text = $(el).text().trim();
-    if (text && text.length < 100) {
-      h2Elements.push(text);
-    }
+    if (text && text.length < 100) h2Elements.push(text);
   });
   
-  // Body Text
   const text = $('body').text().replace(/\s+/g, ' ').trim();
   const wordCount = text.split(/\s+/).filter(w => w.length > 1).length;
   
-  // Einzigartige Textpassagen extrahieren (erste Absätze)
+  // Einzigartige Texte
   const uniqueTexts: string[] = [];
   $('p').each((i, el) => {
     if (i < 5) {
       const pText = $(el).text().trim();
-      if (pText.length > 50 && pText.length < 500) {
-        uniqueTexts.push(pText);
-      }
+      if (pText.length > 50 && pText.length < 500) uniqueTexts.push(pText);
     }
   });
   
-  // Links analysieren
-  const internalLinks = $('a[href^="/"], a[href^="' + url + '"]').length;
-  const externalLinks = $('a[href^="http"]').not('a[href^="' + url + '"]').length;
-  
-  // Bilder
-  const images = $('img').length;
-  const imagesWithAlt = $('img[alt]:not([alt=""])').length;
-  
   return { 
     url, 
-    title: title || ogTitle || 'Kein Title gefunden',
-    metaDesc: metaDesc || ogDesc || '',
-    canonical,
-    h1: h1 || 'Keine H1 gefunden',
-    h1Count,
-    h2Elements: h2Elements.slice(0, 10),
+    title: title || 'Kein Title',
+    metaDesc,
+    h1: h1 || 'Keine H1',
+    h2Elements: h2Elements.slice(0, 8),
     h2Count: h2Elements.length,
-    text: text.slice(0, 10000),
+    text: text.slice(0, 8000),
     wordCount,
     uniqueTexts,
     cms: cmsInfo,
     techStack,
     specialFeatures,
-    hasSchema,
     schemaTypes,
-    internalLinks,
-    externalLinks,
-    images,
-    imagesWithAlt
+    contactInfo
   };
 }
 
@@ -437,192 +393,163 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'Beide URLs sind erforderlich.' }, { status: 400 });
     }
 
-    // 1. Scraping
     const [myData, competitorData] = await Promise.all([
       scrapeUrl(myUrl).catch(e => ({ 
-        error: true, 
-        msg: e.message, 
-        url: myUrl, 
-        title: 'Fehler beim Laden', 
-        metaDesc: '',
-        canonical: '',
-        h1: '',
-        h1Count: 0,
-        h2Elements: [],
-        h2Count: 0,
-        text: '',
-        wordCount: 0,
-        uniqueTexts: [],
+        error: true, url: myUrl, title: 'Fehler', metaDesc: '', h1: '', h2Elements: [], h2Count: 0,
+        text: '', wordCount: 0, uniqueTexts: [],
         cms: { cms: 'Fehler', confidence: 'n/a', hints: [e.message], isCustom: false },
-        techStack: [],
-        specialFeatures: [],
-        hasSchema: false,
-        schemaTypes: [],
-        internalLinks: 0,
-        externalLinks: 0,
-        images: 0,
-        imagesWithAlt: 0
+        techStack: [], specialFeatures: [], schemaTypes: [],
+        contactInfo: { emails: [], phones: [], names: [], address: '', social: [] }
       })),
       scrapeUrl(competitorUrl).catch(e => ({ 
-        error: true, 
-        msg: e.message, 
-        url: competitorUrl, 
-        title: 'Fehler beim Laden',
-        metaDesc: '',
-        canonical: '',
-        h1: '',
-        h1Count: 0,
-        h2Elements: [],
-        h2Count: 0,
-        text: '',
-        wordCount: 0,
-        uniqueTexts: [],
+        error: true, url: competitorUrl, title: 'Fehler', metaDesc: '', h1: '', h2Elements: [], h2Count: 0,
+        text: '', wordCount: 0, uniqueTexts: [],
         cms: { cms: 'Fehler', confidence: 'n/a', hints: [e.message], isCustom: false },
-        techStack: [],
-        specialFeatures: [],
-        hasSchema: false,
-        schemaTypes: [],
-        internalLinks: 0,
-        externalLinks: 0,
-        images: 0,
-        imagesWithAlt: 0
+        techStack: [], specialFeatures: [], schemaTypes: [],
+        contactInfo: { emails: [], phones: [], names: [], address: '', social: [] }
       }))
     ]);
 
-    // 2. Prompt erstellen
     const prompt = `
-      Du bist ein erfahrener SEO-Stratege und Web-Analyst. Vergleiche zwei Webseiten FAIR und OBJEKTIV.
-      
-      WICHTIG: Analysiere die Daten sorgfältig. Beide Seiten können Stärken haben!
-      Eine "Custom/Selbstprogrammiert" Seite ist KEIN Nachteil - im Gegenteil, es zeigt technische Kompetenz.
+      Du bist ein erfahrener SEO-Stratege und Web-Analyst. Analysiere zwei Webseiten FAIR und DETAILLIERT.
 
       ═══════════════════════════════════════════════════════════════
       SEITE A: ${myData.url}
       ═══════════════════════════════════════════════════════════════
       
-      📄 META-DATEN:
+      📄 META:
       • Title: "${myData.title}"
       • Meta-Beschreibung: "${myData.metaDesc || '(keine)'}"
-      • H1: "${myData.h1}" (${myData.h1Count}x vorhanden)
-      • H2-Überschriften (${myData.h2Count}): ${myData.h2Elements.slice(0, 5).join(' | ') || '(keine)'}
-      
-      📊 CONTENT-METRIKEN:
+      • H1: "${myData.h1}"
+      • H2 (${myData.h2Count}): ${myData.h2Elements.slice(0, 5).join(' | ') || '(keine)'}
       • Wortanzahl: ~${myData.wordCount}
-      • Interne Links: ${myData.internalLinks}
-      • Externe Links: ${myData.externalLinks}
-      • Bilder: ${myData.images} (davon ${myData.imagesWithAlt} mit Alt-Text)
-      • Schema.org: ${myData.hasSchema ? `Ja (${myData.schemaTypes.join(', ')})` : 'Nein'}
       
-      🔧 TECHNOLOGIE:
-      • CMS: ${myData.cms.cms} ${myData.cms.isCustom ? '⭐ (Eigenentwicklung = technische Kompetenz!)' : ''}
-      • Konfidenz: ${myData.cms.confidence}
-      • Details: ${myData.cms.hints.join(', ') || 'Keine'}
-      • Tech-Stack: ${myData.techStack.length > 0 ? myData.techStack.join(', ') : 'Minimal/Clean'}
+      🔧 TECHNIK:
+      • CMS: ${myData.cms.cms} ${myData.cms.isCustom ? '⭐ (Eigenentwicklung!)' : ''}
+      • Details: ${myData.cms.hints.join(', ') || '-'}
+      • Tech-Stack: ${myData.techStack.join(', ') || 'Minimal'}
+      • Schema.org: ${myData.schemaTypes.length > 0 ? myData.schemaTypes.join(', ') : 'Keine'}
       
-      ✨ BESONDERE FEATURES:
-      ${myData.specialFeatures.length > 0 ? myData.specialFeatures.join('\n      ') : '• Keine besonderen Features erkannt'}
+      ✨ FEATURES:
+      ${myData.specialFeatures.length > 0 ? myData.specialFeatures.join('\n      ') : '(keine besonderen Features erkannt)'}
       
-      📝 EINZIGARTIGE TEXTPASSAGEN:
-      ${myData.uniqueTexts.slice(0, 2).map(t => `"${t.slice(0, 200)}..."`).join('\n      ') || 'Keine extrahiert'}
+      📝 TEXT-AUSZÜGE:
+      ${myData.uniqueTexts.slice(0, 2).map(t => `"${t.slice(0, 250)}..."`).join('\n      ') || '(keine)'}
+      
+      📞 KONTAKT:
+      • Namen: ${myData.contactInfo.names.join(', ') || '-'}
+      • E-Mail: ${myData.contactInfo.emails.join(', ') || '-'}
+      • Telefon: ${myData.contactInfo.phones.join(', ') || '-'}
+      • Adresse: ${myData.contactInfo.address || '-'}
+      • Social: ${myData.contactInfo.social.length > 0 ? myData.contactInfo.social.map(s => s.split('/')[2]).join(', ') : '-'}
       
       ═══════════════════════════════════════════════════════════════
       SEITE B: ${competitorData.url}
       ═══════════════════════════════════════════════════════════════
       
-      📄 META-DATEN:
+      📄 META:
       • Title: "${competitorData.title}"
       • Meta-Beschreibung: "${competitorData.metaDesc || '(keine)'}"
-      • H1: "${competitorData.h1}" (${competitorData.h1Count}x vorhanden)
-      • H2-Überschriften (${competitorData.h2Count}): ${competitorData.h2Elements.slice(0, 5).join(' | ') || '(keine)'}
-      
-      📊 CONTENT-METRIKEN:
+      • H1: "${competitorData.h1}"
+      • H2 (${competitorData.h2Count}): ${competitorData.h2Elements.slice(0, 5).join(' | ') || '(keine)'}
       • Wortanzahl: ~${competitorData.wordCount}
-      • Interne Links: ${competitorData.internalLinks}
-      • Externe Links: ${competitorData.externalLinks}
-      • Bilder: ${competitorData.images} (davon ${competitorData.imagesWithAlt} mit Alt-Text)
-      • Schema.org: ${competitorData.hasSchema ? `Ja (${competitorData.schemaTypes.join(', ')})` : 'Nein'}
       
-      🔧 TECHNOLOGIE:
-      • CMS: ${competitorData.cms.cms} ${competitorData.cms.isCustom ? '⭐ (Eigenentwicklung = technische Kompetenz!)' : ''}
-      • Konfidenz: ${competitorData.cms.confidence}
-      • Details: ${competitorData.cms.hints.join(', ') || 'Keine'}
-      • Tech-Stack: ${competitorData.techStack.length > 0 ? competitorData.techStack.join(', ') : 'Minimal/Clean'}
+      🔧 TECHNIK:
+      • CMS: ${competitorData.cms.cms} ${competitorData.cms.isCustom ? '⭐ (Eigenentwicklung!)' : ''}
+      • Details: ${competitorData.cms.hints.join(', ') || '-'}
+      • Tech-Stack: ${competitorData.techStack.join(', ') || 'Minimal'}
+      • Schema.org: ${competitorData.schemaTypes.length > 0 ? competitorData.schemaTypes.join(', ') : 'Keine'}
       
-      ✨ BESONDERE FEATURES:
-      ${competitorData.specialFeatures.length > 0 ? competitorData.specialFeatures.join('\n      ') : '• Keine besonderen Features erkannt'}
+      ✨ FEATURES:
+      ${competitorData.specialFeatures.length > 0 ? competitorData.specialFeatures.join('\n      ') : '(keine besonderen Features erkannt)'}
       
-      📝 EINZIGARTIGE TEXTPASSAGEN:
-      ${competitorData.uniqueTexts.slice(0, 2).map(t => `"${t.slice(0, 200)}..."`).join('\n      ') || 'Keine extrahiert'}
+      📝 TEXT-AUSZÜGE:
+      ${competitorData.uniqueTexts.slice(0, 2).map(t => `"${t.slice(0, 250)}..."`).join('\n      ') || '(keine)'}
+      
+      📞 KONTAKT:
+      • Namen: ${competitorData.contactInfo.names.join(', ') || '-'}
+      • E-Mail: ${competitorData.contactInfo.emails.join(', ') || '-'}
+      • Telefon: ${competitorData.contactInfo.phones.join(', ') || '-'}
+      • Adresse: ${competitorData.contactInfo.address || '-'}
+      • Social: ${competitorData.contactInfo.social.length > 0 ? competitorData.contactInfo.social.map(s => s.split('/')[2]).join(', ') : '-'}
 
       ═══════════════════════════════════════════════════════════════
-      FORMATIERUNGS-REGELN (STRIKT):
+      FORMATIERUNG (STRIKT - KEIN MARKDOWN!)
       ═══════════════════════════════════════════════════════════════
       
-      1. KEIN MARKDOWN! Keine **, ##, * Listen
-      2. Nur HTML mit Tailwind-Klassen
-      3. Fettschrift: <strong class="font-bold text-gray-900">Text</strong>
-
-      STYLING:
+      Nur HTML mit Tailwind. Keine **, ##, * Listen!
+      
       - Überschriften: <h3 class="font-bold text-indigo-900 mt-6 mb-3 text-lg flex items-center gap-2">TITEL</h3>
       - Fließtext: <p class="mb-3 leading-relaxed text-gray-600 text-sm">TEXT</p>
+      - Info-Box (blau): <div class="bg-blue-50 border border-blue-200 p-4 rounded-xl mb-4">
       - Listen: <ul class="space-y-2 mb-4 list-none pl-0">
-      - Listen-Item: <li class="flex items-start gap-2 text-sm text-gray-700 bg-gray-50 p-3 rounded-lg border border-gray-100"><span class="text-indigo-500 font-bold">→</span> <span>Inhalt</span></li>
+      - Listen-Item: <li class="flex items-start gap-2 text-sm text-gray-700 bg-gray-50 p-3 rounded-lg border border-gray-100"><span class="text-indigo-500 font-bold">→</span> <span>Text</span></li>
+      - Vorteil-Item: <li class="flex items-start gap-2 text-sm bg-emerald-50 p-3 rounded-lg border border-emerald-200"><span class="text-emerald-600 font-bold">✓</span> <span>Text</span></li>
+      - Nachteil-Item: <li class="flex items-start gap-2 text-sm bg-rose-50 p-3 rounded-lg border border-rose-200"><span class="text-rose-500 font-bold">✗</span> <span>Text</span></li>
+      - Feature-Item: <li class="flex items-start gap-2 text-sm bg-purple-50 p-3 rounded-lg border border-purple-200"><span class="text-purple-600 font-bold">★</span> <span>Text</span></li>
       - Vergleichs-Grid: <div class="grid grid-cols-2 gap-4 my-4">
       - Karte: <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-      - Gute Karte (grün): <div class="bg-emerald-50 p-4 rounded-xl border border-emerald-200">
-      - Badge positiv: <span class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-xs font-bold">GUT</span>
-      - Badge negativ: <span class="bg-rose-100 text-rose-700 px-2 py-0.5 rounded text-xs font-bold">FEHLT</span>
-      - Badge neutral: <span class="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-bold">INFO</span>
-      - Feature-Badge: <span class="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs font-bold">FEATURE</span>
+      - Karten-Titel: <h4 class="font-bold text-gray-800 mb-3 pb-2 border-b border-gray-100">TITEL</h4>
+      - Badge CMS: <span class="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs font-bold">CMS</span>
+      - Badge Custom: <span class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-xs font-bold">⭐ CUSTOM</span>
       - Empfehlungs-Box: <div class="bg-indigo-600 text-white p-4 rounded-xl my-4 shadow-lg">
-      - Stat-Grid: <div class="grid grid-cols-4 gap-2 my-3"><div class="bg-gray-50 p-2 rounded-lg text-center"><div class="text-lg font-bold text-indigo-600">ZAHL</div><div class="text-[10px] text-gray-500">LABEL</div></div></div>
+      - Kontakt-Box: <div class="bg-gray-100 p-4 rounded-xl my-4 border border-gray-200">
 
       ═══════════════════════════════════════════════════════════════
-      AUFGABE - Erstelle diesen HTML-Report:
+      ERSTELLE DIESEN REPORT:
       ═══════════════════════════════════════════════════════════════
 
-      1. <h3>🔧 Technologie-Vergleich</h3>
+      1. <h3>ℹ️ Übersicht</h3>
+         Info-Box mit kurzer Beschreibung beider Seiten.
+         Wer/Was ist die Seite? (z.B. "SEO-Agentur aus Niederösterreich", "Persönliche Website von Max Mustermann", "Webshop für Sportartikel")
+         Format: "Seite A: ... | Seite B: ..."
+
+      2. <h3>🔧 Technologie-Vergleich</h3>
          Vergleichs-Grid mit zwei Karten.
-         Für JEDE Seite zeige:
-         - CMS (mit Badge: Custom = POSITIV darstellen!)
-         - Tech-Stack
-         - Besondere Features (mit Feature-Badges)
-         - Kurze Bewertung der technischen Umsetzung
+         Pro Seite zeige:
+         - CMS (Badge) - Custom = Vorteil!
+         - Tech-Stack (kurz)
+         - Bewertung: Was sind die Vor-/Nachteile dieser Technik?
          
-         WICHTIG: "Custom/Selbstprogrammiert" ist ein VORTEIL (keine Plugin-Abhängigkeit, schneller, sicherer)!
+         Wichtig: "Custom/Selbstprogrammiert" ist ein VORTEIL (schneller, sicherer, flexibler)!
 
-      2. <h3>📊 Metriken-Vergleich</h3>
-         Stat-Grid mit den wichtigsten Zahlen nebeneinander:
-         - Wortanzahl
-         - H2-Überschriften  
-         - Bilder
-         - Interne Links
-
-      3. <h3>🏆 Stärken & Schwächen</h3>
-         Analysiere BEIDE Seiten FAIR.
-         Was macht Seite A besser? Was macht Seite B besser?
-         Berücksichtige:
-         - Besondere Features (KI-Assistent, Chat, etc.)
-         - Einzigartige Inhalte/Texte
-         - Technische Qualität
-         - Content-Tiefe
-         - Meta-Optimierung
+      3. <h3>✨ Besondere Features - Seite A</h3>
+         Ausführliche Analyse aller Features von Seite A.
+         Nutze Feature-Items für erkannte Features.
+         Erkläre WARUM jedes Feature wichtig ist (SEO, UX, Conversion).
          
-         Nutze Listen mit Badges (GUT/FEHLT/FEATURE).
+      4. <h3>✨ Besondere Features - Seite B</h3>
+         Ausführliche Analyse aller Features von Seite B.
+         Nutze Feature-Items.
+         Erkläre WARUM jedes Feature wichtig ist.
 
-      4. <h3>🎯 Strategische Empfehlungen</h3>
+      5. <h3>✓ Stärken & ✗ Schwächen - Seite A</h3>
+         Liste mit Vorteil-Items (✓) und Nachteil-Items (✗).
+         Mindestens 3-4 Stärken und 2-3 Schwächen.
+         Berücksichtige: Content, Technik, Features, SEO, UX.
+
+      6. <h3>✓ Stärken & ✗ Schwächen - Seite B</h3>
+         Liste mit Vorteil-Items (✓) und Nachteil-Items (✗).
+         Mindestens 3-4 Stärken und 2-3 Schwächen.
+         SEI FAIR - auch kleine Seiten können Stärken haben (Design, Fokus, Technologie)!
+
+      7. <h3>🎯 Strategische Empfehlungen</h3>
          Empfehlungs-Box mit 3-4 konkreten, priorisierten Maßnahmen.
-         Berücksichtige die Stärken beider Seiten.
-         Was kann A von B lernen? Was kann B von A lernen?
+         Was kann jede Seite von der anderen lernen?
+         Konkrete Action Items.
 
-      Antworte direkt mit HTML. Sei FAIR und OBJEKTIV bei der Analyse!
+      8. <h3>📞 Kontaktinformationen</h3>
+         Kontakt-Box mit Grid (2 Spalten).
+         Pro Seite: Name, E-Mail, Telefon, Adresse (falls vorhanden).
+         Format übersichtlich mit Labels.
+
+      Antworte direkt mit HTML. Sei FAIR, OBJEKTIV und AUSFÜHRLICH!
     `;
 
-    // 3. Stream starten
     const result = streamText({
       model: google('gemini-2.5-flash'),
       prompt: prompt,
-      temperature: 0.3, // Niedriger für genauere Analyse
+      temperature: 0.3,
     });
 
     return result.toTextStreamResponse();
@@ -630,9 +557,6 @@ export async function POST(req: NextRequest) {
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
     console.error('❌ Competitor Spy Error:', error);
-    return NextResponse.json(
-      { message: errorMessage || 'Fehler beim Vergleich' },
-      { status: 500 }
-    );
+    return NextResponse.json({ message: errorMessage }, { status: 500 });
   }
 }
