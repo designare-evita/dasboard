@@ -58,9 +58,8 @@ function analyzeTrend(trendArray: number[] | undefined | null): { direction: str
   return { direction: 'stabil', percentage: Math.round(change) };
 }
 
-// Raw Data zu KeywordData normalisieren - ERWEITERT
+// Raw Data zu KeywordData normalisieren
 function normalizeKeyword(raw: Record<string, unknown>): KeywordData {
-  // Versuche das Keyword aus verschiedenen möglichen Feldern zu extrahieren
   const keywordValue = 
     raw.keyword || 
     raw.text ||
@@ -69,29 +68,20 @@ function normalizeKeyword(raw: Record<string, unknown>): KeywordData {
     raw.key ||
     raw.name ||
     raw.phrase ||
-    raw.search_term ||
-    raw.searchTerm ||
-    raw.kw ||
-    // Falls es ein Array ist, nimm den ersten Wert
-    (Array.isArray(raw) ? raw[0] : null) ||
     'Unbekannt';
 
-  // Suchvolumen aus verschiedenen Feldern
   const volumeValue = 
     raw.search_volume ||
     raw.searchVolume ||
     raw.volume ||
     raw.avg_monthly_searches ||
-    raw.avgMonthlySearches ||
-    raw.monthly_searches ||
-    raw.searches ||
     0;
 
   return {
     keyword: String(keywordValue),
     search_volume: Number(volumeValue) || 0,
     competition: String(raw.competition || raw.comp || 'unknown'),
-    competition_index: Number(raw.competition_index || raw.competitionIndex || raw.comp_index || 0),
+    competition_index: Number(raw.competition_index || raw.competitionIndex || 0),
     low_bid: Number(raw.low_bid || raw.lowBid || raw.cpc_low || 0),
     high_bid: Number(raw.high_bid || raw.highBid || raw.cpc_high || raw.cpc || 0),
     trend: Array.isArray(raw.trend) ? raw.trend : [],
@@ -119,10 +109,9 @@ async function getCachedKeywords(cacheKey: string): Promise<KeywordData[] | null
       return typeof data === 'string' ? JSON.parse(data) : data;
     }
     
-    console.log(`[Trend Radar] ❌ Cache MISS`);
     return null;
   } catch (error) {
-    console.log('[Trend Radar] Cache-Fehler:', error);
+    console.log('[Trend Radar] Cache-Fehler (ignoriert)');
     return null;
   }
 }
@@ -137,10 +126,8 @@ async function setCachedKeywords(cacheKey: string, data: KeywordData[]): Promise
       ON CONFLICT (cache_key) 
       DO UPDATE SET data = ${jsonData}::jsonb, created_at = NOW()
     `;
-    
-    console.log(`[Trend Radar] 💾 Cache gespeichert`);
   } catch (error) {
-    console.error('[Trend Radar] Cache speichern fehlgeschlagen:', error);
+    console.error('[Trend Radar] Cache speichern fehlgeschlagen');
   }
 }
 
@@ -149,23 +136,22 @@ async function setCachedKeywords(cacheKey: string, data: KeywordData[]): Promise
 // ============================================
 
 async function fetchKeywordSuggestions(
-  keyword: string, 
+  topic: string, 
   location: string = 'AT', 
   lang: string = 'de'
 ): Promise<KeywordData[]> {
-  const cacheKey = createHash(`suggestions:${keyword}:${location}:${lang}`);
+  const cacheKey = createHash(`suggestions:${topic}:${location}:${lang}:v2`);
   
-  // 1. Cache prüfen
+  // Cache prüfen
   const cached = await getCachedKeywords(cacheKey);
-  if (cached && Array.isArray(cached) && cached.length > 0 && cached[0].keyword !== 'Unbekannt') {
+  if (cached && cached.length > 0 && cached[0].keyword !== 'Unbekannt') {
     return cached;
   }
 
-  // 2. API aufrufen
   try {
-    const url = `${BASE_URL}/keysuggest/?keyword=${encodeURIComponent(keyword)}&location=${location}&lang=${lang}&return_intent=true`;
+    const url = `${BASE_URL}/keysuggest/?keyword=${encodeURIComponent(topic)}&location=${location}&lang=${lang}&return_intent=true`;
     
-    console.log(`[Trend Radar] 🌐 API Call: keysuggest für "${keyword}"`);
+    console.log(`[Trend Radar] 🌐 API: keysuggest für "${topic}"`);
     
     const response = await fetch(url, {
       method: 'GET',
@@ -176,70 +162,40 @@ async function fetchKeywordSuggestions(
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`[Trend Radar] RapidAPI Error: ${response.status}`, errorText);
+      console.error(`[Trend Radar] API Error: ${response.status}`);
       return [];
     }
 
     const data = await response.json();
     
-    // 🔍 DEBUG: Logge die komplette Response-Struktur
-    console.log(`[Trend Radar] 📦 Response Type: ${typeof data}, IsArray: ${Array.isArray(data)}`);
-    console.log(`[Trend Radar] 📦 Response Keys: ${data ? Object.keys(data).join(', ') : 'null'}`);
-    
-    // Erstes Element loggen um Struktur zu sehen
-    if (Array.isArray(data) && data.length > 0) {
-      console.log(`[Trend Radar] 📦 First Item Keys: ${Object.keys(data[0]).join(', ')}`);
-      console.log(`[Trend Radar] 📦 First Item Sample:`, JSON.stringify(data[0]).slice(0, 500));
-    } else if (data && typeof data === 'object') {
-      const firstKey = Object.keys(data)[0];
-      if (firstKey && Array.isArray(data[firstKey]) && data[firstKey].length > 0) {
-        console.log(`[Trend Radar] 📦 First Item in "${firstKey}":`, JSON.stringify(data[firstKey][0]).slice(0, 500));
-      }
-    }
-
-    // Verschiedene Response-Formate handhaben
+    // Response parsen
     let rawKeywords: Record<string, unknown>[] = [];
     
     if (Array.isArray(data)) {
       rawKeywords = data;
     } else if (data && typeof data === 'object') {
-      // Versuche verschiedene bekannte Wrapper-Keys
-      const possibleKeys = ['keywords', 'data', 'results', 'items', 'suggestions', 'keyword_ideas', 'keyword_list'];
-      for (const key of possibleKeys) {
+      const keys = ['keywords', 'data', 'results', 'items', 'suggestions'];
+      for (const key of keys) {
         if (Array.isArray(data[key])) {
           rawKeywords = data[key];
-          console.log(`[Trend Radar] 📦 Found keywords in "${key}"`);
           break;
         }
       }
-      
-      // Falls immer noch leer, nimm das erste Array das wir finden
-      if (rawKeywords.length === 0) {
-        for (const key of Object.keys(data)) {
-          if (Array.isArray(data[key]) && data[key].length > 0) {
-            rawKeywords = data[key];
-            console.log(`[Trend Radar] 📦 Using first array found: "${key}"`);
-            break;
-          }
-        }
-      }
     }
     
-    // Normalisieren
-    const keywords = rawKeywords.map(normalizeKeyword);
+    // Normalisieren und filtern
+    const keywords = rawKeywords
+      .map(normalizeKeyword)
+      .filter(kw => kw.keyword !== 'Unbekannt' && kw.keyword.length > 0);
     
-    // Filtere "Unbekannt" raus falls vorhanden
-    const validKeywords = keywords.filter(kw => kw.keyword !== 'Unbekannt');
+    console.log(`[Trend Radar] ✅ ${keywords.length} Keywords erhalten`);
     
-    console.log(`[Trend Radar] ✅ ${validKeywords.length} gültige Keywords erhalten`);
-    
-    // 3. In Cache speichern (nur wenn gültige Keywords)
-    if (validKeywords.length > 0) {
-      await setCachedKeywords(cacheKey, validKeywords);
+    // Cache speichern
+    if (keywords.length > 0) {
+      await setCachedKeywords(cacheKey, keywords);
     }
     
-    return validKeywords;
+    return keywords;
   } catch (error) {
     console.error('[Trend Radar] Fetch Error:', error);
     return [];
@@ -247,24 +203,23 @@ async function fetchKeywordSuggestions(
 }
 
 async function fetchTopKeywords(
-  keyword: string,
+  topic: string,
   location: string = 'AT',
   lang: string = 'de',
-  num: number = 15
+  num: number = 20
 ): Promise<KeywordData[]> {
-  const cacheKey = createHash(`topkeys:${keyword}:${location}:${lang}:${num}`);
+  const cacheKey = createHash(`topkeys:${topic}:${location}:${lang}:${num}:v2`);
   
-  // 1. Cache prüfen
+  // Cache prüfen
   const cached = await getCachedKeywords(cacheKey);
-  if (cached && Array.isArray(cached) && cached.length > 0 && cached[0].keyword !== 'Unbekannt') {
+  if (cached && cached.length > 0 && cached[0].keyword !== 'Unbekannt') {
     return cached;
   }
 
-  // 2. API aufrufen
   try {
-    const url = `${BASE_URL}/topkeys/?keyword=${encodeURIComponent(keyword)}&location=${location}&lang=${lang}&num=${num}`;
+    const url = `${BASE_URL}/topkeys/?keyword=${encodeURIComponent(topic)}&location=${location}&lang=${lang}&num=${num}`;
     
-    console.log(`[Trend Radar] 🌐 API Call: topkeys für "${keyword}"`);
+    console.log(`[Trend Radar] 🌐 API: topkeys für "${topic}"`);
     
     const response = await fetch(url, {
       method: 'GET',
@@ -275,57 +230,42 @@ async function fetchTopKeywords(
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`[Trend Radar] TopKeys Error: ${response.status}`, errorText);
+      console.error(`[Trend Radar] TopKeys Error: ${response.status}`);
       return [];
     }
 
     const data = await response.json();
     
-    // 🔍 DEBUG
-    console.log(`[Trend Radar] 📦 TopKeys Response Type: ${typeof data}, IsArray: ${Array.isArray(data)}`);
-    if (Array.isArray(data) && data.length > 0) {
-      console.log(`[Trend Radar] 📦 TopKeys First Item Keys: ${Object.keys(data[0]).join(', ')}`);
-    }
-
-    // Verschiedene Response-Formate handhaben
+    // Response parsen
     let rawKeywords: Record<string, unknown>[] = [];
     
     if (Array.isArray(data)) {
       rawKeywords = data;
     } else if (data && typeof data === 'object') {
-      const possibleKeys = ['keywords', 'data', 'results', 'items', 'suggestions', 'top_keywords'];
-      for (const key of possibleKeys) {
+      const keys = ['keywords', 'data', 'results', 'items', 'top_keywords'];
+      for (const key of keys) {
         if (Array.isArray(data[key])) {
           rawKeywords = data[key];
           break;
         }
       }
-      
-      if (rawKeywords.length === 0) {
-        for (const key of Object.keys(data)) {
-          if (Array.isArray(data[key]) && data[key].length > 0) {
-            rawKeywords = data[key];
-            break;
-          }
-        }
-      }
     }
     
-    // Normalisieren
-    const keywords = rawKeywords.map(normalizeKeyword);
-    const validKeywords = keywords.filter(kw => kw.keyword !== 'Unbekannt');
+    // Normalisieren und filtern
+    const keywords = rawKeywords
+      .map(normalizeKeyword)
+      .filter(kw => kw.keyword !== 'Unbekannt' && kw.keyword.length > 0);
     
-    console.log(`[Trend Radar] ✅ ${validKeywords.length} gültige Top-Keywords erhalten`);
+    console.log(`[Trend Radar] ✅ ${keywords.length} Top-Keywords erhalten`);
     
-    // 3. In Cache speichern
-    if (validKeywords.length > 0) {
-      await setCachedKeywords(cacheKey, validKeywords);
+    // Cache speichern
+    if (keywords.length > 0) {
+      await setCachedKeywords(cacheKey, keywords);
     }
     
-    return validKeywords;
+    return keywords;
   } catch (error) {
-    console.error('[Trend Radar] TopKeys Fetch Error:', error);
+    console.error('[Trend Radar] TopKeys Error:', error);
     return [];
   }
 }
@@ -342,44 +282,45 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { domain, keywords: inputKeywords } = body;
+    const { domain, topic } = body;
 
     if (!domain) {
       return NextResponse.json({ message: 'Domain fehlt' }, { status: 400 });
     }
 
+    if (!topic || typeof topic !== 'string' || topic.trim().length === 0) {
+      return NextResponse.json({ message: 'Bitte geben Sie ein Thema ein' }, { status: 400 });
+    }
+
     if (!RAPIDAPI_KEY) {
-      console.error('[Trend Radar] RAPIDAPI_KEY nicht konfiguriert!');
       return NextResponse.json({ message: 'API nicht konfiguriert' }, { status: 500 });
     }
 
+    const searchTopic = topic.trim();
+    
     console.log(`[Trend Radar] ========== START ==========`);
     console.log(`[Trend Radar] Domain: ${domain}`);
+    console.log(`[Trend Radar] Thema: "${searchTopic}"`);
 
-    // Sicherstellen dass keywords ein Array ist
-    const keywords: string[] = Array.isArray(inputKeywords) ? inputKeywords : [];
-
-    // Suchbegriff bestimmen
-    let searchTerm = '';
-    if (keywords.length > 0 && typeof keywords[0] === 'string') {
-      searchTerm = keywords[0];
-    } else {
-      const domainClean = domain.replace(/^(https?:\/\/)?(www\.)?/, '').split('.')[0];
-      searchTerm = domainClean;
-    }
-
-    console.log(`[Trend Radar] Suchbegriff: "${searchTerm}"`);
-
-    // Daten abrufen
-    const suggestions = await fetchKeywordSuggestions(searchTerm, 'AT', 'de');
-    const topKeywords = await fetchTopKeywords(searchTerm, 'AT', 'de', 10);
+    // Daten abrufen für das eingegebene THEMA (nicht Domain!)
+    const suggestions = await fetchKeywordSuggestions(searchTopic, 'AT', 'de');
+    const topKeywords = await fetchTopKeywords(searchTopic, 'AT', 'de', 20);
     
     const hasData = suggestions.length > 0 || topKeywords.length > 0;
 
     console.log(`[Trend Radar] Ergebnis: ${suggestions.length} Suggestions, ${topKeywords.length} TopKeys`);
 
+    // Alle Keywords zusammenführen und deduplizieren
+    const allKeywords = [...suggestions, ...topKeywords];
+    const uniqueKeywords = allKeywords.reduce((acc, kw) => {
+      if (!acc.find(k => k.keyword.toLowerCase() === kw.keyword.toLowerCase())) {
+        acc.push(kw);
+      }
+      return acc;
+    }, [] as KeywordData[]);
+
     // Steigende Keywords
-    const risingKeywords = suggestions
+    const risingKeywords = uniqueKeywords
       .filter(kw => {
         const trend = analyzeTrend(kw.trend);
         return trend.direction === 'steigend' || trend.direction === 'neu';
@@ -388,84 +329,70 @@ export async function POST(req: NextRequest) {
       .slice(0, 10);
 
     // High-Volume Keywords
-    const highVolumeKeywords = [...suggestions]
+    const highVolumeKeywords = [...uniqueKeywords]
+      .sort((a, b) => b.search_volume - a.search_volume)
+      .slice(0, 15);
+
+    // Low Competition Keywords (gute Chancen)
+    const lowCompetitionKeywords = uniqueKeywords
+      .filter(kw => kw.competition_index < 50 && kw.search_volume > 10)
       .sort((a, b) => b.search_volume - a.search_volume)
       .slice(0, 10);
 
     // Prompt-Daten
     const trendsData = hasData ? `
-KEYWORD RECHERCHE ERGEBNISSE (Live-Daten via RapidAPI):
-
-🔥 STEIGENDE KEYWORDS (Trend nach oben):
-${risingKeywords.length > 0 
-  ? risingKeywords.map(kw => {
-      const trend = analyzeTrend(kw.trend);
-      return `- "${kw.keyword}" | Suchvolumen: ${kw.search_volume.toLocaleString('de-DE')}/Monat | Trend: ${trend.direction} (${trend.percentage > 0 ? '+' : ''}${trend.percentage}%) | Wettbewerb: ${kw.competition} | Intent: ${kw.intent || 'N/A'}`;
-    }).join('\n')
-  : 'Keine steigenden Keywords identifiziert.'}
+KEYWORD RECHERCHE FÜR THEMA: "${searchTopic}"
+Domain: ${domain}
 
 📊 TOP KEYWORDS NACH SUCHVOLUMEN:
 ${highVolumeKeywords.length > 0
   ? highVolumeKeywords.map(kw => {
-      return `- "${kw.keyword}" | ${kw.search_volume.toLocaleString('de-DE')}/Monat | Wettbewerb: ${kw.competition} (${kw.competition_index}/100) | CPC: €${kw.low_bid.toFixed(2)}-${kw.high_bid.toFixed(2)}`;
+      const trend = analyzeTrend(kw.trend);
+      return `- "${kw.keyword}" | ${kw.search_volume.toLocaleString('de-DE')}/Monat | Wettbewerb: ${kw.competition} (${kw.competition_index}/100) | Trend: ${trend.direction} | Intent: ${kw.intent || 'N/A'}`;
     }).join('\n')
   : 'Keine Daten.'}
 
-🎯 OPPORTUNITY KEYWORDS (Hohes Potenzial):
-${topKeywords.length > 0
-  ? topKeywords.map(kw => {
-      return `- "${kw.keyword}" | Suchvolumen: ${kw.search_volume.toLocaleString('de-DE')}/Monat | Wettbewerb: ${kw.competition}`;
+🔥 STEIGENDE KEYWORDS:
+${risingKeywords.length > 0 
+  ? risingKeywords.map(kw => {
+      const trend = analyzeTrend(kw.trend);
+      return `- "${kw.keyword}" | ${kw.search_volume.toLocaleString('de-DE')}/Monat | Trend: ${trend.direction} (+${trend.percentage}%)`;
     }).join('\n')
-  : 'Keine Opportunity Keywords gefunden.'}
+  : 'Keine steigenden Keywords identifiziert.'}
 
-PROJEKT-KONTEXT:
-- Domain: ${domain}
-- Analysierter Suchbegriff: ${searchTerm}
-- Weitere Keywords: ${keywords.slice(1).join(', ') || 'Keine'}
+🎯 LOW COMPETITION CHANCEN:
+${lowCompetitionKeywords.length > 0
+  ? lowCompetitionKeywords.map(kw => {
+      return `- "${kw.keyword}" | ${kw.search_volume.toLocaleString('de-DE')}/Monat | Wettbewerb: NUR ${kw.competition_index}/100`;
+    }).join('\n')
+  : 'Keine Low-Competition Keywords gefunden.'}
+
+GESAMT: ${uniqueKeywords.length} einzigartige Keywords analysiert
 ` : `
-HINWEIS: Keine Daten von der Keyword API erhalten.
+HINWEIS: Keine Keyword-Daten für "${searchTopic}" gefunden.
 
-PROJEKT-KONTEXT:
-- Domain: ${domain}
-- Suchbegriff: ${searchTerm}
-- Keywords: ${keywords.join(', ') || 'Keine'}
+Mögliche Gründe:
+- Das Thema ist sehr speziell
+- Andere Schreibweise probieren
 
-Bitte generiere Empfehlungen basierend auf der Domain und allgemeinem SEO-Wissen.
+Domain: ${domain}
 `;
 
     // System Prompt
     const systemPrompt = `
-Du bist ein SEO-Stratege und Trend-Analyst. Analysiere Keyword-Daten und identifiziere Content-Chancen.
+Du bist ein SEO-Stratege. Analysiere die Keyword-Daten und erstelle einen actionable Report für die Domain.
 
-REGELN FÜR FORMATIERUNG (STRIKT BEFOLGEN):
-1. VERWENDE KEIN MARKDOWN! (Keine **, keine ##, keine * Listen).
-2. Nutze AUSSCHLIESSLICH HTML-Tags mit Tailwind-Klassen.
+WICHTIG: Die Keywords stammen aus einer echten Keyword-Recherche für das Thema "${searchTopic}".
+Die Domain "${domain}" möchte für diese Keywords ranken.
 
-STYLING VORGABEN:
+REGELN FÜR FORMATIERUNG:
+1. KEIN MARKDOWN! Nur HTML mit Tailwind.
+2. Nutze die vorgegebenen Styling-Klassen.
+
+STYLING:
 - Überschriften: <h3 class="font-bold text-indigo-900 mt-6 mb-3 text-lg flex items-center gap-2">TITEL</h3>
 - Fließtext: <p class="mb-3 leading-relaxed text-gray-600 text-sm">TEXT</p>
 - Erfolgs-Badge: <span class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full text-xs font-bold">Live-Daten ✓</span>
-- Trend-Karte: 
-  <div class="bg-gradient-to-r from-indigo-50 to-purple-50 p-4 rounded-xl border border-indigo-100 mb-3 hover:shadow-md transition-shadow">
-    <div class="flex items-center justify-between mb-2">
-      <span class="font-bold text-gray-900">KEYWORD</span>
-      <span class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full text-xs font-bold">SUCHVOLUMEN</span>
-    </div>
-    <p class="text-sm text-gray-600 mb-2">WARUM RELEVANT + CONTENT EMPFEHLUNG</p>
-    <div class="flex flex-wrap gap-2">
-      <span class="bg-white px-2 py-1 rounded text-xs text-indigo-600 border border-indigo-100">Content-Idee</span>
-    </div>
-  </div>
-- Opportunity-Karte:
-  <div class="flex items-center justify-between bg-emerald-50 p-3 rounded-lg border border-emerald-100 mb-2">
-    <div>
-      <span class="font-medium text-gray-800">KEYWORD</span>
-      <span class="text-xs text-gray-500 ml-2">Wettbewerb: NIEDRIG</span>
-    </div>
-    <span class="text-emerald-600 font-bold text-sm">VOLUMEN/Monat</span>
-  </div>
-- Empfehlungs-Box: <div class="bg-indigo-600 text-white p-4 rounded-xl my-4 shadow-lg">
-- Listen in der Box: <ul class="space-y-2 mt-2 text-sm"><li class="flex items-start gap-2"><span>→</span><span>PUNKT</span></li></ul>
 - Statistik-Grid:
   <div class="grid grid-cols-3 gap-3 my-4">
     <div class="bg-white p-3 rounded-lg border border-gray-100 text-center">
@@ -473,34 +400,59 @@ STYLING VORGABEN:
       <div class="text-xs text-gray-500">LABEL</div>
     </div>
   </div>
+- Keyword-Karte (für Top Keywords): 
+  <div class="bg-gradient-to-r from-indigo-50 to-purple-50 p-4 rounded-xl border border-indigo-100 mb-3">
+    <div class="flex items-center justify-between mb-2">
+      <span class="font-bold text-gray-900">KEYWORD</span>
+      <span class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full text-xs font-bold">VOLUME/Monat</span>
+    </div>
+    <p class="text-sm text-gray-600 mb-2">Warum dieses Keyword? Content-Empfehlung.</p>
+    <div class="flex flex-wrap gap-2">
+      <span class="bg-white px-2 py-1 rounded text-xs text-indigo-600 border border-indigo-100">Content-Idee</span>
+    </div>
+  </div>
+- Quick-Win Karte (Low Competition):
+  <div class="flex items-center justify-between bg-emerald-50 p-3 rounded-lg border border-emerald-100 mb-2">
+    <div>
+      <span class="font-medium text-gray-800">KEYWORD</span>
+      <span class="text-xs text-emerald-600 ml-2">Wettbewerb: NUR X/100</span>
+    </div>
+    <span class="text-emerald-700 font-bold text-sm">VOLUME/Monat</span>
+  </div>
+- Empfehlungs-Box: <div class="bg-indigo-600 text-white p-4 rounded-xl my-4 shadow-lg">
+- Listen: <ul class="space-y-2 mt-2 text-sm"><li class="flex items-start gap-2"><span>→</span><span>PUNKT</span></li></ul>
 
 AUFGABE:
 
-${hasData ? `
-1. <h3...>📡 Datenübersicht</h3>
-   Statistik-Grid mit: Anzahl Keywords, Durchschnittliches Suchvolumen, Steigende Keywords.
-   Füge "Live-Daten ✓" Badge hinzu.
-` : `
-1. <h3...>📡 Analyse</h3>
-   Erkläre kurz die Situation und gib allgemeine Empfehlungen für die Domain.
-`}
+1. <h3>📡 Datenübersicht</h3>
+   - Statistik-Grid: Anzahl Keywords | Ø Suchvolumen | Steigende Keywords
+   - Füge "Live-Daten ✓" Badge hinzu
+   - Kurze Einordnung der Daten
 
-2. <h3...>🔥 Top 5 Content-Chancen</h3>
-   Wähle die 5 besten Keywords. Nutze Trend-Karten.
-   - Suchvolumen als Badge
-   - Warum hat es Potenzial?
-   - Konkrete Content-Idee
+2. <h3>🔥 Top 5 Content-Chancen</h3>
+   Wähle die 5 BESTEN Keywords für neuen Content. Kriterien:
+   - Hohes Suchvolumen
+   - Passt zur Domain/Branche
+   - Realistisch zu ranken
+   
+   Für jedes Keyword eine Keyword-Karte mit:
+   - Konkreter Content-Idee (Blogpost-Titel, Landingpage-Konzept)
+   - Warum ist es relevant?
 
-3. <h3...>🎯 Quick Wins (Low Competition)</h3>
-   3-5 Keywords mit niedrigem Wettbewerb. Nutze Opportunity-Karten.
+3. <h3>🎯 Quick Wins (Niedrige Konkurrenz)</h3>
+   3-5 Keywords mit niedrigem Wettbewerb. Nutze Quick-Win Karten.
+   Das sind Keywords wo schnell Rankings möglich sind.
 
-4. <h3...>📈 Trend-Analyse</h3>
-   Welche Themen steigen? Was bedeutet das für die Strategie?
+4. <h3>📈 Trend-Einschätzung</h3>
+   - Welche Keywords steigen?
+   - Saisonale Muster?
+   - Was bedeutet das für die Content-Strategie?
 
-5. <h3...>💡 Sofort-Empfehlung</h3>
+5. <h3>💡 Sofort-Empfehlung</h3>
    Empfehlungs-Box mit:
-   - "Erstellen Sie JETZT Content für [X], weil [Y]."
+   - EINE klare Haupt-Empfehlung
    - 3 konkrete nächste Schritte
+   - Priorisierung
 
 Antworte direkt mit HTML.
 `;
@@ -518,7 +470,7 @@ Antworte direkt mit HTML.
     const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
     console.error('❌ Trend Radar Error:', error);
     return NextResponse.json(
-      { message: errorMessage || 'Fehler bei der Trend-Analyse' },
+      { message: errorMessage },
       { status: 500 }
     );
   }
