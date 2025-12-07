@@ -29,6 +29,7 @@ export type TopQueryData = {
   impressions: number;
   ctr: number;
   position: number;
+  url?: string; // ✅ NEU
 };
 
 export type ActiveKpi = 'clicks' | 'impressions' | 'sessions' | 'totalUsers' | 'conversions' | 'engagementRate';
