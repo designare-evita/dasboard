@@ -1,16 +1,123 @@
-import NextAuth from 'next-auth';
-import Credentials from 'next-auth/providers/credentials';
+// src/lib/auth.ts
+import NextAuth from 'next-auth'; // Standard-Import
+import CredentialsProvider from 'next-auth/providers/credentials';
 import { sql } from '@vercel/postgres';
 import bcrypt from 'bcryptjs';
-import { z } from 'zod';
-import type { NextAuthConfig } from 'next-auth';
-import type { User } from 'next-auth'; // WICHTIG: User Typ importieren
+import { unstable_noStore as noStore } from 'next/cache';
+import type { NextAuthConfig } from 'next-auth'; // Wichtig: NextAuthConfig importieren
 
+// Die Konfiguration wird jetzt als reines Objekt definiert
 export const authConfig = {
+  providers: [
+    CredentialsProvider({
+      name: 'Credentials',
+      credentials: {
+        email: { label: "Email", type: "text" },
+        password: { label: "Password", type: "password" }
+      },
+      async authorize(credentials) {
+        noStore(); 
+
+        if (!credentials?.email || !credentials.password) {
+          throw new Error('E-Mail oder Passwort fehlt');
+        }
+
+        const normalizedEmail = (credentials.email as string).toLowerCase().trim();
+        console.log('[Authorize] Suche Benutzer:', normalizedEmail);
+
+        let user;
+        try {
+          // 1. Benutzerdaten holen
+          const { rows } = await sql`
+            SELECT 
+              id, email, password, role, mandant_id, permissions,
+              gsc_site_url
+            FROM users 
+            WHERE email = ${normalizedEmail}
+          `;
+          user = rows[0];
+
+          if (!user) {
+            console.log('[Authorize] Benutzer nicht gefunden:', normalizedEmail);
+            throw new Error('Diese E-Mail-Adresse ist nicht registriert');
+          }
+
+          console.log('[Authorize] Benutzer gefunden:', user.email);
+
+          if (!user.password) {
+            console.error('[Authorize] KRITISCHER FEHLER: Benutzer hat kein Passwort-Hash in der DB!');
+            throw new Error('Serverkonfigurationsfehler');
+          }
+
+          // 2. Passwort vergleichen
+          const passwordsMatch = await bcrypt.compare(credentials.password as string, user.password);
+
+          if (!passwordsMatch) {
+            console.log('[Authorize] Passwort-Vergleich fehlgeschlagen für:', normalizedEmail);
+            throw new Error('Das Passwort ist nicht korrekt');
+          }
+
+          console.log('[Authorize] Login erfolgreich für:', user.email);
+
+        } catch (authError) {
+          if (authError instanceof Error) {
+            console.warn(`[Authorize] Authentifizierungsfehler: ${authError.message}`);
+            throw authError; 
+          }
+          console.error("[Authorize] Unerwarteter Authentifizierungsfehler:", authError);
+          throw new Error('Authentifizierungsfehler');
+        }
+        
+        // Login-Ereignis protokollieren
+        try {
+          console.log('[Authorize] Versuche, Login-Ereignis zu protokollieren...');
+          await sql`
+            INSERT INTO login_logs (user_id, user_email, user_role)
+            VALUES (${user.id}, ${user.email}, ${user.role});
+          `;
+          console.log('[Authorize] Login-Ereignis erfolgreich protokolliert.');
+        } catch (logError) {
+          console.error('[Authorize] FEHLER beim Protokollieren des Logins (nicht-fatal):', logError);
+        }
+
+        // Logo-URL-Abruf
+        let logo_url: string | null = null;
+        if (user.mandant_id) {
+          try {
+            const { rows: logoRows } = await sql`
+              SELECT logo_url FROM mandanten_logos WHERE mandant_id = ${user.mandant_id}
+            `;
+            if (logoRows.length > 0) {
+              logo_url = logoRows[0].logo_url;
+            }
+          } catch (logoError) {
+            console.error('[Authorize] Fehler beim Abrufen des Logos (nicht-fatal):', logoError);
+          }
+        }
+
+        // 3. Auth-Objekt zurückgeben
+        return {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          mandant_id: user.mandant_id,
+          permissions: user.permissions || [],
+          logo_url: logo_url,
+          gsc_site_url: user.gsc_site_url || null,
+        };
+      }
+    })
+  ],
+  session: {
+    strategy: 'jwt',
+    maxAge: 60 * 60, // 60 Minuten
+  },
+  secret: process.env.NEXTAUTH_SECRET,
   pages: {
     signIn: '/login',
   },
   callbacks: {
+    // 4. JWT mit Benutzerdaten anreichern
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
@@ -19,76 +126,24 @@ export const authConfig = {
         token.permissions = user.permissions;
         token.logo_url = user.logo_url;
         token.gsc_site_url = user.gsc_site_url;
-        
-        // Prüfen, ob eine Redaktionsplan-URL existiert (DB Feld -> Boolean Flag)
-        token.hasRedaktionsplan = !!user.redaktionsplan_url && user.redaktionsplan_url.length > 0;
       }
       return token;
     },
+    
+    // 5. Session mit den Daten aus dem JWT anreichern
     async session({ session, token }) {
-      if (token && session.user) {
-        session.user.id = token.id;
-        session.user.role = token.role;
-        session.user.mandant_id = token.mandant_id;
-        session.user.permissions = token.permissions;
-        session.user.logo_url = token.logo_url;
-        session.user.gsc_site_url = token.gsc_site_url;
-        session.user.hasRedaktionsplan = token.hasRedaktionsplan;
+      if (session.user) {
+        session.user.id = token.id as string;
+        session.user.role = token.role as 'BENUTZER' | 'ADMIN' | 'SUPERADMIN';
+        session.user.mandant_id = token.mandant_id as string | null | undefined;
+        session.user.permissions = token.permissions as string[] | undefined;
+        session.user.logo_url = token.logo_url as string | null | undefined;
+        session.user.gsc_site_url = token.gsc_site_url as string | null | undefined;
       }
       return session;
     },
-    authorized({ auth, request: { nextUrl } }) {
-      const isLoggedIn = !!auth?.user;
-      const isOnDashboard = nextUrl.pathname.startsWith('/dashboard');
-      const isOnAdmin = nextUrl.pathname.startsWith('/admin');
-
-      if (isOnDashboard || isOnAdmin) {
-        if (isLoggedIn) return true;
-        return false; // Redirect to login
-      }
-      return true;
-    },
   },
-  providers: [
-    Credentials({
-      async authorize(credentials) {
-        const parsedCredentials = z
-          .object({ email: z.string().email(), password: z.string().min(6) })
-          .safeParse(credentials);
+} satisfies NextAuthConfig; // 'satisfies' stellt Typsicherheit her
 
-        if (parsedCredentials.success) {
-          const { email, password } = parsedCredentials.data;
-          
-          const { rows } = await sql`
-            SELECT 
-              id, 
-              email, 
-              password, 
-              role, 
-              mandant_id, 
-              permissions, 
-              logo_url, 
-              gsc_site_url, 
-              redaktionsplan_url 
-            FROM users 
-            WHERE email = ${email.toLowerCase()}
-          `;
-          const user = rows[0];
-
-          if (!user) return null;
-
-          const passwordsMatch = await bcrypt.compare(password, user.password);
-          if (passwordsMatch) {
-            // WICHTIG: Hier casten wir das Ergebnis explizit auf den User-Typ
-            return user as User;
-          }
-        }
-
-        console.log('Invalid credentials');
-        return null;
-      },
-    }),
-  ],
-} satisfies NextAuthConfig;
-
-export const { auth, signIn, signOut, handlers } = NextAuth(authConfig);
+// Hiermit exportieren wir die Handler und die auth-Funktion
+export const { handlers, auth, signIn, signOut } = NextAuth(authConfig);
