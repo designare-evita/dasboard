@@ -1,3 +1,4 @@
+// src/components/KpiTrendChart.tsx
 'use client';
 
 import React, { useState, useMemo } from 'react';
@@ -21,7 +22,8 @@ import { cn } from '@/lib/utils';
 const KPI_CONFIG: Record<string, { label: string; color: string; gradientId: string }> = {
   // Traffic
   impressions: { label: 'Impressionen', color: '#8b5cf6', gradientId: 'gradPurple' }, 
-  clicks: { label: 'Klicks', color: '#3b82f6', gradientId: 'gradBlue' },       
+  // ÄNDERUNG: "Klicks" zu "Google Klicks" geändert
+  clicks: { label: 'Google Klicks', color: '#3b82f6', gradientId: 'gradBlue' },       
   newUsers: { label: 'Neue Besucher', color: '#6366f1', gradientId: 'gradIndigo' }, 
   totalUsers: { label: 'Besucher', color: '#0ea5e9', gradientId: 'gradSky' },     
   sessions: { label: 'Sessions', color: '#06b6d4', gradientId: 'gradCyan' },       
