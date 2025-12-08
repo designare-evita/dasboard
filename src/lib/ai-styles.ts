@@ -122,8 +122,8 @@ export const STYLES = {
   purpleBox: 'bg-purple-50 border border-purple-200 rounded-xl p-4',
   amberBox: 'bg-amber-50 border border-amber-200 rounded-xl p-4',
   
-  // Recommendation Box (Dark)
-  recommendBox: 'bg-indigo-600 text-white p-4 rounded-xl',
+  // Recommendation Box 
+recommendBox: 'bg-white border border-indigo-200 shadow-sm p-4 rounded-xl',
   
   // Fazit Boxes (with left border)
   fazitPositive: 'bg-emerald-50 border-l-4 border-emerald-500 p-4 rounded-r-xl',
