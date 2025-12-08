@@ -13,24 +13,12 @@ const SERPAPI_KEY = process.env.SERPAPI_KEY || '';
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
-// Ländermapping
-const COUNTRY_MAP: Record<string, string> = {
-  'AT': 'AT',
-  'DE': 'DE',
-  'CH': 'CH',
-  'US': 'US',
-};
+const COUNTRY_MAP: Record<string, string> = { 'AT': 'AT', 'DE': 'DE', 'CH': 'CH', 'US': 'US' };
+const COUNTRY_LABELS: Record<string, string> = { 'AT': 'Österreich', 'DE': 'Deutschland', 'CH': 'Schweiz', 'US': 'USA' };
 
-const COUNTRY_LABELS: Record<string, string> = {
-  'AT': 'Österreich',
-  'DE': 'Deutschland', 
-  'CH': 'Schweiz',
-  'US': 'USA',
-};
-
-// Daten von SerpApi holen
+// Google Trends Daten holen
 async function fetchGoogleTrends(keyword: string, geo: string) {
-  if (!SERPAPI_KEY) throw new Error('SERPAPI_KEY fehlt in .env');
+  if (!SERPAPI_KEY) throw new Error('SERPAPI_KEY fehlt');
 
   const params = new URLSearchParams({
     engine: 'google_trends',
@@ -40,59 +28,53 @@ async function fetchGoogleTrends(keyword: string, geo: string) {
     api_key: SERPAPI_KEY
   });
 
-  console.log(`[Trend Radar] Fetching: ${keyword} in ${geo}`);
-  
   const response = await fetch(`https://serpapi.com/search.json?${params.toString()}`);
-  
-  if (!response.ok) {
-    throw new Error(`SerpApi Error: ${response.statusText}`);
-  }
+  if (!response.ok) throw new Error(`SerpApi Error: ${response.statusText}`);
 
   const data = await response.json();
-  
-  const timeline = data.interest_over_time?.timeline_data || [];
-  const related = data.related_queries?.rising || [];
-
-  return { timeline, related };
+  return {
+    timeline: data.interest_over_time?.timeline_data || [],
+    rising: data.related_queries?.rising || [],
+    top: data.related_queries?.top || []
+  };
 }
 
-// Analyse: Ist der Trend steigend?
-function analyzeTrendCurve(timeline: any[]): { status: string; badge: string; color: string } {
+// Trend analysieren
+function analyzeTrend(timeline: any[]): { status: string; badge: string; color: string; icon: string } {
   if (!timeline || timeline.length < 5) {
-    return { 
-      status: 'Zu wenig Daten', 
-      badge: '📊 WENIG DATEN',
-      color: 'gray'
-    };
+    return { status: 'Wenig Daten', badge: 'KEINE DATEN', color: 'gray', icon: '📊' };
   }
 
-  const last3 = timeline.slice(-3).reduce((acc, curr) => acc + (curr.values[0]?.extracted_value || 0), 0) / 3;
-  const prev3 = timeline.slice(-6, -3).reduce((acc, curr) => acc + (curr.values[0]?.extracted_value || 0), 0) / 3;
+  const last3 = timeline.slice(-3).reduce((acc: number, curr: any) => acc + (curr.values[0]?.extracted_value || 0), 0) / 3;
+  const prev3 = timeline.slice(-6, -3).reduce((acc: number, curr: any) => acc + (curr.values[0]?.extracted_value || 0), 0) / 3;
 
-  if (last3 > prev3 * 1.5) return { status: 'Stark steigend', badge: '🔥 VIRAL', color: 'rose' };
-  if (last3 > prev3 * 1.1) return { status: 'Leicht steigend', badge: '📈 STEIGEND', color: 'emerald' };
-  if (last3 < prev3 * 0.9) return { status: 'Fallend', badge: '📉 FALLEND', color: 'amber' };
-  return { status: 'Stabil', badge: '➡️ STABIL', color: 'blue' };
+  if (last3 > prev3 * 1.5) return { status: 'Stark steigend', badge: 'VIRAL', color: 'rose', icon: '🔥' };
+  if (last3 > prev3 * 1.1) return { status: 'Steigend', badge: 'WACHSTUM', color: 'emerald', icon: '📈' };
+  if (last3 < prev3 * 0.9) return { status: 'Fallend', badge: 'RÜCKGANG', color: 'amber', icon: '📉' };
+  return { status: 'Stabil', badge: 'STABIL', color: 'blue', icon: '➡️' };
 }
 
-// Durchschnittswert berechnen
-function getAverageInterest(timeline: any[]): number {
-  if (!timeline || timeline.length === 0) return 0;
-  const sum = timeline.reduce((acc, curr) => acc + (curr.values[0]?.extracted_value || 0), 0);
-  return Math.round(sum / timeline.length);
+// Metriken berechnen
+function calculateMetrics(timeline: any[]) {
+  if (!timeline || timeline.length === 0) return { avg: 0, peak: 0, peakDate: '-', current: 0, change: 0 };
+  
+  const values = timeline.map((p: any) => p.values[0]?.extracted_value || 0);
+  const avg = Math.round(values.reduce((a: number, b: number) => a + b, 0) / values.length);
+  const peak = Math.max(...values);
+  const peakIndex = values.indexOf(peak);
+  const peakDate = timeline[peakIndex]?.date || '-';
+  const current = values[values.length - 1] || 0;
+  const previous = values[values.length - 4] || current;
+  const change = previous > 0 ? Math.round(((current - previous) / previous) * 100) : 0;
+  
+  return { avg, peak, peakDate, current, change };
 }
 
-// Höchstwert finden
-function getPeakInterest(timeline: any[]): { value: number; date: string } {
-  if (!timeline || timeline.length === 0) return { value: 0, date: '-' };
-  let max = { value: 0, date: '' };
-  timeline.forEach((p: any) => {
-    const val = p.values[0]?.extracted_value || 0;
-    if (val > max.value) {
-      max = { value: val, date: p.date };
-    }
-  });
-  return max;
+// Sparkline generieren (einfache ASCII-Darstellung für den Prompt)
+function generateSparklineData(timeline: any[]): string {
+  if (!timeline || timeline.length < 3) return 'Keine Daten';
+  const last12 = timeline.slice(-12).map((p: any) => p.values[0]?.extracted_value || 0);
+  return last12.join(',');
 }
 
 export async function POST(req: NextRequest) {
@@ -111,162 +93,239 @@ export async function POST(req: NextRequest) {
     if (!topic) return NextResponse.json({ message: 'Thema fehlt' }, { status: 400 });
 
     // Daten holen
-    let trendData;
-    let analysis = { status: 'Keine Daten', badge: '❓ UNBEKANNT', color: 'gray' };
-    let avgInterest = 0;
-    let peak = { value: 0, date: '-' };
+    let trendData = { timeline: [], rising: [], top: [] };
+    let analysis = { status: 'Keine Daten', badge: 'FEHLER', color: 'gray', icon: '❓' };
+    let metrics = { avg: 0, peak: 0, peakDate: '-', current: 0, change: 0 };
     
     try {
       trendData = await fetchGoogleTrends(topic, geoCode);
-      analysis = analyzeTrendCurve(trendData.timeline);
-      avgInterest = getAverageInterest(trendData.timeline);
-      peak = getPeakInterest(trendData.timeline);
+      analysis = analyzeTrend(trendData.timeline);
+      metrics = calculateMetrics(trendData.timeline);
     } catch (e) {
       console.error("Trend Fetch Error", e);
-      trendData = { timeline: [], related: [] };
     }
 
-    // Kurve als Mini-Sparkline beschreiben
-    const lastPoints = trendData.timeline.slice(-8).map((p: any) => p.values[0]?.extracted_value || 0);
-    const sparklineText = lastPoints.length > 0 ? lastPoints.join(' → ') : 'Keine Daten';
+    const sparklineData = generateSparklineData(trendData.timeline);
 
     // Related Queries aufbereiten
-    interface RelatedQuery {
-      query: string;
-      growth: string;
-    }
-    const relatedQueries: RelatedQuery[] = trendData.related.slice(0, 8).map((r: any) => ({
+    interface RelatedQuery { query: string; value: string; type: 'rising' | 'top' }
+    
+    const risingQueries: RelatedQuery[] = trendData.rising.slice(0, 5).map((r: any) => ({
       query: r.query,
-      growth: r.extracted_value || r.value || 'N/A'
+      value: r.extracted_value || r.value || 'N/A',
+      type: 'rising' as const
+    }));
+    
+    const topQueries: RelatedQuery[] = trendData.top.slice(0, 5).map((r: any) => ({
+      query: r.query,
+      value: r.extracted_value || r.value || 'N/A',
+      type: 'top' as const
     }));
 
-    // Badge-Farben Map
-    const badgeColors: Record<string, string> = {
-      'rose': 'bg-rose-100 text-rose-700 border-rose-200',
-      'emerald': 'bg-emerald-100 text-emerald-700 border-emerald-200',
-      'amber': 'bg-amber-100 text-amber-700 border-amber-200',
-      'blue': 'bg-blue-100 text-blue-700 border-blue-200',
-      'gray': 'bg-gray-100 text-gray-600 border-gray-200',
+    // Farb-Klassen
+    const colorClasses: Record<string, { bg: string; text: string; border: string }> = {
+      'rose': { bg: 'bg-rose-500', text: 'text-rose-700', border: 'border-rose-200' },
+      'emerald': { bg: 'bg-emerald-500', text: 'text-emerald-700', border: 'border-emerald-200' },
+      'amber': { bg: 'bg-amber-500', text: 'text-amber-700', border: 'border-amber-200' },
+      'blue': { bg: 'bg-blue-500', text: 'text-blue-700', border: 'border-blue-200' },
+      'gray': { bg: 'bg-gray-400', text: 'text-gray-600', border: 'border-gray-200' },
     };
-    const badgeClass = badgeColors[analysis.color] || badgeColors['gray'];
+    const colors = colorClasses[analysis.color] || colorClasses['gray'];
 
     // Prompt
-    const promptData = `
-TREND-ANALYSE FÜR: "${topic}"
-REGION: ${countryName}
-DOMAIN: ${domain}
-
-📊 METRIKEN:
-• Trend-Status: ${analysis.status}
-• Durchschnittliches Interesse: ${avgInterest}/100
-• Peak: ${peak.value}/100 (${peak.date})
-• Letzte Werte: ${sparklineText}
-• Datenpunkte: ${trendData.timeline.length}
-
-🔥 AUFSTEIGENDE SUCHANFRAGEN (${relatedQueries.length}):
-${relatedQueries.length > 0 
-  ? relatedQueries.map((r: RelatedQuery) => `• "${r.query}" → ${r.growth}`).join('\n')
-  : '• Keine aufsteigenden Suchanfragen gefunden'}
-
-BADGE-KLASSE: ${badgeClass}
-BADGE-TEXT: ${analysis.badge}
-`;
-
     const systemPrompt = `
-Du bist ein Trend-Analyst für Content Marketing.
-Interpretiere die Google Trends Daten und gib Handlungsempfehlungen.
+Du bist ein SEO-Trend-Analyst. Erstelle einen professionellen, visuell ansprechenden Report.
 
-WICHTIG: Antworte NUR mit sauberem HTML. KEIN Markdown! Keine Codeblöcke!
+WICHTIG: NUR HTML ausgeben. KEIN Markdown. Kompakt, professionell, actionable.
 
-══════════════════════════════════════════════════════════════════════════════
-STYLING-KOMPONENTEN (nutze genau diese Klassen):
-══════════════════════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════════════════════════════
+KOMPONENTEN-BIBLIOTHEK (nutze exakt diese Klassen):
+═══════════════════════════════════════════════════════════════════════════════
 
-ÜBERSCHRIFT:
-<h3 class="font-bold text-gray-900 text-base flex items-center gap-2 mt-4 mb-2">EMOJI TITEL</h3>
-
-FLIESSTEXT:
-<p class="text-gray-600 text-sm leading-relaxed mb-2">Text hier</p>
-
-STATUS-BADGE:
-<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border ${badgeClass}">${analysis.badge}</span>
-
-STATISTIK-GRID (für Zahlen):
-<div class="grid grid-cols-3 gap-2 my-3">
-  <div class="bg-white border border-gray-200 rounded-lg p-3 text-center shadow-sm">
-    <div class="text-2xl font-bold text-indigo-600">ZAHL</div>
-    <div class="text-[10px] text-gray-500 uppercase tracking-wide mt-1">LABEL</div>
+HEADER-CARD (ganz oben, zeigt Status):
+<div class="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl p-4 text-white mb-4">
+  <div class="flex items-center justify-between">
+    <div>
+      <p class="text-indigo-200 text-xs uppercase tracking-wider mb-1">Trend-Analyse</p>
+      <h2 class="text-xl font-bold">"${topic}" in ${countryName}</h2>
+    </div>
+    <div class="text-right">
+      <span class="inline-block px-3 py-1 rounded-full text-xs font-bold ${colors.bg} text-white">${analysis.icon} ${analysis.badge}</span>
+      <p class="text-indigo-200 text-xs mt-1">${analysis.status}</p>
+    </div>
   </div>
 </div>
 
-INFO-BOX (blau):
-<div class="bg-blue-50 border border-blue-100 rounded-lg p-3 mb-3">
-  <p class="text-sm text-blue-800">ℹ️ Informationstext</p>
+METRIKEN-GRID (4 Spalten):
+<div class="grid grid-cols-4 gap-2 mb-4">
+  <div class="bg-white border border-gray-200 rounded-lg p-3 text-center">
+    <div class="text-2xl font-bold text-gray-900">ZAHL</div>
+    <div class="text-[10px] text-gray-500 uppercase">Label</div>
+  </div>
 </div>
 
-WARNUNG-BOX (gelb, bei wenig Daten):
-<div class="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3">
-  <p class="text-sm text-amber-800">⚠️ Warnungstext</p>
+SECTION-HEADER:
+<h3 class="font-bold text-gray-900 text-sm flex items-center gap-2 mt-4 mb-2 pb-1 border-b border-gray-100">
+  <span>EMOJI</span> Titel
+</h3>
+
+2-SPALTEN-GRID (für Keywords):
+<div class="grid grid-cols-2 gap-3 mb-3">
+  <div class="bg-white border border-gray-200 rounded-lg p-3">
+    <h4 class="text-xs font-bold text-gray-500 uppercase mb-2">Titel</h4>
+    <!-- Inhalt -->
+  </div>
 </div>
 
-KEYWORD-KARTE (für Related Queries):
-<div class="flex items-center justify-between bg-white border border-gray-100 rounded-lg px-3 py-2 mb-1.5 hover:border-indigo-200 transition-colors">
-  <span class="text-sm text-gray-800 font-medium">Keyword</span>
-  <span class="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">+WERT%</span>
+KEYWORD-ITEM (steigend, grün):
+<div class="flex items-center justify-between py-1.5 border-b border-gray-50 last:border-0">
+  <span class="text-sm text-gray-800">Keyword</span>
+  <span class="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">+WERT</span>
 </div>
 
-EMPFEHLUNGS-BOX (indigo):
-<div class="bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl p-4 mt-3 shadow-lg">
-  <h4 class="font-bold text-sm mb-2 flex items-center gap-2">💡 Titel</h4>
-  <p class="text-sm text-indigo-100 leading-relaxed">Empfehlungstext</p>
+KEYWORD-ITEM (top/stabil, blau):
+<div class="flex items-center justify-between py-1.5 border-b border-gray-50 last:border-0">
+  <span class="text-sm text-gray-800">Keyword</span>
+  <span class="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded">WERT</span>
 </div>
 
-FAZIT-BOX (grün für JA, rot für NEIN):
-JA: <div class="bg-emerald-50 border-2 border-emerald-200 rounded-lg p-3 mt-3">
-      <p class="text-emerald-800 font-medium text-sm">✅ FAZIT TEXT</p>
+ALTERNATIVE-KEYWORD-CARD:
+<div class="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg p-3 mb-3">
+  <h4 class="text-xs font-bold text-amber-700 uppercase mb-2">💡 Alternative Keywords</h4>
+  <div class="flex flex-wrap gap-1.5">
+    <span class="bg-white border border-amber-200 text-amber-800 px-2 py-1 rounded text-xs font-medium">Keyword</span>
+  </div>
+</div>
+
+CONTENT-IDEE-CARD:
+<div class="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg p-3 mb-3">
+  <h4 class="text-xs font-bold text-indigo-700 uppercase mb-1">📝 Content-Idee</h4>
+  <p class="text-indigo-900 font-semibold text-sm mb-2">"Titel hier"</p>
+  <p class="text-indigo-700 text-xs">Kurze Begründung</p>
+</div>
+
+ACTION-ITEM:
+<div class="flex items-start gap-2 py-2 border-b border-gray-50 last:border-0">
+  <span class="w-5 h-5 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs font-bold shrink-0">1</span>
+  <div>
+    <p class="text-sm text-gray-800 font-medium">Aktion</p>
+    <p class="text-xs text-gray-500">Details</p>
+  </div>
+</div>
+
+FAZIT-BOX (positiv):
+<div class="bg-emerald-50 border-l-4 border-emerald-500 rounded-r-lg p-3 mt-3">
+  <div class="flex items-center gap-2">
+    <span class="text-emerald-600 text-lg">✅</span>
+    <div>
+      <p class="text-emerald-800 font-bold text-sm">Empfehlung: Content erstellen</p>
+      <p class="text-emerald-700 text-xs">Begründung</p>
     </div>
-NEIN: <div class="bg-rose-50 border-2 border-rose-200 rounded-lg p-3 mt-3">
-        <p class="text-rose-800 font-medium text-sm">❌ FAZIT TEXT</p>
-      </div>
+  </div>
+</div>
 
-══════════════════════════════════════════════════════════════════════════════
-ERSTELLE DIESEN REPORT:
-══════════════════════════════════════════════════════════════════════════════
+FAZIT-BOX (neutral):
+<div class="bg-amber-50 border-l-4 border-amber-500 rounded-r-lg p-3 mt-3">
+  <div class="flex items-center gap-2">
+    <span class="text-amber-600 text-lg">⚠️</span>
+    <div>
+      <p class="text-amber-800 font-bold text-sm">Empfehlung: Mit Vorsicht</p>
+      <p class="text-amber-700 text-xs">Begründung</p>
+    </div>
+  </div>
+</div>
 
-1. <h3>📊 Trend-Status: "${topic}"</h3>
-   - Zeige den STATUS-BADGE groß und prominent
-   - STATISTIK-GRID mit 3 Werten: Interesse (Ø ${avgInterest}), Peak (${peak.value}), Datenpunkte
-   - Kurze Interpretation (1-2 Sätze): Was bedeuten diese Zahlen?
-   - Bei wenig/keine Daten (${avgInterest === 0 ? 'JA' : 'NEIN'}): WARNUNG-BOX erklären warum (Nische, lokal, etc.)
+FAZIT-BOX (negativ):
+<div class="bg-rose-50 border-l-4 border-rose-500 rounded-r-lg p-3 mt-3">
+  <div class="flex items-center gap-2">
+    <span class="text-rose-600 text-lg">❌</span>
+    <div>
+      <p class="text-rose-800 font-bold text-sm">Empfehlung: Nicht priorisieren</p>
+      <p class="text-rose-700 text-xs">Begründung</p>
+    </div>
+  </div>
+</div>
 
-2. <h3>🔥 Aufsteigende Keywords</h3>
-   ${relatedQueries.length > 0 
-     ? `- Zeige KEYWORD-KARTEN für die Top ${Math.min(5, relatedQueries.length)} Keywords
-   - Erkläre: Diese Begriffe werden ZUSÄTZLICH gesucht
-   - "Breakout" = explosive Nachfrage = Content-Goldgrube!`
-     : `- INFO-BOX: Keine aufsteigenden Keywords gefunden
-   - Erkläre: Das Thema ist entweder sehr spezifisch/lokal oder stabil`}
+INFO-HINWEIS (klein):
+<p class="text-[11px] text-gray-400 mt-2">ℹ️ Hinweistext</p>
 
-3. <h3>💡 Content-Empfehlung für ${domain}</h3>
-   EMPFEHLUNGS-BOX mit:
-   - EINEM konkreten Blogpost-Titel der den Trend aufgreift
-   - Warum JETZT der richtige Zeitpunkt ist
-   - Zielgruppe (wer sucht danach?)
+═══════════════════════════════════════════════════════════════════════════════
+REPORT-STRUKTUR:
+═══════════════════════════════════════════════════════════════════════════════
 
-4. <h3>✅ Fazit</h3>
-   FAZIT-BOX (grün oder rot):
-   - Klare JA/NEIN Aussage: Lohnt sich Content zu "${topic}"?
-   - Begründung in 1-2 Sätzen
-   - Bei NEIN: Alternative vorschlagen
+1. HEADER-CARD mit Status-Badge
 
-Antworte DIREKT mit HTML. Kein Markdown, keine Codeblöcke!
+2. METRIKEN-GRID mit 4 Werten:
+   - Aktuell: ${metrics.current}/100
+   - Durchschnitt: ${metrics.avg}/100
+   - Peak: ${metrics.peak}/100
+   - Trend: ${metrics.change > 0 ? '+' : ''}${metrics.change}%
+
+3. <h3>🔍 Keyword-Analyse</h3>
+   2-SPALTEN-GRID:
+   - Links: "Aufsteigende Keywords" (${risingQueries.length} Items) - mit grünen Badges
+   - Rechts: "Top Keywords" (${topQueries.length} Items) - mit blauen Badges
+   Wenn keine Keywords: Hinweis dass Thema sehr spezifisch ist
+
+4. <h3>💡 Alternativen & Variationen</h3>
+   ALTERNATIVE-KEYWORD-CARD mit 6-8 Keyword-Vorschlägen die:
+   - Verwandt zu "${topic}" sind
+   - Long-Tail Varianten (z.B. "${topic} Kosten", "${topic} Anbieter")
+   - Lokale Varianten (z.B. "${topic} ${countryName}")
+   - Fragen (z.B. "Was kostet ${topic}?")
+   Diese soll der User als Alternative recherchieren können!
+
+5. <h3>📝 Content-Empfehlungen</h3>
+   2-3 CONTENT-IDEE-CARDs mit:
+   - Konkretem Blogpost-Titel
+   - Warum dieser Titel funktioniert (1 Satz)
+
+6. <h3>🎯 Nächste Schritte</h3>
+   3 ACTION-ITEMs (nummeriert) mit konkreten Aufgaben für ${domain}
+
+7. FAZIT-BOX basierend auf Trend:
+   - ${analysis.color === 'emerald' || analysis.color === 'rose' ? 'POSITIV (grün)' : ''}
+   - ${analysis.color === 'blue' ? 'NEUTRAL (gelb)' : ''}
+   - ${analysis.color === 'amber' || analysis.color === 'gray' ? 'VORSICHTIG (gelb/rot)' : ''}
+
+8. INFO-HINWEIS: "Daten basieren auf Google Trends für ${countryName}"
+
+Antworte NUR mit HTML!
+`;
+
+    const promptData = `
+DATEN FÜR ANALYSE:
+
+Keyword: "${topic}"
+Region: ${countryName}
+Domain: ${domain}
+
+METRIKEN:
+- Aktueller Wert: ${metrics.current}/100
+- Durchschnitt: ${metrics.avg}/100  
+- Peak: ${metrics.peak}/100 (${metrics.peakDate})
+- Veränderung: ${metrics.change}%
+- Status: ${analysis.status}
+- Sparkline: ${sparklineData}
+
+AUFSTEIGENDE KEYWORDS (${risingQueries.length}):
+${risingQueries.length > 0 
+  ? risingQueries.map((r: RelatedQuery) => `- "${r.query}" → ${r.value}`).join('\n')
+  : '- Keine gefunden (Thema ist etabliert/stabil)'}
+
+TOP KEYWORDS (${topQueries.length}):
+${topQueries.length > 0 
+  ? topQueries.map((r: RelatedQuery) => `- "${r.query}" → ${r.value}`).join('\n')
+  : '- Keine gefunden'}
+
+Erstelle den Report basierend auf diesen echten Daten!
 `;
 
     const result = streamText({
       model: google('gemini-2.5-flash'),
       system: systemPrompt,
       prompt: promptData,
-      temperature: 0.5,
+      temperature: 0.4,
     });
 
     return result.toTextStreamResponse();
