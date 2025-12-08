@@ -646,10 +646,13 @@ export default function KiToolPage() {
 
                      <div 
                        ref={outputRef}
-                       className="flex-1 bg-gray-50/50 rounded-xl border border-gray-200/60 p-6 overflow-y-auto z-10 custom-scrollbar font-mono text-sm leading-relaxed text-gray-700 whitespace-pre-wrap"
+                       className="flex-1 bg-gray-50/50 rounded-xl border border-gray-200/60 p-4 overflow-y-auto z-10 custom-scrollbar ai-output"
                      >
                        {generatedContent ? (
-                         <div dangerouslySetInnerHTML={{ __html: generatedContent }} />
+                         <div 
+                           className="ai-content"
+                           dangerouslySetInnerHTML={{ __html: generatedContent }} 
+                         />
                        ) : (
                          <div className="h-full flex flex-col items-center justify-center text-gray-400 text-center p-8">
                             {activeTab === 'trends' ? (
@@ -792,6 +795,265 @@ export default function KiToolPage() {
         }
         .animate-spin-slow {
             animation: spin 3s linear infinite;
+        }
+        
+        /* ============================================
+           AI OUTPUT STYLES - Überschreibt KI-generiertes HTML
+           ============================================ */
+        .ai-output {
+          font-family: system-ui, -apple-system, sans-serif;
+          font-size: 13px;
+          line-height: 1.5;
+          color: #374151;
+        }
+        
+        .ai-content {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        
+        /* Überschriften */
+        .ai-content h3 {
+          font-size: 14px !important;
+          font-weight: 700 !important;
+          color: #111827 !important;
+          margin: 16px 0 8px 0 !important;
+          padding: 0 !important;
+          display: flex !important;
+          align-items: center !important;
+          gap: 8px !important;
+        }
+        
+        .ai-content h3:first-child {
+          margin-top: 0 !important;
+        }
+        
+        .ai-content h4 {
+          font-size: 11px !important;
+          font-weight: 600 !important;
+          color: #6b7280 !important;
+          text-transform: uppercase !important;
+          letter-spacing: 0.05em !important;
+          margin: 0 0 8px 0 !important;
+          padding: 0 !important;
+        }
+        
+        /* Absätze */
+        .ai-content p {
+          font-size: 13px !important;
+          line-height: 1.6 !important;
+          color: #4b5563 !important;
+          margin: 0 0 8px 0 !important;
+          padding: 0 !important;
+        }
+        
+        .ai-content p:last-child {
+          margin-bottom: 0 !important;
+        }
+        
+        /* Listen */
+        .ai-content ul, .ai-content ol {
+          margin: 0 0 8px 0 !important;
+          padding: 0 !important;
+          list-style: none !important;
+        }
+        
+        .ai-content li {
+          font-size: 13px !important;
+          color: #374151 !important;
+          padding: 6px 0 !important;
+          margin: 0 !important;
+          display: flex !important;
+          align-items: flex-start !important;
+          gap: 8px !important;
+          border-bottom: 1px solid #f3f4f6 !important;
+        }
+        
+        .ai-content li:last-child {
+          border-bottom: none !important;
+        }
+        
+        /* Cards & Boxen */
+        .ai-content > div {
+          margin-bottom: 12px !important;
+        }
+        
+        .ai-content [class*="bg-white"] {
+          background: white !important;
+          border: 1px solid #e5e7eb !important;
+          border-radius: 8px !important;
+          padding: 12px !important;
+          margin-bottom: 8px !important;
+        }
+        
+        .ai-content [class*="bg-gray-50"] {
+          background: #f9fafb !important;
+          border: 1px solid #e5e7eb !important;
+          border-radius: 8px !important;
+          padding: 12px !important;
+        }
+        
+        .ai-content [class*="bg-blue-50"],
+        .ai-content [class*="bg-indigo-50"] {
+          background: #eef2ff !important;
+          border: 1px solid #c7d2fe !important;
+          border-radius: 8px !important;
+          padding: 12px !important;
+        }
+        
+        .ai-content [class*="bg-emerald-50"],
+        .ai-content [class*="bg-green-50"] {
+          background: #ecfdf5 !important;
+          border: 1px solid #a7f3d0 !important;
+          border-radius: 8px !important;
+          padding: 12px !important;
+        }
+        
+        .ai-content [class*="bg-amber-50"],
+        .ai-content [class*="bg-yellow-50"] {
+          background: #fffbeb !important;
+          border: 1px solid #fcd34d !important;
+          border-radius: 8px !important;
+          padding: 12px !important;
+        }
+        
+        .ai-content [class*="bg-rose-50"],
+        .ai-content [class*="bg-red-50"] {
+          background: #fef2f2 !important;
+          border: 1px solid #fecaca !important;
+          border-radius: 8px !important;
+          padding: 12px !important;
+        }
+        
+        .ai-content [class*="bg-indigo-600"],
+        .ai-content [class*="bg-purple-600"] {
+          background: linear-gradient(to right, #4f46e5, #7c3aed) !important;
+          color: white !important;
+          border-radius: 8px !important;
+          padding: 12px !important;
+        }
+        
+        /* Grid */
+        .ai-content [class*="grid-cols-2"] {
+          display: grid !important;
+          grid-template-columns: 1fr 1fr !important;
+          gap: 12px !important;
+        }
+        
+        .ai-content [class*="grid-cols-3"] {
+          display: grid !important;
+          grid-template-columns: 1fr 1fr 1fr !important;
+          gap: 12px !important;
+        }
+        
+        .ai-content [class*="grid-cols-4"] {
+          display: grid !important;
+          grid-template-columns: 1fr 1fr 1fr 1fr !important;
+          gap: 8px !important;
+        }
+        
+        /* Badges */
+        .ai-content span[class*="bg-"][class*="text-"][class*="px-"] {
+          font-size: 10px !important;
+          font-weight: 600 !important;
+          padding: 3px 8px !important;
+          border-radius: 6px !important;
+          display: inline-flex !important;
+          align-items: center !important;
+          gap: 4px !important;
+        }
+        
+        /* Icons */
+        .ai-content i[class*="bi-"] {
+          font-size: 14px !important;
+          line-height: 1 !important;
+        }
+        
+        /* Metric Cards */
+        .ai-content [class*="text-center"] [class*="text-xl"],
+        .ai-content [class*="text-center"] [class*="text-2xl"],
+        .ai-content [class*="text-center"] [class*="text-lg"] {
+          font-size: 20px !important;
+          font-weight: 700 !important;
+          color: #111827 !important;
+        }
+        
+        .ai-content [class*="text-center"] [class*="uppercase"] {
+          font-size: 9px !important;
+          color: #6b7280 !important;
+          margin-top: 2px !important;
+        }
+        
+        /* Flex Layout Fixes */
+        .ai-content [class*="flex"][class*="items-center"] {
+          display: flex !important;
+          align-items: center !important;
+        }
+        
+        .ai-content [class*="flex"][class*="items-start"] {
+          display: flex !important;
+          align-items: flex-start !important;
+        }
+        
+        .ai-content [class*="flex"][class*="justify-between"] {
+          justify-content: space-between !important;
+        }
+        
+        .ai-content [class*="gap-1"] { gap: 4px !important; }
+        .ai-content [class*="gap-2"] { gap: 8px !important; }
+        .ai-content [class*="gap-3"] { gap: 12px !important; }
+        .ai-content [class*="gap-4"] { gap: 16px !important; }
+        
+        /* Space-y Overrides */
+        .ai-content [class*="space-y-1"] > * + * { margin-top: 4px !important; }
+        .ai-content [class*="space-y-2"] > * + * { margin-top: 8px !important; }
+        .ai-content [class*="space-y-3"] > * + * { margin-top: 12px !important; }
+        
+        /* Border-Left für Fazit-Boxen */
+        .ai-content [class*="border-l-4"] {
+          border-left-width: 4px !important;
+          border-left-style: solid !important;
+          border-radius: 0 8px 8px 0 !important;
+        }
+        
+        /* Text Farben */
+        .ai-content [class*="text-emerald-"] { color: #059669 !important; }
+        .ai-content [class*="text-rose-"] { color: #e11d48 !important; }
+        .ai-content [class*="text-amber-"] { color: #d97706 !important; }
+        .ai-content [class*="text-blue-"] { color: #2563eb !important; }
+        .ai-content [class*="text-indigo-"] { color: #4f46e5 !important; }
+        .ai-content [class*="text-purple-"] { color: #7c3aed !important; }
+        .ai-content [class*="text-gray-400"] { color: #9ca3af !important; }
+        .ai-content [class*="text-gray-500"] { color: #6b7280 !important; }
+        .ai-content [class*="text-gray-600"] { color: #4b5563 !important; }
+        .ai-content [class*="text-gray-700"] { color: #374151 !important; }
+        .ai-content [class*="text-gray-800"] { color: #1f2937 !important; }
+        .ai-content [class*="text-gray-900"] { color: #111827 !important; }
+        
+        /* Strong/Bold */
+        .ai-content strong, .ai-content b {
+          font-weight: 600 !important;
+          color: #111827 !important;
+        }
+        
+        /* Subpage Items */
+        .ai-content [class*="subpage"], 
+        .ai-content [class*="border-b"][class*="py-1"] {
+          padding: 6px 0 !important;
+          font-size: 12px !important;
+          border-bottom: 1px solid #f3f4f6 !important;
+        }
+        
+        /* Step Numbers */
+        .ai-content [class*="rounded-full"][class*="bg-indigo"] {
+          width: 20px !important;
+          height: 20px !important;
+          font-size: 10px !important;
+          display: inline-flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          flex-shrink: 0 !important;
         }
       `}</style>
     </div>
