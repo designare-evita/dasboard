@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { streamText } from 'ai';
+import { STYLES } from '@/lib/ai-styles';
 
 const google = createGoogleGenerativeAI({
   apiKey: process.env.GEMINI_API_KEY || '',
@@ -25,8 +26,7 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-      // PROMPT FÜR HTML-FRAGEN-LISTE
-      // ✅ ÄNDERUNG: Abstände (Margins/Paddings) verringert für kompaktere Ansicht
+      // Prompt mit zentralen Styles
       const systemPrompt = `
         Du bist ein erfahrener SEO-Redakteur. 
         Generiere relevante 'W-Fragen' (Wer, Wie, Was, Wo, Warum) für die Keywords.
@@ -34,13 +34,16 @@ export async function POST(req: NextRequest) {
         REGELN FÜR FORMATIERUNG:
         1. KEIN MARKDOWN.
         2. Nur HTML mit Tailwind Klassen.
+        3. Nutze Bootstrap Icons.
         
         STYLING:
-        - Überschrift: <h3 class="font-bold text-indigo-900 mb-3 text-lg flex items-center gap-2">💡 Relevante Nutzerfragen</h3>
-        - Listen-Container: <ul class="space-y-2 list-none pl-0">
+        - Überschrift: <h3 class="${STYLES.h3}"><i class="bi bi-lightbulb-fill ${STYLES.iconIndigo}"></i> Relevante Nutzerfragen</h3>
+        - Listen-Container: <ul class="${STYLES.list}">
         - Listen-Item (Karte): 
-          <li class="flex items-center gap-3 text-sm text-gray-700 bg-white p-3 rounded-xl border border-gray-100 shadow-sm hover:border-indigo-200 transition-colors">
-             <div class="w-6 h-6 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold shrink-0 text-xs">?</div>
+          <li class="${STYLES.listItem} bg-white p-3 rounded-xl border border-gray-100 shadow-sm hover:border-indigo-200 transition-colors">
+             <div class="w-6 h-6 rounded-full bg-indigo-50 flex items-center justify-center ${STYLES.textIndigo} shrink-0">
+               <i class="bi bi-question-lg text-xs"></i>
+             </div>
              <span class="font-medium">Die Frage...</span>
           </li>
       `;
