@@ -1,18 +1,22 @@
+// app/layout.tsx
 import type { Metadata } from "next";
 import { Poppins } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import MainLayout from '@/components/MainLayout';
 import { Toaster } from 'sonner';
-import * as Sentry from '@sentry/nextjs'; // ✅ NEU: Sentry Import
+import * as Sentry from '@sentry/nextjs';
 
-// Konfiguriert den Poppins-Font
+// Poppins Font
 const poppins = Poppins({ 
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"]
 });
 
-// ✅ ÄNDERUNG: Von "const metadata" zu "function generateMetadata"
+// Bootstrap Icons einbinden – nur 1 Zeile, kein ganzes Bootstrap!
+import "bootstrap-icons/font/bootstrap-icons.css";
+
+// Metadata mit Sentry Tracing
 export function generateMetadata(): Metadata {
   return {
     title: 'Data Peak | SEO & Analytics Dashboard',
@@ -21,7 +25,6 @@ export function generateMetadata(): Metadata {
     icons: {
       icon: '/favicon.ico',
     },
-    // Hier werden die Sentry Trace Daten für das Backend-Frontend-Tracing injiziert
     other: {
       ...Sentry.getTraceData()
     }
@@ -35,9 +38,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="de">
+      <head>
+        {/* Optional: Falls du Google Fonts trotzdem noch separat laden willst (nicht nötig bei next/font) */}
+        {/* <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" /> */}
+      </head>
       <body className={`${poppins.className} bg-gray-50`}>
         <Providers>
-          {/* Toaster für Benachrichtigungen */}
           <Toaster position="top-right" richColors closeButton />
           
           <MainLayout>
