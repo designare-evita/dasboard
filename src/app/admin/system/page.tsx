@@ -1,3 +1,4 @@
+// src/app/admin/system/page.tsx
 'use client';
 
 import React, { useEffect, useState } from 'react';
@@ -12,7 +13,10 @@ import {
   HddNetwork,
   ClockHistory,
   Search,
-  BarChartLine
+  BarChartLine,
+  ConeStriped, // Neu importieren
+  ToggleOn,    // Neu importieren
+  ToggleOff    // Neu importieren
 } from 'react-bootstrap-icons';
 import LoginLogbook from '@/app/admin/LoginLogbook';
 
@@ -20,7 +24,12 @@ export default function SystemHealthPage() {
   const [status, setStatus] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isClearingCache, setIsClearingCache] = useState(false);
+  
+  // NEUE STATE VARIABLEN
+  const [maintenanceMode, setMaintenanceMode] = useState(false);
+  const [isTogglingMaintenance, setIsTogglingMaintenance] = useState(false);
 
+  // Status Fetcher (wie gehabt)
   const fetchStatus = async () => {
     setIsLoading(true);
     try {
@@ -36,42 +45,72 @@ export default function SystemHealthPage() {
     }
   };
 
+  // NEU: Wartungsmodus Status laden
+  const fetchMaintenanceStatus = async () => {
+    try {
+      const res = await fetch('/api/admin/maintenance');
+      const data = await res.json();
+      setMaintenanceMode(data.isActive);
+    } catch (e) {
+      console.error('Failed to fetch maintenance status', e);
+    }
+  };
+
   useEffect(() => {
     fetchStatus();
+    fetchMaintenanceStatus(); // Aufrufen
   }, []);
 
-  // KORRIGIERTE FUNKTION
-  const handleClearCache = async () => {
-    if(!confirm("Sind Sie sicher? Dies löscht den gesamten Google Data Cache für ALLE User.")) return;
+  // NEU: Wartungsmodus umschalten
+  const toggleMaintenance = async () => {
+    const newState = !maintenanceMode;
+    const msg = newState 
+      ? "ACHTUNG: Dies aktiviert den Wartungsmodus für ALLE Nutzer außer Superadmins. Fortfahren?"
+      : "Wartungsmodus deaktivieren und System wieder freigeben?";
     
-    setIsClearingCache(true);
+    if (!confirm(msg)) return;
+
+    setIsTogglingMaintenance(true);
     try {
-      // WICHTIG: Leeres JSON-Objekt senden und Content-Type Header setzen
-      const res = await fetch('/api/clear-cache', { 
+      const res = await fetch('/api/admin/maintenance', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({}) 
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: newState })
       });
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.details || `Server Fehler: ${res.status}`);
+      
+      if (res.ok) {
+        setMaintenanceMode(newState);
+      } else {
+        alert('Fehler beim Speichern.');
       }
-
-      const data = await res.json();
-      console.log('Cache gelöscht:', data);
-      
-      alert(`Erfolg: ${data.message || 'Cache geleert.'}`);
-      window.location.reload();
-      
-    } catch (e: any) {
-      console.error("Fehler beim Löschen:", e);
-      alert(`Fehler: ${e.message}`);
+    } catch (e) {
+      console.error(e);
+      alert('Verbindungsfehler.');
     } finally {
-      setIsClearingCache(false);
+      setIsTogglingMaintenance(false);
     }
+  };
+
+  // ... (handleClearCache und getStatusIcon bleiben gleich)
+  const handleClearCache = async () => {
+      // Dein existierender Code hier...
+      if(!confirm("Sind Sie sicher? Dies löscht den gesamten Google Data Cache für ALLE User.")) return;
+      setIsClearingCache(true);
+      try {
+        const res = await fetch('/api/clear-cache', { 
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}) 
+        });
+        if (!res.ok) throw new Error('Fehler');
+        const data = await res.json();
+        alert(`Erfolg: ${data.message || 'Cache geleert.'}`);
+        window.location.reload();
+      } catch (e: any) {
+        alert(`Fehler: ${e.message}`);
+      } finally {
+        setIsClearingCache(false);
+      }
   };
 
   const getStatusIcon = (s: string) => {
@@ -86,19 +125,65 @@ export default function SystemHealthPage() {
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-8">
       
-      <div>
-        <h1 className="text-2xl font-bold mb-2">System Kontrollzentrum</h1>
-        <p className="text-gray-500">Live-Überwachung aller Systemkomponenten und externen APIs.</p>
+      <div className="flex justify-between items-end">
+        <div>
+          <h1 className="text-2xl font-bold mb-2">System Kontrollzentrum</h1>
+          <p className="text-gray-500">Live-Überwachung aller Systemkomponenten und externen APIs.</p>
+        </div>
+        
+        {/* NEU: WARTUNGSMODUS STATUS OBEN RECHTS (Optional) */}
+        {maintenanceMode && (
+          <div className="bg-amber-100 text-amber-800 px-4 py-2 rounded-lg flex items-center gap-2 font-bold animate-pulse border border-amber-200">
+            <ConeStriped /> WARTUNGSMODUS AKTIV
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
         
         {/* SPALTE LINKS: STATUS KARTEN */}
         <div className="xl:col-span-2 space-y-6">
+
+           {/* NEU: WARTUNGSMODUS KONTROLLE */}
+           <div className={`p-6 rounded-xl border shadow-sm transition-colors ${maintenanceMode ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-100'}`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`p-3 rounded-lg ${maintenanceMode ? 'bg-amber-100' : 'bg-gray-100'}`}>
+                  <ConeStriped className={`text-xl ${maintenanceMode ? 'text-amber-600' : 'text-gray-600'}`} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-900">Wartungsmodus</h3>
+                  <p className="text-sm text-gray-500">
+                    {maintenanceMode 
+                      ? 'System ist gesperrt für Benutzer. Superadmins haben weiterhin Zugriff.' 
+                      : 'Das System ist für alle Benutzer erreichbar.'}
+                  </p>
+                </div>
+              </div>
+              
+              <button 
+                onClick={toggleMaintenance}
+                disabled={isTogglingMaintenance}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-all ${
+                  maintenanceMode 
+                    ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-md' 
+                    : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                }`}
+              >
+                {isTogglingMaintenance ? (
+                  <ArrowRepeat className="animate-spin text-xl" />
+                ) : maintenanceMode ? (
+                  <><ToggleOn className="text-2xl" /> Aktiv</>
+                ) : (
+                  <><ToggleOff className="text-2xl" /> Inaktiv</>
+                )}
+              </button>
+            </div>
+          </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             
-            {/* Database */}
+            {/* Deine bestehenden Karten: Database */}
             <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
               <div className="flex justify-between items-start mb-4">
                 <div className="p-2 bg-blue-50 rounded-lg"><DatabaseCheck className="text-blue-600 text-xl" /></div>
@@ -162,7 +247,6 @@ export default function SystemHealthPage() {
             {/* BING */}
             <div className={`p-4 rounded-xl border ${status.bingApi?.status === 'ok' ? 'bg-purple-50 border-purple-200' : status.bingApi?.status === 'error' ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200'}`}>
               <div className="flex items-center gap-2 mb-2">
-                {/* Sie können hier ein Microsoft Icon importieren oder Search nutzen */}
                 <Search className={status.bingApi?.status === 'ok' ? 'text-purple-600' : 'text-gray-500'} />
                 <span className="font-semibold text-gray-900">Bing & AI Search</span>
               </div>
