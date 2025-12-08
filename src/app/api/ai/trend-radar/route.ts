@@ -131,7 +131,11 @@ export async function POST(req: NextRequest) {
     const sparklineText = lastPoints.length > 0 ? lastPoints.join(' → ') : 'Keine Daten';
 
     // Related Queries aufbereiten
-    const relatedQueries = trendData.related.slice(0, 8).map((r: any) => ({
+    interface RelatedQuery {
+      query: string;
+      growth: string;
+    }
+    const relatedQueries: RelatedQuery[] = trendData.related.slice(0, 8).map((r: any) => ({
       query: r.query,
       growth: r.extracted_value || r.value || 'N/A'
     }));
@@ -161,7 +165,7 @@ DOMAIN: ${domain}
 
 🔥 AUFSTEIGENDE SUCHANFRAGEN (${relatedQueries.length}):
 ${relatedQueries.length > 0 
-  ? relatedQueries.map(r => `• "${r.query}" → ${r.growth}`).join('\n')
+  ? relatedQueries.map((r: RelatedQuery) => `• "${r.query}" → ${r.growth}`).join('\n')
   : '• Keine aufsteigenden Suchanfragen gefunden'}
 
 BADGE-KLASSE: ${badgeClass}
