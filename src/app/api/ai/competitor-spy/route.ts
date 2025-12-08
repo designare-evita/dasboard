@@ -3,6 +3,7 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { streamText } from 'ai';
 import * as cheerio from 'cheerio';
 import { NextRequest, NextResponse } from 'next/server';
+import { STYLES, getCompactStyleGuide } from '@/lib/ai-styles';
 
 const google = createGoogleGenerativeAI({
   apiKey: process.env.GEMINI_API_KEY || '',
@@ -10,6 +11,10 @@ const google = createGoogleGenerativeAI({
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
+
+// ============================================================================
+// FUNKTIONEN - UNVERÄNDERT
+// ============================================================================
 
 // CMS-Erkennung mit Scoring
 function detectCMS(html: string, $: cheerio.CheerioAPI): { cms: string; confidence: string; hints: string[]; isCustom: boolean } {
@@ -84,49 +89,49 @@ function detectFeatures(html: string, $: cheerio.CheerioAPI): string[] {
   
   if (htmlLower.includes('chatbot') || htmlLower.includes('ai-assistant') || htmlLower.includes('ki-assistent') ||
       htmlLower.includes('openai') || htmlLower.includes('gpt') || $('[class*="chat"]').length > 2) {
-    features.push('🤖 KI-Assistent / Chatbot');
+    features.push('KI-Assistent / Chatbot');
   }
   if (htmlLower.includes('livechat') || htmlLower.includes('tawk.to') || htmlLower.includes('intercom')) {
-    features.push('💬 Live-Chat');
+    features.push('Live-Chat');
   }
   if ($('video').length > 0 || htmlLower.includes('youtube.com/embed')) {
-    features.push('🎬 Video-Content');
+    features.push('Video-Content');
   }
   if (htmlLower.includes('gsap') || htmlLower.includes('lottie') || html.includes('data-aos=')) {
-    features.push('✨ Animationen');
+    features.push('Animationen');
   }
   if (html.includes('dark:') || htmlLower.includes('dark-mode')) {
-    features.push('🌙 Dark Mode');
+    features.push('Dark Mode');
   }
   if ($('link[rel="manifest"]').length > 0) {
-    features.push('📱 PWA-fähig');
+    features.push('PWA-fähig');
   }
   if (htmlLower.includes('warenkorb') || htmlLower.includes('woocommerce') || htmlLower.includes('shop')) {
-    features.push('🛒 E-Commerce');
+    features.push('E-Commerce');
   }
   if (htmlLower.includes('calendly') || htmlLower.includes('booking') || htmlLower.includes('termin')) {
-    features.push('📅 Terminbuchung');
+    features.push('Terminbuchung');
   }
   if (htmlLower.includes('newsletter') || htmlLower.includes('mailchimp')) {
-    features.push('📧 Newsletter');
+    features.push('Newsletter');
   }
   if ($('script[type="application/ld+json"]').length > 0) {
-    features.push('📊 Schema.org Daten');
+    features.push('Schema.org Daten');
   }
   if (htmlLower.includes('testimonial') || htmlLower.includes('bewertung') || htmlLower.includes('referenz')) {
-    features.push('⭐ Testimonials/Referenzen');
+    features.push('Testimonials/Referenzen');
   }
   if ($('link[hreflang]').length > 1) {
-    features.push('🌍 Mehrsprachig');
+    features.push('Mehrsprachig');
   }
   if (htmlLower.includes('/blog') || htmlLower.includes('artikel')) {
-    features.push('📝 Blog');
+    features.push('Blog');
   }
   if (htmlLower.includes('faq')) {
-    features.push('❓ FAQ');
+    features.push('FAQ');
   }
   if (htmlLower.includes('kontakt') || htmlLower.includes('contact')) {
-    features.push('📞 Kontaktseite');
+    features.push('Kontaktseite');
   }
   
   return features;
@@ -138,7 +143,6 @@ function extractMainNavLinks(html: string, $: cheerio.CheerioAPI, baseUrl: strin
   const baseUrlObj = new URL(baseUrl);
   const baseDomain = baseUrlObj.origin;
   
-  // Suche in nav, header oder typischen Menü-Containern
   const navSelectors = [
     'nav a',
     'header a',
@@ -153,14 +157,12 @@ function extractMainNavLinks(html: string, $: cheerio.CheerioAPI, baseUrl: strin
       let href = $(el).attr('href');
       if (!href) return;
       
-      // Relative URLs zu absoluten machen
       if (href.startsWith('/')) {
         href = baseDomain + href;
       } else if (!href.startsWith('http')) {
         href = baseDomain + '/' + href;
       }
       
-      // Nur interne Links, keine Anker, keine Dateien
       if (
         href.startsWith(baseDomain) &&
         !href.includes('#') &&
@@ -174,15 +176,15 @@ function extractMainNavLinks(html: string, $: cheerio.CheerioAPI, baseUrl: strin
     });
   });
   
-  return links.slice(0, 5); // Max 5 Unterseiten
+  return links.slice(0, 5);
 }
 
-// Unterseite scrapen (vereinfacht)
+// Unterseite scrapen
 async function scrapeSubpage(url: string): Promise<{ url: string; title: string; h1: string; wordCount: number }> {
   try {
     const res = await fetch(url, {
       headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0' },
-      signal: AbortSignal.timeout(5000) // 5s Timeout
+      signal: AbortSignal.timeout(5000)
     });
     
     if (!res.ok) return { url, title: 'Fehler', h1: '', wordCount: 0 };
@@ -196,7 +198,6 @@ async function scrapeSubpage(url: string): Promise<{ url: string; title: string;
     $('script, style, nav, footer, head').remove();
     const wordCount = $('body').text().replace(/\s+/g, ' ').trim().split(/\s+/).length;
     
-    // Pfad extrahieren
     const path = new URL(url).pathname;
     
     return { url: path, title, h1, wordCount };
@@ -220,23 +221,17 @@ async function scrapeUrl(url: string) {
   const html = await res.text();
   const $ = cheerio.load(html);
   
-  // Meta ZUERST
   const title = $('title').text().trim() || $('meta[property="og:title"]').attr('content') || '';
   const metaDesc = $('meta[name="description"]').attr('content')?.trim() || '';
   
-  // CMS, Tech, Features
   const cmsInfo = detectCMS(html, $);
   const techStack = detectTechStack(html);
   const features = detectFeatures(html, $);
   
-  // Menü-Links extrahieren
   const navLinks = extractMainNavLinks(html, $, url);
-  
-  // Unterseiten parallel scrapen
   const subpagePromises = navLinks.map(link => scrapeSubpage(link));
   const subpages = await Promise.all(subpagePromises);
   
-  // Aufräumen für Content
   $('script, style, nav, footer, iframe, svg, noscript, head').remove();
   
   const h1 = $('h1').first().text().trim();
@@ -249,7 +244,6 @@ async function scrapeUrl(url: string) {
   const text = $('body').text().replace(/\s+/g, ' ').trim();
   const wordCount = text.split(/\s+/).filter(w => w.length > 1).length;
   
-  // Texte
   const uniqueTexts: string[] = [];
   $('p').each((i, el) => {
     if (i < 4) {
@@ -268,6 +262,10 @@ async function scrapeUrl(url: string) {
     subpages: subpages.filter(s => s.wordCount > 0)
   };
 }
+
+// ============================================================================
+// MAIN HANDLER
+// ============================================================================
 
 export async function POST(req: NextRequest) {
   try {
@@ -292,115 +290,104 @@ export async function POST(req: NextRequest) {
       }))
     ]);
 
+    // ========================================================================
+    // PROMPT MIT ZENTRALEN STYLES
+    // ========================================================================
     const prompt = `
 Du bist ein SEO-Stratege. Analysiere zwei Webseiten FAIR und OBJEKTIV.
+
+${getCompactStyleGuide()}
 
 ══════════════════════════════════════════════════════════════════════════════
 SEITE A: ${myData.url}
 ══════════════════════════════════════════════════════════════════════════════
 
-📄 META:
+META:
 • Title: "${myData.title}"
 • Meta-Beschreibung: "${myData.metaDesc || '(keine)'}"
 • H1: "${myData.h1}"
 • H2 (${myData.h2Count}): ${myData.h2Elements.join(' | ') || '(keine)'}
 • Wörter: ~${myData.wordCount}
 
-🔧 TECHNIK:
-• CMS: ${myData.cms.cms} ${myData.cms.isCustom ? '⭐' : ''}
+TECHNIK:
+• CMS: ${myData.cms.cms} ${myData.cms.isCustom ? '(Custom)' : ''}
 • Details: ${myData.cms.hints.join(', ') || '-'}
 • Tech: ${myData.techStack.join(', ') || '-'}
 
-✨ FEATURES: ${myData.features.join(', ') || 'keine erkannt'}
+FEATURES: ${myData.features.join(', ') || 'keine erkannt'}
 
-📑 UNTERSEITEN (Menü):
+UNTERSEITEN (Menü):
 ${myData.subpages.length > 0 ? myData.subpages.map(s => `• ${s.url} - "${s.title}" (~${s.wordCount} Wörter)`).join('\n') : '(keine gescraped)'}
 
-📝 TEXT-AUSZUG:
+TEXT-AUSZUG:
 "${myData.uniqueTexts.slice(0, 2).join(' ... ').slice(0, 400)}..."
 
 ══════════════════════════════════════════════════════════════════════════════
 SEITE B: ${competitorData.url}
 ══════════════════════════════════════════════════════════════════════════════
 
-📄 META:
+META:
 • Title: "${competitorData.title}"
 • Meta-Beschreibung: "${competitorData.metaDesc || '(keine)'}"
 • H1: "${competitorData.h1}"
 • H2 (${competitorData.h2Count}): ${competitorData.h2Elements.join(' | ') || '(keine)'}
 • Wörter: ~${competitorData.wordCount}
 
-🔧 TECHNIK:
-• CMS: ${competitorData.cms.cms} ${competitorData.cms.isCustom ? '⭐' : ''}
+TECHNIK:
+• CMS: ${competitorData.cms.cms} ${competitorData.cms.isCustom ? '(Custom)' : ''}
 • Details: ${competitorData.cms.hints.join(', ') || '-'}
 • Tech: ${competitorData.techStack.join(', ') || '-'}
 
-✨ FEATURES: ${competitorData.features.join(', ') || 'keine erkannt'}
+FEATURES: ${competitorData.features.join(', ') || 'keine erkannt'}
 
-📑 UNTERSEITEN (Menü):
+UNTERSEITEN (Menü):
 ${competitorData.subpages.length > 0 ? competitorData.subpages.map(s => `• ${s.url} - "${s.title}" (~${s.wordCount} Wörter)`).join('\n') : '(keine gescraped)'}
 
-📝 TEXT-AUSZUG:
+TEXT-AUSZUG:
 "${competitorData.uniqueTexts.slice(0, 2).join(' ... ').slice(0, 400)}..."
 
 ══════════════════════════════════════════════════════════════════════════════
-FORMATIERUNG (STRIKT - KEIN MARKDOWN!)
+ERSTELLE DIESEN REPORT:
 ══════════════════════════════════════════════════════════════════════════════
 
-NUR HTML mit Tailwind. Keine **, ##, * !
+1. <h3 class="${STYLES.h3}"><i class="bi bi-info-circle"></i> Übersicht</h3>
+   <div class="${STYLES.infoBox}">Info-Box mit EINER Zeile pro Seite. Was ist die Seite?</div>
 
-STYLING (kompakt, wenig Abstände):
-- Überschrift: <h3 class="font-bold text-indigo-900 mt-4 mb-2 text-base flex items-center gap-2">TITEL</h3>
-- Fließtext: <p class="mb-2 text-gray-600 text-sm leading-snug">TEXT</p>
-- Info-Box: <div class="bg-blue-50 border border-blue-100 p-3 rounded-lg mb-3 text-sm">
-- 2-Spalten Grid: <div class="grid grid-cols-2 gap-3 mb-3">
-- Karte: <div class="bg-white p-3 rounded-lg border border-gray-200">
-- Karten-Titel: <h4 class="font-bold text-gray-800 text-sm mb-2 pb-1 border-b border-gray-100">TITEL</h4>
-- Badge CMS: <span class="bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded text-xs font-medium">CMS</span>
-- Badge Custom: <span class="bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded text-xs font-medium">⭐ CUSTOM</span>
-- Listen: <ul class="space-y-1 text-sm">
-- Vorteil: <li class="flex items-start gap-1.5 text-gray-700"><span class="text-emerald-600 font-bold">✓</span><span>Text</span></li>
-- Nachteil: <li class="flex items-start gap-1.5 text-gray-700"><span class="text-rose-500 font-bold">✗</span><span>Text</span></li>
-- Feature: <li class="flex items-start gap-1.5 text-gray-700"><span class="text-purple-600">★</span><span>Text</span></li>
-- Empfehlungs-Box: <div class="bg-indigo-600 text-white p-3 rounded-lg mt-3 text-sm">
-- Subpage-Item: <div class="text-xs text-gray-500 py-1 border-b border-gray-50">📄 /pfad - Titel</div>
+2. <h3 class="${STYLES.h3}"><i class="bi bi-gear-fill"></i> Technologie</h3>
+   <div class="${STYLES.grid2}">
+     Pro Seite eine Card mit:
+     - CMS Badge (Custom = <span class="${STYLES.badgeCustom}"><i class="bi bi-star-fill"></i> CUSTOM</span>)
+     - Tech-Stack
+     - 2-3 Sätze Bewertung
+   </div>
 
-══════════════════════════════════════════════════════════════════════════════
-ERSTELLE DIESEN REPORT (kompakt!):
-══════════════════════════════════════════════════════════════════════════════
+3. <h3 class="${STYLES.h3}"><i class="bi bi-stars"></i> Features</h3>
+   <div class="${STYLES.grid2}">
+     Pro Seite eine Card mit:
+     - Liste aller Features (<i class="bi bi-star-fill ${STYLES.iconFeature}"></i>)
+     - Was fehlt?
+   </div>
 
-1. <h3>ℹ️ Übersicht</h3>
-   Info-Box mit EINER Zeile pro Seite.
-   Was ist die Seite? (z.B. "A: SEO-Agentur aus NÖ | B: Portfolio eines Webentwicklers")
+4. <h3 class="${STYLES.h3}"><i class="bi bi-diagram-3-fill"></i> Seitenstruktur</h3>
+   <div class="${STYLES.grid2}">
+     Pro Seite eine Card mit:
+     - Unterseiten (<div class="${STYLES.subpageItem}"><i class="bi bi-file-earmark"></i> /pfad</div>)
+     - Bewertung
+   </div>
 
-2. <h3>🔧 Technologie</h3>
-   2-Spalten Grid. Pro Seite eine Karte mit:
-   - CMS (Badge) - Custom = Vorteil!
-   - Tech-Stack (kurz)
-   - 2-3 Sätze Bewertung
+5. <h3 class="${STYLES.h3}"><i class="bi bi-shield-fill-check"></i> Stärken & Schwächen</h3>
+   <div class="${STYLES.grid2}">
+     Pro Seite eine Card mit:
+     - Stärken: <li class="${STYLES.listItem}"><i class="bi bi-check-lg ${STYLES.iconSuccess}"></i><span>Text</span></li>
+     - Schwächen: <li class="${STYLES.listItem}"><i class="bi bi-x-lg ${STYLES.iconError}"></i><span>Text</span></li>
+   </div>
 
-3. <h3>✨ Features</h3>
-   2-Spalten Grid. Pro Seite eine Karte mit:
-   - Liste aller Features (★ Items)
-   - Kurze Erklärung der wichtigsten
-   - Was fehlt?
+6. <h3 class="${STYLES.h3}"><i class="bi bi-bullseye"></i> Empfehlungen</h3>
+   <div class="${STYLES.recommendBox}">
+     3 konkrete Maßnahmen
+   </div>
 
-4. <h3>📑 Seitenstruktur</h3>
-   2-Spalten Grid. Pro Seite eine Karte mit:
-   - Unterseiten aus dem Menü (Subpage-Items)
-   - Bewertung der Struktur
-
-5. <h3>💪 Stärken & Schwächen</h3>
-   2-Spalten Grid. Pro Seite eine Karte mit:
-   - 3-4 Stärken
-   - 2-3 Schwächen 
-   Sei FAIR! Custom-Entwicklung ist ein Vorteil!
-
-6. <h3>🎯 Empfehlungen</h3>
-   Empfehlungs-Box mit 3 konkreten Maßnahmen.
-   Was kann verbessert werden?
-
-Antworte NUR mit HTML. Kompakt, wenig Abstände!
+Antworte NUR mit HTML. Kompakt!
 `;
 
     const result = streamText({
