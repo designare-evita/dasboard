@@ -119,7 +119,7 @@ export const STYLES = {
   
   // Accent Boxes
   indigoBox: 'bg-indigo-50 border border-indigo-100 rounded-xl p-4',                  // wie page.tsx indigo boxes
-  purpleBox: 'bg-purple-50 border border-purple-200 rounded-xl p-4',
+  purpleBox: 'bg-white-50 border border-purple-200 rounded-xl p-4',
   amberBox: 'bg-amber-50 border border-amber-200 rounded-xl p-4',
   
   // Recommendation Box 
