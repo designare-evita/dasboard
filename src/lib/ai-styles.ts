@@ -86,102 +86,103 @@ export const ICONS = {
 
 // ============================================================================
 // TAILWIND STYLE CLASSES
+// Angepasst an page.tsx Styles (Schriftgrößen, Stärken, Abstände)
 // ============================================================================
 export const STYLES = {
-  // Typography
-  h3: 'font-bold text-gray-900 text-sm mt-3 mb-1.5 flex items-center gap-2',
-  h4: 'font-bold text-gray-700 text-xs uppercase tracking-wide mb-1.5',
-  p: 'text-gray-600 text-xs leading-relaxed mb-2',
-  pSmall: 'text-gray-500 text-[11px] leading-relaxed',
-  label: 'text-[10px] font-bold text-gray-500 uppercase tracking-wide',
+  // Typography (angepasst an page.tsx)
+  h3: 'font-bold text-gray-900 mt-4 mb-2 flex items-center gap-2',                    // text-base (default), wie page.tsx h3
+  h4: 'font-semibold text-gray-800 text-xs uppercase tracking-wide mb-2',             // wie page.tsx labels
+  p: 'text-sm text-gray-600 leading-relaxed mb-3',                                    // wie page.tsx text
+  pSmall: 'text-xs text-gray-500 leading-relaxed',                                    // kleinerer Text
+  label: 'font-semibold text-gray-800 text-xs uppercase tracking-wide',               // wie page.tsx labels
   
-  // Layout
-  container: 'space-y-2',
-  grid2: 'grid grid-cols-2 gap-2',
-  grid3: 'grid grid-cols-3 gap-2',
-  grid4: 'grid grid-cols-4 gap-2',
+  // Layout (größere Abstände wie page.tsx)
+  container: 'space-y-4',                                                              // space-y-4 statt space-y-2
+  grid2: 'grid grid-cols-2 gap-4',                                                     // gap-4 statt gap-2
+  grid3: 'grid grid-cols-3 gap-4',
+  grid4: 'grid grid-cols-4 gap-3',                                                     // gap-3 für Metriken
   flexBetween: 'flex items-center justify-between',
-  flexStart: 'flex items-start gap-2',
+  flexStart: 'flex items-start gap-3',                                                 // gap-3 statt gap-2
   flexCenter: 'flex items-center gap-2',
   
-  // Cards & Containers
-  card: 'bg-white border border-gray-200 rounded-lg p-3',
-  cardHover: 'bg-white border border-gray-200 rounded-lg p-3 hover:border-indigo-200 transition-colors',
-  cardHeader: 'bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg p-3 text-white',
-  cardHeaderSmall: 'bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg p-2.5 text-white',
+  // Cards & Containers (angepasst an page.tsx rounded-2xl, p-6)
+  card: 'bg-white border border-gray-100 rounded-xl p-4 shadow-sm',                   // rounded-xl, p-4, shadow-sm
+  cardHover: 'bg-white border border-gray-100 rounded-xl p-4 shadow-sm hover:shadow-md hover:border-indigo-200 transition-all',
+  cardHeader: 'bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl p-4 text-white',
+  cardHeaderSmall: 'bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg p-3 text-white',
   
-  // Boxes (Info, Warning, Success, Error)
-  infoBox: 'bg-blue-50 border border-blue-100 rounded-lg p-2.5',
-  warningBox: 'bg-amber-50 border border-amber-200 rounded-lg p-2.5',
-  successBox: 'bg-emerald-50 border border-emerald-200 rounded-lg p-2.5',
-  errorBox: 'bg-rose-50 border border-rose-200 rounded-lg p-2.5',
+  // Boxes (Info, Warning, Success, Error) - größere Abstände
+  infoBox: 'bg-blue-50 border border-blue-100 rounded-xl p-4',
+  warningBox: 'bg-amber-50 border border-amber-200 rounded-xl p-4',
+  successBox: 'bg-emerald-50 border border-emerald-200 rounded-xl p-4',
+  errorBox: 'bg-rose-50 border border-rose-200 rounded-xl p-4',
   
   // Accent Boxes
-  indigoBox: 'bg-indigo-50 border border-indigo-200 rounded-lg p-2.5',
-  purpleBox: 'bg-purple-50 border border-purple-200 rounded-lg p-2.5',
-  amberBox: 'bg-amber-50 border border-amber-200 rounded-lg p-2.5',
+  indigoBox: 'bg-indigo-50 border border-indigo-100 rounded-xl p-4',                  // wie page.tsx indigo boxes
+  purpleBox: 'bg-purple-50 border border-purple-200 rounded-xl p-4',
+  amberBox: 'bg-amber-50 border border-amber-200 rounded-xl p-4',
   
   // Recommendation Box (Dark)
-  recommendBox: 'bg-indigo-600 text-white p-3 rounded-lg',
+  recommendBox: 'bg-indigo-600 text-white p-4 rounded-xl',
   
   // Fazit Boxes (with left border)
-  fazitPositive: 'bg-emerald-50 border-l-4 border-emerald-500 p-2.5 rounded-r-lg',
-  fazitNegative: 'bg-rose-50 border-l-4 border-rose-500 p-2.5 rounded-r-lg',
-  fazitNeutral: 'bg-blue-50 border-l-4 border-blue-500 p-2.5 rounded-r-lg',
-  fazitWarning: 'bg-amber-50 border-l-4 border-amber-500 p-2.5 rounded-r-lg',
+  fazitPositive: 'bg-emerald-50 border-l-4 border-emerald-500 p-4 rounded-r-xl',
+  fazitNegative: 'bg-rose-50 border-l-4 border-rose-500 p-4 rounded-r-xl',
+  fazitNeutral: 'bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-xl',
+  fazitWarning: 'bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-xl',
   
-  // Badges
-  badge: 'px-2 py-0.5 rounded text-[10px] font-medium',
-  badgePositive: 'bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-medium',
-  badgeNegative: 'bg-rose-100 text-rose-700 px-2 py-0.5 rounded text-[10px] font-medium',
-  badgeNeutral: 'bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-[10px] font-medium',
-  badgeInfo: 'bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[10px] font-medium',
-  badgeWarning: 'bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-[10px] font-medium',
-  badgePurple: 'bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[10px] font-medium',
-  badgeIndigo: 'bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded text-[10px] font-medium',
-  badgeCustom: 'bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-medium', // For "Custom/Selbstprogrammiert"
+  // Badges (etwas größer)
+  badge: 'px-2.5 py-1 rounded-lg text-xs font-semibold',
+  badgePositive: 'bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-lg text-xs font-semibold',
+  badgeNegative: 'bg-rose-100 text-rose-700 px-2.5 py-1 rounded-lg text-xs font-semibold',
+  badgeNeutral: 'bg-gray-100 text-gray-600 px-2.5 py-1 rounded-lg text-xs font-semibold',
+  badgeInfo: 'bg-blue-100 text-blue-700 px-2.5 py-1 rounded-lg text-xs font-semibold',
+  badgeWarning: 'bg-amber-100 text-amber-700 px-2.5 py-1 rounded-lg text-xs font-semibold',
+  badgePurple: 'bg-purple-100 text-purple-700 px-2.5 py-1 rounded-lg text-xs font-semibold',
+  badgeIndigo: 'bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-lg text-xs font-semibold',
+  badgeCustom: 'bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-lg text-xs font-semibold',
   
-  // Lists
-  list: 'space-y-1',
-  listCompact: 'space-y-0.5',
+  // Lists (größere Abstände)
+  list: 'space-y-2',                                                                   // space-y-2 wie page.tsx
+  listCompact: 'space-y-1',
   
-  // List Items
-  listItem: 'flex items-start gap-1.5 text-xs text-gray-700',
-  listItemSuccess: 'flex items-start gap-1.5 text-xs text-gray-700',
-  listItemError: 'flex items-start gap-1.5 text-xs text-gray-700',
-  listItemFeature: 'flex items-start gap-1.5 text-xs text-gray-700',
+  // List Items (größer, wie page.tsx)
+  listItem: 'flex items-start gap-2 text-sm text-gray-700',                           // text-sm statt text-xs
+  listItemSuccess: 'flex items-start gap-2 text-sm text-gray-700',
+  listItemError: 'flex items-start gap-2 text-sm text-gray-700',
+  listItemFeature: 'flex items-start gap-2 text-sm text-gray-700',
   
   // List Item Icons (colored)
-  iconSuccess: 'text-emerald-600 text-xs',
-  iconError: 'text-rose-500 text-xs',
-  iconFeature: 'text-purple-600 text-xs',
-  iconNeutral: 'text-gray-400 text-xs',
-  iconIndigo: 'text-indigo-500 text-xs',
+  iconSuccess: 'text-emerald-600',
+  iconError: 'text-rose-500',
+  iconFeature: 'text-purple-600',
+  iconNeutral: 'text-gray-400',
+  iconIndigo: 'text-indigo-600',
   
-  // Metrics
-  metricCard: 'bg-white border border-gray-200 rounded-lg p-2 text-center',
-  metricCardColored: 'bg-gray-50 border border-gray-200 rounded-lg p-2 text-center',
-  metricValue: 'text-lg font-bold text-gray-900',
-  metricValueLarge: 'text-xl font-bold text-gray-900',
-  metricLabel: 'text-[9px] text-gray-500 uppercase font-medium',
+  // Metrics (etwas größer)
+  metricCard: 'bg-white border border-gray-200 rounded-xl p-3 text-center shadow-sm',
+  metricCardColored: 'bg-gray-50 border border-gray-200 rounded-xl p-3 text-center',
+  metricValue: 'text-xl font-bold text-gray-900',                                     // text-xl statt text-lg
+  metricValueLarge: 'text-2xl font-bold text-gray-900',
+  metricLabel: 'text-[10px] text-gray-500 uppercase font-medium mt-1',
   
-  // Keywords & Tags
-  tag: 'bg-white border border-gray-200 text-gray-700 px-2 py-0.5 rounded text-[10px]',
-  tagHighlight: 'bg-indigo-50 border border-indigo-200 text-indigo-700 px-2 py-0.5 rounded text-[10px] font-medium',
-  tagAmber: 'bg-white border border-amber-200 text-amber-800 px-2 py-0.5 rounded text-[10px]',
+  // Keywords & Tags (etwas größer)
+  tag: 'bg-white border border-gray-200 text-gray-700 px-2.5 py-1 rounded-lg text-xs',
+  tagHighlight: 'bg-indigo-50 border border-indigo-200 text-indigo-700 px-2.5 py-1 rounded-lg text-xs font-medium',
+  tagAmber: 'bg-white border border-amber-200 text-amber-800 px-2.5 py-1 rounded-lg text-xs',
   
   // Keyword Rows
-  keywordRow: 'flex justify-between text-xs py-1 border-b border-gray-100 last:border-0',
+  keywordRow: 'flex justify-between text-sm py-1.5 border-b border-gray-100 last:border-0',
   
-  // Steps / Actions
-  stepNumber: 'w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px] font-bold shrink-0',
-  stepText: 'text-xs text-gray-700',
+  // Steps / Actions (größer)
+  stepNumber: 'w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs font-bold shrink-0',
+  stepText: 'text-sm text-gray-700',
   
   // Subpage Items
-  subpageItem: 'text-xs text-gray-500 py-1 border-b border-gray-50 last:border-0',
+  subpageItem: 'text-sm text-gray-600 py-1.5 border-b border-gray-100 last:border-0',
   
   // Footer
-  footer: 'text-[10px] text-gray-400 text-center mt-2',
+  footer: 'text-xs text-gray-400 text-center mt-4',
   
   // Colors (for dynamic use)
   textPositive: 'text-emerald-600',
@@ -368,7 +369,7 @@ WICHTIGE ICONS:
  */
 export function getCompactStyleGuide(): string {
   return `
-FORMAT: Nur HTML+Tailwind. Keine Markdown. Bootstrap Icons: <i class="bi bi-name"></i>
+FORMAT: Nur HTML+Tailwind. Kein Markdown. Bootstrap Icons: <i class="bi bi-name"></i>
 
 STYLES:
 - H3: class="${STYLES.h3}"
@@ -389,7 +390,11 @@ STYLES:
 - Icon grün: class="${STYLES.iconSuccess}"
 - Icon rot: class="${STYLES.iconError}"
 - Icon lila: class="${STYLES.iconFeature}"
+- Icon indigo: class="${STYLES.iconIndigo}"
 - Fazit+: class="${STYLES.fazitPositive}"
 - Fazit!: class="${STYLES.fazitWarning}"
+- Metric Card: class="${STYLES.metricCard}"
+- Metric Value: class="${STYLES.metricValue}"
+- Metric Label: class="${STYLES.metricLabel}"
 `;
 }
