@@ -3,11 +3,15 @@
 import { sql } from '@vercel/postgres';
 import { User } from '@/types'; 
 
-// Funktion zum Erstellen ALLER Tabellen (Idempotent)
+/**
+ * Erstellt alle notwendigen Datenbanktabellen, falls diese noch nicht existieren.
+ * Diese Funktion ist idempotent (kann mehrfach ausgeführt werden, ohne Schaden anzurichten).
+ */
 export async function createTables() {
   try {
     
     // 1. Users-Tabelle (Primärtabelle)
+    // Enthält Login-Daten, Rollen und API-Konfigurationen pro User/Mandant
     await sql`
       CREATE TABLE IF NOT EXISTS users (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -28,12 +32,13 @@ export async function createTables() {
         
         "createdByAdminId" UUID REFERENCES users(id),
         "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP -- Nützlich für Cache-Updates
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
     `;
     console.log('Tabelle "users" erfolgreich geprüft/erstellt.');
 
     // 2. Landingpages-Tabelle
+    // Speichert die zu überwachenden URLs und deren aktuelle GSC-Daten
     await sql`
       CREATE TABLE IF NOT EXISTS landingpages (
         id SERIAL PRIMARY KEY,
@@ -44,7 +49,7 @@ export async function createTables() {
         status VARCHAR(50) DEFAULT 'Offen',
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         
-        -- GSC-Daten-Spalten (Diese waren schon korrekt als SQL-Kommentar)
+        -- GSC-Daten-Spalten
         gsc_klicks INTEGER,
         gsc_klicks_change INTEGER,
         gsc_impressionen INTEGER,
@@ -60,6 +65,7 @@ export async function createTables() {
     console.log('Tabelle "landingpages" erfolgreich geprüft/erstellt.');
 
     // 3. Landingpage Logs-Tabelle
+    // Protokolliert Änderungen an Landingpages (Audit Trail)
      await sql`
         CREATE TABLE IF NOT EXISTS landingpage_logs (
           id SERIAL PRIMARY KEY,
@@ -73,6 +79,7 @@ export async function createTables() {
      console.log('Tabelle "landingpage_logs" erfolgreich geprüft/erstellt.');
 
     // 4. Notifications-Tabelle
+    // Systembenachrichtigungen für Benutzer
     await sql`
       CREATE TABLE IF NOT EXISTS notifications (
         id SERIAL PRIMARY KEY,
@@ -87,10 +94,11 @@ export async function createTables() {
     console.log('Tabelle "notifications" erfolgreich geprüft/erstellt.');
 
     // 5. Project Assignments-Tabelle (Admin -> Kunde)
+    // Regelt die Zuweisung von Kunden-Accounts zu Admin-Accounts
     await sql`
       CREATE TABLE IF NOT EXISTS project_assignments (
         user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,     -- Der Admin (user_id)
-        project_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,  -- Der Kunde (project_id, der auch ein User ist)
+        project_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,  -- Der Kunde (project_id)
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (user_id, project_id)
       );
@@ -98,6 +106,7 @@ export async function createTables() {
      console.log('Tabelle "project_assignments" erfolgreich geprüft/erstellt.');
 
     // 6. Semrush Cache-Tabelle
+    // Zwischenspeicher für Semrush Keyword-Daten zur API-Schonung
     await sql`
       CREATE TABLE IF NOT EXISTS semrush_keywords_cache (
         user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -110,6 +119,7 @@ export async function createTables() {
     console.log('Tabelle "semrush_keywords_cache" erfolgreich geprüft/erstellt.');
 
     // 7. Google Data Cache-Tabelle
+    // Zwischenspeicher für aggregierte Google Search Console Daten
     await sql`
       CREATE TABLE IF NOT EXISTS google_data_cache (
         user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -122,6 +132,7 @@ export async function createTables() {
     console.log('Tabelle "google_data_cache" erfolgreich geprüft/erstellt.');
 
     // 8. Mandanten/Label Logo-Tabelle
+    // Speichert Custom Branding Logos für White-Labeling
     await sql`
       CREATE TABLE IF NOT EXISTS mandanten_logos (
         mandant_id VARCHAR(255) PRIMARY KEY,
@@ -131,14 +142,23 @@ export async function createTables() {
     `;
     console.log('Tabelle "mandanten_logos" erfolgreich geprüft/erstellt.');
 
+    // 9. NEU: System Settings Tabelle
+    // Speichert globale Einstellungen wie den Wartungsmodus
+    await sql`
+      CREATE TABLE IF NOT EXISTS system_settings (
+        key VARCHAR(50) PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+    console.log('Tabelle "system_settings" erfolgreich geprüft/erstellt.');
 
-    // (Indizes für Performance hinzufügen)
+    // --- Performance Indizes ---
     await sql`CREATE INDEX IF NOT EXISTS idx_landingpages_user_id ON landingpages(user_id);`;
     await sql`CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);`;
     await sql`CREATE INDEX IF NOT EXISTS idx_google_data_cache_user_id ON google_data_cache(user_id);`;
 
     console.log('Alle Indizes geprüft/erstellt.');
-
 
   } catch (error: unknown) {
     console.error('Fehler beim Erstellen der Tabellen:', error);
@@ -146,13 +166,19 @@ export async function createTables() {
   }
 }
 
-// Funktion zum Abrufen eines Benutzers anhand seiner E-Mail (unverändert)
+/**
+ * Ruft einen Benutzer anhand der E-Mail-Adresse ab.
+ * @param email Die E-Mail-Adresse des Benutzers
+ * @returns Das User-Objekt oder undefined
+ */
 export async function getUserByEmail(email: string) {
   try {
     const { rows } = await sql`SELECT * FROM users WHERE email=${email}`;
     return rows[0] as User;
   } catch (error: unknown) {
     console.error('Fehler beim Abrufen des Benutzers:', error);
+    // Wir werfen hier keinen Error, damit Auth-Logik 'null' handhaben kann, 
+    // oder du kannst throw new Error(...) beibehalten, wenn gewünscht.
     throw new Error('Benutzer konnte nicht gefunden werden.');
   }
 }
