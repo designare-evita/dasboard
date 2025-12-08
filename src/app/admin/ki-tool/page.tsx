@@ -625,8 +625,8 @@ export default function KiToolPage() {
                       {isGenerating ? 'Arbeite...' : 
                        activeTab === 'trends' ? <>Trends recherchieren <GraphUpArrow/></> :
                        activeTab === 'spy' ? (competitorUrl ? <>Vergleich starten <Binoculars/></> : <>Seite analysieren <Binoculars/></>) :
-                       activeTab === 'gap' ? 'Gap Analyse starten <i class="bi bi-megaphone"></i>' : 
-                       'Fragen generieren <i class="bi bi-patch-question"></i>'}
+                       activeTab === 'gap' ? 'Gap Analyse starten' : 
+                       'Fragen generieren'}
                     </Button>
                 </div>
               </div>
