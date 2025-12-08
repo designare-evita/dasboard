@@ -802,7 +802,7 @@ export default function KiToolPage() {
            ============================================ */
         .ai-output {
           font-family: system-ui, -apple-system, sans-serif;
-          font-size: 13px;
+          font-size: 14px;
           line-height: 1.5;
           color: #374151;
         }
@@ -815,7 +815,7 @@ export default function KiToolPage() {
         
         /* Überschriften */
         .ai-content h3 {
-          font-size: 14px !important;
+          font-size: 15px !important;
           font-weight: 700 !important;
           color: #111827 !important;
           margin: 16px 0 8px 0 !important;
@@ -830,7 +830,7 @@ export default function KiToolPage() {
         }
         
         .ai-content h4 {
-          font-size: 11px !important;
+          font-size: 15px !important;
           font-weight: 600 !important;
           color: #6b7280 !important;
           text-transform: uppercase !important;
@@ -841,7 +841,7 @@ export default function KiToolPage() {
         
         /* Absätze */
         .ai-content p {
-          font-size: 13px !important;
+          font-size: 14px !important;
           line-height: 1.6 !important;
           color: #4b5563 !important;
           margin: 0 0 8px 0 !important;
@@ -860,7 +860,7 @@ export default function KiToolPage() {
         }
         
         .ai-content li {
-          font-size: 13px !important;
+          font-size: 14px !important;
           color: #374151 !important;
           padding: 6px 0 !important;
           margin: 0 !important;
@@ -955,7 +955,7 @@ export default function KiToolPage() {
         
         /* Badges */
         .ai-content span[class*="bg-"][class*="text-"][class*="px-"] {
-          font-size: 10px !important;
+          font-size: 14px !important;
           font-weight: 600 !important;
           padding: 3px 8px !important;
           border-radius: 6px !important;
@@ -966,7 +966,7 @@ export default function KiToolPage() {
         
         /* Icons */
         .ai-content i[class*="bi-"] {
-          font-size: 14px !important;
+          font-size: 16px !important;
           line-height: 1 !important;
         }
         
@@ -980,7 +980,7 @@ export default function KiToolPage() {
         }
         
         .ai-content [class*="text-center"] [class*="uppercase"] {
-          font-size: 9px !important;
+          font-size: 10px !important;
           color: #6b7280 !important;
           margin-top: 2px !important;
         }
@@ -1041,7 +1041,7 @@ export default function KiToolPage() {
         .ai-content [class*="subpage"], 
         .ai-content [class*="border-b"][class*="py-1"] {
           padding: 6px 0 !important;
-          font-size: 12px !important;
+          font-size: 14px !important;
           border-bottom: 1px solid #f3f4f6 !important;
         }
         
