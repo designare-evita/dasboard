@@ -264,36 +264,154 @@ async function scrapeUrl(url: string) {
 }
 
 // ============================================================================
-// MAIN HANDLER
+// MAIN HANDLER - Unterstützt Single-URL und Vergleichs-Modus
 // ============================================================================
 
 export async function POST(req: NextRequest) {
   try {
     const { myUrl, competitorUrl } = await req.json();
 
-    if (!myUrl || !competitorUrl) {
-      return NextResponse.json({ message: 'Beide URLs sind erforderlich.' }, { status: 400 });
+    // Mindestens eine URL erforderlich
+    if (!myUrl) {
+      return NextResponse.json({ message: 'Mindestens eine URL ist erforderlich.' }, { status: 400 });
     }
 
-    const [myData, competitorData] = await Promise.all([
-      scrapeUrl(myUrl).catch(e => ({ 
-        error: true, url: myUrl, title: 'Fehler', metaDesc: '', h1: '', h2Elements: [], h2Count: 0,
-        text: '', wordCount: 0, uniqueTexts: [],
-        cms: { cms: 'Fehler', confidence: 'n/a', hints: [e.message], isCustom: false },
-        techStack: [], features: [], subpages: []
-      })),
-      scrapeUrl(competitorUrl).catch(e => ({ 
+    // Modus bestimmen: Single oder Compare
+    const isCompareMode = !!competitorUrl;
+
+    // Daten scrapen
+    const myData = await scrapeUrl(myUrl).catch(e => ({ 
+      error: true, url: myUrl, title: 'Fehler', metaDesc: '', h1: '', h2Elements: [], h2Count: 0,
+      text: '', wordCount: 0, uniqueTexts: [],
+      cms: { cms: 'Fehler', confidence: 'n/a', hints: [e.message], isCustom: false },
+      techStack: [], features: [], subpages: []
+    }));
+
+    let competitorData = null;
+    if (isCompareMode) {
+      competitorData = await scrapeUrl(competitorUrl).catch(e => ({ 
         error: true, url: competitorUrl, title: 'Fehler', metaDesc: '', h1: '', h2Elements: [], h2Count: 0,
         text: '', wordCount: 0, uniqueTexts: [],
         cms: { cms: 'Fehler', confidence: 'n/a', hints: [e.message], isCustom: false },
         techStack: [], features: [], subpages: []
-      }))
-    ]);
+      }));
+    }
 
     // ========================================================================
-    // PROMPT MIT ZENTRALEN STYLES
+    // PROMPT - SINGLE MODE (nur eine URL)
     // ========================================================================
-    const prompt = `
+    const singlePrompt = `
+Du bist ein SEO-Experte. Analysiere diese Webseite detailliert.
+
+${getCompactStyleGuide()}
+
+══════════════════════════════════════════════════════════════════════════════
+WEBSEITEN-ANALYSE: ${myData.url}
+══════════════════════════════════════════════════════════════════════════════
+
+META:
+• Title: "${myData.title}"
+• Meta-Beschreibung: "${myData.metaDesc || '(keine)'}"
+• H1: "${myData.h1}"
+• H2 (${myData.h2Count}): ${myData.h2Elements.join(' | ') || '(keine)'}
+• Wörter: ~${myData.wordCount}
+
+TECHNIK:
+• CMS: ${myData.cms.cms} ${myData.cms.isCustom ? '(Custom)' : ''}
+• Details: ${myData.cms.hints.join(', ') || '-'}
+• Tech: ${myData.techStack.join(', ') || '-'}
+
+FEATURES: ${myData.features.join(', ') || 'keine erkannt'}
+
+UNTERSEITEN (Menü):
+${myData.subpages.length > 0 ? myData.subpages.map(s => `• ${s.url} - "${s.title}" (~${s.wordCount} Wörter)`).join('\n') : '(keine gescraped)'}
+
+TEXT-AUSZUG:
+"${myData.uniqueTexts.slice(0, 2).join(' ... ').slice(0, 400)}..."
+
+══════════════════════════════════════════════════════════════════════════════
+ERSTELLE DIESEN REPORT:
+══════════════════════════════════════════════════════════════════════════════
+
+1. <h3 class="${STYLES.h3}"><i class="bi bi-info-circle"></i> Übersicht</h3>
+   <div class="${STYLES.infoBox}">
+     <p class="${STYLES.p}">Kurze Beschreibung: Was ist diese Webseite? Welche Branche/Zielgruppe?</p>
+   </div>
+
+2. <h3 class="${STYLES.h3}"><i class="bi bi-gear-fill"></i> Technologie</h3>
+   <div class="${STYLES.card}">
+     <div class="flex items-center gap-2 mb-3">
+       ${myData.cms.isCustom 
+         ? `<span class="${STYLES.badgeCustom}"><i class="bi bi-star-fill"></i> Custom</span>` 
+         : `<span class="${STYLES.badgePurple}">${myData.cms.cms}</span>`}
+       ${myData.techStack.map(t => `<span class="${STYLES.badgeNeutral}">${t}</span>`).join(' ')}
+     </div>
+     <p class="${STYLES.p}">Bewertung der technischen Umsetzung (2-3 Sätze)</p>
+   </div>
+
+3. <h3 class="${STYLES.h3}"><i class="bi bi-stars"></i> Features</h3>
+   <div class="${STYLES.card}">
+     <ul class="${STYLES.list}">
+       ${myData.features.length > 0 
+         ? '[Liste alle erkannten Features mit <li class="' + STYLES.listItem + '"><i class="bi bi-star-fill ' + STYLES.iconFeature + '"></i><span>Feature</span></li>]'
+         : '<li class="' + STYLES.listItem + '"><i class="bi bi-dash ' + STYLES.iconNeutral + '"></i><span>Keine besonderen Features erkannt</span></li>'}
+     </ul>
+     <div class="${STYLES.warningBox} mt-3">
+       <p class="${STYLES.pSmall}"><i class="bi bi-lightbulb"></i> <strong>Fehlende Features:</strong> Was könnte ergänzt werden?</p>
+     </div>
+   </div>
+
+4. <h3 class="${STYLES.h3}"><i class="bi bi-diagram-3-fill"></i> Seitenstruktur</h3>
+   <div class="${STYLES.card}">
+     <h4 class="${STYLES.h4}">Menü-Struktur</h4>
+     ${myData.subpages.length > 0 
+       ? myData.subpages.map(s => `<div class="${STYLES.subpageItem}"><i class="bi bi-file-earmark ${STYLES.iconIndigo}"></i> ${s.url} <span class="${STYLES.textMuted}">(~${s.wordCount} Wörter)</span></div>`).join('\n')
+       : `<p class="${STYLES.pSmall}">Keine Unterseiten im Menü gefunden</p>`}
+     <p class="${STYLES.p} mt-3">Bewertung der Seitenstruktur und Navigation</p>
+   </div>
+
+5. <h3 class="${STYLES.h3}"><i class="bi bi-clipboard-check"></i> SEO-Check</h3>
+   <div class="${STYLES.grid2}">
+     <div class="${STYLES.successBox}">
+       <h4 class="${STYLES.h4} text-emerald-700"><i class="bi bi-check-circle"></i> Stärken</h4>
+       <ul class="${STYLES.list}">
+         [3-4 Stärken als <li class="${STYLES.listItem}"><i class="bi bi-check-lg ${STYLES.iconSuccess}"></i><span>Stärke</span></li>]
+       </ul>
+     </div>
+     <div class="${STYLES.errorBox}">
+       <h4 class="${STYLES.h4} text-rose-700"><i class="bi bi-exclamation-circle"></i> Schwächen</h4>
+       <ul class="${STYLES.list}">
+         [3-4 Schwächen als <li class="${STYLES.listItem}"><i class="bi bi-x-lg ${STYLES.iconError}"></i><span>Schwäche</span></li>]
+       </ul>
+     </div>
+   </div>
+
+6. <h3 class="${STYLES.h3}"><i class="bi bi-bullseye"></i> Empfehlungen</h3>
+   <div class="${STYLES.recommendBox}">
+     <h4 class="font-semibold text-white mb-2"><i class="bi bi-rocket-takeoff"></i> Top 3 Maßnahmen</h4>
+     <ol class="space-y-2 text-sm text-indigo-100">
+       [3 priorisierte, konkrete Maßnahmen als <li>1. Maßnahme</li>]
+     </ol>
+   </div>
+
+7. <h3 class="${STYLES.h3}"><i class="bi bi-speedometer2"></i> Gesamtbewertung</h3>
+   <div class="${STYLES.card}">
+     <div class="flex items-center gap-4 mb-3">
+       <div class="text-center">
+         <div class="text-3xl font-bold text-indigo-600">[X]/10</div>
+         <div class="${STYLES.metricLabel}">Score</div>
+       </div>
+       <div class="${STYLES.p}">Zusammenfassende Bewertung in 2-3 Sätzen</div>
+     </div>
+   </div>
+
+Antworte NUR mit HTML. Ersetze alle [Platzhalter] mit echtem Content!
+`;
+
+    // ========================================================================
+    // PROMPT - COMPARE MODE (zwei URLs)
+    // ========================================================================
+    const comparePrompt = `
 Du bist ein SEO-Stratege. Analysiere zwei Webseiten FAIR und OBJEKTIV.
 
 ${getCompactStyleGuide()}
@@ -323,28 +441,28 @@ TEXT-AUSZUG:
 "${myData.uniqueTexts.slice(0, 2).join(' ... ').slice(0, 400)}..."
 
 ══════════════════════════════════════════════════════════════════════════════
-SEITE B: ${competitorData.url}
+SEITE B: ${competitorData?.url}
 ══════════════════════════════════════════════════════════════════════════════
 
 META:
-• Title: "${competitorData.title}"
-• Meta-Beschreibung: "${competitorData.metaDesc || '(keine)'}"
-• H1: "${competitorData.h1}"
-• H2 (${competitorData.h2Count}): ${competitorData.h2Elements.join(' | ') || '(keine)'}
-• Wörter: ~${competitorData.wordCount}
+• Title: "${competitorData?.title}"
+• Meta-Beschreibung: "${competitorData?.metaDesc || '(keine)'}"
+• H1: "${competitorData?.h1}"
+• H2 (${competitorData?.h2Count}): ${competitorData?.h2Elements.join(' | ') || '(keine)'}
+• Wörter: ~${competitorData?.wordCount}
 
 TECHNIK:
-• CMS: ${competitorData.cms.cms} ${competitorData.cms.isCustom ? '(Custom)' : ''}
-• Details: ${competitorData.cms.hints.join(', ') || '-'}
-• Tech: ${competitorData.techStack.join(', ') || '-'}
+• CMS: ${competitorData?.cms.cms} ${competitorData?.cms.isCustom ? '(Custom)' : ''}
+• Details: ${competitorData?.cms.hints.join(', ') || '-'}
+• Tech: ${competitorData?.techStack.join(', ') || '-'}
 
-FEATURES: ${competitorData.features.join(', ') || 'keine erkannt'}
+FEATURES: ${competitorData?.features.join(', ') || 'keine erkannt'}
 
 UNTERSEITEN (Menü):
-${competitorData.subpages.length > 0 ? competitorData.subpages.map(s => `• ${s.url} - "${s.title}" (~${s.wordCount} Wörter)`).join('\n') : '(keine gescraped)'}
+${competitorData?.subpages && competitorData.subpages.length > 0 ? competitorData.subpages.map(s => `• ${s.url} - "${s.title}" (~${s.wordCount} Wörter)`).join('\n') : '(keine gescraped)'}
 
 TEXT-AUSZUG:
-"${competitorData.uniqueTexts.slice(0, 2).join(' ... ').slice(0, 400)}..."
+"${competitorData?.uniqueTexts.slice(0, 2).join(' ... ').slice(0, 400)}..."
 
 ══════════════════════════════════════════════════════════════════════════════
 ERSTELLE DIESEN REPORT:
@@ -384,11 +502,14 @@ ERSTELLE DIESEN REPORT:
 
 6. <h3 class="${STYLES.h3}"><i class="bi bi-bullseye"></i> Empfehlungen</h3>
    <div class="${STYLES.recommendBox}">
-     3 konkrete Maßnahmen
+     3 konkrete Maßnahmen für Seite A basierend auf dem Vergleich
    </div>
 
 Antworte NUR mit HTML. Kompakt!
 `;
+
+    // Richtigen Prompt wählen
+    const prompt = isCompareMode ? comparePrompt : singlePrompt;
 
     const result = streamText({
       model: google('gemini-2.5-flash'),
