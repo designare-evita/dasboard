@@ -160,7 +160,7 @@ Antworte NUR im obigen Format, nichts anderes!`;
 </div>
 
 <div class="bg-amber-50 border border-amber-200 rounded-lg p-3">
-<h4 class="text-[10px] font-bold text-amber-700 uppercase mb-2">💡 Alternative Keywords testen</h4>
+<h3 class="text-[10px] font-bold text-amber-700 uppercase mb-2">💡 Alternative Keywords testen</h4>
 <div class="flex flex-wrap gap-1" id="alternatives">`;
 
     // Zweiter Teil des Templates (nach KI-Content)
@@ -168,14 +168,14 @@ Antworte NUR im obigen Format, nichts anderes!`;
 </div>
 
 <div class="bg-indigo-50 border border-indigo-200 rounded-lg p-3">
-<h4 class="text-[10px] font-bold text-indigo-700 uppercase mb-2">📝 Content-Ideen für ${domain}</h4>
+<h4 class="text-[12px] font-bold text-indigo-700 uppercase mb-2">📝 Content-Ideen für ${domain}</h4>
 <ul class="space-y-1 text-xs text-indigo-900" id="content-ideas">`;
 
     const htmlTemplate3 = `</ul>
 </div>
 
 <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
-<h4 class="text-[10px] font-bold text-gray-600 uppercase mb-2">🎯 Nächste Schritte</h4>
+<h3 class="text-[14px] font-bold text-gray-600 uppercase mb-2">🎯 Nächste Schritte</h4>
 <div class="space-y-2" id="steps">`;
 
     const htmlTemplate4 = `</div>
@@ -225,31 +225,31 @@ GENERIERE DIESES HTML (beginne direkt mit <div>):
 
 <div class="grid grid-cols-2 gap-2">
 <div class="bg-white border border-gray-200 rounded-lg p-3">
-<h4 class="text-[10px] font-bold text-gray-500 uppercase mb-2">🚀 Aufsteigend</h4>
+<h3 class="text-[10px] font-bold text-gray-500 uppercase mb-2">🚀 Aufsteigend</h4>
 ${risingHTML}
 </div>
 <div class="bg-white border border-gray-200 rounded-lg p-3">
-<h4 class="text-[10px] font-bold text-gray-500 uppercase mb-2">🔝 Top</h4>
+<h3 class="text-[10px] font-bold text-gray-500 uppercase mb-2">🔝 Top</h4>
 ${topHTML}
 </div>
 </div>
 
 <div class="bg-amber-50 border border-amber-200 rounded-lg p-3">
-<h4 class="text-[10px] font-bold text-amber-700 uppercase mb-2">💡 Alternative Keywords</h4>
+<h3 class="text-[10px] font-bold text-amber-700 uppercase mb-2">💡 Alternative Keywords</h4>
 <div class="flex flex-wrap gap-1">
 [GENERIERE 6 alternative Long-Tail Keywords als: <span class="bg-white text-amber-800 px-2 py-0.5 rounded text-[10px] border border-amber-200">Keyword</span>]
 </div>
 </div>
 
 <div class="bg-indigo-50 border border-indigo-200 rounded-lg p-3">
-<h4 class="text-[10px] font-bold text-indigo-700 uppercase mb-2">📝 Content-Ideen</h4>
+<h3 class="text-[10px] font-bold text-indigo-700 uppercase mb-2">📝 Content-Ideen</h4>
 <ul class="space-y-1">
 [GENERIERE 3 konkrete Blogpost-Titel als: <li class="text-xs text-indigo-900">• Titel</li>]
 </ul>
 </div>
 
 <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
-<h4 class="text-[10px] font-bold text-gray-600 uppercase mb-2">🎯 Nächste Schritte</h4>
+<h3 class="text-[10px] font-bold text-gray-600 uppercase mb-2">🎯 Nächste Schritte</h4>
 <div class="space-y-1">
 [GENERIERE 3 Aktionen als: <div class="flex gap-2 items-center"><span class="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px] font-bold">1</span><span class="text-xs text-gray-700">Aktion</span></div>]
 </div>
