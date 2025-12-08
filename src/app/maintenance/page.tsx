@@ -31,7 +31,7 @@ export default function MaintenancePage() {
         </p>
 
         <div className="text-sm text-gray-400 border-t pt-6">
-          Admin Zugriff? <Link href="/login" className="text-amber-600 hover:underline font-medium">Hier einloggen</Link>
+          Superadmin Zugriff? <Link href="/login" className="text-amber-600 hover:underline font-medium">Hier einloggen</Link>
         </div>
       </div>
     </div>
