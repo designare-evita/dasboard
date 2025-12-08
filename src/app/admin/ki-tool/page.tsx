@@ -301,7 +301,7 @@ export default function KiToolPage() {
               </div>
               
               <div>
-                <h3 className="text-xl font-bold text-gray-800 mb-1">KI @ Work</h3>
+                <h3 className="text-xl font-bold text-gray-800 mb-1">Data Max at work</h3>
                 <p className="text-gray-500 text-sm leading-relaxed">
                   {activeTab === 'gap' ? 'Analysiere Webseite...' : 
                    activeTab === 'spy' ? 'Vergleiche mit Konkurrenz...' : 
@@ -625,8 +625,8 @@ export default function KiToolPage() {
                       {isGenerating ? 'Arbeite...' : 
                        activeTab === 'trends' ? <>Trends recherchieren <GraphUpArrow/></> :
                        activeTab === 'spy' ? (competitorUrl ? <>Vergleich starten <Binoculars/></> : <>Seite analysieren <Binoculars/></>) :
-                       activeTab === 'gap' ? 'Gap Analyse starten 🕵️' : 
-                       'Fragen generieren ✨'}
+                       activeTab === 'gap' ? 'Gap Analyse starten <i class="bi bi-megaphone"></i>' : 
+                       'Fragen generieren <i class="bi bi-patch-question"></i>'}
                     </Button>
                 </div>
               </div>
