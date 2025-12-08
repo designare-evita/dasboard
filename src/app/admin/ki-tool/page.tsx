@@ -203,10 +203,7 @@ export default function KiToolPage() {
         toast.error('Bitte geben Sie Ihre URL ein.');
         return;
     }
-    if (activeTab === 'spy' && !competitorUrl) {
-        toast.error('Bitte geben Sie die URL des Konkurrenten ein.');
-        return;
-    }
+    // competitorUrl ist jetzt OPTIONAL - keine Validierung mehr nötig
     if (activeTab === 'trends' && !trendTopic.trim()) {
         toast.error('Bitte geben Sie ein Thema oder eine Branche ein.');
         return;
@@ -456,11 +453,12 @@ export default function KiToolPage() {
                         />
                     </div>
 
-                    {/* Input: GEGNER URL (Nur bei Spy) */}
+                    {/* Input: GEGNER URL (Nur bei Spy - OPTIONAL) */}
                     {activeTab === 'spy' && (
                         <div className="pt-2 border-t border-gray-50 animate-in slide-in-from-top-2">
                             <h2 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                                <Binoculars className="text-rose-500" /> Konkurrenz URL
+                                <Binoculars className="text-rose-500" /> Konkurrenz URL 
+                                <span className="text-xs font-normal text-gray-400">(optional)</span>
                             </h2>
                             <input 
                                 type="url" 
@@ -474,7 +472,9 @@ export default function KiToolPage() {
                     
                     <p className="text-xs text-gray-400">
                         {activeTab === 'spy' 
-                         ? 'Wir vergleichen beide Seiten in Echtzeit.' 
+                         ? (competitorUrl 
+                            ? 'Vergleich: Wir analysieren beide Seiten.' 
+                            : 'Einzelanalyse: Detaillierte Auswertung Ihrer Seite.')
                          : 'Wir prüfen diese Seite auf fehlende Keywords.'}
                     </p>
                   </div>
@@ -624,7 +624,7 @@ export default function KiToolPage() {
                     >
                       {isGenerating ? 'Arbeite...' : 
                        activeTab === 'trends' ? <>Trends recherchieren <GraphUpArrow/></> :
-                       activeTab === 'spy' ? <>Vergleich starten <Binoculars/></> :
+                       activeTab === 'spy' ? (competitorUrl ? <>Vergleich starten <Binoculars/></> : <>Seite analysieren <Binoculars/></>) :
                        activeTab === 'gap' ? 'Gap Analyse starten 🕵️' : 
                        'Fragen generieren ✨'}
                     </Button>
@@ -639,7 +639,7 @@ export default function KiToolPage() {
 
                      <h2 className="text-lg font-semibold text-gray-800 mb-4 z-10 flex items-center gap-2">
                        {activeTab === 'trends' ? 'Keyword Trends' :
-                        activeTab === 'spy' ? 'Konkurrenz Analyse' : 
+                        activeTab === 'spy' ? (competitorUrl ? 'Konkurrenz Vergleich' : 'Webseiten Analyse') : 
                         activeTab === 'gap' ? 'Content Gap Report' : 
                         'KI Ergebnis'}
                      </h2>
@@ -661,8 +661,11 @@ export default function KiToolPage() {
                             ) : activeTab === 'spy' ? (
                                 <>
                                     <Binoculars className="text-4xl mb-3 text-rose-200" />
-                                    <p className="font-medium text-gray-500">Wer ist besser?</p>
-                                    <p className="text-xs mt-2">Geben Sie links Ihre URL und die URL des Konkurrenten ein.</p>
+                                    <p className="font-medium text-gray-500">Webseiten Analyse</p>
+                                    <p className="text-xs mt-2 text-gray-400">
+                                      Nur Ihre URL → Detaillierte Einzelanalyse<br/>
+                                      Mit Konkurrenz URL → Vergleichsanalyse
+                                    </p>
                                 </>
                             ) : activeTab === 'gap' ? (
                                 <>
@@ -736,11 +739,11 @@ export default function KiToolPage() {
            </div>
            <h3 className="font-bold text-gray-900 mb-2">Competitor Spy</h3>
            <div className="text-sm text-gray-600 space-y-2 leading-relaxed">
-              <p><span className="font-semibold text-gray-800 text-xs uppercase tracking-wide">Aktion:</span> Vergleich eigene vs. Konkurrenz URL.</p>
-              <p><span className="font-semibold text-gray-800 text-xs uppercase tracking-wide">Ziel:</span> Wettbewerbsvorteile sichern.</p>
+              <p><span className="font-semibold text-gray-800 text-xs uppercase tracking-wide">Aktion:</span> Analysiert eine oder zwei URLs.</p>
+              <p><span className="font-semibold text-gray-800 text-xs uppercase tracking-wide">Ziel:</span> Technik, Features & SEO bewerten.</p>
               
               <p className="pt-2 text-xs text-gray-500 border-t border-gray-50 mt-2">
-                💡 Enttarnt Strategien & Strukturen der Konkurrenz (Benchmarking).
+                💡 Einzelanalyse oder Vergleich mit Konkurrenz möglich.
               </p>
            </div>
         </div>
