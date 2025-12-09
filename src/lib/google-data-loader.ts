@@ -22,15 +22,7 @@ import type { TopQueryData, ChartPoint } from '@/types/dashboard';
 
 const CACHE_DURATION_HOURS = 48; 
 
-// ✅ Helper: Konvertiert DailyDataPoint (timestamp) zu ChartPoint (date string)
-function convertDailyToChart(daily: { date: number; value: number }[]): ChartPoint[] {
-  return daily.map(point => ({
-    date: new Date(point.date).toISOString().split('T')[0], // timestamp -> YYYY-MM-DD
-    value: point.value
-  }));
-}
-
-// ✅ Interface für interne Datenhaltung - muss mit Ga4ExtendedData kompatibel sein
+// ✅ Interface für interne Datenhaltung - kompatibel mit Ga4ExtendedData
 interface RawApiData {
   clicks: { total: number; daily: ChartPoint[] };
   impressions: { total: number; daily: ChartPoint[] };
@@ -135,16 +127,16 @@ export async function getOrFetchGoogleData(
   if (user.gsc_site_url) {
     try {
       const gscRaw = await getSearchConsoleData(user.gsc_site_url, startDateStr, endDateStr);
-      // ✅ Merge GSC Data und konvertiere zu ChartPoint Format
+      // ✅ GSC gibt bereits DailyDataPoint[] zurück (date: number)
       currentData = {
         ...currentData,
         clicks: { 
           total: gscRaw.clicks?.total || 0, 
-          daily: convertDailyToChart(gscRaw.clicks?.daily || []) 
+          daily: gscRaw.clicks?.daily || [] 
         },
         impressions: { 
           total: gscRaw.impressions?.total || 0, 
-          daily: convertDailyToChart(gscRaw.impressions?.daily || []) 
+          daily: gscRaw.impressions?.daily || [] 
         }
       };
       
@@ -172,29 +164,29 @@ export async function getOrFetchGoogleData(
       const gaPrevious = await getAnalyticsData(propertyId, prevStartStr, prevEndStr);
       
       // ✅ FIX: GA4 Daten gezielt mergen, damit GSC (clicks/impressions) nicht überschrieben wird!
-      // ✅ WICHTIG: Konvertiere von DailyDataPoint (timestamp) zu ChartPoint (date string)
+      // ✅ GA4 gibt bereits DailyDataPoint[] zurück (date: number) - keine Konvertierung nötig
       currentData = { 
         ...currentData,
-        sessions: { total: gaCurrent.sessions.total, daily: convertDailyToChart(gaCurrent.sessions.daily) },
-        totalUsers: { total: gaCurrent.totalUsers.total, daily: convertDailyToChart(gaCurrent.totalUsers.daily) },
-        conversions: { total: gaCurrent.conversions.total, daily: convertDailyToChart(gaCurrent.conversions.daily) },
-        engagementRate: { total: gaCurrent.engagementRate.total, daily: convertDailyToChart(gaCurrent.engagementRate.daily) },
-        bounceRate: { total: gaCurrent.bounceRate.total, daily: convertDailyToChart(gaCurrent.bounceRate.daily) },
-        newUsers: { total: gaCurrent.newUsers.total, daily: convertDailyToChart(gaCurrent.newUsers.daily) },
-        avgEngagementTime: { total: gaCurrent.avgEngagementTime.total, daily: convertDailyToChart(gaCurrent.avgEngagementTime.daily) },
-        paidSearch: { total: gaCurrent.paidSearch.total, daily: convertDailyToChart(gaCurrent.paidSearch.daily) }
+        sessions: gaCurrent.sessions,
+        totalUsers: gaCurrent.totalUsers,
+        conversions: gaCurrent.conversions,
+        engagementRate: gaCurrent.engagementRate,
+        bounceRate: gaCurrent.bounceRate,
+        newUsers: gaCurrent.newUsers,
+        avgEngagementTime: gaCurrent.avgEngagementTime,
+        paidSearch: gaCurrent.paidSearch
       };
 
       prevData = { 
         ...prevData,
-        sessions: { total: gaPrevious.sessions.total, daily: convertDailyToChart(gaPrevious.sessions.daily) },
-        totalUsers: { total: gaPrevious.totalUsers.total, daily: convertDailyToChart(gaPrevious.totalUsers.daily) },
-        conversions: { total: gaPrevious.conversions.total, daily: convertDailyToChart(gaPrevious.conversions.daily) },
-        engagementRate: { total: gaPrevious.engagementRate.total, daily: convertDailyToChart(gaPrevious.engagementRate.daily) },
-        bounceRate: { total: gaPrevious.bounceRate.total, daily: convertDailyToChart(gaPrevious.bounceRate.daily) },
-        newUsers: { total: gaPrevious.newUsers.total, daily: convertDailyToChart(gaPrevious.newUsers.daily) },
-        avgEngagementTime: { total: gaPrevious.avgEngagementTime.total, daily: convertDailyToChart(gaPrevious.avgEngagementTime.daily) },
-        paidSearch: { total: gaPrevious.paidSearch.total, daily: convertDailyToChart(gaPrevious.paidSearch.daily) }
+        sessions: gaPrevious.sessions,
+        totalUsers: gaPrevious.totalUsers,
+        conversions: gaPrevious.conversions,
+        engagementRate: gaPrevious.engagementRate,
+        bounceRate: gaPrevious.bounceRate,
+        newUsers: gaPrevious.newUsers,
+        avgEngagementTime: gaPrevious.avgEngagementTime,
+        paidSearch: gaPrevious.paidSearch
       };
 
       // AI Traffic
