@@ -127,7 +127,7 @@ TEXT-AUSZUG:
 `).join('\n');
     
     const newsCrawlerPrompt = `
-Du bist ein erfahrener Content-Stratege, spezialisiert auf interne Weiterbildung.
+Du bist ein erfahrener Content-Stratege, spezialisiert auf Recherche und interne Weiterbildung.
 Analysiere die folgenden Artikel zum Thema "${topic}". Dein Ziel ist es, die wichtigsten Informationen für die Agentur und deren Kundenprojekte zu filtern und kompakt aufzubereiten.
 
 ${getCompactStyleGuide()}
