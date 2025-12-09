@@ -16,7 +16,8 @@ import {
   GraphUpArrow,
   Search,
   GeoAlt,
-  PlusCircle
+  PlusCircle,
+  CodeSquare // <-- NEU: Icon für Schema Analyzer
 } from 'react-bootstrap-icons';
 import CtrBooster from '@/components/admin/ki/CtrBooster';
 
@@ -34,7 +35,7 @@ interface Keyword {
   impressions: number;
 }
 
-type Tab = 'questions' | 'ctr' | 'gap' | 'spy' | 'trends';
+type Tab = 'questions' | 'ctr' | 'gap' | 'spy' | 'trends' | 'schema'; // <-- ERWEITERT um 'schema'
 
 // Länder-Optionen
 const COUNTRIES = [
@@ -114,7 +115,7 @@ export default function KiToolPage() {
     }
 
     // Für CTR und Trends keine Keywords laden
-    if (activeTab === 'ctr' || activeTab === 'trends') return;
+    if (activeTab === 'ctr' || activeTab === 'trends' || activeTab === 'schema') return; // <-- 'schema' hinzugefügt
 
     async function fetchData() {
       setLoadingData(true);
@@ -203,11 +204,15 @@ export default function KiToolPage() {
         toast.error('Bitte geben Sie Ihre URL ein.');
         return;
     }
-    // competitorUrl ist jetzt OPTIONAL - keine Validierung mehr nötig
     if (activeTab === 'trends' && !trendTopic.trim()) {
         toast.error('Bitte geben Sie ein Thema oder eine Branche ein.');
         return;
     }
+    if (activeTab === 'schema' && !analyzeUrl) { // <-- NEU: Schema Analyzer Validation
+        toast.error('Bitte geben Sie die zu analysierende URL ein.');
+        return;
+    }
+
 
     setIsGenerating(true);
     setIsWaitingForStream(true); 
@@ -234,6 +239,9 @@ export default function KiToolPage() {
           country: trendCountry,
           lang: selectedCountry?.lang || 'de',
         };
+    } else if (activeTab === 'schema') { // <-- NEU: Schema Analyzer Logic
+        endpoint = '/api/ai/schema-analyzer';
+        body = { url: analyzeUrl };
     }
 
     try {
@@ -306,6 +314,7 @@ export default function KiToolPage() {
                   {activeTab === 'gap' ? 'Analysiere Webseite...' : 
                    activeTab === 'spy' ? 'Vergleiche mit Konkurrenz...' : 
                    activeTab === 'trends' ? 'Recherchiere Keyword-Trends...' :
+                   activeTab === 'schema' ? 'Extrahiere und analysiere Schema-Daten...' : // <-- NEU
                    'Generiere Inhalte...'}
                 </p>
               </div>
@@ -405,6 +414,18 @@ export default function KiToolPage() {
           </button>
 
           <button
+            onClick={() => setActiveTab('schema')} // <-- NEU: Schema Analyzer Tab
+            className={`
+              flex items-center gap-2 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
+              ${activeTab === 'schema' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}
+            `}
+          >
+            <CodeSquare size={18} />
+            Schema Analyzer
+            <span className="ml-1 px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-600 text-[10px] font-bold">NEU</span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('ctr')}
             className={`
               flex items-center gap-2 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
@@ -435,14 +456,15 @@ export default function KiToolPage() {
               {/* LINKER BEREICH: INPUTS */}
               <div className="lg:col-span-4 space-y-6">
                 
-                {/* --- URL INPUTS FÜR SPY & GAP --- */}
-                {(activeTab === 'gap' || activeTab === 'spy') && (
+                {/* --- URL INPUTS FÜR SPY, GAP & SCHEMA --- */}
+                {(activeTab === 'gap' || activeTab === 'spy' || activeTab === 'schema') && ( // <-- ERWEITERT
                   <div className="bg-white border border-gray-100 shadow-sm rounded-2xl p-6 space-y-4">
                     
-                    {/* Input: MEINE URL */}
+                    {/* Input: ZU ANALYSIERENDE URL */}
                     <div>
                         <h2 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                            <Globe className="text-indigo-500" /> Meine URL
+                            <Globe className="text-indigo-500" /> 
+                            {activeTab === 'schema' ? 'Zu analysierende URL' : 'Meine URL'}
                         </h2>
                         <input 
                             type="url" 
@@ -475,6 +497,8 @@ export default function KiToolPage() {
                          ? (competitorUrl 
                             ? 'Vergleich: Wir analysieren beide Seiten.' 
                             : 'Einzelanalyse: Detaillierte Auswertung Ihrer Seite.')
+                         : activeTab === 'schema'
+                         ? 'Wir crawlen die Seite, extrahieren alle JSON-LD Schemas und prüfen auf fehlende Typen.' // <-- Text für Schema
                          : 'Wir prüfen diese Seite auf fehlende Keywords.'}
                     </p>
                   </div>
@@ -544,7 +568,7 @@ export default function KiToolPage() {
                 )}
 
                 {/* --- KEYWORD LISTE (für Fragen & Gap) --- */}
-                {(activeTab === 'questions' || activeTab === 'gap') && (
+                {(activeTab === 'questions' || activeTab === 'gap') && ( // <-- KEINE ÄNDERUNG (schema benötigt keine Keywords)
                   <>
                     {/* GSC Keywords */}
                     <div className="bg-white border border-gray-100 shadow-sm rounded-2xl p-6 flex flex-col h-[350px]">
@@ -625,6 +649,7 @@ export default function KiToolPage() {
                       {isGenerating ? 'Arbeite...' : 
                        activeTab === 'trends' ? <>Trends recherchieren <GraphUpArrow/></> :
                        activeTab === 'spy' ? (competitorUrl ? <>Vergleich starten <Binoculars/></> : <>Seite analysieren <Binoculars/></>) :
+                       activeTab === 'schema' ? <>Schema analysieren <CodeSquare/></> : // <-- NEU
                        activeTab === 'gap' ? 'Gap Analyse starten' : 
                        'Fragen generieren'}
                     </Button>
@@ -640,6 +665,7 @@ export default function KiToolPage() {
                      <h2 className="text-lg font-semibold text-gray-800 mb-4 z-10 flex items-center gap-2">
                        {activeTab === 'trends' ? 'Keyword Trends' :
                         activeTab === 'spy' ? (competitorUrl ? 'Konkurrenz Vergleich' : 'Webseiten Analyse') : 
+                        activeTab === 'schema' ? 'Schema Analyse Report' : // <-- NEU
                         activeTab === 'gap' ? 'Content Gap Report' : 
                         'KI Ergebnis'}
                      </h2>
@@ -669,6 +695,12 @@ export default function KiToolPage() {
                                       Nur Ihre URL → Detaillierte Einzelanalyse<br/>
                                       Mit Konkurrenz URL → Vergleichsanalyse
                                     </p>
+                                </>
+                            ) : activeTab === 'schema' ? ( // <-- NEU
+                                <>
+                                    <CodeSquare className="text-4xl mb-3 text-indigo-200" />
+                                    <p className="font-medium text-gray-500">Schema Analyzer</p>
+                                    <p className="text-xs mt-2">URL eingeben, um Strukturierte Daten zu analysieren.</p>
                                 </>
                             ) : activeTab === 'gap' ? (
                                 <>
@@ -701,6 +733,7 @@ export default function KiToolPage() {
       )}
 
       {/* --- MODUL INFO-BOXEN (Volle Breite, immer sichtbar) --- */}
+      {/* Das Grid wurde bei 5 Boxen belassen (lg:grid-cols-5). Die neue 6. Box wickelt automatisch um. */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 pt-10 border-t border-gray-200 animate-in fade-in slide-in-from-bottom-4 duration-500">
         
         {/* Box 1: Fragen */}
@@ -751,7 +784,23 @@ export default function KiToolPage() {
            </div>
         </div>
 
-        {/* Box 4: Trend Radar */}
+        {/* Box 4: Schema Analyzer (NEU) */}
+        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+           <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center mb-4 text-indigo-600">
+              <CodeSquare size={20} />
+           </div>
+           <h3 className="font-bold text-gray-900 mb-2">Schema Analyzer</h3>
+           <div className="text-sm text-gray-600 space-y-2 leading-relaxed">
+              <p><span className="font-semibold text-gray-800 text-xs uppercase tracking-wide">Aktion:</span> Extrahiert & bewertet JSON-LD.</p>
+              <p><span className="font-semibold text-gray-800 text-xs uppercase tracking-wide">Ziel:</span> Rich Snippets freischalten.</p>
+              
+              <p className="pt-2 text-xs text-gray-500 border-t border-gray-50 mt-2">
+                💡 Prüft auf fehlende Schemas (z.B. FAQ, LocalBusiness) und generiert Code.
+              </p>
+           </div>
+        </div>
+
+        {/* Box 5: Trend Radar (Original Box 4, jetzt 5) */}
         <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
            <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center mb-4 text-emerald-600">
               <GraphUpArrow size={20} />
@@ -767,7 +816,7 @@ export default function KiToolPage() {
            </div>
         </div>
 
-        {/* Box 5: CTR Booster */}
+        {/* Box 6: CTR Booster (Original Box 5, jetzt 6) */}
         <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
            <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center mb-4 text-indigo-600">
               <RocketTakeoff size={20} />
