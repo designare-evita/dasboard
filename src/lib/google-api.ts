@@ -660,3 +660,132 @@ export async function getTopConvertingPages(
     return [];
   }
 }
+
+// ✅ NEU: Funktion für Cron-Job - GSC Daten für spezifische Pages mit Vergleich
+export interface GscPageData {
+  clicks: number;
+  clicks_change: number;
+  impressions: number;
+  impressions_change: number;
+  position: number;
+  position_change: number;
+}
+
+export async function getGscDataForPagesWithComparison(
+  siteUrl: string,
+  pageUrls: string[],
+  currentRange: { startDate: string; endDate: string },
+  previousRange: { startDate: string; endDate: string }
+): Promise<Map<string, GscPageData>> {
+  const auth = createAuth();
+  const searchconsole = google.searchconsole({ version: 'v1', auth });
+
+  const resultMap = new Map<string, GscPageData>();
+
+  try {
+    // 1. Current Period Data
+    const currentResponse = await searchconsole.searchanalytics.query({
+      siteUrl,
+      requestBody: {
+        startDate: currentRange.startDate,
+        endDate: currentRange.endDate,
+        dimensions: ['page'],
+        dimensionFilterGroups: [
+          {
+            filters: [
+              {
+                dimension: 'page',
+                operator: 'including_regex',
+                expression: pageUrls.map(url => url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')
+              }
+            ]
+          }
+        ],
+        rowLimit: 25000,
+      },
+    });
+
+    // 2. Previous Period Data
+    const previousResponse = await searchconsole.searchanalytics.query({
+      siteUrl,
+      requestBody: {
+        startDate: previousRange.startDate,
+        endDate: previousRange.endDate,
+        dimensions: ['page'],
+        dimensionFilterGroups: [
+          {
+            filters: [
+              {
+                dimension: 'page',
+                operator: 'including_regex',
+                expression: pageUrls.map(url => url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')
+              }
+            ]
+          }
+        ],
+        rowLimit: 25000,
+      },
+    });
+
+    // 3. Parse Current Data
+    const currentData = new Map<string, { clicks: number; impressions: number; position: number }>();
+    for (const row of currentResponse.data.rows || []) {
+      const page = row.keys?.[0];
+      if (page) {
+        currentData.set(page, {
+          clicks: row.clicks || 0,
+          impressions: row.impressions || 0,
+          position: row.position || 0
+        });
+      }
+    }
+
+    // 4. Parse Previous Data
+    const previousData = new Map<string, { clicks: number; impressions: number; position: number }>();
+    for (const row of previousResponse.data.rows || []) {
+      const page = row.keys?.[0];
+      if (page) {
+        previousData.set(page, {
+          clicks: row.clicks || 0,
+          impressions: row.impressions || 0,
+          position: row.position || 0
+        });
+      }
+    }
+
+    // 5. Calculate Changes
+    for (const url of pageUrls) {
+      const current = currentData.get(url);
+      const previous = previousData.get(url);
+
+      if (current) {
+        const clicksChange = previous ? 
+          (previous.clicks > 0 ? ((current.clicks - previous.clicks) / previous.clicks) * 100 : 100) 
+          : (current.clicks > 0 ? 100 : 0);
+        
+        const impressionsChange = previous ? 
+          (previous.impressions > 0 ? ((current.impressions - previous.impressions) / previous.impressions) * 100 : 100)
+          : (current.impressions > 0 ? 100 : 0);
+        
+        const positionChange = previous ? 
+          (current.position - previous.position) // Position: negative = besser
+          : 0;
+
+        resultMap.set(url, {
+          clicks: current.clicks,
+          clicks_change: clicksChange,
+          impressions: current.impressions,
+          impressions_change: impressionsChange,
+          position: current.position,
+          position_change: positionChange
+        });
+      }
+    }
+
+    return resultMap;
+
+  } catch (error) {
+    console.error('Error in getGscDataForPagesWithComparison:', error);
+    throw error;
+  }
+}
