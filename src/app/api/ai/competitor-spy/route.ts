@@ -13,7 +13,7 @@ export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 // ============================================================================
-// FUNKTIONEN - UNVERÄNDERT
+// FUNKTIONEN
 // ============================================================================
 
 // CMS-Erkennung mit Scoring
@@ -87,8 +87,9 @@ function detectFeatures(html: string, $: cheerio.CheerioAPI): string[] {
   const features: string[] = [];
   const htmlLower = html.toLowerCase();
   
+  // KI-Assistent / Chatbot: ERWEITERT um GEMINI
   if (htmlLower.includes('chatbot') || htmlLower.includes('ai-assistant') || htmlLower.includes('ki-assistent') ||
-      htmlLower.includes('openai') || htmlLower.includes('gpt') || htmlLower.includes('gemini') || // <- NEU: GEMINI
+      htmlLower.includes('openai') || htmlLower.includes('gpt') || htmlLower.includes('gemini') || 
       $('[class*="chat"]').length > 2) {
     features.push('KI-Assistent / Chatbot');
   }
@@ -147,6 +148,7 @@ function detectFeatures(html: string, $: cheerio.CheerioAPI): string[] {
   
   return features;
 }
+
 // Hauptmenü-Links extrahieren
 function extractMainNavLinks(html: string, $: cheerio.CheerioAPI, baseUrl: string): string[] {
   const links: string[] = [];
@@ -236,7 +238,7 @@ async function scrapeUrl(url: string) {
   
   const cmsInfo = detectCMS(html, $);
   const techStack = detectTechStack(html);
-  const features = detectFeatures(html, $); // Die aktualisierte Funktion wird verwendet
+  const features = detectFeatures(html, $); 
   
   const navLinks = extractMainNavLinks(html, $, url);
   const subpagePromises = navLinks.map(link => scrapeSubpage(link));
@@ -343,8 +345,8 @@ TECHNIK:
 • CMS: ${myData.cms.cms} ${myData.cms.isCustom ? '(Custom)' : ''}
 • Details: ${myData.cms.hints.join(', ') || '-'}
 • Tech: ${myData.techStack.join(', ') || '-'}
-• HTML Größe: ${myData.htmlSizeKB} KB // <- NEU
-• Bilder: ${myData.usesWebP ? 'WebP erkannt' : 'WebP nicht erkannt'} // <- NEU
+• HTML Größe: ${myData.htmlSizeKB} KB
+• Bilder: ${myData.usesWebP ? 'WebP erkannt' : 'WebP nicht erkannt'}
 
 FEATURES: ${myData.features.join(', ') || 'keine erkannt'}
 
@@ -386,7 +388,18 @@ ERSTELLE DIESEN REPORT:
      </div>
    </div>
 
-4. <h3 class="${STYLES.h3}"><i class="bi bi-diagram-3-fill"></i> Seitenstruktur</h3>
+4. <h3 class="${STYLES.h3}"><i class="bi bi-pencil-square"></i> Content & Stil</h3>
+   <div class="${STYLES.card}">
+     <h4 class="${STYLES.h4}">Analyse der Textqualität</h4>
+     <ul class="${STYLES.list}">
+       <li class="${STYLES.listItem}"><i class="bi bi-search ${STYLES.iconFeature}"></i> <span>Tiefe und Fachwissen: Wie detailliert ist der Inhalt?</span></li>
+       <li class="${STYLES.listItem}"><i class="bi bi-emoji-sunglasses ${STYLES.iconFeature}"></i> <span>Lesbarkeit & Stil: Ist der Text verständlich und ansprechend?</span></li>
+       <li class="${STYLES.listItem}"><i class="bi bi-lightbulb ${STYLES.iconFeature}"></i> <span>Tonalität & Vertrauen: Wie wirkt die Sprache auf die Zielgruppe?</span></li>
+     </ul>
+     <p class="${STYLES.p} mt-3">Zusammenfassende Bewertung der Content-Strategie (2-3 Sätze)</p>
+   </div>
+
+5. <h3 class="${STYLES.h3}"><i class="bi bi-diagram-3-fill"></i> Seitenstruktur</h3>
    <div class="${STYLES.card}">
      <h4 class="${STYLES.h4}">Menü-Struktur</h4>
      ${myData.subpages.length > 0 
@@ -395,7 +408,7 @@ ERSTELLE DIESEN REPORT:
      <p class="${STYLES.p} mt-3">Bewertung der Seitenstruktur und Navigation</p>
    </div>
 
-5. <h3 class="${STYLES.h3}"><i class="bi bi-clipboard-check"></i> SEO-Check</h3>
+6. <h3 class="${STYLES.h3}"><i class="bi bi-clipboard-check"></i> SEO-Check</h3>
    <div class="${STYLES.grid2}">
      <div class="${STYLES.successBox}">
        <h4 class="${STYLES.h4} text-emerald-700"><i class="bi bi-check-circle"></i> Stärken</h4>
@@ -411,7 +424,7 @@ ERSTELLE DIESEN REPORT:
      </div>
    </div>
 
-6. <h3 class="${STYLES.h3}"><i class="bi bi-bullseye"></i> Empfehlungen</h3>
+7. <h3 class="${STYLES.h3}"><i class="bi bi-bullseye"></i> Empfehlungen</h3>
    <div class="${STYLES.recommendBox}">
      <h4 class="font-semibold text-white mb-2"><i class="bi bi-rocket-takeoff"></i> Top 3 Maßnahmen</h4>
      <ol class="space-y-2 text-sm text-indigo-100">
@@ -419,14 +432,14 @@ ERSTELLE DIESEN REPORT:
      </ol>
    </div>
 
-7. <h3 class="${STYLES.h3}"><i class="bi bi-speedometer2"></i> Gesamtbewertung</h3>
+8. <h3 class="${STYLES.h3}"><i class="bi bi-speedometer2"></i> Gesamtbewertung</h3>
    <div class="${STYLES.card}">
      <div class="flex items-center gap-4 mb-3">
        <div class="text-center">
          <div class="text-3xl font-bold text-indigo-600">[X]/10</div>
          <div class="${STYLES.metricLabel}">Score</div>
        </div>
-       <div class="${STYLES.p}">Zusammenfassende Bewertung in 2-3 Sätzen</div>
+       <p class="${STYLES.p}">Zusammenfassende Bewertung in 2-3 Sätzen</p>
      </div>
    </div>
 
@@ -455,8 +468,8 @@ META:
 CMS: ${myData.cms.cms} ${myData.cms.isCustom ? '(Custom)' : ''}
 • Details: ${myData.cms.hints.join(', ') || '-'}
 • Tech: ${myData.techStack.join(', ') || '-'}
-• HTML Größe: ${myData.htmlSizeKB} KB // <- NEU
-• Bilder: ${myData.usesWebP ? 'WebP erkannt' : 'WebP nicht erkannt'} // <- NEU
+• HTML Größe: ${myData.htmlSizeKB} KB
+• Bilder: ${myData.usesWebP ? 'WebP erkannt' : 'WebP nicht erkannt'}
 FEATURES: ${myData.features.join(', ') || 'keine erkannt'}
 
 UNTERSEITEN (Menü):
@@ -480,8 +493,8 @@ TECHNIK:
 • CMS: ${competitorData?.cms.cms} ${competitorData?.cms.isCustom ? '(Custom)' : ''}
 • Details: ${competitorData?.cms.hints.join(', ') || '-'}
 • Tech: ${competitorData?.techStack.join(', ') || '-'}
-• HTML Größe: ${competitorData?.htmlSizeKB} KB // <- NEU
-• Bilder: ${competitorData?.usesWebP ? 'WebP erkannt' : 'WebP nicht erkannt'} // <- NEU
+• HTML Größe: ${competitorData?.htmlSizeKB} KB
+• Bilder: ${competitorData?.usesWebP ? 'WebP erkannt' : 'WebP nicht erkannt'}
 FEATURES: ${competitorData?.features.join(', ') || 'keine erkannt'}
 
 UNTERSEITEN (Menü):
@@ -512,21 +525,29 @@ ERSTELLE DIESEN REPORT:
      - Was fehlt?
    </div>
 
-4. <h3 class="${STYLES.h3}"><i class="bi bi-diagram-3-fill"></i> Seitenstruktur</h3>
+4. <h3 class="${STYLES.h3}"><i class="bi bi-pencil-square"></i> Content & Stil</h3>
+   <div class="${STYLES.grid2}">
+     Pro Seite eine Card mit:
+     - Bewertung der Tiefe und des Fachwissens
+     - Bewertung der Lesbarkeit und Tonalität
+     - Zusammenfassende Content-Bewertung (2-3 Sätze)
+   </div>
+
+5. <h3 class="${STYLES.h3}"><i class="bi bi-diagram-3-fill"></i> Seitenstruktur</h3>
    <div class="${STYLES.grid2}">
      Pro Seite eine Card mit:
      - Unterseiten (<div class="${STYLES.subpageItem}"><i class="bi bi-file-earmark"></i> /pfad</div>)
      - Bewertung
    </div>
 
-5. <h3 class="${STYLES.h3}"><i class="bi bi-shield-fill-check"></i> Stärken & Schwächen</h3>
+6. <h3 class="${STYLES.h3}"><i class="bi bi-shield-fill-check"></i> Stärken & Schwächen</h3>
    <div class="${STYLES.grid2}">
      Pro Seite eine Card mit:
      - Stärken: <li class="${STYLES.listItem}"><i class="bi bi-check-lg ${STYLES.iconSuccess}"></i><span>Text</span></li>
      - Schwächen: <li class="${STYLES.listItem}"><i class="bi bi-x-lg ${STYLES.iconError}"></i><span>Text</span></li>
    </div>
 
-6. <h3 class="${STYLES.h3}"><i class="bi bi-bullseye"></i> Empfehlungen</h3>
+7. <h3 class="${STYLES.h3}"><i class="bi bi-bullseye"></i> Empfehlungen</h3>
    <div class="${STYLES.recommendBox}">
      3 konkrete Maßnahmen für Seite A basierend auf dem Vergleich
    </div>
