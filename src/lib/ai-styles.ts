@@ -108,8 +108,8 @@ export const STYLES = {
   // Cards & Containers (angepasst an page.tsx rounded-2xl, p-6)
   card: 'bg-white border border-gray-100 rounded-xl p-4 shadow-sm',                   // rounded-xl, p-4, shadow-sm
   cardHover: 'bg-white border border-gray-100 rounded-xl p-4 shadow-sm hover:shadow-md hover:border-indigo-200 transition-all',
-  cardHeader: 'bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl p-4 text-white',
-  cardHeaderSmall: 'bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg p-3 text-white',
+  cardHeader: 'bg-white border border-gray-200 rounded-xl p-4 text-gray-900 shadow-sm',
+  cardHeaderSmall: 'bg-white border border-gray-200 rounded-lg p-3 text-gray-900 shadow-sm',
   
   // Boxes (Info, Warning, Success, Error) - größere Abstände
   infoBox: 'bg-blue-50 border border-blue-100 rounded-xl p-4',
@@ -123,7 +123,7 @@ export const STYLES = {
   amberBox: 'bg-amber-50 border border-amber-200 rounded-xl p-4',
   
   // Recommendation Box 
-recommendBox: 'bg-white border border-indigo-200 shadow-sm p-4 rounded-xl',
+recommendBox: 'bg-white border border-gray-200 shadow-sm p-4 rounded-xl',
   
   // Fazit Boxes (with left border)
   fazitPositive: 'bg-emerald-50 border-l-4 border-emerald-500 p-4 rounded-r-xl',
@@ -293,9 +293,9 @@ Warnung-Box:
   <p class="${STYLES.pSmall}">Warnung-Text</p>
 </div>
 
-Empfehlungs-Box (dunkel):
+Empfehlungs-Box (hell):
 <div class="${STYLES.recommendBox}">
-  <p class="text-sm">Empfehlung</p>
+  <p class="text-sm text-gray-700">Empfehlung</p>
 </div>
 
 Badge positiv:
