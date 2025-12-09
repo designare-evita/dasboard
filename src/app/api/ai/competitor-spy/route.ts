@@ -67,15 +67,41 @@ function detectTechStack(html: string): string[] {
   const stack: string[] = [];
   const htmlLower = html.toLowerCase();
   
-  if (htmlLower.includes('react')) stack.push('React');
-  if (html.includes('v-if=') || html.includes(':class=')) stack.push('Vue.js');
-  if (html.includes('ng-') || html.includes('*ngFor')) stack.push('Angular');
+  // 1. React (Präzise)
+  // Prüfen auf Core-Bibliotheken oder das typische DOM-Root-Attribut
+  if (htmlLower.includes('react.js') || htmlLower.includes('react-dom') || $('[data-reactroot]').length > 0) {
+      stack.push('React');
+  }
+
+  // 2. Angular (Präzise)
+  // Prüfen auf spezifische Angular-Elemente oder Bundles
+  if (htmlLower.includes('angular.json') || htmlLower.includes('zone.js') || $('app-root').length > 0 || htmlLower.includes('ng-version=')) {
+      stack.push('Angular');
+  } else if (html.includes('ng-') || html.includes('*ngFor')) {
+      // Wenn nur Direktiven, aber kein Core-Code gefunden, Konfidenz reduzieren (optional)
+      // Wir lassen es hier drin, da es spezifischer ist als nur 'react'.
+      if (!stack.includes('Angular')) stack.push('Angular');
+  }
+
+  // 3. Vue.js
+  if (html.includes('v-if=') || html.includes(':class=') || htmlLower.includes('/_nuxt/')) {
+      stack.push('Vue.js');
+  }
+  
+  // 4. Alpine.js
   if (html.includes('x-data=')) stack.push('Alpine.js');
+  
+  // 5. CSS/UI Frameworks
   if (htmlLower.includes('bootstrap')) stack.push('Bootstrap');
+  // Tailwind CSS (Bleibt bei der robusten Regex-Prüfung)
   if (html.match(/class="[^"]*\b(flex |grid |p-\d|m-\d|text-sm|bg-|rounded-)/)) stack.push('Tailwind CSS');
+  
+  // 6. Analytics/Performance
   if (htmlLower.includes('gtag(') || htmlLower.includes('google-analytics')) stack.push('Google Analytics');
   if (htmlLower.includes('googletagmanager.com')) stack.push('Google Tag Manager');
   if (htmlLower.includes('cloudflare')) stack.push('Cloudflare');
+  
+  // 7. Libraries
   if (htmlLower.includes('jquery')) stack.push('jQuery');
   if (htmlLower.includes('gsap')) stack.push('GSAP Animation');
   
