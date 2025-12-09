@@ -88,7 +88,8 @@ function detectFeatures(html: string, $: cheerio.CheerioAPI): string[] {
   const htmlLower = html.toLowerCase();
   
   if (htmlLower.includes('chatbot') || htmlLower.includes('ai-assistant') || htmlLower.includes('ki-assistent') ||
-      htmlLower.includes('openai') || htmlLower.includes('gpt') || $('[class*="chat"]').length > 2) {
+      htmlLower.includes('openai') || htmlLower.includes('gpt') || htmlLower.includes('gemini') || // <- NEU: GEMINI
+      $('[class*="chat"]').length > 2) {
     features.push('KI-Assistent / Chatbot');
   }
   if (htmlLower.includes('livechat') || htmlLower.includes('tawk.to') || htmlLower.includes('intercom')) {
@@ -106,9 +107,19 @@ function detectFeatures(html: string, $: cheerio.CheerioAPI): string[] {
   if ($('link[rel="manifest"]').length > 0) {
     features.push('PWA-fähig');
   }
-  if (htmlLower.includes('warenkorb') || htmlLower.includes('woocommerce') || htmlLower.includes('shop')) {
+  
+  // E-Commerce: Präzisere Erkennung, um False Positives in Theme-Konfigurationen zu vermeiden
+  const hasEcommerceKeywords = htmlLower.includes('woocommerce') ||
+                               htmlLower.includes('warenkorb') ||
+                               htmlLower.includes('checkout') ||
+                               htmlLower.includes('kasse');
+                               
+  const hasEcommerceElements = $('[class*="woocommerce"], [class*="shop-item"], [id*="cart"], [href*="add-to-cart"]').length > 0;
+  
+  if (hasEcommerceKeywords || hasEcommerceElements) {
     features.push('E-Commerce');
   }
+
   if (htmlLower.includes('calendly') || htmlLower.includes('booking') || htmlLower.includes('termin')) {
     features.push('Terminbuchung');
   }
@@ -136,7 +147,6 @@ function detectFeatures(html: string, $: cheerio.CheerioAPI): string[] {
   
   return features;
 }
-
 // Hauptmenü-Links extrahieren
 function extractMainNavLinks(html: string, $: cheerio.CheerioAPI, baseUrl: string): string[] {
   const links: string[] = [];
@@ -226,11 +236,15 @@ async function scrapeUrl(url: string) {
   
   const cmsInfo = detectCMS(html, $);
   const techStack = detectTechStack(html);
-  const features = detectFeatures(html, $);
+  const features = detectFeatures(html, $); // Die aktualisierte Funktion wird verwendet
   
   const navLinks = extractMainNavLinks(html, $, url);
   const subpagePromises = navLinks.map(link => scrapeSubpage(link));
   const subpages = await Promise.all(subpagePromises);
+  
+  // NEUE TECHNISCHE METRIKEN
+  const htmlSizeKB = (Buffer.byteLength(html, 'utf8') / 1024).toFixed(2); // Größe des HTML in KB
+  const usesWebP = html.toLowerCase().includes('.webp'); // WebP-Format-Erkennung
   
   $('script, style, nav, footer, iframe, svg, noscript, head').remove();
   
@@ -259,7 +273,10 @@ async function scrapeUrl(url: string) {
     text: text.slice(0, 6000),
     wordCount, uniqueTexts,
     cms: cmsInfo, techStack, features,
-    subpages: subpages.filter(s => s.wordCount > 0)
+    subpages: subpages.filter(s => s.wordCount > 0),
+    // NEUE WERTE IM RETURN
+    htmlSizeKB,
+    usesWebP
   };
 }
 
@@ -320,6 +337,8 @@ TECHNIK:
 • CMS: ${myData.cms.cms} ${myData.cms.isCustom ? '(Custom)' : ''}
 • Details: ${myData.cms.hints.join(', ') || '-'}
 • Tech: ${myData.techStack.join(', ') || '-'}
+• HTML Größe: ${myData.htmlSizeKB} KB // <- NEU
+• Bilder: ${myData.usesWebP ? 'WebP erkannt' : 'WebP nicht erkannt'} // <- NEU
 
 FEATURES: ${myData.features.join(', ') || 'keine erkannt'}
 
@@ -427,11 +446,11 @@ META:
 • H2 (${myData.h2Count}): ${myData.h2Elements.join(' | ') || '(keine)'}
 • Wörter: ~${myData.wordCount}
 
-TECHNIK:
-• CMS: ${myData.cms.cms} ${myData.cms.isCustom ? '(Custom)' : ''}
+CMS: ${myData.cms.cms} ${myData.cms.isCustom ? '(Custom)' : ''}
 • Details: ${myData.cms.hints.join(', ') || '-'}
 • Tech: ${myData.techStack.join(', ') || '-'}
-
+• HTML Größe: ${myData.htmlSizeKB} KB // <- NEU
+• Bilder: ${myData.usesWebP ? 'WebP erkannt' : 'WebP nicht erkannt'} // <- NEU
 FEATURES: ${myData.features.join(', ') || 'keine erkannt'}
 
 UNTERSEITEN (Menü):
@@ -452,10 +471,12 @@ META:
 • Wörter: ~${competitorData?.wordCount}
 
 TECHNIK:
+TECHNIK:
 • CMS: ${competitorData?.cms.cms} ${competitorData?.cms.isCustom ? '(Custom)' : ''}
 • Details: ${competitorData?.cms.hints.join(', ') || '-'}
 • Tech: ${competitorData?.techStack.join(', ') || '-'}
-
+• HTML Größe: ${competitorData?.htmlSizeKB} KB // <- NEU
+• Bilder: ${competitorData?.usesWebP ? 'WebP erkannt' : 'WebP nicht erkannt'} // <- NEU
 FEATURES: ${competitorData?.features.join(', ') || 'keine erkannt'}
 
 UNTERSEITEN (Menü):
