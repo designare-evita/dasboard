@@ -186,6 +186,7 @@ async function scrapeUrl(url: string) {
     techStack,
     existingSchemaJson, 
     existingSchemaTypes,
+    error: false, // <-- KORRIGIERT: Fügt den Erfolg-Zustand hinzu
   };
 }
 
@@ -204,7 +205,8 @@ export async function POST(req: NextRequest) {
 
     // Daten scrapen (Fehlerbehandlung für TypeScript-Sicherheit)
     const pageData = await scrapeUrl(url).catch(e => ({ 
-      error: true, url: url, title: 'Fehler beim Scrapen', metaDesc: '', h1: '', 
+      error: true, // <-- KORRIGIERT: Fügt den Fehler-Zustand hinzu
+      url: url, title: 'Fehler beim Scrapen', metaDesc: '', h1: '', 
       h2Elements: [], uniqueTexts: [], cmsInfo: { cms: 'Fehler', confidence: 'n/a', hints: [e.message], isCustom: false },
       techStack: [], 
       existingSchemaJson: [`// Scraping-Fehler: ${e instanceof Error ? e.message : 'Unbekannter Fehler'}`],
