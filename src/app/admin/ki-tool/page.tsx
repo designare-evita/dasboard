@@ -386,89 +386,91 @@ export default function KiToolPage() {
       </div>
 
       {/* TABS */}
-      <div className="border-b border-gray-200">
-        <nav className="-mb-px flex space-x-8 overflow-x-auto">
-          <button
-            onClick={() => setActiveTab('questions')}
-            className={`
-              flex items-center gap-2 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
-              ${activeTab === 'questions' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}
-            `}
-          >
-            <ChatText size={18} />
-            Fragen
-          </button>
+     {/* TABS */}
+<div className="border-b border-gray-200">
+  <nav className="-mb-px flex space-x-8 overflow-x-auto">
+    <button
+      onClick={() => setActiveTab('questions')}
+      className={`
+        flex items-center gap-2 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
+        ${activeTab === 'questions' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}
+      `}
+    >
+      <ChatText size={18} />
+      Fragen
+    </button>
 
-          <button
-            onClick={() => setActiveTab('gap')}
-            className={`
-              flex items-center gap-2 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
-              ${activeTab === 'gap' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}
-            `}
-          >
-            <FileEarmarkBarGraph size={18} />
-            Gap Analyse
-          </button>
+    <button
+      onClick={() => setActiveTab('gap')}
+      className={`
+        flex items-center gap-2 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
+        ${activeTab === 'gap' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}
+      `}
+    >
+      <FileEarmarkBarGraph size={18} />
+      Gap Analyse
+    </button>
 
-          <button
-            onClick={() => setActiveTab('spy')}
-            className={`
-              flex items-center gap-2 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
-              ${activeTab === 'spy' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}
-            `}
-          >
-            <Binoculars size={18} />
-            Competitor Spy
-          </button>
+    <button
+      onClick={() => setActiveTab('spy')}
+      className={`
+        flex items-center gap-2 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
+        ${activeTab === 'spy' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}
+      `}
+    >
+      <Binoculars size={18} />
+      Competitor Spy
+    </button>
 
-          <button
-            onClick={() => setActiveTab('schema')}
-            className={`
-              flex items-center gap-2 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
-              ${activeTab === 'schema' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}
-            `}
-          >
-            <CodeSquare size={18} />
-            Schema Analyzer
-            <span className="ml-1 px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-600 text-[10px] font-bold">NEU</span>
-          </button>
-          
-          <button
-            onClick={() => setActiveTab('news')} // <-- NEU: News Crawler Tab
-            className={`
-              flex items-center gap-2 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
-              ${activeTab === 'news' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}
-            `}
-          >
-            <Newspaper size={18} />
-            News-Crawler
-            <span className="ml-1 px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-600 text-[10px] font-bold">NEU</span>
-          </button>
+    <button
+      onClick={() => setActiveTab('schema')}
+      className={`
+        flex items-center gap-2 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
+        ${activeTab === 'schema' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}
+      `}
+    >
+      <CodeSquare size={18} />
+      Schema Analyzer
+      {/* BADGE ENTFERNT */}
+    </button>
+    
+    <button
+      onClick={() => setActiveTab('news')} 
+      className={`
+        flex items-center gap-2 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
+        ${activeTab === 'news' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}
+      `}
+    >
+      <Newspaper size={18} />
+      News-Crawler
+      {/* BADGE ENTFERNT */}
+    </button>
 
-          <button
-            onClick={() => setActiveTab('trends')}
-            className={`
-              flex items-center gap-2 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
-              ${activeTab === 'trends' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}
-            `}
-          >
-            <GraphUpArrow size={18} />
-            Trend Radar
-            <span className="ml-1 px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-600 text-[10px] font-bold">NEU</span>
-          </button>
+    <button
+      onClick={() => setActiveTab('trends')}
+      className={`
+        flex items-center gap-2 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
+        ${activeTab === 'trends' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}
+      `}
+    >
+      <GraphUpArrow size={18} />
+      Trend Radar
+      {/* BADGE GEÄNDERT ZU BETA */}
+      <span className="ml-1 px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-600 text-[10px] font-bold">BETA</span>
+    </button>
 
-          <button
-            onClick={() => setActiveTab('ctr')}
-            className={`
-              flex items-center gap-2 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
-              ${activeTab === 'ctr' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}
-            `}
-          >
-            <RocketTakeoff size={18} />
-            CTR Booster
-          </button>
-        </nav>
-      </div>
+    <button
+      onClick={() => setActiveTab('ctr')}
+      className={`
+        flex items-center gap-2 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
+        ${activeTab === 'ctr' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}
+      `}
+    >
+      <RocketTakeoff size={18} />
+      CTR Booster
+    </button>
+  </nav>
+</div>
 
       {/* MAIN CONTENT AREA */}
       {!selectedProjectId ? (
@@ -537,17 +539,17 @@ export default function KiToolPage() {
                 )}
                 
                 {/* --- NEWS CRAWLER: TOPIC EINGABE --- */}
-                {activeTab === 'news' && ( // <-- NEU: Input Feld für News Crawler
-                  <div className="bg-white border border-gray-100 shadow-sm rounded-2xl p-6 space-y-4">
-                    <div className="text-center pb-4 border-b border-gray-100">
-                      <div className="w-14 h-14 bg-gradient-to-br from-indigo-100 to-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                        <Newspaper className="text-2xl text-indigo-600" />
-                      </div>
-                      <h3 className="font-bold text-gray-900">News-Crawler</h3>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Findet relevante News für interne Weiterbildung.
-                      </p>
-                    </div>
+       {activeTab === 'news' && (
+  <div className="bg-white border border-gray-100 shadow-sm rounded-2xl p-6 space-y-4">
+    <div className="text-center pb-4 border-b border-gray-100">
+      <div className="w-14 h-14 bg-gradient-to-br from-indigo-100 to-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
+        <Newspaper className="text-2xl text-indigo-600" />
+      </div>
+      <h3 className="font-bold text-gray-900">News-Crawler</h3>
+      <p className="text-xs text-gray-500 mt-1">
+        Findet relevante News für interne Recherche. {/* <-- TEXT GEÄNDERT */}
+      </p>
+    </div>
                     
                     {/* TOPIC INPUT */}
                     <div>
@@ -885,20 +887,20 @@ export default function KiToolPage() {
         </div>
 
         {/* Box 5: News-Crawler (NEU) */}
-        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-           <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center mb-4 text-indigo-600">
-              <Newspaper size={20} />
-           </div>
-           <h3 className="font-bold text-gray-900 mb-2">News-Crawler</h3>
-           <div className="text-sm text-gray-600 space-y-2 leading-relaxed">
-              <p><span className="font-semibold text-gray-800 text-xs uppercase tracking-wide">Aktion:</span> Crawlt & analysiert News zum Topic.</p>
-              <p><span className="font-semibold text-gray-800 text-xs uppercase tracking-wide">Ziel:</span> Interne Weiterbildung optimieren.</p>
-              
-              <p className="pt-2 text-xs text-gray-500 border-t border-gray-50 mt-2">
-                💡 Top-Artikel werden gecrawlt, zusammengefasst und Relevanz bewertet.
-              </p>
-           </div>
-        </div>
+       <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+   <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center mb-4 text-indigo-600">
+      <Newspaper size={20} />
+   </div>
+   <h3 className="font-bold text-gray-900 mb-2">News-Crawler</h3>
+   <div className="text-sm text-gray-600 space-y-2 leading-relaxed">
+      <p><span className="font-semibold text-gray-800 text-xs uppercase tracking-wide">Aktion:</span> Crawlt & analysiert News zum Topic.</p>
+      <p><span className="font-semibold text-gray-800 text-xs uppercase tracking-wide">Ziel:</span> Interne Recherche optimieren.</p> {/* <-- TEXT GEÄNDERT */}
+      
+      <p className="pt-2 text-xs text-gray-500 border-t border-gray-50 mt-2">
+        💡 Top-Artikel werden gecrawlt, zusammengefasst und Relevanz bewertet.
+      </p>
+   </div>
+</div>
         
         {/* Box 6: Trend Radar (Original Box 4, jetzt 6) */}
         <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
