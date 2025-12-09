@@ -5,8 +5,8 @@ import * as cheerio from 'cheerio';
 import { NextRequest, NextResponse } from 'next/server';
 import { getCompactStyleGuide, STYLES } from '@/lib/ai-styles';
 
-// Wichtig: Wir importieren das Google Search Tool explizit,
-// um dynamisch nach Artikeln suchen zu können.
+// Wichtig: Die Suchfunktion muss hier im Produktionssystem integriert werden.
+// Wir simulieren den Zugriff auf die Suchergebnisse für die KI-Analyse.
 
 const google = createGoogleGenerativeAI({
   apiKey: process.env.GEMINI_API_KEY || '',
@@ -60,53 +60,59 @@ async function fetchAndCleanArticle(url: string): Promise<{ url: string, title: 
 // ============================================================================
 
 export async function POST(req: NextRequest) {
-  const { topic } = await req.json();
-
-  if (!topic) {
-    return NextResponse.json({ message: 'Suchbegriff (Topic) ist erforderlich.' }, { status: 400 });
-  }
-
-  // 1. Google Search aufrufen, um aktuelle Artikel zu finden
-  let searchResults;
   try {
-    const googleResponse = await fetch('https://www.googleapis.com/customsearch/v1', {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-        // Hier müsste der tatsächliche API-Call mit Deinem Google Search Tool Key/ID stehen.
-        // Da wir das Tool hier nicht direkt ausführen können, simulieren wir die Suche:
-    });
+    const { topic } = await req.json();
+
+    if (!topic) {
+      return NextResponse.json({ message: 'Suchbegriff (Topic) ist erforderlich.' }, { status: 400 });
+    }
+
+    // 1. Google Search aufrufen, um aktuelle Artikel zu finden
+    // Typisierung des erwarteten Objekts, um TypeScript-Fehler zu vermeiden
+    let searchResults: { web_results: { url: string }[] } = { web_results: [] };
     
-    // Simulation des Google Search Tool Aufrufs (ersetze dies mit Deinem echten Tool-Call!)
-    const searchQueries = [`${topic} News 2025`, `${topic} aktuell`];
-    const googleSearchResults = await fetch('google_search.search', {
-        queries: searchQueries
-    });
+    try {
+      const searchQueries = [`${topic} News`, `${topic} aktuell`];
+      
+      // ===================================================================
+      // !!! WICHTIGER HINWEIS: TOOL-INTEGRATION !!!
+      // DIESER BLOCK MUSS IM PRODUKTIVSYSTEM DURCH DEN ECHTEN AUFRUF DEINER
+      // GOOGLE SEARCH (oder Semrush/Custom Search) API ERSETZT WERDEN, 
+      // um dynamische Suchergebnisse zu erhalten.
+      //
+      // Beispiel für eine hypothetische API-Antwort-Simulation:
+      const mockResults = [
+        { url: 'https://www.eology.de/news/seo-trends', title: 'SEO-Trends 2026' },
+        { url: 'https://searchengineland.com/library/seo', title: 'SEO: news, trends & guides' },
+        { url: 'https://www.seokratie.at/seo/', title: 'SEO News: aktuelle Tipps & Tricks' },
+      ];
+      
+      // Da wir die Google Search Ergebnisse bereits ermittelt haben, 
+      // verwenden wir diese Struktur als Platzhalter.
+      // Ersetze diese Zeile mit Deinem tatsächlichen API-Aufruf:
+      searchResults.web_results = mockResults; 
 
-    const results = await googleSearchResults.json();
-    searchResults = results.result; 
+    } catch (error) {
+      console.error('❌ Google Search Error:', error);
+      return NextResponse.json({ message: 'Fehler beim Abrufen der Suchergebnisse.' }, { status: 500 });
+    }
+    
+    // Extrahiere bis zu 3 relevante URLs
+    const articleUrls = searchResults.web_results
+                        ?.map((r: any) => r.url)
+                        .slice(0, 3) || [];
+    
+    if (articleUrls.length === 0) {
+      return NextResponse.json({ message: 'Keine relevanten Artikel gefunden.' }, { status: 404 });
+    }
 
-  } catch (error) {
-    console.error('❌ Google Search Error:', error);
-    // Fallback falls der Google Search Tool Call fehlschlägt
-    return NextResponse.json({ message: 'Fehler beim Abrufen der Suchergebnisse.' }, { status: 500 });
-  }
-  
-  // Extrahiere bis zu 3 relevante URLs
-  const articleUrls = searchResults?.web_results
-                      ?.map((r: any) => r.url)
-                      .slice(0, 3) || [];
-  
-  if (articleUrls.length === 0) {
-    return NextResponse.json({ message: 'Keine relevanten Artikel gefunden.' }, { status: 404 });
-  }
-
-  // 2. Artikel crawlen und Inhalt extrahieren
-  const articlePromises = articleUrls.map((url: string) => fetchAndCleanArticle(url));
-  const fetchedArticles = await Promise.all(articlePromises);
+    // 2. Artikel crawlen und Inhalt extrahieren
+    const articlePromises = articleUrls.map((url: string) => fetchAndCleanArticle(url));
+    const fetchedArticles = await Promise.all(articlePromises);
 
 
-  // 3. Prompt für die KI erstellen
-  const articleContext = fetchedArticles.map((a, i) => `
+    // 3. Prompt für die KI erstellen
+    const articleContext = fetchedArticles.map((a, i) => `
 ══════════════════════════════════════════════════════════════════════════════
 ARTIKEL ${i + 1}: ${a.title}
 Quelle: ${a.url}
@@ -114,8 +120,8 @@ Quelle: ${a.url}
 TEXT-AUSZUG:
 "${a.text.slice(0, 2000)}..."
 `).join('\n');
-  
-  const newsCrawlerPrompt = `
+    
+    const newsCrawlerPrompt = `
 Du bist ein erfahrener Content-Stratege, spezialisiert auf interne Weiterbildung.
 Analysiere die folgenden Artikel zum Thema "${topic}". Dein Ziel ist es, die wichtigsten Informationen für die Agentur und deren Kundenprojekte zu filtern und kompakt aufzubereiten.
 
@@ -173,17 +179,22 @@ ERSTELLE DIESEN REPORT:
 Antworte NUR mit HTML.
   `;
 
-  // 4. Streamen des Ergebnisses
-  try {
-    const result = streamText({
-      model: google('gemini-2.5-flash'),
-      prompt: newsCrawlerPrompt,
-      temperature: 0.3,
-    });
+    // 4. Streamen des Ergebnisses
+    try {
+      const result = streamText({
+        model: google('gemini-2.5-flash'),
+        prompt: newsCrawlerPrompt,
+        temperature: 0.3,
+      });
 
-    return result.toTextStreamResponse();
-  } catch (e) {
-    console.error('❌ Gemini Streaming Error:', e);
-    return NextResponse.json({ message: 'Fehler beim Generieren des KI-Reports.' }, { status: 500 });
+      return result.toTextStreamResponse();
+    } catch (e) {
+      console.error('❌ Gemini Streaming Error:', e);
+      return NextResponse.json({ message: 'Fehler beim Generieren des KI-Reports.' }, { status: 500 });
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
+    console.error('❌ News Crawler Server Error:', error);
+    return NextResponse.json({ message: errorMessage }, { status: 500 });
   }
 }
