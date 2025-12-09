@@ -13,8 +13,8 @@ import type { AiTrafficData } from '@/types/ai-traffic';
 // Re-exportiere die Basis-Typen
 export type { KpiDatum, ChartPoint, TopQueryData, AiTrafficData };
 
-// ✅ UPDATE: 'aiTraffic' zur ActiveKpi Union hinzufügen
-export type ActiveKpi = BaseActiveKpi | 'conversions' | 'engagementRate' | 'bounceRate' | 'newUsers' | 'avgEngagementTime' | 'aiTraffic';
+// ✅ UPDATE: 'paidSearch' zur ActiveKpi Union hinzufügen
+export type ActiveKpi = BaseActiveKpi | 'conversions' | 'engagementRate' | 'bounceRate' | 'newUsers' | 'avgEngagementTime' | 'aiTraffic' | 'paidSearch';
 
 // Metadaten für KPI Tabs (Farben & Labels)
 export const KPI_TAB_META: Record<string, { label: string; color: string }> = {
@@ -26,7 +26,8 @@ export const KPI_TAB_META: Record<string, { label: string; color: string }> = {
   engagementRate: { label: 'Engagement Rate', color: '#ec4899' }, 
   bounceRate: { label: 'Bounce Rate', color: '#ef4444' },  
   newUsers: { label: 'Neue Nutzer', color: '#06b6d4' },    
-  avgEngagementTime: { label: 'Ø Zeit', color: '#6366f1' }, 
+  avgEngagementTime: { label: 'Ø Zeit', color: '#6366f1' },
+  paidSearch: { label: 'Paid Search', color: '#14b8a6' }, // ✅ NEU
 };
 
 export interface ChartEntry {
@@ -72,7 +73,8 @@ export interface ProjectDashboardData {
     engagementRate?: KpiDatum; 
     bounceRate?: KpiDatum;        
     newUsers?: KpiDatum;          
-    avgEngagementTime?: KpiDatum; 
+    avgEngagementTime?: KpiDatum;
+    paidSearch?: KpiDatum; // ✅ NEU
   };
   charts?: {
     clicks?: ChartPoint[];
@@ -85,6 +87,7 @@ export interface ProjectDashboardData {
     newUsers?: ChartPoint[];
     avgEngagementTime?: ChartPoint[];
     aiTraffic?: ChartPoint[]; // Chart-Daten für AI Traffic
+    paidSearch?: ChartPoint[]; // ✅ NEU: Chart-Daten für Paid Search
   };
   topQueries?: TopQueryData[];
   topConvertingPages?: ConvertingPageData[];
@@ -113,6 +116,7 @@ export function normalizeFlatKpis(input?: ProjectDashboardData['kpis']) {
     bounceRate: input?.bounceRate ?? ZERO_KPI,
     newUsers: input?.newUsers ?? ZERO_KPI,
     avgEngagementTime: input?.avgEngagementTime ?? ZERO_KPI,
+    paidSearch: input?.paidSearch ?? ZERO_KPI, // ✅ NEU
   };
 }
 
