@@ -301,7 +301,10 @@ export async function POST(req: NextRequest) {
       error: true, url: myUrl, title: 'Fehler', metaDesc: '', h1: '', h2Elements: [], h2Count: 0,
       text: '', wordCount: 0, uniqueTexts: [],
       cms: { cms: 'Fehler', confidence: 'n/a', hints: [e.message], isCustom: false },
-      techStack: [], features: [], subpages: []
+      techStack: [], features: [], subpages: [],
+      // Hinzugefügte Felder für TypeScript-Konsistenz:
+      htmlSizeKB: 'n/a', 
+      usesWebP: false 
     }));
 
     let competitorData = null;
@@ -310,7 +313,10 @@ export async function POST(req: NextRequest) {
         error: true, url: competitorUrl, title: 'Fehler', metaDesc: '', h1: '', h2Elements: [], h2Count: 0,
         text: '', wordCount: 0, uniqueTexts: [],
         cms: { cms: 'Fehler', confidence: 'n/a', hints: [e.message], isCustom: false },
-        techStack: [], features: [], subpages: []
+        techStack: [], features: [], subpages: [],
+        // Hinzugefügte Felder für TypeScript-Konsistenz:
+        htmlSizeKB: 'n/a', 
+        usesWebP: false
       }));
     }
 
@@ -470,7 +476,6 @@ META:
 • H2 (${competitorData?.h2Count}): ${competitorData?.h2Elements.join(' | ') || '(keine)'}
 • Wörter: ~${competitorData?.wordCount}
 
-TECHNIK:
 TECHNIK:
 • CMS: ${competitorData?.cms.cms} ${competitorData?.cms.isCustom ? '(Custom)' : ''}
 • Details: ${competitorData?.cms.hints.join(', ') || '-'}
