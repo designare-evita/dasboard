@@ -12,19 +12,30 @@ interface DailyDataPoint {
   value: number;
 }
 
-interface DateRangeData {
+export interface DateRangeData {
   total: number;
   daily: DailyDataPoint[];
 }
 
+// ✅ NEU: Erweiterte GA4-Response mit paidSearch
+export interface Ga4ExtendedData {
+  sessions: DateRangeData;
+  totalUsers: DateRangeData;
+  newUsers: DateRangeData;
+  conversions: DateRangeData;
+  bounceRate: DateRangeData;
+  engagementRate: DateRangeData;
+  avgEngagementTime: DateRangeData;
+  clicks: DateRangeData;
+  impressions: DateRangeData;
+  paidSearch: DateRangeData; // ✅ NEU
+}
 
 export interface AiTrafficData {
   totalSessions: number;
   totalUsers: number;
-
   totalSessionsChange?: number; 
   totalUsersChange?: number;
-  
   sessionsBySource: {
     [key: string]: number;
   };
@@ -85,7 +96,7 @@ function createAuth(): JWT {
   }
 }
 
-// --- Sheet API (Wieder hinzugefügt für Build Fix) ---
+// --- Sheet API ---
 export async function getGoogleSheetData(sheetId: string): Promise<any[]> {
   const auth = createAuth();
   const sheets = google.sheets({ version: 'v4', auth });
@@ -200,14 +211,14 @@ export async function getTopQueries(
       requestBody: {
         startDate,
         endDate,
-        dimensions: ['query', 'page'], // ✅ UPDATE: Page Dimension dazu
-        rowLimit: 500, // ✅ UPDATE: Mehr Zeilen laden, um Aggregation zu ermöglichen
+        dimensions: ['query', 'page'],
+        rowLimit: 500,
       },
     });
 
     const rows = res.data.rows || [];
     
-    // ✅ NEU: Aggregation Logic (Gruppieren nach Query, Top URL ermitteln)
+    // ✅ Aggregation Logic (Gruppieren nach Query, Top URL ermitteln)
     const queryMap = new Map<string, {
       clicks: number;
       impressions: number;
@@ -238,17 +249,14 @@ export async function getTopQueries(
       const entry = queryMap.get(query)!;
       entry.clicks += clicks;
       entry.impressions += impressions;
-      // Gewichtete Position (simple approximation: position * impressions)
       entry.positionSum += (position * impressions); 
       
-      // Bestimme die Haupt-URL (die mit den meisten Klicks für dieses Keyword)
       if (clicks > entry.maxClicksForUrl) {
         entry.maxClicksForUrl = clicks;
         entry.topUrl = url;
       }
     }
     
-    // Zurück in Array wandeln
     const results: TopQueryData[] = [];
     for (const [query, data] of queryMap.entries()) {
         const avgPosition = data.impressions > 0 ? data.positionSum / data.impressions : 0;
@@ -260,112 +268,21 @@ export async function getTopQueries(
             impressions: data.impressions,
             ctr,
             position: avgPosition,
-            url: data.topUrl // ✅ URL wird gesetzt
+            url: data.topUrl
         });
     }
 
-    // Sortieren nach Clicks
-    return results.sort((a, b) => b.clicks - a.clicks).slice(0, 100);
+    return results
+      .sort((a, b) => b.clicks - a.clicks)
+      .slice(0, 10);
 
   } catch (error) {
-    console.error('GSC TopQueries Error:', error);
+    console.error('Top Queries Error:', error);
     return [];
   }
 }
 
-export type GscPageData = {
-  clicks: number;
-  clicks_prev: number;
-  clicks_change: number;
-  impressions: number;
-  impressions_prev: number;
-  impressions_change: number;
-  position: number;
-  position_change: number;
-};
-
-export async function getGscDataForPagesWithComparison(
-  siteUrl: string,
-  pageUrls: string[],
-  currentRange: { startDate: string; endDate: string },
-  previousRange: { startDate: string; endDate: string }
-): Promise<Map<string, GscPageData>> {
-  const auth = createAuth();
-  const searchconsole = google.searchconsole({ version: 'v1', auth });
-
-  const queryAllPages = async (sDate: string, eDate: string) => {
-    const res = await searchconsole.searchanalytics.query({
-      siteUrl,
-      requestBody: {
-        startDate: sDate,
-        endDate: eDate,
-        dimensions: ['page'],
-        rowLimit: 25000
-      }
-    });
-    const map = new Map<string, { clicks: number; impressions: number; position: number }>();
-    (res.data.rows || []).forEach(r => {
-      if (r.keys?.[0]) map.set(r.keys[0], { clicks: r.clicks || 0, impressions: r.impressions || 0, position: r.position || 0 });
-    });
-    return map;
-  };
-
-  const [currentDataMap, previousDataMap] = await Promise.all([
-    queryAllPages(currentRange.startDate, currentRange.endDate),
-    queryAllPages(previousRange.startDate, previousRange.endDate)
-  ]);
-
-  const resultMap = new Map<string, GscPageData>();
-
-  for (const url of pageUrls) {
-    const current = currentDataMap.get(url) || { clicks: 0, impressions: 0, position: 0 };
-    const previous = previousDataMap.get(url) || { clicks: 0, impressions: 0, position: 0 };
-
-    const currentPos = current.position || 0;
-    const prevPos = previous.position || 0;
-
-    let posChange = 0;
-    if (currentPos > 0 && prevPos > 0) {
-      posChange = prevPos - currentPos; 
-    } else if (currentPos > 0 && prevPos === 0) {
-      posChange = 0; 
-    } else if (currentPos === 0 && prevPos > 0) {
-      posChange = 0; 
-    }
-    
-    const roundedPosChange = Math.round(posChange * 100) / 100;
-
-    resultMap.set(url, {
-      clicks: current.clicks,
-      clicks_prev: previous.clicks,
-      clicks_change: current.clicks - previous.clicks,
-      
-      impressions: current.impressions,
-      impressions_prev: previous.impressions,
-      impressions_change: current.impressions - previous.impressions,
-      
-      position: currentPos,
-      position_change: roundedPosChange
-    });
-  }
-
-  return resultMap;
-}
-
-
 // --- Google Analytics 4 (GA4) ---
-
-export type Ga4ExtendedData = {
-  sessions: DateRangeData;
-  totalUsers: DateRangeData;
-  newUsers: DateRangeData;
-  bounceRate: DateRangeData;
-  engagementRate: DateRangeData;
-  avgEngagementTime: DateRangeData;
-  conversions: DateRangeData;
-  clicks: DateRangeData; 
-  impressions: DateRangeData;
-}
 
 export async function getAnalyticsData(
   propertyId: string,
@@ -377,7 +294,8 @@ export async function getAnalyticsData(
   const analytics = google.analyticsdata({ version: 'v1beta', auth });
 
   try {
-    const response = await analytics.properties.runReport({
+    // ✅ 1. Standard Metriken (Sessions, Users, Conversions, etc.)
+    const mainResponse = await analytics.properties.runReport({
       property: formattedPropertyId,
       requestBody: {
         dateRanges: [{ startDate, endDate }],
@@ -386,139 +304,119 @@ export async function getAnalyticsData(
           { name: 'sessions' },
           { name: 'totalUsers' },
           { name: 'newUsers' },
+          { name: 'conversions' },
           { name: 'bounceRate' },
           { name: 'engagementRate' },
           { name: 'userEngagementDuration' },
-          { name: 'conversions' }
         ],
-        orderBys: [{ dimension: { dimensionName: 'date' } }],
-        // ✅ NEU: Explizit Totals anfordern für korrekte Aggregation
-        metricAggregations: ['TOTAL'],
       },
     });
 
-    const rows = response.data.rows || [];
-    
+    // ✅ 2. Paid Search Daten (separater Request)
+    const paidSearchResponse = await analytics.properties.runReport({
+      property: formattedPropertyId,
+      requestBody: {
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: 'date' }],
+        dimensionFilter: {
+          filter: {
+            fieldName: 'sessionDefaultChannelGroup',
+            stringFilter: { 
+              matchType: 'EXACT',
+              value: 'Paid Search' 
+            }
+          }
+        },
+        metrics: [{ name: 'sessions' }]
+      },
+    });
+
+    const rows = mainResponse.data.rows || [];
+    const paidRows = paidSearchResponse.data.rows || [];
+
+    // ✅ Parse Paid Search Daten
+    const paidSearchMap = new Map<number, number>();
+    for (const row of paidRows) {
+      const dateStr = row.dimensionValues?.[0]?.value;
+      if (dateStr) {
+        const dateTs = parseGa4Date(dateStr);
+        const sessions = parseInt(row.metricValues?.[0]?.value || '0', 10);
+        paidSearchMap.set(dateTs, sessions);
+      }
+    }
+
+    // ✅ Parse Main Metriken
     const sessionsDaily: DailyDataPoint[] = [];
     const usersDaily: DailyDataPoint[] = [];
     const newUsersDaily: DailyDataPoint[] = [];
+    const conversionsDaily: DailyDataPoint[] = [];
     const bounceRateDaily: DailyDataPoint[] = [];
     const engagementRateDaily: DailyDataPoint[] = [];
     const avgTimeDaily: DailyDataPoint[] = [];
-    const conversionsDaily: DailyDataPoint[] = [];
+    const paidSearchDaily: DailyDataPoint[] = [];
 
     let totalSessions = 0;
     let totalUsers = 0;
     let totalNewUsers = 0;
     let totalConversions = 0;
-    
-    // ✅ NEU: Für gewichtete Durchschnittsberechnung als Fallback
-    let weightedBounceSum = 0;
-    let weightedEngagementSum = 0;
-    
-    const metricHeaders = response.data.metricHeaders || [];
-    const getMetricIndex = (name: string) => metricHeaders.findIndex(h => h.name === name);
-    
-    const idxSessions = getMetricIndex('sessions');
-    const idxUsers = getMetricIndex('totalUsers');
-    const idxNewUsers = getMetricIndex('newUsers');
-    const idxBounce = getMetricIndex('bounceRate');
-    const idxEngRate = getMetricIndex('engagementRate');
-    const idxDuration = getMetricIndex('userEngagementDuration');
-    const idxConv = getMetricIndex('conversions');
-
-    let sumDuration = 0;
+    let totalEngagementDuration = 0;
+    let totalBounceRate = 0;
+    let totalEngagementRate = 0;
+    let totalPaidSearch = 0;
 
     for (const row of rows) {
-      const dateStr = row.dimensionValues?.[0]?.value; 
+      const dateStr = row.dimensionValues?.[0]?.value;
       if (!dateStr) continue;
+
       const dateTs = parseGa4Date(dateStr);
 
-      const sess = parseInt(row.metricValues?.[idxSessions]?.value || '0', 10);
-      const usrs = parseInt(row.metricValues?.[idxUsers]?.value || '0', 10);
-      const newU = parseInt(row.metricValues?.[idxNewUsers]?.value || '0', 10);
-      const bounce = parseFloat(row.metricValues?.[idxBounce]?.value || '0');
-      const engRate = parseFloat(row.metricValues?.[idxEngRate]?.value || '0');
-      const dur = parseFloat(row.metricValues?.[idxDuration]?.value || '0');
-      const conv = parseInt(row.metricValues?.[idxConv]?.value || '0', 10);
+      const sess = parseInt(row.metricValues?.[0]?.value || '0', 10);
+      const usrs = parseInt(row.metricValues?.[1]?.value || '0', 10);
+      const newUsrs = parseInt(row.metricValues?.[2]?.value || '0', 10);
+      const conv = parseInt(row.metricValues?.[3]?.value || '0', 10);
+      const bounce = parseFloat(row.metricValues?.[4]?.value || '0');
+      const engage = parseFloat(row.metricValues?.[5]?.value || '0');
+      const duration = parseFloat(row.metricValues?.[6]?.value || '0');
 
       sessionsDaily.push({ date: dateTs, value: sess });
       usersDaily.push({ date: dateTs, value: usrs });
-      newUsersDaily.push({ date: dateTs, value: newU });
-      bounceRateDaily.push({ date: dateTs, value: bounce });
-      engagementRateDaily.push({ date: dateTs, value: engRate });
-      
-      const avgTimeDay = sess > 0 ? (dur / sess) : 0; 
-      avgTimeDaily.push({ date: dateTs, value: avgTimeDay });
-      
+      newUsersDaily.push({ date: dateTs, value: newUsrs });
       conversionsDaily.push({ date: dateTs, value: conv });
+      bounceRateDaily.push({ date: dateTs, value: bounce });
+      engagementRateDaily.push({ date: dateTs, value: engage });
+
+      const avgTime = sess > 0 ? duration / sess : 0;
+      avgTimeDaily.push({ date: dateTs, value: avgTime });
+
+      // ✅ Paid Search für diesen Tag
+      const paidSess = paidSearchMap.get(dateTs) || 0;
+      paidSearchDaily.push({ date: dateTs, value: paidSess });
 
       totalSessions += sess;
-      totalUsers += usrs; 
-      totalNewUsers += newU;
+      totalUsers += usrs;
+      totalNewUsers += newUsrs;
       totalConversions += conv;
-      sumDuration += dur;
-      
-      // ✅ NEU: Gewichtete Summen für Raten (gewichtet nach Sessions)
-      weightedBounceSum += bounce * sess;
-      weightedEngagementSum += engRate * sess;
+      totalEngagementDuration += duration;
+      totalBounceRate += bounce * sess;
+      totalEngagementRate += engage * sess;
+      totalPaidSearch += paidSess;
     }
 
-    const totalsRow = response.data.totals?.[0];
-    
-    if (totalsRow) {
-      totalSessions = parseInt(totalsRow.metricValues?.[idxSessions]?.value || '0', 10);
-      totalUsers = parseInt(totalsRow.metricValues?.[idxUsers]?.value || '0', 10);
-      totalNewUsers = parseInt(totalsRow.metricValues?.[idxNewUsers]?.value || '0', 10);
-      totalConversions = parseInt(totalsRow.metricValues?.[idxConv]?.value || '0', 10);
-      
-      const totalBounce = parseFloat(totalsRow.metricValues?.[idxBounce]?.value || '0');
-      const totalEngRate = parseFloat(totalsRow.metricValues?.[idxEngRate]?.value || '0');
-      const totalDuration = parseFloat(totalsRow.metricValues?.[idxDuration]?.value || '0');
-      
-      const avgEngagementTimeVal = totalUsers > 0 ? (totalDuration / totalUsers) : 0;
-
-      return {
-        sessions: { total: totalSessions, daily: sessionsDaily },
-        totalUsers: { total: totalUsers, daily: usersDaily },
-        newUsers: { total: totalNewUsers, daily: newUsersDaily },
-        conversions: { total: totalConversions, daily: conversionsDaily },
-        bounceRate: { total: totalBounce, daily: bounceRateDaily },
-        engagementRate: { total: totalEngRate, daily: engagementRateDaily },
-        avgEngagementTime: { total: avgEngagementTimeVal, daily: avgTimeDaily },
-        clicks: { total: 0, daily: [] },
-        impressions: { total: 0, daily: [] }
-      };
-    }
-    
-    const fallbackAvgTime = totalUsers > 0 ? (sumDuration / totalUsers) : 0;
-    
-    // ✅ FIX: Berechne gewichtete Durchschnitte für Raten
-    const calculatedBounceRate = totalSessions > 0 
-      ? weightedBounceSum / totalSessions 
-      : 0;
-    
-    const calculatedEngagementRate = totalSessions > 0 
-      ? weightedEngagementSum / totalSessions 
-      : 0;
-
-    console.log('[GA4] Calculated totals (fallback):', { 
-      sessions: totalSessions, 
-      bounceRate: calculatedBounceRate, 
-      engagementRate: calculatedEngagementRate 
-    });
+    const calculatedBounceRate = totalSessions > 0 ? totalBounceRate / totalSessions : 0;
+    const calculatedEngagementRate = totalSessions > 0 ? totalEngagementRate / totalSessions : 0;
+    const fallbackAvgTime = totalSessions > 0 ? totalEngagementDuration / totalSessions : 0;
     
     return {
       sessions: { total: totalSessions, daily: sessionsDaily },
       totalUsers: { total: totalUsers, daily: usersDaily },
       newUsers: { total: totalNewUsers, daily: newUsersDaily },
       conversions: { total: totalConversions, daily: conversionsDaily },
-      // ✅ FIX: Gewichtete Durchschnitte statt 0
       bounceRate: { total: calculatedBounceRate, daily: bounceRateDaily }, 
       engagementRate: { total: calculatedEngagementRate, daily: engagementRateDaily },
       avgEngagementTime: { total: fallbackAvgTime, daily: avgTimeDaily },
       clicks: { total: 0, daily: [] },
-      impressions: { total: 0, daily: [] }
+      impressions: { total: 0, daily: [] },
+      paidSearch: { total: totalPaidSearch, daily: paidSearchDaily } // ✅ NEU
     };
 
   } catch (error) {
@@ -646,7 +544,6 @@ export async function getGa4DimensionReport(
       requestBody: {
         dateRanges: [{ startDate, endDate }],
         dimensions: [{ name: dimensionName }],
-        // ✅ Metrics: Sessions, EngagementRate, Conversions
         metrics: [
           { name: 'sessions' }, 
           { name: 'engagementRate' }, 
@@ -669,10 +566,8 @@ export async function getGa4DimensionReport(
       results.push({ 
         name, 
         value: sessions,
-        // ✅ Label Interaktionsrate
         subValue: `${(rate * 100).toFixed(1)}%`,
         subLabel: 'Interaktionsrate',
-        // ✅ Value Conversions
         subValue2: conversions,
         subLabel2: 'Conversions'
       });
@@ -706,10 +601,9 @@ export interface ConvertingPageData {
   path: string;
   conversions: number;
   sessions: number;
-  conversionRate: string; // String für "1.5%"
+  conversionRate: string;
 }
 
-// ✅ NEUE FUNKTION
 export async function getTopConvertingPages(
   propertyId: string,
   startDate: string,
@@ -731,12 +625,11 @@ export async function getTopConvertingPages(
           { name: 'engagementRate' }, 
           { name: 'newUsers' } 
         ],
-        // Wir sortieren primär nach Conversions, aber wir holen trotzdem alles
         orderBys: [
           { metric: { metricName: 'conversions' }, desc: true },
-          { metric: { metricName: 'sessions' }, desc: true } // Fallback: Traffic
+          { metric: { metricName: 'sessions' }, desc: true }
         ],
-        limit: '100', // Wir holen mehr, um nach Filterung genug zu haben
+        limit: '100',
       },
     });
 
@@ -745,25 +638,22 @@ export async function getTopConvertingPages(
     return rows.map(row => {
       const conversions = parseInt(row.metricValues?.[0]?.value || '0', 10);
       const sessions = parseInt(row.metricValues?.[1]?.value || '0', 10);
-      const engagementRate = parseFloat(row.metricValues?.[2]?.value || '0'); // ✅ NEU: Auslesen
-      const newUsers = parseInt(row.metricValues?.[3]?.value || '0', 10); // ✅ NEU
+      const engagementRate = parseFloat(row.metricValues?.[2]?.value || '0');
+      const newUsers = parseInt(row.metricValues?.[3]?.value || '0', 10);
 
-      // Conversion Rate berechnen
       const convRate = sessions > 0 ? ((conversions / sessions) * 100).toFixed(2) : '0';
 
       return {
         path: row.dimensionValues?.[0]?.value || '(not set)',
         conversions,
         sessions,
-        newUsers, // ✅ NEU
-        conversionRate: convRate, // Achtung: Hier ggf. Typ anpassen in Interface, wir senden hier String, Loader macht Number draus
-        engagementRate: parseFloat((engagementRate * 100).toFixed(2)) // ✅ NEU: Als saubere Prozentzahl (z.B. 55.5)
+        newUsers,
+        conversionRate: convRate,
+        engagementRate: parseFloat((engagementRate * 100).toFixed(2))
       };
     })
-    // ✅ FILTER GEÄNDERT: Wir lassen auch Seiten durch, die viel Traffic haben (>5 Sessions), 
-    // auch wenn sie keine Conversions haben. So sehen wir "Engagement-Gewinner".
     .filter(p => p.conversions > 0 || p.sessions > 5)
-    .slice(0, 50); // ✅ Top 50
+    .slice(0, 50);
 
   } catch (error) {
     console.error('Error fetching Top Converting Pages:', error);
