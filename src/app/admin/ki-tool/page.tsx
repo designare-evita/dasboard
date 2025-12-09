@@ -927,9 +927,13 @@ export default function KiToolPage() {
         }
         
         .ai-content [class*="bg-indigo-600"],
-        .ai-content [class*="bg-purple-600"] {
-          background: linear-gradient(to right, #4f46e5, #7c3aed) !important;
-          color: white !important;
+        .ai-content [class*="bg-purple-600"],
+        .ai-content [class*="from-indigo"],
+        .ai-content [class*="from-purple"],
+        .ai-content [class*="bg-gradient"] {
+          background: white !important;
+          color: #111827 !important;
+          border: 1px solid #e5e7eb !important;
           border-radius: 8px !important;
           padding: 12px !important;
         }
