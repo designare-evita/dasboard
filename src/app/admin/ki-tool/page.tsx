@@ -17,7 +17,8 @@ import {
   Search,
   GeoAlt,
   PlusCircle,
-  CodeSquare // <-- NEU: Icon für Schema Analyzer
+  CodeSquare,
+  Newspaper // <-- NEU: Icon für News-Crawler
 } from 'react-bootstrap-icons';
 import CtrBooster from '@/components/admin/ki/CtrBooster';
 
@@ -35,7 +36,7 @@ interface Keyword {
   impressions: number;
 }
 
-type Tab = 'questions' | 'ctr' | 'gap' | 'spy' | 'trends' | 'schema'; // <-- ERWEITERT um 'schema'
+type Tab = 'questions' | 'ctr' | 'gap' | 'spy' | 'trends' | 'schema' | 'news'; // <-- ERWEITERT um 'news'
 
 // Länder-Optionen
 const COUNTRIES = [
@@ -71,6 +72,9 @@ export default function KiToolPage() {
   
   // NEU: Eigene Keywords Eingabe
   const [customKeywords, setCustomKeywords] = useState('');
+  
+  // NEU: News Crawler Topic State
+  const [newsTopic, setNewsTopic] = useState('');
 
   const outputRef = useRef<HTMLDivElement>(null);
 
@@ -100,6 +104,7 @@ export default function KiToolPage() {
       setAnalyzeUrl('');
       setTrendTopic('');
       setCustomKeywords('');
+      setNewsTopic(''); // <-- State zurücksetzen
       return;
     }
 
@@ -114,39 +119,44 @@ export default function KiToolPage() {
         setAnalyzeUrl(cleanDomain);
     }
 
-    // Für CTR und Trends keine Keywords laden
-    if (activeTab === 'ctr' || activeTab === 'trends' || activeTab === 'schema') return; // <-- 'schema' hinzugefügt
+    // Keywords nur für 'questions' und 'gap' laden
+    const requiresKeywords = activeTab === 'questions' || activeTab === 'gap';
 
-    async function fetchData() {
-      setLoadingData(true);
-      setKeywords([]);
-      try {
-        const url = `/api/data?projectId=${selectedProjectId}&dateRange=30d`;
-        const res = await fetch(url);
-        
-        if (!res.ok) {
-          if (res.status !== 404) {
-             const errData = await res.json();
-             throw new Error(errData.message || 'Fehler');
-          }
-          return;
+    if (requiresKeywords) {
+        async function fetchData() {
+            setLoadingData(true);
+            setKeywords([]);
+            try {
+                const url = `/api/data?projectId=${selectedProjectId}&dateRange=30d`;
+                const res = await fetch(url);
+                
+                if (!res.ok) {
+                if (res.status !== 404) {
+                    const errData = await res.json();
+                    throw new Error(errData.message || 'Fehler');
+                }
+                return;
+                }
+
+                const data = await res.json();
+                
+                if (data.topQueries && Array.isArray(data.topQueries)) {
+                const topKeywords = data.topQueries.slice(0, 30);
+                setKeywords(topKeywords);
+                }
+
+            } catch (error) {
+                console.error('❌ Fetch Error:', error);
+            } finally {
+                setLoadingData(false);
+            }
         }
-
-        const data = await res.json();
-        
-        if (data.topQueries && Array.isArray(data.topQueries)) {
-          const topKeywords = data.topQueries.slice(0, 30);
-          setKeywords(topKeywords);
-        }
-
-      } catch (error) {
-        console.error('❌ Fetch Error:', error);
-      } finally {
+        fetchData();
+    } else {
+        setKeywords([]);
         setLoadingData(false);
-      }
     }
 
-    fetchData();
   }, [selectedProjectId, projects, activeTab]);
 
   const toggleKeyword = (query: string) => {
@@ -188,6 +198,12 @@ export default function KiToolPage() {
 
     const allKeywords = getAllKeywords();
 
+    // Validierung für das neue Tool 'news'
+    if (activeTab === 'news' && !newsTopic.trim()) {
+        toast.error('Bitte geben Sie einen Suchbegriff (Topic) ein.');
+        return;
+    }
+    // Bestehende Validierungen
     if (activeTab === 'questions' && allKeywords.length === 0) {
         toast.error('Bitte wählen Sie Keywords aus oder geben Sie eigene ein.');
         return;
@@ -208,11 +224,10 @@ export default function KiToolPage() {
         toast.error('Bitte geben Sie ein Thema oder eine Branche ein.');
         return;
     }
-    if (activeTab === 'schema' && !analyzeUrl) { // <-- NEU: Schema Analyzer Validation
+    if (activeTab === 'schema' && !analyzeUrl) {
         toast.error('Bitte geben Sie die zu analysierende URL ein.');
         return;
     }
-
 
     setIsGenerating(true);
     setIsWaitingForStream(true); 
@@ -239,9 +254,12 @@ export default function KiToolPage() {
           country: trendCountry,
           lang: selectedCountry?.lang || 'de',
         };
-    } else if (activeTab === 'schema') { // <-- NEU: Schema Analyzer Logic
+    } else if (activeTab === 'schema') {
         endpoint = '/api/ai/schema-analyzer';
         body = { url: analyzeUrl };
+    } else if (activeTab === 'news') { // <-- NEU: News Crawler Endpoint
+        endpoint = '/api/ai/news-crawler';
+        body = { topic: newsTopic.trim() };
     }
 
     try {
@@ -314,7 +332,8 @@ export default function KiToolPage() {
                   {activeTab === 'gap' ? 'Analysiere Webseite...' : 
                    activeTab === 'spy' ? 'Vergleiche mit Konkurrenz...' : 
                    activeTab === 'trends' ? 'Recherchiere Keyword-Trends...' :
-                   activeTab === 'schema' ? 'Extrahiere und analysiere Schema-Daten...' : // <-- NEU
+                   activeTab === 'schema' ? 'Extrahiere und analysiere Schema-Daten...' : 
+                   activeTab === 'news' ? 'Crawle und analysiere Nachrichten...' : // <-- NEU
                    'Generiere Inhalte...'}
                 </p>
               </div>
@@ -348,6 +367,7 @@ export default function KiToolPage() {
                 setGeneratedContent('');
                 setTrendTopic('');
                 setCustomKeywords('');
+                setNewsTopic(''); // <-- State zurücksetzen
               }}
               disabled={loadingProjects}
             >
@@ -402,6 +422,30 @@ export default function KiToolPage() {
           </button>
 
           <button
+            onClick={() => setActiveTab('schema')}
+            className={`
+              flex items-center gap-2 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
+              ${activeTab === 'schema' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}
+            `}
+          >
+            <CodeSquare size={18} />
+            Schema Analyzer
+            <span className="ml-1 px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-600 text-[10px] font-bold">NEU</span>
+          </button>
+          
+          <button
+            onClick={() => setActiveTab('news')} // <-- NEU: News Crawler Tab
+            className={`
+              flex items-center gap-2 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
+              ${activeTab === 'news' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}
+            `}
+          >
+            <Newspaper size={18} />
+            News-Crawler
+            <span className="ml-1 px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-600 text-[10px] font-bold">NEU</span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('trends')}
             className={`
               flex items-center gap-2 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
@@ -411,18 +455,6 @@ export default function KiToolPage() {
             <GraphUpArrow size={18} />
             Trend Radar
             <span className="ml-1 px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-600 text-[10px] font-bold">NEU</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('schema')} // <-- NEU: Schema Analyzer Tab
-            className={`
-              flex items-center gap-2 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
-              ${activeTab === 'schema' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}
-            `}
-          >
-            <CodeSquare size={18} />
-            Schema Analyzer
-            <span className="ml-1 px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-600 text-[10px] font-bold">NEU</span>
           </button>
 
           <button
@@ -457,7 +489,7 @@ export default function KiToolPage() {
               <div className="lg:col-span-4 space-y-6">
                 
                 {/* --- URL INPUTS FÜR SPY, GAP & SCHEMA --- */}
-                {(activeTab === 'gap' || activeTab === 'spy' || activeTab === 'schema') && ( // <-- ERWEITERT
+                {(activeTab === 'gap' || activeTab === 'spy' || activeTab === 'schema') && (
                   <div className="bg-white border border-gray-100 shadow-sm rounded-2xl p-6 space-y-4">
                     
                     {/* Input: ZU ANALYSIERENDE URL */}
@@ -498,12 +530,57 @@ export default function KiToolPage() {
                             ? 'Vergleich: Wir analysieren beide Seiten.' 
                             : 'Einzelanalyse: Detaillierte Auswertung Ihrer Seite.')
                          : activeTab === 'schema'
-                         ? 'Wir crawlen die Seite, extrahieren alle JSON-LD Schemas und prüfen auf fehlende Typen.' // <-- Text für Schema
+                         ? 'Wir crawlen die Seite, extrahieren alle JSON-LD Schemas und prüfen auf fehlende Typen.'
                          : 'Wir prüfen diese Seite auf fehlende Keywords.'}
                     </p>
                   </div>
                 )}
+                
+                {/* --- NEWS CRAWLER: TOPIC EINGABE --- */}
+                {activeTab === 'news' && ( // <-- NEU: Input Feld für News Crawler
+                  <div className="bg-white border border-gray-100 shadow-sm rounded-2xl p-6 space-y-4">
+                    <div className="text-center pb-4 border-b border-gray-100">
+                      <div className="w-14 h-14 bg-gradient-to-br from-indigo-100 to-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                        <Newspaper className="text-2xl text-indigo-600" />
+                      </div>
+                      <h3 className="font-bold text-gray-900">News-Crawler</h3>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Findet relevante News für interne Weiterbildung.
+                      </p>
+                    </div>
+                    
+                    {/* TOPIC INPUT */}
+                    <div>
+                      <label className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                        <Search className="text-indigo-500" /> Suchbegriff / Topic
+                      </label>
+                      <input 
+                        type="text" 
+                        value={newsTopic}
+                        onChange={(e) => setNewsTopic(e.target.value)}
+                        placeholder="z.B. SEO Trends 2026, Grippe Welle News..."
+                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-gray-700 placeholder-gray-400"
+                      />
+                    </div>
 
+                    {/* Beispiele */}
+                    <div className="pt-3 border-t border-gray-100">
+                      <p className="text-xs text-gray-500 mb-2">Beispiele:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {['SEO OnPage 2025', 'Google Updates News', 'KI Content Strategien', 'Datenschutz'].map((example) => (
+                          <button
+                            key={example}
+                            onClick={() => setNewsTopic(example)}
+                            className="px-2.5 py-1 bg-gray-100 hover:bg-indigo-100 text-gray-600 hover:text-indigo-700 rounded-lg text-xs transition-colors"
+                          >
+                            {example}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
                 {/* --- TREND RADAR: THEMEN EINGABE --- */}
                 {activeTab === 'trends' && (
                   <div className="bg-white border border-gray-100 shadow-sm rounded-2xl p-6 space-y-4">
@@ -568,7 +645,7 @@ export default function KiToolPage() {
                 )}
 
                 {/* --- KEYWORD LISTE (für Fragen & Gap) --- */}
-                {(activeTab === 'questions' || activeTab === 'gap') && ( // <-- KEINE ÄNDERUNG (schema benötigt keine Keywords)
+                {(activeTab === 'questions' || activeTab === 'gap') && ( 
                   <>
                     {/* GSC Keywords */}
                     <div className="bg-white border border-gray-100 shadow-sm rounded-2xl p-6 flex flex-col h-[350px]">
@@ -647,9 +724,10 @@ export default function KiToolPage() {
                       className="w-full h-auto py-4 text-base gap-2 text-white" 
                     >
                       {isGenerating ? 'Arbeite...' : 
+                       activeTab === 'news' ? <>News crawlen & analysieren <Newspaper/></> : // <-- NEU: News Button
                        activeTab === 'trends' ? <>Trends recherchieren <GraphUpArrow/></> :
                        activeTab === 'spy' ? (competitorUrl ? <>Vergleich starten <Binoculars/></> : <>Seite analysieren <Binoculars/></>) :
-                       activeTab === 'schema' ? <>Schema analysieren <CodeSquare/></> : // <-- NEU
+                       activeTab === 'schema' ? <>Schema analysieren <CodeSquare/></> : 
                        activeTab === 'gap' ? 'Gap Analyse starten' : 
                        'Fragen generieren'}
                     </Button>
@@ -663,9 +741,10 @@ export default function KiToolPage() {
                      <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-100 rounded-full mix-blend-multiply filter blur-3xl opacity-30"></div>
 
                      <h2 className="text-lg font-semibold text-gray-800 mb-4 z-10 flex items-center gap-2">
-                       {activeTab === 'trends' ? 'Keyword Trends' :
+                       {activeTab === 'news' ? 'News-Crawler Report' : // <-- NEU: Report Title
+                        activeTab === 'trends' ? 'Keyword Trends' :
                         activeTab === 'spy' ? (competitorUrl ? 'Konkurrenz Vergleich' : 'Webseiten Analyse') : 
-                        activeTab === 'schema' ? 'Schema Analyse Report' : // <-- NEU
+                        activeTab === 'schema' ? 'Schema Analyse Report' : 
                         activeTab === 'gap' ? 'Content Gap Report' : 
                         'KI Ergebnis'}
                      </h2>
@@ -681,7 +760,13 @@ export default function KiToolPage() {
                          />
                        ) : (
                          <div className="h-full flex flex-col items-center justify-center text-gray-400 text-center p-8">
-                            {activeTab === 'trends' ? (
+                            {activeTab === 'news' ? ( // <-- NEU: Placeholder für News Crawler
+                                <>
+                                    <Newspaper className="text-4xl mb-3 text-indigo-200" />
+                                    <p className="font-medium text-gray-500">Interne Weiterbildung</p>
+                                    <p className="text-xs mt-2">Geben Sie einen Suchbegriff ein, um aktuelle Artikel zu crawlen und analysieren.</p>
+                                </>
+                            ) : activeTab === 'trends' ? (
                                 <>
                                     <GraphUpArrow className="text-4xl mb-3 text-emerald-200" />
                                     <p className="font-medium text-gray-500">Keyword-Trends entdecken</p>
@@ -696,7 +781,7 @@ export default function KiToolPage() {
                                       Mit Konkurrenz URL → Vergleichsanalyse
                                     </p>
                                 </>
-                            ) : activeTab === 'schema' ? ( // <-- NEU
+                            ) : activeTab === 'schema' ? (
                                 <>
                                     <CodeSquare className="text-4xl mb-3 text-indigo-200" />
                                     <p className="font-medium text-gray-500">Schema Analyzer</p>
@@ -733,7 +818,6 @@ export default function KiToolPage() {
       )}
 
       {/* --- MODUL INFO-BOXEN (Volle Breite, immer sichtbar) --- */}
-      {/* Das Grid wurde bei 5 Boxen belassen (lg:grid-cols-5). Die neue 6. Box wickelt automatisch um. */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 pt-10 border-t border-gray-200 animate-in fade-in slide-in-from-bottom-4 duration-500">
         
         {/* Box 1: Fragen */}
@@ -784,7 +868,7 @@ export default function KiToolPage() {
            </div>
         </div>
 
-        {/* Box 4: Schema Analyzer (NEU) */}
+        {/* Box 4: Schema Analyzer */}
         <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
            <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center mb-4 text-indigo-600">
               <CodeSquare size={20} />
@@ -800,7 +884,23 @@ export default function KiToolPage() {
            </div>
         </div>
 
-        {/* Box 5: Trend Radar (Original Box 4, jetzt 5) */}
+        {/* Box 5: News-Crawler (NEU) */}
+        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+           <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center mb-4 text-indigo-600">
+              <Newspaper size={20} />
+           </div>
+           <h3 className="font-bold text-gray-900 mb-2">News-Crawler</h3>
+           <div className="text-sm text-gray-600 space-y-2 leading-relaxed">
+              <p><span className="font-semibold text-gray-800 text-xs uppercase tracking-wide">Aktion:</span> Crawlt & analysiert News zum Topic.</p>
+              <p><span className="font-semibold text-gray-800 text-xs uppercase tracking-wide">Ziel:</span> Interne Weiterbildung optimieren.</p>
+              
+              <p className="pt-2 text-xs text-gray-500 border-t border-gray-50 mt-2">
+                💡 Top-Artikel werden gecrawlt, zusammengefasst und Relevanz bewertet.
+              </p>
+           </div>
+        </div>
+        
+        {/* Box 6: Trend Radar (Original Box 4, jetzt 6) */}
         <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
            <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center mb-4 text-emerald-600">
               <GraphUpArrow size={20} />
@@ -816,7 +916,7 @@ export default function KiToolPage() {
            </div>
         </div>
 
-        {/* Box 6: CTR Booster (Original Box 5, jetzt 6) */}
+        {/* Box 7: CTR Booster (Original Box 5, jetzt 7) */}
         <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
            <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center mb-4 text-indigo-600">
               <RocketTakeoff size={20} />
