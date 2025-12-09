@@ -1,316 +1,662 @@
-// src/lib/google-data-loader.ts
-import { sql } from '@vercel/postgres';
-import { type User } from '@/lib/schemas';
-import {
-  getSearchConsoleData,
-  getAnalyticsData,
-  getTopQueries,
-  getAiTrafficData,
-  getGa4DimensionReport,
-  getTopConvertingPages, 
-  type AiTrafficData
-} from '@/lib/google-api';
-import { getBingData } from '@/lib/bing-api';
-import { 
-  ProjectDashboardData, 
-  ChartEntry, 
-  ApiErrorStatus,
-  ConvertingPageData 
-} from '@/lib/dashboard-shared';
-import type { TopQueryData, ChartPoint } from '@/types/dashboard';
+// src/lib/google-api.ts
 
-const CACHE_DURATION_HOURS = 48; 
+import { google } from 'googleapis';
+import { JWT } from 'google-auth-library';
+import { ChartEntry } from '@/lib/dashboard-shared';
+import type { TopQueryData } from '@/types/dashboard';
 
-// Interface für interne Datenhaltung (statt 'any')
-interface RawApiData {
-  clicks: { total: number; daily: ChartPoint[] };
-  impressions: { total: number; daily: ChartPoint[] };
-  sessions: { total: number; daily: ChartPoint[] };
-  totalUsers: { total: number; daily: ChartPoint[] };
-  conversions: { total: number; daily: ChartPoint[] };
-  engagementRate: { total: number; daily: ChartPoint[] };
-  bounceRate: { total: number; daily: ChartPoint[] };
-  newUsers: { total: number; daily: ChartPoint[] };
-  avgEngagementTime: { total: number; daily: ChartPoint[] };
-  paidSearch: { total: number; daily: ChartPoint[] }; // ✅ NEU
+// --- Typdefinitionen ---
+
+interface DailyDataPoint {
+  date: number; // ✅ Timestamp
+  value: number;
 }
 
-// Hilfsfunktion: Berechnet Veränderung sicher
-function calculateChange(current: number, previous: number): number {
-  if (!previous || previous === 0) return current > 0 ? 100 : 0;
-  return ((current - previous) / previous) * 100;
+export interface DateRangeData {
+  total: number;
+  daily: DailyDataPoint[];
 }
 
-// Initialer State für leere Daten
-const INITIAL_DATA: RawApiData = {
-  clicks: { total: 0, daily: [] },
-  impressions: { total: 0, daily: [] },
-  sessions: { total: 0, daily: [] },
-  totalUsers: { total: 0, daily: [] },
-  conversions: { total: 0, daily: [] },
-  engagementRate: { total: 0, daily: [] },
-  bounceRate: { total: 0, daily: [] },
-  newUsers: { total: 0, daily: [] },
-  avgEngagementTime: { total: 0, daily: [] },
-  paidSearch: { total: 0, daily: [] } // ✅ NEU
-};
+// ✅ NEU: Erweiterte GA4-Response mit paidSearch
+export interface Ga4ExtendedData {
+  sessions: DateRangeData;
+  totalUsers: DateRangeData;
+  newUsers: DateRangeData;
+  conversions: DateRangeData;
+  bounceRate: DateRangeData;
+  engagementRate: DateRangeData;
+  avgEngagementTime: DateRangeData;
+  clicks: DateRangeData;
+  impressions: DateRangeData;
+  paidSearch: DateRangeData; // ✅ NEU
+}
 
-export async function getOrFetchGoogleData(
-  user: User,
-  dateRange: string,
-  forceRefresh = false
-): Promise<ProjectDashboardData | null> {
-  if (!user.id) return null;
-  const userId = user.id;
+export interface AiTrafficData {
+  totalSessions: number;
+  totalUsers: number;
+  totalSessionsChange?: number; 
+  totalUsersChange?: number;
+  sessionsBySource: {
+    [key: string]: number;
+  };
+  topAiSources: Array<{
+    source: string;
+    sessions: number;
+    users: number;
+    percentage: number;
+  }>;
+  trend: Array<{
+    date: number; 
+    sessions: number;
+  }>;
+}
 
-  // 1. Cache prüfen
-  if (!forceRefresh) {
+// --- Authentifizierung ---
+
+function createAuth(): JWT {
+  if (process.env.GOOGLE_CREDENTIALS) {
     try {
-      const { rows } = await sql`
-        SELECT data, last_fetched 
-        FROM google_data_cache 
-        WHERE user_id = ${userId}::uuid AND date_range = ${dateRange}
-        LIMIT 1
-      `;
+      const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
+      return new JWT({
+        email: credentials.client_email,
+        key: credentials.private_key,
+        scopes: [
+          'https://www.googleapis.com/auth/webmasters.readonly',
+          'https://www.googleapis.com/auth/analytics.readonly',
+          'https://www.googleapis.com/auth/spreadsheets.readonly'
+        ],
+      });
+    } catch (e) {
+      console.error('Fehler beim Parsen der GOOGLE_CREDENTIALS:', e);
+      throw new Error('Google Credentials invalid');
+    }
+  }
+  
+  // Fallback für alte Env Vars
+  const privateKeyBase64 = process.env.GOOGLE_PRIVATE_KEY_BASE64;
+  const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
 
-      if (rows.length > 0) {
-        const cacheEntry = rows[0];
-        const lastFetched = new Date(cacheEntry.last_fetched).getTime();
-        const now = Date.now();
-        if ((now - lastFetched) / (1000 * 60 * 60) < CACHE_DURATION_HOURS) {
-          console.log(`[Google Cache] ✅ HIT für ${user.email}`);
-          return { ...cacheEntry.data, fromCache: true };
+  if (!privateKeyBase64 || !clientEmail) {
+    throw new Error('Google API Credentials fehlen.');
+  }
+
+  try {
+    const privateKey = Buffer.from(privateKeyBase64, 'base64').toString('utf-8');
+    return new JWT({
+      email: clientEmail,
+      key: privateKey,
+      scopes: [
+        'https://www.googleapis.com/auth/webmasters.readonly',
+        'https://www.googleapis.com/auth/analytics.readonly',
+        'https://www.googleapis.com/auth/spreadsheets.readonly', 
+      ],
+    });
+  } catch (error) {
+    throw new Error("Fehler beim Initialisieren der Google API Authentifizierung.");
+  }
+}
+
+// --- Sheet API ---
+export async function getGoogleSheetData(sheetId: string): Promise<any[]> {
+  const auth = createAuth();
+  const sheets = google.sheets({ version: 'v4', auth });
+
+  try {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: sheetId,
+      range: 'A1:Z2000', 
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length === 0) return [];
+
+    const headers = rows[0];
+    const data = rows.slice(1).map(row => {
+      const obj: Record<string, string> = {};
+      headers.forEach((header, index) => {
+        const key = header?.trim();
+        const val = row[index] ? row[index].toString().trim() : '';
+        if (key) {
+          obj[key] = val;
+        }
+      });
+      return obj;
+    });
+
+    return data;
+  } catch (error: unknown) {
+    console.error('[Sheets API] Fehler:', error);
+    throw new Error('Konnte Google Sheet nicht lesen.');
+  }
+}
+
+// --- Helper ---
+
+function parseGscDate(dateString: string): number {
+  return new Date(dateString).getTime();
+}
+
+function parseGa4Date(dateString: string): number {
+  const year = parseInt(dateString.substring(0, 4), 10);
+  const month = parseInt(dateString.substring(4, 6), 10) - 1;
+  const day = parseInt(dateString.substring(6, 8), 10);
+  return new Date(year, month, day).getTime();
+}
+
+// --- Search Console (GSC) ---
+
+export async function getSearchConsoleData(
+  siteUrl: string,
+  startDate: string,
+  endDate: string
+): Promise<{ clicks: DateRangeData; impressions: DateRangeData }> {
+  const auth = createAuth();
+  const searchconsole = google.searchconsole({ version: 'v1', auth });
+
+  try {
+    const res = await searchconsole.searchanalytics.query({
+      siteUrl,
+      requestBody: {
+        startDate,
+        endDate,
+        dimensions: ['date'],
+        rowLimit: 25000,
+      },
+    });
+
+    const rows = res.data.rows || [];
+    rows.sort((a, b) => (a.keys?.[0] || '').localeCompare(b.keys?.[0] || ''));
+
+    const clicksDaily: DailyDataPoint[] = [];
+    const impressionsDaily: DailyDataPoint[] = [];
+    let totalClicks = 0;
+    let totalImpressions = 0;
+
+    for (const row of rows) {
+      const dateStr = row.keys?.[0]; 
+      if (!dateStr) continue;
+
+      const dateTs = parseGscDate(dateStr);
+      const c = row.clicks || 0;
+      const i = row.impressions || 0;
+
+      clicksDaily.push({ date: dateTs, value: c });
+      impressionsDaily.push({ date: dateTs, value: i });
+
+      totalClicks += c;
+      totalImpressions += i;
+    }
+
+    return {
+      clicks: { total: totalClicks, daily: clicksDaily },
+      impressions: { total: totalImpressions, daily: impressionsDaily },
+    };
+  } catch (error) {
+    console.error('GSC Error:', error);
+    throw error;
+  }
+}
+
+export async function getTopQueries(
+  siteUrl: string,
+  startDate: string,
+  endDate: string
+): Promise<TopQueryData[]> {
+  const auth = createAuth();
+  const searchconsole = google.searchconsole({ version: 'v1', auth });
+
+  try {
+    const res = await searchconsole.searchanalytics.query({
+      siteUrl,
+      requestBody: {
+        startDate,
+        endDate,
+        dimensions: ['query', 'page'],
+        rowLimit: 500,
+      },
+    });
+
+    const rows = res.data.rows || [];
+    
+    // ✅ Aggregation Logic (Gruppieren nach Query, Top URL ermitteln)
+    const queryMap = new Map<string, {
+      clicks: number;
+      impressions: number;
+      positionSum: number;
+      count: number;
+      topUrl: string;
+      maxClicksForUrl: number;
+    }>();
+
+    for (const row of rows) {
+      const query = row.keys?.[0] || '(not set)';
+      const url = row.keys?.[1] || '';
+      const clicks = row.clicks || 0;
+      const impressions = row.impressions || 0;
+      const position = row.position || 0;
+      
+      if (!queryMap.has(query)) {
+        queryMap.set(query, {
+          clicks: 0,
+          impressions: 0,
+          positionSum: 0,
+          count: 0,
+          topUrl: url,
+          maxClicksForUrl: clicks
+        });
+      }
+      
+      const entry = queryMap.get(query)!;
+      entry.clicks += clicks;
+      entry.impressions += impressions;
+      entry.positionSum += (position * impressions); 
+      
+      if (clicks > entry.maxClicksForUrl) {
+        entry.maxClicksForUrl = clicks;
+        entry.topUrl = url;
+      }
+    }
+    
+    const results: TopQueryData[] = [];
+    for (const [query, data] of queryMap.entries()) {
+        const avgPosition = data.impressions > 0 ? data.positionSum / data.impressions : 0;
+        const ctr = data.impressions > 0 ? data.clicks / data.impressions : 0;
+        
+        results.push({
+            query,
+            clicks: data.clicks,
+            impressions: data.impressions,
+            ctr,
+            position: avgPosition,
+            url: data.topUrl
+        });
+    }
+
+    return results
+      .sort((a, b) => b.clicks - a.clicks)
+      .slice(0, 10);
+
+  } catch (error) {
+    console.error('Top Queries Error:', error);
+    return [];
+  }
+}
+
+// --- Google Analytics 4 (GA4) ---
+
+export async function getAnalyticsData(
+  propertyId: string,
+  startDate: string,
+  endDate: string
+): Promise<Ga4ExtendedData> {
+  const formattedPropertyId = propertyId.startsWith('properties/') ? propertyId : `properties/${propertyId}`;
+  const auth = createAuth();
+  const analytics = google.analyticsdata({ version: 'v1beta', auth });
+
+  try {
+    // ✅ 1. Standard Metriken (Sessions, Users, Conversions, etc.)
+    const mainResponse = await analytics.properties.runReport({
+      property: formattedPropertyId,
+      requestBody: {
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: 'date' }],
+        metrics: [
+          { name: 'sessions' },
+          { name: 'totalUsers' },
+          { name: 'newUsers' },
+          { name: 'conversions' },
+          { name: 'bounceRate' },
+          { name: 'engagementRate' },
+          { name: 'userEngagementDuration' },
+        ],
+      },
+    });
+
+    // ✅ 2. Paid Search Daten (separater Request)
+    const paidSearchResponse = await analytics.properties.runReport({
+      property: formattedPropertyId,
+      requestBody: {
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: 'date' }],
+        dimensionFilter: {
+          filter: {
+            fieldName: 'sessionDefaultChannelGroup',
+            stringFilter: { 
+              matchType: 'EXACT',
+              value: 'Paid Search' 
+            }
+          }
+        },
+        metrics: [{ name: 'sessions' }]
+      },
+    });
+
+    const rows = mainResponse.data.rows || [];
+    const paidRows = paidSearchResponse.data.rows || [];
+
+    // ✅ Parse Paid Search Daten
+    const paidSearchMap = new Map<number, number>();
+    for (const row of paidRows) {
+      const dateStr = row.dimensionValues?.[0]?.value;
+      if (dateStr) {
+        const dateTs = parseGa4Date(dateStr);
+        const sessions = parseInt(row.metricValues?.[0]?.value || '0', 10);
+        paidSearchMap.set(dateTs, sessions);
+      }
+    }
+
+    // ✅ Parse Main Metriken
+    const sessionsDaily: DailyDataPoint[] = [];
+    const usersDaily: DailyDataPoint[] = [];
+    const newUsersDaily: DailyDataPoint[] = [];
+    const conversionsDaily: DailyDataPoint[] = [];
+    const bounceRateDaily: DailyDataPoint[] = [];
+    const engagementRateDaily: DailyDataPoint[] = [];
+    const avgTimeDaily: DailyDataPoint[] = [];
+    const paidSearchDaily: DailyDataPoint[] = [];
+
+    let totalSessions = 0;
+    let totalUsers = 0;
+    let totalNewUsers = 0;
+    let totalConversions = 0;
+    let totalEngagementDuration = 0;
+    let totalBounceRate = 0;
+    let totalEngagementRate = 0;
+    let totalPaidSearch = 0;
+
+    for (const row of rows) {
+      const dateStr = row.dimensionValues?.[0]?.value;
+      if (!dateStr) continue;
+
+      const dateTs = parseGa4Date(dateStr);
+
+      const sess = parseInt(row.metricValues?.[0]?.value || '0', 10);
+      const usrs = parseInt(row.metricValues?.[1]?.value || '0', 10);
+      const newUsrs = parseInt(row.metricValues?.[2]?.value || '0', 10);
+      const conv = parseInt(row.metricValues?.[3]?.value || '0', 10);
+      const bounce = parseFloat(row.metricValues?.[4]?.value || '0');
+      const engage = parseFloat(row.metricValues?.[5]?.value || '0');
+      const duration = parseFloat(row.metricValues?.[6]?.value || '0');
+
+      sessionsDaily.push({ date: dateTs, value: sess });
+      usersDaily.push({ date: dateTs, value: usrs });
+      newUsersDaily.push({ date: dateTs, value: newUsrs });
+      conversionsDaily.push({ date: dateTs, value: conv });
+      bounceRateDaily.push({ date: dateTs, value: bounce });
+      engagementRateDaily.push({ date: dateTs, value: engage });
+
+      const avgTime = sess > 0 ? duration / sess : 0;
+      avgTimeDaily.push({ date: dateTs, value: avgTime });
+
+      // ✅ Paid Search für diesen Tag
+      const paidSess = paidSearchMap.get(dateTs) || 0;
+      paidSearchDaily.push({ date: dateTs, value: paidSess });
+
+      totalSessions += sess;
+      totalUsers += usrs;
+      totalNewUsers += newUsrs;
+      totalConversions += conv;
+      totalEngagementDuration += duration;
+      totalBounceRate += bounce * sess;
+      totalEngagementRate += engage * sess;
+      totalPaidSearch += paidSess;
+    }
+
+    const calculatedBounceRate = totalSessions > 0 ? totalBounceRate / totalSessions : 0;
+    const calculatedEngagementRate = totalSessions > 0 ? totalEngagementRate / totalSessions : 0;
+    const fallbackAvgTime = totalSessions > 0 ? totalEngagementDuration / totalSessions : 0;
+    
+    return {
+      sessions: { total: totalSessions, daily: sessionsDaily },
+      totalUsers: { total: totalUsers, daily: usersDaily },
+      newUsers: { total: totalNewUsers, daily: newUsersDaily },
+      conversions: { total: totalConversions, daily: conversionsDaily },
+      bounceRate: { total: calculatedBounceRate, daily: bounceRateDaily }, 
+      engagementRate: { total: calculatedEngagementRate, daily: engagementRateDaily },
+      avgEngagementTime: { total: fallbackAvgTime, daily: avgTimeDaily },
+      clicks: { total: 0, daily: [] },
+      impressions: { total: 0, daily: [] },
+      paidSearch: { total: totalPaidSearch, daily: paidSearchDaily } // ✅ NEU
+    };
+
+  } catch (error) {
+    console.error('GA4 Error:', error);
+    throw error;
+  }
+}
+
+export async function getAiTrafficData(
+  propertyId: string,
+  startDate: string,
+  endDate: string
+): Promise<AiTrafficData> {
+  const formattedPropertyId = propertyId.startsWith('properties/') ? propertyId : `properties/${propertyId}`;
+  const auth = createAuth();
+  const analytics = google.analyticsdata({ version: 'v1beta', auth });
+
+  try {
+    const response = await analytics.properties.runReport({
+      property: formattedPropertyId,
+      requestBody: {
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [
+          { name: 'sessionSource' }, 
+          { name: 'sessionMedium' }, 
+          { name: 'date' }           
+        ],
+        metrics: [
+          { name: 'sessions' },
+          { name: 'totalUsers' }
+        ],
+      },
+    });
+
+    const rows = response.data.rows || [];
+    
+    let totalAiSessions = 0;
+    let totalAiUsers = 0;
+    const sessionsBySource: Record<string, number> = {};
+    const sourceStats: Record<string, { sessions: number; users: number }> = {};
+    const dailyTrend: Record<number, number> = {};
+
+    const aiPatterns = [
+      /chatgpt/i, /openai/i, /bing/i, /copilot/i, /gemini/i, /bard/i, 
+      /claude/i, /anthropic/i, /perplexity/i, /ai_search/i
+    ];
+
+    for (const row of rows) {
+      const source = row.dimensionValues?.[0]?.value || '';
+      const dateStr = row.dimensionValues?.[2]?.value; 
+      
+      const sess = parseInt(row.metricValues?.[0]?.value || '0', 10);
+      const usrs = parseInt(row.metricValues?.[1]?.value || '0', 10);
+
+      const isAi = aiPatterns.some(pattern => pattern.test(source));
+
+      if (isAi) {
+        totalAiSessions += sess;
+        totalAiUsers += usrs;
+
+        if (!sourceStats[source]) {
+          sourceStats[source] = { sessions: 0, users: 0 };
+        }
+        sourceStats[source].sessions += sess;
+        sourceStats[source].users += usrs;
+
+        if (dateStr) {
+          const dateTs = parseGa4Date(dateStr);
+          dailyTrend[dateTs] = (dailyTrend[dateTs] || 0) + sess;
         }
       }
-    } catch (error) {
-      console.warn('[Google Cache] Lesefehler:', error);
     }
+
+    const topAiSources = Object.entries(sourceStats)
+      .map(([source, stats]) => ({
+        source,
+        sessions: stats.sessions,
+        users: stats.users,
+        percentage: totalAiSessions > 0 ? (stats.sessions / totalAiSessions) * 100 : 0
+      }))
+      .sort((a, b) => b.sessions - a.sessions)
+      .slice(0, 5);
+
+    const trend = Object.entries(dailyTrend)
+      .map(([date, sessions]) => ({
+        date: parseInt(date, 10),
+        sessions
+      }))
+      .sort((a, b) => a.date - b.date);
+
+    return {
+      totalSessions: totalAiSessions,
+      totalUsers: totalAiUsers,
+      sessionsBySource: {}, 
+      topAiSources,
+      trend
+    };
+
+  } catch (error) {
+    console.error('AI Traffic API Error:', error);
+    return {
+      totalSessions: 0,
+      totalUsers: 0,
+      sessionsBySource: {},
+      topAiSources: [],
+      trend: []
+    };
   }
+}
 
-  // 2. Daten frisch holen
-  console.log(`[Google Cache] 🔄 Lade frische Daten für ${user.email}...`);
-
-  const end = new Date();
-  const start = new Date();
-  let days = 30;
-  if (dateRange === '7d') days = 7;
-  if (dateRange === '3m') days = 90;
-  if (dateRange === '6m') days = 180;
-  if (dateRange === '12m') days = 365;
-  start.setDate(end.getDate() - days);
+// ✅ KORRIGIERT: Holt Conversions und setzt "Interaktionsrate"
+export async function getGa4DimensionReport(
+  propertyId: string,
+  startDate: string,
+  endDate: string,
+  dimensionName: 'country' | 'sessionDefaultChannelGroup' | 'deviceCategory'
+): Promise<ChartEntry[]> {
+  const formattedPropertyId = propertyId.startsWith('properties/') ? propertyId : `properties/${propertyId}`;
+  const auth = createAuth();
+  const analytics = google.analyticsdata({ version: 'v1beta', auth });
   
-  const startDateStr = start.toISOString().split('T')[0];
-  const endDateStr = end.toISOString().split('T')[0];
-
-  const prevEnd = new Date(start);
-  prevEnd.setDate(prevEnd.getDate() - 1);
-  const prevStart = new Date(prevEnd);
-  prevStart.setDate(prevEnd.getDate() - days);
-  const prevStartStr = prevStart.toISOString().split('T')[0];
-  const prevEndStr = prevEnd.toISOString().split('T')[0];
-
-  // Datencontainer mit Default-Werten initialisieren
-  let currentData: RawApiData = { ...INITIAL_DATA };
-  let prevData: RawApiData = { ...INITIAL_DATA };
-
-  let topQueries: TopQueryData[] = [];
-  let topConvertingPages: ConvertingPageData[] = []; 
-  let aiTraffic: AiTrafficData | undefined;
-  let countryData: ChartEntry[] = [];
-  let channelData: ChartEntry[] = [];
-  let deviceData: ChartEntry[] = [];
-  let bingData: any[] = [];
-  let apiErrors: ApiErrorStatus = {};
-
-  // --- GSC FETCH ---
-  if (user.gsc_site_url) {
-    try {
-      const gscRaw = await getSearchConsoleData(user.gsc_site_url, startDateStr, endDateStr);
-      // Merge GSC Data
-      currentData = {
-        ...currentData,
-        clicks: { total: gscRaw.clicks?.total || 0, daily: gscRaw.clicks?.daily || [] },
-        impressions: { total: gscRaw.impressions?.total || 0, daily: gscRaw.impressions?.daily || [] }
-      };
-      
-      const gscPrevRaw = await getSearchConsoleData(user.gsc_site_url, prevStartStr, prevEndStr);
-      prevData = {
-        ...prevData,
-        clicks: { ...prevData.clicks, total: gscPrevRaw.clicks?.total || 0 },
-        impressions: { ...prevData.impressions, total: gscPrevRaw.impressions?.total || 0 }
-      };
-
-      topQueries = await getTopQueries(user.gsc_site_url, startDateStr, endDateStr);
-    } catch (e: any) {
-      console.error('[GSC Error]', e);
-      apiErrors.gsc = e.message || 'GSC Fehler';
-    }
-  }
-
-  // --- GA4 FETCH ---
-  if (user.ga4_property_id) {
-    try {
-      const propertyId = user.ga4_property_id.trim();
-      
-      // Hauptdaten (KPIs & Charts)
-      const gaCurrent = await getAnalyticsData(propertyId, startDateStr, endDateStr);
-      const gaPrevious = await getAnalyticsData(propertyId, prevStartStr, prevEndStr);
-      
-      // ✅ FIX: GA4 Daten gezielt mergen, damit GSC (clicks/impressions) nicht überschrieben wird!
-      currentData = { 
-        ...currentData,
-        sessions: gaCurrent.sessions,
-        totalUsers: gaCurrent.totalUsers,
-        conversions: gaCurrent.conversions,
-        engagementRate: gaCurrent.engagementRate,
-        bounceRate: gaCurrent.bounceRate,
-        newUsers: gaCurrent.newUsers,
-        avgEngagementTime: gaCurrent.avgEngagementTime,
-        paidSearch: ('paidSearch' in gaCurrent && gaCurrent.paidSearch) 
-          ? gaCurrent.paidSearch 
-          : { total: 0, daily: [] }
-      };
-
-      prevData = { 
-        ...prevData,
-        sessions: gaPrevious.sessions,
-        totalUsers: gaPrevious.totalUsers,
-        conversions: gaPrevious.conversions,
-        engagementRate: gaPrevious.engagementRate,
-        bounceRate: gaPrevious.bounceRate,
-        newUsers: gaPrevious.newUsers,
-        avgEngagementTime: gaPrevious.avgEngagementTime,
-        paidSearch: ('paidSearch' in gaPrevious && gaPrevious.paidSearch) 
-          ? gaPrevious.paidSearch 
-          : { total: 0, daily: [] }
-      };
-
-      // AI Traffic
-      try { 
-        aiTraffic = await getAiTrafficData(propertyId, startDateStr, endDateStr); 
-      } catch (e) {
-        console.warn('[AI Traffic] Fehler (ignoriert):', e);
-      }
-      
-      // FIX: Daten mappen
-      try {
-        const rawPages = await getTopConvertingPages(propertyId, startDateStr, endDateStr);
-        
-        topConvertingPages = rawPages.map((p: any) => ({
-          path: p.path,
-          conversions: p.conversions,
-          conversionRate: typeof p.conversionRate === 'string' 
-            ? parseFloat(p.conversionRate) 
-            : Number(p.conversionRate),
-          engagementRate: p.engagementRate, 
-          sessions: p.sessions, 
-          newUsers: p.newUsers  
-        }));
-      } catch (e) {
-        console.warn('[GA4] Konnte Top-Pages nicht laden:', e);
-      }
-
-      // Dimensionen (Charts)
-      try {
-        // Country
-        const rawCountry = await getGa4DimensionReport(propertyId, startDateStr, endDateStr, 'country');
-        countryData = rawCountry.map((item, index) => ({ ...item, fill: `hsl(var(--chart-${(index % 5) + 1}))` }));
-        
-        // Channel
-        const rawChannel = await getGa4DimensionReport(propertyId, startDateStr, endDateStr, 'sessionDefaultChannelGroup');
-        channelData = rawChannel.map((item, index) => ({ ...item, fill: `hsl(var(--chart-${(index % 5) + 1}))` }));
-        
-        // Device
-        const rawDevice = await getGa4DimensionReport(propertyId, startDateStr, endDateStr, 'deviceCategory');
-        deviceData = rawDevice.map((item, index) => ({ ...item, fill: `hsl(var(--chart-${(index % 5) + 1}))` }));
-      } catch (e) { 
-        console.error('[GA4 Dimensions Error]', e); 
-      }
-
-    } catch (e: any) {
-      console.error('[GA4 Error]', e);
-      apiErrors.ga4 = e.message || 'GA4 Fehler';
-    }
-  }
-
-  // --- BING FETCH ---
-  if (user.gsc_site_url) {
-    try {
-      bingData = await getBingData(user.gsc_site_url);
-      console.log('[Bing] Daten erfolgreich geladen');
-    } catch (e: any) {
-      console.warn('[Bing] Fetch fehlgeschlagen (optional):', e);
-      apiErrors.bing = e.message || 'Bing Fehler';
-    }
-  }
-
-  // AI Anteil berechnen
-  const aiTrafficPercentage = (aiTraffic && currentData.sessions.total > 0)
-    ? (aiTraffic.totalSessions / currentData.sessions.total) * 100
-    : 0;
-
-  // --- DATEN ZUSAMMENBAUEN ---
-  const freshData: ProjectDashboardData = {
-    kpis: {
-      // GSC (bleiben erhalten, wenn GA4 sie nicht überschreibt)
-      clicks: { value: currentData.clicks.total, change: calculateChange(currentData.clicks.total, prevData.clicks.total) },
-      impressions: { value: currentData.impressions.total, change: calculateChange(currentData.impressions.total, prevData.impressions.total) },
-      
-      // GA4
-      sessions: { 
-        value: currentData.sessions.total, 
-        change: calculateChange(currentData.sessions.total, prevData.sessions.total),
-        aiTraffic: aiTraffic ? { value: aiTraffic.totalSessions, percentage: aiTrafficPercentage } : undefined
-      },
-      totalUsers: { value: currentData.totalUsers.total, change: calculateChange(currentData.totalUsers.total, prevData.totalUsers.total) },
-      conversions: { value: currentData.conversions.total, change: calculateChange(currentData.conversions.total, prevData.conversions.total) },
-      engagementRate: { 
-        value: parseFloat((currentData.engagementRate.total * 100).toFixed(2)), 
-        change: calculateChange(currentData.engagementRate.total, prevData.engagementRate.total) 
-      },
-      bounceRate: { 
-        value: parseFloat((currentData.bounceRate.total * 100).toFixed(2)), 
-        change: calculateChange(currentData.bounceRate.total, prevData.bounceRate.total) 
-      },
-      newUsers: { value: currentData.newUsers.total, change: calculateChange(currentData.newUsers.total, prevData.newUsers.total) },
-      avgEngagementTime: { value: currentData.avgEngagementTime.total, change: calculateChange(currentData.avgEngagementTime.total, prevData.avgEngagementTime.total) },
-      // ✅ NEU: Paid Search KPI nur hinzufügen wenn Daten vorhanden
-      paidSearch: { value: currentData.paidSearch.total, change: calculateChange(currentData.paidSearch.total, prevData.paidSearch.total) }
-    },
-    
-    // Charts
-    charts: {
-      clicks: currentData.clicks.daily || [],
-      impressions: currentData.impressions.daily || [],
-      sessions: currentData.sessions.daily || [],
-      totalUsers: currentData.totalUsers.daily || [],
-      conversions: currentData.conversions.daily || [],
-      engagementRate: currentData.engagementRate.daily || [],
-      bounceRate: currentData.bounceRate.daily || [],
-      newUsers: currentData.newUsers.daily || [],
-      avgEngagementTime: currentData.avgEngagementTime.daily || [],
-      // ✅ NEU: Paid Search Chart
-      paidSearch: currentData.paidSearch.daily || []
-    },
-    topQueries,
-    topConvertingPages,
-    aiTraffic,
-    countryData,
-    channelData,
-    deviceData,
-    bingData,
-    apiErrors: Object.keys(apiErrors).length > 0 ? apiErrors : undefined
-  };
-
-  // Cache speichern
   try {
-    await sql`
-      INSERT INTO google_data_cache (user_id, date_range, data, last_fetched)
-      VALUES (${userId}::uuid, ${dateRange}, ${JSON.stringify(freshData)}::jsonb, NOW())
-      ON CONFLICT (user_id, date_range)
-      DO UPDATE SET data = ${JSON.stringify(freshData)}::jsonb, last_fetched = NOW();
-    `;
-  } catch (e) { console.error('[Cache Write Error]', e); }
+    const response = await analytics.properties.runReport({
+      property: formattedPropertyId,
+      requestBody: {
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: dimensionName }],
+        metrics: [
+          { name: 'sessions' }, 
+          { name: 'engagementRate' }, 
+          { name: 'conversions' }
+        ],
+        orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
+        limit: '10',
+      },
+    });
+    
+    const rows = response.data.rows || [];
+    const results: ChartEntry[] = [];
+    
+    for (const row of rows) {
+      const name = row.dimensionValues?.[0]?.value || 'Unknown';
+      const sessions = parseInt(row.metricValues?.[0]?.value || '0', 10);
+      const rate = parseFloat(row.metricValues?.[1]?.value || '0'); 
+      const conversions = parseInt(row.metricValues?.[2]?.value || '0', 10);
 
-  return freshData;
+      results.push({ 
+        name, 
+        value: sessions,
+        subValue: `${(rate * 100).toFixed(1)}%`,
+        subLabel: 'Interaktionsrate',
+        subValue2: conversions,
+        subLabel2: 'Conversions'
+      });
+    }
+    
+    if (results.length > 6) {
+      const top5 = results.slice(0, 5);
+      const otherSessions = results.slice(5).reduce((acc, curr) => acc + curr.value, 0);
+      const otherConversions = results.slice(5).reduce((acc, curr) => acc + (curr.subValue2 || 0), 0);
+      
+      if (otherSessions > 0) {
+        return [...top5, { 
+          name: 'Sonstige', 
+          value: otherSessions, 
+          subValue: '-', 
+          subLabel: 'Interaktionsrate',
+          subValue2: otherConversions,
+          subLabel2: 'Conversions'
+        }];
+      }
+      return top5;
+    }
+    return results;
+  } catch (error) {
+    console.error(`GA4 Dimension Report Error (${dimensionName}):`, error);
+    return [];
+  }
+}
+
+export interface ConvertingPageData {
+  path: string;
+  conversions: number;
+  sessions: number;
+  conversionRate: string;
+}
+
+export async function getTopConvertingPages(
+  propertyId: string,
+  startDate: string,
+  endDate: string
+): Promise<ConvertingPageData[]> {
+  const formattedPropertyId = propertyId.startsWith('properties/') ? propertyId : `properties/${propertyId}`;
+  const auth = createAuth();
+  const analytics = google.analyticsdata({ version: 'v1beta', auth });
+
+  try {
+    const response = await analytics.properties.runReport({
+      property: formattedPropertyId,
+      requestBody: {
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: 'landingPagePlusQueryString' }],
+        metrics: [
+          { name: 'conversions' },
+          { name: 'sessions' },
+          { name: 'engagementRate' }, 
+          { name: 'newUsers' } 
+        ],
+        orderBys: [
+          { metric: { metricName: 'conversions' }, desc: true },
+          { metric: { metricName: 'sessions' }, desc: true }
+        ],
+        limit: '100',
+      },
+    });
+
+    const rows = response.data.rows || [];
+
+    return rows.map(row => {
+      const conversions = parseInt(row.metricValues?.[0]?.value || '0', 10);
+      const sessions = parseInt(row.metricValues?.[1]?.value || '0', 10);
+      const engagementRate = parseFloat(row.metricValues?.[2]?.value || '0');
+      const newUsers = parseInt(row.metricValues?.[3]?.value || '0', 10);
+
+      const convRate = sessions > 0 ? ((conversions / sessions) * 100).toFixed(2) : '0';
+
+      return {
+        path: row.dimensionValues?.[0]?.value || '(not set)',
+        conversions,
+        sessions,
+        newUsers,
+        conversionRate: convRate,
+        engagementRate: parseFloat((engagementRate * 100).toFixed(2))
+      };
+    })
+    .filter(p => p.conversions > 0 || p.sessions > 5)
+    .slice(0, 50);
+
+  } catch (error) {
+    console.error('Error fetching Top Converting Pages:', error);
+    return [];
+  }
 }
