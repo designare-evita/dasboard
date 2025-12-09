@@ -63,7 +63,7 @@ function detectCMS(html: string, $: cheerio.CheerioAPI): { cms: string; confiden
 }
 
 // Tech-Stack
-function detectTechStack(html: string): string[] {
+function detectTechStack(html: string, $: cheerio.CheerioAPI): string[] { // <-- $ Parameter hinzugefügt
   const stack: string[] = [];
   const htmlLower = html.toLowerCase();
   
@@ -78,8 +78,6 @@ function detectTechStack(html: string): string[] {
   if (htmlLower.includes('angular.json') || htmlLower.includes('zone.js') || $('app-root').length > 0 || htmlLower.includes('ng-version=')) {
       stack.push('Angular');
   } else if (html.includes('ng-') || html.includes('*ngFor')) {
-      // Wenn nur Direktiven, aber kein Core-Code gefunden, Konfidenz reduzieren (optional)
-      // Wir lassen es hier drin, da es spezifischer ist als nur 'react'.
       if (!stack.includes('Angular')) stack.push('Angular');
   }
 
@@ -263,7 +261,7 @@ async function scrapeUrl(url: string) {
   const metaDesc = $('meta[name="description"]').attr('content')?.trim() || '';
   
   const cmsInfo = detectCMS(html, $);
-  const techStack = detectTechStack(html);
+  const techStack = detectTechStack(html, $); // <-- Korrigierter Aufruf
   const features = detectFeatures(html, $); 
   
   const navLinks = extractMainNavLinks(html, $, url);
