@@ -5,8 +5,10 @@ import * as cheerio from 'cheerio';
 import { NextRequest, NextResponse } from 'next/server';
 import { getCompactStyleGuide, STYLES } from '@/lib/ai-styles';
 
-// Wichtig: Die Suchfunktion muss hier im Produktionssystem integriert werden.
-// Wir simulieren den Zugriff auf die Suchergebnisse für die KI-Analyse.
+// --- Environment Variablen (Für Google Custom Search API) ---
+const GOOGLE_SEARCH_API_KEY = process.env.GOOGLE_SEARCH_API_KEY;
+const GOOGLE_SEARCH_CX_ID = process.env.GOOGLE_SEARCH_CX_ID;
+// -----------------------------------------------------------
 
 const google = createGoogleGenerativeAI({
   apiKey: process.env.GEMINI_API_KEY || '',
@@ -28,7 +30,8 @@ async function fetchAndCleanArticle(url: string): Promise<{ url: string, title: 
   try {
     const res = await fetch(url, {
       headers: { 
-        'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)' // Guter Bot-User-Agent
+        // Verwendung eines User-Agents, der das Crawling klar identifiziert
+        'User-Agent': 'Mozilla/5.0 (compatible; DesignareEvitaNewsCrawler/1.0; +https://yourdomain.com)' 
       },
       signal: AbortSignal.timeout(8000)
     });
@@ -66,44 +69,46 @@ export async function POST(req: NextRequest) {
     if (!topic) {
       return NextResponse.json({ message: 'Suchbegriff (Topic) ist erforderlich.' }, { status: 400 });
     }
-
-    // 1. Google Search aufrufen, um aktuelle Artikel zu finden
-    // Typisierung des erwarteten Objekts, um TypeScript-Fehler zu vermeiden
-    let searchResults: { web_results: { url: string }[] } = { web_results: [] };
     
-    try {
-      const searchQueries = [`${topic} News`, `${topic} aktuell`];
-      
-      // ===================================================================
-      // !!! WICHTIGER HINWEIS: TOOL-INTEGRATION !!!
-      // DIESER BLOCK MUSS IM PRODUKTIVSYSTEM DURCH DEN ECHTEN AUFRUF DEINER
-      // GOOGLE SEARCH (oder Semrush/Custom Search) API ERSETZT WERDEN, 
-      // um dynamische Suchergebnisse zu erhalten.
-      //
-      // Beispiel für eine hypothetische API-Antwort-Simulation:
-      const mockResults = [
-        { url: 'https://www.eology.de/news/seo-trends', title: 'SEO-Trends 2026' },
-        { url: 'https://searchengineland.com/library/seo', title: 'SEO: news, trends & guides' },
-        { url: 'https://www.seokratie.at/seo/', title: 'SEO News: aktuelle Tipps & Tricks' },
-      ];
-      
-      // Da wir die Google Search Ergebnisse bereits ermittelt haben, 
-      // verwenden wir diese Struktur als Platzhalter.
-      // Ersetze diese Zeile mit Deinem tatsächlichen API-Aufruf:
-      searchResults.web_results = mockResults; 
+    if (!GOOGLE_SEARCH_API_KEY || !GOOGLE_SEARCH_CX_ID) {
+      console.error("GOOGLE_SEARCH_API_KEY oder CX_ID fehlt!");
+      return NextResponse.json({ 
+        message: 'Fehler: API-Schlüssel für Google Search (GOOGLE_SEARCH_API_KEY oder CX_ID) fehlen in den Environment-Variablen.' 
+      }, { status: 500 });
+    }
 
+    // 1. Google Search API Call, um aktuelle Artikel zu finden
+    let searchResults: { items?: { link: string, title: string }[] } = {};
+    const searchQuery = `${topic} News`; 
+    
+    // API-URL zusammenbauen (Standardformat für Google Custom Search JSON API)
+    const apiUrl = `https://www.googleapis.com/customsearch/v1?key=${GOOGLE_SEARCH_API_KEY}&cx=${GOOGLE_SEARCH_CX_ID}&q=${encodeURIComponent(searchQuery)}`;
+
+    try {
+      const googleResponse = await fetch(apiUrl, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(5000)
+      });
+      
+      if (!googleResponse.ok) {
+        throw new Error(`Google API Status ${googleResponse.status}`);
+      }
+
+      searchResults = await googleResponse.json();
+      
     } catch (error) {
-      console.error('❌ Google Search Error:', error);
-      return NextResponse.json({ message: 'Fehler beim Abrufen der Suchergebnisse.' }, { status: 500 });
+      console.error('❌ Google Search API Fetch Error:', error);
+      return NextResponse.json({ message: `Fehler beim Abrufen der Suchergebnisse: ${error instanceof Error ? error.message : 'API-Problem'}` }, { status: 500 });
     }
     
-    // Extrahiere bis zu 3 relevante URLs
-    const articleUrls = searchResults.web_results
-                        ?.map((r: any) => r.url)
+    // Extrahiere bis zu 3 relevante URLs (aus dem 'items' Array der GCS API Antwort)
+    const articleUrls = searchResults.items
+                        ?.map((item: any) => item.link) 
                         .slice(0, 3) || [];
     
     if (articleUrls.length === 0) {
-      return NextResponse.json({ message: 'Keine relevanten Artikel gefunden.' }, { status: 404 });
+      return NextResponse.json({ message: `Keine relevanten Artikel zu "${topic}" gefunden.` }, { status: 404 });
     }
 
     // 2. Artikel crawlen und Inhalt extrahieren
