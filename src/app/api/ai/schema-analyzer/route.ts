@@ -270,10 +270,9 @@ ERSTELLE DIESEN REPORT:
 3. <h3 class="${STYLES.h3}"><i class="bi bi-code"></i> Code-Beispiel</h3>
    <div class="${STYLES.card}">
      <h4 class="${STYLES.h4}">Beispielcode für den WICHTIGSTEN fehlenden Schema-Typ (Punkt 1 aus Vorschläge)</h4>
-     <p class="${STYLES.p}">Generiere einen vollständigen, gültigen JSON-LD Codeblock für den wichtigsten empfohlenen Schema-Typ, der die Seitendaten (${pageData.title}, ${pageData.h1}, ${pageData.url}) nutzt und relevante Platzhalter für notwendige Felder (z.B. "description": "[Beschreibung hier einfügen]") enthält. Der Code MUSS in einem `<pre class="language-json">...</pre>` Block eingeschlossen sein.</p>
-     <pre class="language-json">
-[GENERIERTER CODE HIER EINFÜGEN]
-     </pre>
+     <p class="${STYLES.p}">Generiere einen vollständigen, gültigen JSON-LD Codeblock für den wichtigsten empfohlenen Schema-Typ, der die Seitendaten (${pageData.title}, ${pageData.h1}, ${pageData.url}) nutzt und relevante Platzhalter für notwendige Felder (z.B. "description": "[Beschreibung hier einfügen]") enthält. Der Code MUSS in einem 
+     <pre class="language-json">...</pre> Block eingeschlossen sein.
+     </p>
    </div>
    
 Antworte NUR mit HTML. Ersetze alle [Platzhalter] mit echtem Content!
