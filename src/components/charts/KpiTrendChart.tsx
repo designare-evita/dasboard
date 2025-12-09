@@ -22,7 +22,6 @@ import { cn } from '@/lib/utils';
 const KPI_CONFIG: Record<string, { label: string; color: string; gradientId: string }> = {
   // Traffic
   impressions: { label: 'Impressionen', color: '#8b5cf6', gradientId: 'gradPurple' }, 
-  // ÄNDERUNG: "Klicks" zu "Google Klicks" geändert
   clicks: { label: 'Google Klicks', color: '#3b82f6', gradientId: 'gradBlue' },       
   newUsers: { label: 'Neue Besucher', color: '#6366f1', gradientId: 'gradIndigo' }, 
   totalUsers: { label: 'Besucher', color: '#0ea5e9', gradientId: 'gradSky' },     
@@ -35,7 +34,10 @@ const KPI_CONFIG: Record<string, { label: string; color: string; gradientId: str
   engagementRate: { label: 'Interaktionsrate', color: '#ec4899', gradientId: 'gradPink' },
   conversions: { label: 'Conversions', color: '#10b981', gradientId: 'gradEmerald' },   
   avgEngagementTime: { label: 'Ø Verweildauer', color: '#f59e0b', gradientId: 'gradAmber' },
-  bounceRate: { label: 'Absprungrate', color: '#f43f5e', gradientId: 'gradRose' },  
+  bounceRate: { label: 'Absprungrate', color: '#f43f5e', gradientId: 'gradRose' },
+  
+  // ✅ NEU: Paid Search Konfiguration
+  paidSearch: { label: 'Paid Search', color: '#14b8a6', gradientId: 'gradTeal' },
 };
 
 interface KpiTrendChartProps {
