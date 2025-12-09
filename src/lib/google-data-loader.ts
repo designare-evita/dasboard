@@ -32,6 +32,7 @@ interface RawApiData {
   bounceRate: { total: number; daily: ChartPoint[] };
   newUsers: { total: number; daily: ChartPoint[] };
   avgEngagementTime: { total: number; daily: ChartPoint[] };
+  paidSearch: { total: number; daily: ChartPoint[] }; // ✅ NEU
 }
 
 // Hilfsfunktion: Berechnet Veränderung sicher
@@ -50,7 +51,8 @@ const INITIAL_DATA: RawApiData = {
   engagementRate: { total: 0, daily: [] },
   bounceRate: { total: 0, daily: [] },
   newUsers: { total: 0, daily: [] },
-  avgEngagementTime: { total: 0, daily: [] }
+  avgEngagementTime: { total: 0, daily: [] },
+  paidSearch: { total: 0, daily: [] } // ✅ NEU
 };
 
 export async function getOrFetchGoogleData(
@@ -163,7 +165,8 @@ export async function getOrFetchGoogleData(
         engagementRate: gaCurrent.engagementRate,
         bounceRate: gaCurrent.bounceRate,
         newUsers: gaCurrent.newUsers,
-        avgEngagementTime: gaCurrent.avgEngagementTime
+        avgEngagementTime: gaCurrent.avgEngagementTime,
+        paidSearch: gaCurrent.paidSearch || { total: 0, daily: [] } // ✅ NEU
       };
 
       prevData = { 
@@ -174,7 +177,8 @@ export async function getOrFetchGoogleData(
         engagementRate: gaPrevious.engagementRate,
         bounceRate: gaPrevious.bounceRate,
         newUsers: gaPrevious.newUsers,
-        avgEngagementTime: gaPrevious.avgEngagementTime
+        avgEngagementTime: gaPrevious.avgEngagementTime,
+        paidSearch: gaPrevious.paidSearch || { total: 0, daily: [] } // ✅ NEU
       };
 
       // AI Traffic
@@ -265,7 +269,8 @@ export async function getOrFetchGoogleData(
         change: calculateChange(currentData.bounceRate.total, prevData.bounceRate.total) 
       },
       newUsers: { value: currentData.newUsers.total, change: calculateChange(currentData.newUsers.total, prevData.newUsers.total) },
-      avgEngagementTime: { value: currentData.avgEngagementTime.total, change: calculateChange(currentData.avgEngagementTime.total, prevData.avgEngagementTime.total) }
+      avgEngagementTime: { value: currentData.avgEngagementTime.total, change: calculateChange(currentData.avgEngagementTime.total, prevData.avgEngagementTime.total) },
+      paidSearch: { value: currentData.paidSearch.total, change: calculateChange(currentData.paidSearch.total, prevData.paidSearch.total) } // ✅ NEU
     },
     
     // Charts
@@ -278,7 +283,8 @@ export async function getOrFetchGoogleData(
       engagementRate: currentData.engagementRate.daily || [],
       bounceRate: currentData.bounceRate.daily || [],
       newUsers: currentData.newUsers.daily || [],
-      avgEngagementTime: currentData.avgEngagementTime.daily || []
+      avgEngagementTime: currentData.avgEngagementTime.daily || [],
+      paidSearch: currentData.paidSearch.daily || [] // ✅ NEU
     },
     topQueries,
     topConvertingPages,
