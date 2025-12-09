@@ -157,6 +157,7 @@ export async function getOrFetchGoogleData(
       const gaPrevious = await getAnalyticsData(propertyId, prevStartStr, prevEndStr);
       
       // ✅ FIX: GA4 Daten gezielt mergen, damit GSC (clicks/impressions) nicht überschrieben wird!
+      // ✅ WICHTIG: paidSearch ist optional - nur setzen wenn vorhanden
       currentData = { 
         ...currentData,
         sessions: gaCurrent.sessions,
@@ -166,7 +167,8 @@ export async function getOrFetchGoogleData(
         bounceRate: gaCurrent.bounceRate,
         newUsers: gaCurrent.newUsers,
         avgEngagementTime: gaCurrent.avgEngagementTime,
-        paidSearch: gaCurrent.paidSearch || { total: 0, daily: [] } // ✅ NEU
+        // ✅ Sicherer Check: nur wenn paidSearch existiert
+        ...(('paidSearch' in gaCurrent) && { paidSearch: gaCurrent.paidSearch || { total: 0, daily: [] } })
       };
 
       prevData = { 
@@ -178,7 +180,8 @@ export async function getOrFetchGoogleData(
         bounceRate: gaPrevious.bounceRate,
         newUsers: gaPrevious.newUsers,
         avgEngagementTime: gaPrevious.avgEngagementTime,
-        paidSearch: gaPrevious.paidSearch || { total: 0, daily: [] } // ✅ NEU
+        // ✅ Sicherer Check: nur wenn paidSearch existiert
+        ...(('paidSearch' in gaPrevious) && { paidSearch: gaPrevious.paidSearch || { total: 0, daily: [] } })
       };
 
       // AI Traffic
@@ -270,7 +273,8 @@ export async function getOrFetchGoogleData(
       },
       newUsers: { value: currentData.newUsers.total, change: calculateChange(currentData.newUsers.total, prevData.newUsers.total) },
       avgEngagementTime: { value: currentData.avgEngagementTime.total, change: calculateChange(currentData.avgEngagementTime.total, prevData.avgEngagementTime.total) },
-      paidSearch: { value: currentData.paidSearch.total, change: calculateChange(currentData.paidSearch.total, prevData.paidSearch.total) } // ✅ NEU
+      // ✅ NEU: Paid Search KPI nur hinzufügen wenn Daten vorhanden
+      paidSearch: { value: currentData.paidSearch.total, change: calculateChange(currentData.paidSearch.total, prevData.paidSearch.total) }
     },
     
     // Charts
@@ -284,7 +288,8 @@ export async function getOrFetchGoogleData(
       bounceRate: currentData.bounceRate.daily || [],
       newUsers: currentData.newUsers.daily || [],
       avgEngagementTime: currentData.avgEngagementTime.daily || [],
-      paidSearch: currentData.paidSearch.daily || [] // ✅ NEU
+      // ✅ NEU: Paid Search Chart
+      paidSearch: currentData.paidSearch.daily || []
     },
     topQueries,
     topConvertingPages,
