@@ -157,7 +157,6 @@ export async function getOrFetchGoogleData(
       const gaPrevious = await getAnalyticsData(propertyId, prevStartStr, prevEndStr);
       
       // ✅ FIX: GA4 Daten gezielt mergen, damit GSC (clicks/impressions) nicht überschrieben wird!
-      // ✅ WICHTIG: paidSearch ist optional - nur setzen wenn vorhanden
       currentData = { 
         ...currentData,
         sessions: gaCurrent.sessions,
@@ -167,8 +166,9 @@ export async function getOrFetchGoogleData(
         bounceRate: gaCurrent.bounceRate,
         newUsers: gaCurrent.newUsers,
         avgEngagementTime: gaCurrent.avgEngagementTime,
-        // ✅ Sicherer Check: nur wenn paidSearch existiert
-        ...(('paidSearch' in gaCurrent) && { paidSearch: gaCurrent.paidSearch || { total: 0, daily: [] } })
+        paidSearch: ('paidSearch' in gaCurrent && gaCurrent.paidSearch) 
+          ? gaCurrent.paidSearch 
+          : { total: 0, daily: [] }
       };
 
       prevData = { 
@@ -180,8 +180,9 @@ export async function getOrFetchGoogleData(
         bounceRate: gaPrevious.bounceRate,
         newUsers: gaPrevious.newUsers,
         avgEngagementTime: gaPrevious.avgEngagementTime,
-        // ✅ Sicherer Check: nur wenn paidSearch existiert
-        ...(('paidSearch' in gaPrevious) && { paidSearch: gaPrevious.paidSearch || { total: 0, daily: [] } })
+        paidSearch: ('paidSearch' in gaPrevious && gaPrevious.paidSearch) 
+          ? gaPrevious.paidSearch 
+          : { total: 0, daily: [] }
       };
 
       // AI Traffic
