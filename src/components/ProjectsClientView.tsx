@@ -2,7 +2,10 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
+// NEU: useRouter für die Navigation nach dem Timeout
+import { useRouter } from 'next/navigation'; 
+// Link wird nur noch für nicht-interaktive Elemente verwendet oder entfernt, wo es ersetzt wird
+// import Link from 'next/link'; 
 import { 
   Search, Briefcase, CheckCircleFill, XCircleFill, FileEarmarkText, 
   ShieldLock, BoxArrowInRight, Globe, CalendarRange,
@@ -11,13 +14,45 @@ import {
 import { addMonths, format } from 'date-fns';
 // ✅ WICHTIG: Importiere ProjectStats aus schemas
 import type { ProjectStats } from '@/lib/schemas';
+// NEU: Import der Lightbox-Komponente
+import TransitioningLightbox from '@/components/ui/TransitioningLightbox'; 
 
 interface Props {
   initialProjects: ProjectStats[];
 }
 
+// Zeit in Millisekunden, die die Lightbox angezeigt wird, bevor die Navigation startet.
+const LIGHTBOX_DELAY_MS = 500; 
+
 export default function ProjectsClientView({ initialProjects }: Props) {
+  const router = useRouter(); // Initialisiere den Router für die Navigation
+  
   const [searchTerm, setSearchTerm] = useState('');
+  // NEUE STATES FÜR DIE LIGHTBOX UND NACHRICHT
+  const [isNavigating, setIsNavigating] = useState(false);
+  const [lightboxMessage, setLightboxMessage] = useState('');
+
+  /**
+   * Zeigt die Lightbox an und leitet dann nach einer kurzen Verzögerung um.
+   * @param path Der Zielpfad (href).
+   * @param message Die in der Lightbox anzuzeigende Nachricht.
+   */
+  const handleNavigationWithLightbox = (path: string, message: string) => {
+    // 1. Lightbox-Status setzen
+    setLightboxMessage(message);
+    setIsNavigating(true);
+
+    // 2. Verzögerte Navigation starten
+    setTimeout(() => {
+      router.push(path);
+      // Beim Routenwechsel wird die Komponente sowieso unmounted,
+      // aber es ist sauberer, den State nach der Navigation zurückzusetzen,
+      // falls das Routing fehlschlägt oder ähnliches.
+      // In Next.js ist das Zurücksetzen oft nicht nötig, aber eine Option.
+      // setIsNavigating(false); 
+    }, LIGHTBOX_DELAY_MS); 
+  };
+
 
   // Filtern passiert jetzt client-seitig auf den bereits geladenen Daten
   const filteredProjects = initialProjects.filter(user => 
@@ -51,6 +86,11 @@ export default function ProjectsClientView({ initialProjects }: Props) {
       </span>
     );
   };
+
+  // WICHTIG: Wenn die Navigation aktiv ist, nur die Lightbox rendern
+  if (isNavigating) {
+    return <TransitioningLightbox message={lightboxMessage} />;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
@@ -107,12 +147,19 @@ export default function ProjectsClientView({ initialProjects }: Props) {
                     </div>
                     <div className="text-sm text-gray-500 mt-1">{user.email}</div>
                   </div>
-                  <Link 
-                    href={`/projekt/${user.id}`} 
-                    className="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 hover:text-indigo-800 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                  
+                  {/* BUTTON 1: ZUM DASHBOARD (Link durch div/button mit onClick ersetzt) */}
+                  <div 
+                    onClick={() => handleNavigationWithLightbox(
+                        `/projekt/${user.id}`, 
+                        `Lade Dashboard für ${user.domain || 'das Projekt'}...`
+                    )}
+                    className="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 hover:text-indigo-800 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 cursor-pointer"
+                    role="button" // Barrierefreiheit: Als Button kennzeichnen
+                    tabIndex={0} // Barrierefreiheit: Fokussierbar machen
                   >
                     Zum Dashboard <BoxArrowInRight size={16}/>
-                  </Link>
+                  </div>
                 </div>
 
                 <hr className="border-gray-100 mb-4" />
@@ -143,11 +190,18 @@ export default function ProjectsClientView({ initialProjects }: Props) {
                   <div className="flex flex-col items-end">
                     <span className="text-xs text-gray-400 uppercase font-bold tracking-wider block mb-1">Redaktionsplan</span>
                     {hasRedaktionsplan ? (
-                      <Link href={`/admin/redaktionsplan?id=${user.id}`}>
-                        <span className="inline-flex items-center gap-1.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 px-2.5 py-1 rounded-full border border-indigo-600 transition-colors w-fit cursor-pointer shadow-sm">
-                          <FileEarmarkText size={12} /> Vorhanden (Öffnen)
-                        </span>
-                      </Link>
+                      // BUTTON 2: REDAKTIONSPLAN (Link durch span mit onClick ersetzt)
+                      <span 
+                        onClick={() => handleNavigationWithLightbox(
+                            `/admin/redaktionsplan?id=${user.id}`, 
+                            `Weiterleitung zum Redaktionsplan...`
+                        )}
+                        className="inline-flex items-center gap-1.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 px-2.5 py-1 rounded-full border border-indigo-600 transition-colors w-fit cursor-pointer shadow-sm"
+                        role="button"
+                        tabIndex={0}
+                      >
+                        <FileEarmarkText size={12} /> Vorhanden (Öffnen)
+                      </span>
                     ) : (
                       <span className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 w-fit">
                         <span className="w-3 h-3 rounded-full border-2 border-gray-300"></span>
