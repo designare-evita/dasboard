@@ -6,10 +6,18 @@ import { sql, type QueryResult } from '@vercel/postgres';
 import { getGscDataForPagesWithComparison } from '@/lib/google-api';
 import type { User } from '@/types';
 
-// === Hilfsfunktionen zur Datumsberechnung ===
+// === Hilfsfunktionen ===
 
 function formatDate(date: Date): string {
   return date.toISOString().split('T')[0];
+}
+
+// ✅ NEU: Sichere Rundung für DB-Integer-Spalten
+function safeRound(value: number | null | undefined): number {
+  if (value === null || value === undefined || isNaN(value)) {
+    return 0;
+  }
+  return Math.round(value);
 }
 
 /**
@@ -21,30 +29,24 @@ function calculateDateRanges(dateRange: string): {
   previousRange: { startDate: string, endDate: string }
 } {
   const today = new Date();
-  // GSC-Daten sind oft 2 Tage verzögert verfügbar.
   const endDateCurrent = new Date(today);
   endDateCurrent.setDate(endDateCurrent.getDate() - 2); 
   
   const startDateCurrent = new Date(endDateCurrent);
   let daysBack: number;
   
-  // Berechnung der Tage basierend auf der Auswahl
   switch (dateRange) {
-    case '3m': daysBack = 90; break;  // ca. 3 Monate
-    case '6m': daysBack = 180; break; // ca. 6 Monate
-    case '12m': daysBack = 365; break; // ca. 1 Jahr
-    case '30d': default: daysBack = 29; break; // 30 Tage
+    case '3m': daysBack = 90; break;
+    case '6m': daysBack = 180; break;
+    case '12m': daysBack = 365; break;
+    case '30d': default: daysBack = 29; break;
   }
   
-  // Startdatum setzen
   startDateCurrent.setDate(startDateCurrent.getDate() - daysBack);
   
-  // Vergleichszeitraum (Previous Period) berechnen
-  // Endet 1 Tag vor dem aktuellen Zeitraum
   const endDatePrevious = new Date(startDateCurrent);
   endDatePrevious.setDate(endDatePrevious.getDate() - 1); 
   
-  // Startet 'daysBack' vor dem Ende des Vergleichszeitraums
   const startDatePrevious = new Date(endDatePrevious);
   startDatePrevious.setDate(startDatePrevious.getDate() - daysBack);
   
@@ -121,7 +123,7 @@ export async function POST(request: NextRequest) {
     const { currentRange, previousRange } = calculateDateRanges(dateRange);
     console.log(`[GSC Refresh] Zeiträume: Aktuell(${currentRange.startDate} bis ${currentRange.endDate})`);
 
-    // 7. GSC-Daten abrufen (Nutzt die reparierte Funktion aus google-api.ts!)
+    // 7. GSC-Daten abrufen
     const gscDataMap = await getGscDataForPagesWithComparison(
       siteUrl,
       pageUrls,
@@ -150,16 +152,17 @@ export async function POST(request: NextRequest) {
                gsc_position = $5,
                gsc_position_change = $6,
                gsc_last_updated = NOW(),
-               gsc_last_range = $7  -- Speichert den gewählten Zeitraum (z.B. '12m')
+               gsc_last_range = $7
              WHERE id = $8;`,
             [
-              data.clicks,
-              data.clicks_change,
-              data.impressions,
-              data.impressions_change,
-              data.position,
-              data.position_change,
-              dateRange, // Hier wird '30d', '3m', etc. gespeichert
+              // ✅ FIX: Alle Werte runden für INTEGER-Spalten
+              safeRound(data.clicks),
+              safeRound(data.clicks_change),
+              safeRound(data.impressions),
+              safeRound(data.impressions_change),
+              safeRound(data.position),
+              safeRound(data.position_change),
+              dateRange,
               landingpageId
             ]
           )
