@@ -9,8 +9,10 @@ import {
   CheckCircle, 
   CalendarEvent, 
   ClockHistory,
-  ToggleOn, // NEU
-  ToggleOff // NEU
+  ToggleOn,
+  ToggleOff,
+  ConeStriped,         // NEU für Wartungsmodus
+  ExclamationTriangle  // NEU für Warnung
 } from 'react-bootstrap-icons';
 
 interface EditUserFormProps {
@@ -45,7 +47,8 @@ interface ApiPayload {
   semrush_tracking_id_02: string | null;
   project_start_date: string | null; 
   project_duration_months: number | null; 
-  project_timeline_active: boolean; // NEU
+  project_timeline_active: boolean;
+  maintenance_mode: boolean; // NEU
   password?: string; 
 }
 
@@ -64,7 +67,8 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
     favicon_url: '',
     project_start_date: '',    
     project_duration_months: '6', 
-    project_timeline_active: false, // NEU
+    project_timeline_active: false,
+    maintenance_mode: false, // NEU
   });
 
   const [password, setPassword] = useState('');
@@ -75,8 +79,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
   useEffect(() => {
     if (user) {
       console.log('[EditUserForm] useEffect - user.project_timeline_active:', user.project_timeline_active);
-      console.log('[EditUserForm] useEffect - typeof:', typeof user.project_timeline_active);
-      console.log('[EditUserForm] useEffect - Boolean():', Boolean(user.project_timeline_active));
+      console.log('[EditUserForm] useEffect - user.maintenance_mode:', user.maintenance_mode);
       
       const newFormData = {
         email: user.email || '',
@@ -91,10 +94,10 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
         favicon_url: user.favicon_url || '',
         project_start_date: formatDateForInput(user.project_start_date), 
         project_duration_months: String(user.project_duration_months || 6),
-        project_timeline_active: Boolean(user.project_timeline_active), // KORREKTUR: Explizit als Boolean casten
+        project_timeline_active: Boolean(user.project_timeline_active),
+        maintenance_mode: Boolean(user.maintenance_mode), // NEU
       };
       
-      console.log('[EditUserForm] useEffect - newFormData.project_timeline_active:', newFormData.project_timeline_active);
       setFormData(newFormData);
       setPassword('');
       setMessage('');
@@ -144,7 +147,8 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
         semrush_tracking_id_02: formData.semrushTrackingId02 || null,
         project_start_date: formData.project_start_date || null,
         project_duration_months: parseInt(formData.project_duration_months, 10) || 6,
-        project_timeline_active: formData.project_timeline_active, // NEU
+        project_timeline_active: formData.project_timeline_active,
+        maintenance_mode: formData.maintenance_mode, // NEU
       };
       
       if (!isSuperAdmin || user.role !== 'ADMIN') {
@@ -187,7 +191,8 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
         favicon_url: updatedUser.favicon_url || '',
         project_start_date: formatDateForInput(updatedUser.project_start_date),
         project_duration_months: String(updatedUser.project_duration_months || 6),
-        project_timeline_active: Boolean(updatedUser.project_timeline_active), // KORREKTUR: Explizit als Boolean casten
+        project_timeline_active: Boolean(updatedUser.project_timeline_active),
+        maintenance_mode: Boolean(updatedUser.maintenance_mode), // NEU
       });
       setPassword('');
       setMessage('');
@@ -204,12 +209,26 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
     }
   };
 
+  // Prüfen ob Wartungsmodus für diesen User erlaubt ist
+  const canSetMaintenanceMode = user.role !== 'SUPERADMIN';
+
   // --- Rendering des Formulars ---
   return (
     <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
       <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
         <Pencil size={20} /> Benutzerinformationen bearbeiten
       </h2>
+
+      {/* WARTUNGSMODUS BANNER - wenn aktiv */}
+      {formData.maintenance_mode && (
+        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-2 text-amber-800">
+          <ConeStriped className="text-amber-600 flex-shrink-0" size={20} />
+          <div>
+            <span className="font-semibold">Wartungsmodus aktiv</span>
+            <span className="text-sm ml-2">– Dieser Benutzer sieht nur die Wartungsseite.</span>
+          </div>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
         
@@ -219,7 +238,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
           <div className="relative mt-1">
             <input
               type="email"
-              name="email" // WICHTIG
+              name="email"
               value={formData.email}
               onChange={handleInputChange} 
               required
@@ -256,7 +275,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
           <div className="relative mt-1">
             <input
               type="text"
-              name="mandantId" // WICHTIG
+              name="mandantId"
               value={formData.mandantId}
               onChange={handleInputChange} 
               placeholder="z.B. max-online"
@@ -282,7 +301,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
             <div className="relative mt-1">
               <input
                 type="text"
-                name="permissions" // WICHTIG
+                name="permissions"
                 value={formData.permissions}
                 onChange={handleInputChange} 
                 placeholder={isSuperAdmin ? "z.B. kann_admins_verwalten" : "Nur von Superadmin editierbar"}
@@ -303,6 +322,73 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
           </div>
         )}
 
+        {/* =====================================================
+            NEU: WARTUNGSMODUS SEKTION - für BENUTZER und ADMIN
+            ===================================================== */}
+        {canSetMaintenanceMode && (
+          <fieldset className={`border-t pt-4 mt-4 ${formData.maintenance_mode ? 'bg-amber-50 -mx-6 px-6 pb-4 border-amber-200' : ''}`}>
+            <legend className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+              <ConeStriped className={formData.maintenance_mode ? 'text-amber-600' : 'text-gray-400'} size={16} />
+              Wartungsmodus
+            </legend>
+            
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <label 
+                  htmlFor="maintenance_mode" 
+                  className="flex items-center gap-3 text-sm font-medium text-gray-700 cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    id="maintenance_mode"
+                    name="maintenance_mode"
+                    checked={formData.maintenance_mode}
+                    onChange={handleInputChange}
+                    disabled={isSubmitting}
+                    className="h-5 w-5 text-amber-600 border-gray-300 rounded focus:ring-amber-500"
+                  />
+                  <div className="flex items-center gap-2">
+                    {formData.maintenance_mode ? (
+                      <ToggleOn size={24} className="text-amber-500" />
+                    ) : (
+                      <ToggleOff size={24} className="text-gray-400" />
+                    )}
+                    <span className={formData.maintenance_mode ? 'text-amber-700 font-semibold' : ''}>
+                      {formData.maintenance_mode ? 'Wartungsmodus AKTIV' : 'Wartungsmodus deaktiviert'}
+                    </span>
+                  </div>
+                </label>
+                <p className="mt-1 text-xs text-gray-500 ml-8">
+                  {formData.maintenance_mode 
+                    ? 'Der Benutzer sieht nur die Wartungsseite und der Header ist ausgeblendet.'
+                    : 'Wenn aktiviert, sieht der Benutzer nur die Wartungsseite.'}
+                </p>
+              </div>
+            </div>
+
+            {/* Warnung wenn aktiviert */}
+            {formData.maintenance_mode && (
+              <div className="mt-3 p-2 bg-amber-100 border border-amber-300 rounded-md flex items-start gap-2 text-xs text-amber-800">
+                <ExclamationTriangle className="flex-shrink-0 mt-0.5" size={14} />
+                <span>
+                  <strong>Achtung:</strong> Der Benutzer wird sofort gesperrt, sobald Sie speichern. 
+                  Er kann sich zwar noch einloggen, sieht aber nur die Wartungsseite.
+                </span>
+              </div>
+            )}
+          </fieldset>
+        )}
+
+        {/* Info für SUPERADMINs */}
+        {!canSetMaintenanceMode && (
+          <div className="border-t pt-4 mt-4">
+            <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600">
+              <ConeStriped className="inline mr-2" size={16} />
+              Superadmins können nicht in den Wartungsmodus gesetzt werden.
+            </div>
+          </div>
+        )}
+
         {/* --- Wrapper für BENUTZER-spezifische Felder --- */}
         {user.role === 'BENUTZER' && (
           <>
@@ -310,7 +396,6 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
             <fieldset className="border-t pt-4 mt-4">
               <legend className="text-sm font-medium text-gray-700 mb-2">Projekt-Timeline</legend>
               
-              {/* HIER IST DIE NEUE CHECKBOX */}
               <div className="mb-4">
                 <label 
                   htmlFor="project_timeline_active" 
@@ -319,7 +404,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
                   <input
                     type="checkbox"
                     id="project_timeline_active"
-                    name="project_timeline_active" // WICHTIG
+                    name="project_timeline_active"
                     checked={formData.project_timeline_active}
                     onChange={(e) => {
                       console.log('[EditUserForm] Checkbox onChange - checked:', e.target.checked);
@@ -334,10 +419,6 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
                     <ToggleOff size={20} className="text-gray-400" />
                   )}
                   Projekt-Timeline Widget auf Dashboard anzeigen
-                  {/* DEBUG INFO */}
-                  <span className="text-xs text-gray-400 ml-2">
-                    (State: {String(formData.project_timeline_active)})
-                  </span>
                 </label>
               </div>
 
@@ -352,7 +433,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
                     <div className="relative mt-1">
                       <input
                         type="date"
-                        name="project_start_date" // WICHTIG
+                        name="project_start_date"
                         value={formData.project_start_date}
                         onChange={handleInputChange} 
                         className="block w-full px-3 py-2 pr-10 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
@@ -374,7 +455,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
                     </label>
                     <div className="relative mt-1">
                       <select
-                        name="project_duration_months" // WICHTIG
+                        name="project_duration_months"
                         value={formData.project_duration_months}
                         onChange={handleInputChange} 
                         className="block w-full px-3 py-2 pr-10 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
@@ -407,7 +488,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
                 <div className="relative mt-1">
                   <input
                     type="text"
-                    name="domain" // WICHTIG
+                    name="domain"
                     value={formData.domain}
                     onChange={handleInputChange} 
                     placeholder="z.B. www.kundendomain.at"
@@ -429,7 +510,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
                 <div className="relative mt-1">
                   <input
                     type="text"
-                    name="favicon_url" // WICHTIG
+                    name="favicon_url"
                     value={formData.favicon_url}
                     onChange={handleInputChange} 
                     placeholder="Optional: https://example.com/favicon.png"
@@ -451,7 +532,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
                 <div className="relative mt-1">
                   <input
                     type="text"
-                    name="gscSiteUrl" // WICHTIG
+                    name="gscSiteUrl"
                     value={formData.gscSiteUrl}
                     onChange={handleInputChange} 
                     placeholder="z.B. sc-domain:kundendomain.at"
@@ -473,7 +554,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
                 <div className="relative mt-1">
                   <input
                     type="text"
-                    name="ga4PropertyId" // WICHTIG
+                    name="ga4PropertyId"
                     value={formData.ga4PropertyId}
                     onChange={handleInputChange} 
                     placeholder="z.B. 123456789"
@@ -502,7 +583,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
                 <div className="relative mt-1">
                   <input
                     type="text"
-                    name="semrushProjectId" // WICHTIG
+                    name="semrushProjectId"
                     value={formData.semrushProjectId}
                     onChange={handleInputChange} 
                     placeholder="z.B. 12920575"
@@ -526,7 +607,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
                 <div className="relative mt-1">
                   <input
                     type="text"
-                    name="semrushTrackingId" // WICHTIG
+                    name="semrushTrackingId"
                     value={formData.semrushTrackingId}
                     onChange={handleInputChange} 
                     placeholder="z.B. 1209408"
@@ -550,7 +631,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
                 <div className="relative mt-1">
                   <input
                     type="text"
-                    name="semrushTrackingId02" // WICHTIG
+                    name="semrushTrackingId02"
                     value={formData.semrushTrackingId02}
                     onChange={handleInputChange} 
                     placeholder="z.B. 1209491"
@@ -571,7 +652,7 @@ export default function EditUserForm({ user, onUserUpdated, isSuperAdmin }: Edit
         )}
         {/* --- ENDE Wrapper --- */}
         
-        {/* (Button & Messages - Unverändert) */}
+        {/* (Button & Messages) */}
         <button
           type="submit"
           disabled={isSubmitting}
