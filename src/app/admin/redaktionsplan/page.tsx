@@ -200,6 +200,7 @@ const handleGscRefresh = async () => {
   if (!selectedProject) return;
   setIsRefreshing(true);
   setMessage('');
+  
   try {
     const response = await fetch('/api/landingpages/refresh-gsc', {
       method: 'POST',
@@ -213,18 +214,20 @@ const handleGscRefresh = async () => {
       throw new Error(result.message || 'GSC-Abgleich fehlgeschlagen');
     }
     
-    // ✅ Erfolgsmeldung mit Anzahl der aktualisierten Seiten
+    // ✅ KORREKTUR: Zuerst die Tabelle neu laden
+    // loadLandingpages löscht alle Nachrichten ("setMessage('')"), 
+    // deshalb muss das passieren, BEVOR wir unsere Erfolgsmeldung setzen.
+    await loadLandingpages(selectedProject);
+
+    // ✅ Erfolgsmeldung erst JETZT setzen
     const updatedCount = result.updatedCount || 0;
     setMessage(`✅ GSC-Daten erfolgreich abgeglichen! ${updatedCount} Seiten aktualisiert.`);
-    
-    await loadLandingpages(selectedProject);
     
     // Auto-Hide nach 5 Sekunden
     setTimeout(() => setMessage(''), 5000);
     
   } catch (error) { 
     setMessage(`Fehler beim GSC-Abgleich: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`);
-    // Fehlermeldung bleibt länger sichtbar
     setTimeout(() => setMessage(''), 8000);
   } finally { 
     setIsRefreshing(false); 
