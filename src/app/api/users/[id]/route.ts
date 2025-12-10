@@ -34,7 +34,7 @@ export async function GET(
       return NextResponse.json({ message: 'Zugriff verweigert' }, { status: 403 });
     }
 
-    // Lade Zieldaten
+    // Lade Zieldaten - INKL. maintenance_mode
     const { rows } = await sql<User>`
       SELECT
         id::text as id,
@@ -51,7 +51,8 @@ export async function GET(
         favicon_url,
         project_start_date,      
         project_duration_months,
-        project_timeline_active::boolean as project_timeline_active  -- KORREKTUR: Als boolean casten
+        project_timeline_active::boolean as project_timeline_active,
+        maintenance_mode::boolean as maintenance_mode
       FROM users
       WHERE id = ${targetUserId}::uuid;
     `;
@@ -121,7 +122,8 @@ export async function PUT(
         favicon_url,
         project_start_date,
         project_duration_months,
-        project_timeline_active // KORREKTUR: Feld hinzugefügt
+        project_timeline_active,
+        maintenance_mode // NEU
     } = body;
 
     if (!email) {
@@ -136,7 +138,7 @@ export async function PUT(
     }
     const targetUser = existingUsers[0];
 
-    // --- BERECHTIGUNGSPRÜFUNG (bleibt gleich) ---
+    // --- BERECHTIGUNGSPRÜFUNG ---
     if (sessionRole === 'ADMIN') {
       if (targetUser.role === 'SUPERADMIN') {
         return NextResponse.json({ message: 'Admins dürfen keine Superadmins bearbeiten' }, { status: 403 });
@@ -162,6 +164,13 @@ export async function PUT(
          return NextResponse.json({ message: 'Superadmins können sich nicht selbst über die API bearbeiten.' }, { status: 403 });
       }
     }
+
+    // SUPERADMIN darf nicht in Wartungsmodus gesetzt werden
+    if (targetUser.role === 'SUPERADMIN' && maintenance_mode === true) {
+      return NextResponse.json({ 
+        message: 'Superadmins können nicht in den Wartungsmodus gesetzt werden' 
+      }, { status: 403 });
+    }
     // --- ENDE BERECHTIGUNGSPRÜFUNG ---
 
     const normalizedEmail = email.toLowerCase().trim();
@@ -183,9 +192,9 @@ export async function PUT(
 
     const duration = project_duration_months ? parseInt(String(project_duration_months), 10) : null;
     const startDate = project_start_date ? new Date(project_start_date).toISOString() : null;
-    // KORREKTUR: Boolean-Wert korrekt verarbeiten (wichtig!)
     const timelineActive = typeof project_timeline_active === 'boolean' ? project_timeline_active : false;
-
+    // NEU: maintenance_mode
+    const maintenanceActive = typeof maintenance_mode === 'boolean' ? maintenance_mode : false;
 
     const { rows } = password && password.trim().length > 0
       ? // Query MIT Passwort
@@ -204,7 +213,8 @@ export async function PUT(
             favicon_url = ${favicon_url || null},
             project_start_date = ${startDate},
             project_duration_months = ${duration},
-            project_timeline_active = ${timelineActive}, -- KORREKTUR
+            project_timeline_active = ${timelineActive},
+            maintenance_mode = ${maintenanceActive},
             password = ${await bcrypt.hash(password, 10)}
           WHERE id = ${targetUserId}::uuid
           RETURNING
@@ -212,7 +222,8 @@ export async function PUT(
             gsc_site_url, ga4_property_id, 
             semrush_project_id, semrush_tracking_id, semrush_tracking_id_02,
             mandant_id, permissions, favicon_url,
-            project_start_date, project_duration_months, project_timeline_active; -- KORREKTUR
+            project_start_date, project_duration_months, project_timeline_active,
+            maintenance_mode;
         `
       : // Query OHNE Passwort
         await sql<User>`
@@ -230,14 +241,16 @@ export async function PUT(
             favicon_url = ${favicon_url || null},
             project_start_date = ${startDate},
             project_duration_months = ${duration},
-            project_timeline_active = ${timelineActive} -- KORREKTUR (kein Komma am Ende)
+            project_timeline_active = ${timelineActive},
+            maintenance_mode = ${maintenanceActive}
           WHERE id = ${targetUserId}::uuid
           RETURNING
             id::text as id, email, role, domain, 
             gsc_site_url, ga4_property_id, 
             semrush_project_id, semrush_tracking_id, semrush_tracking_id_02,
             mandant_id, permissions, favicon_url,
-            project_start_date, project_duration_months, project_timeline_active; -- KORREKTUR
+            project_start_date, project_duration_months, project_timeline_active,
+            maintenance_mode;
         `;
 
     if (rows.length === 0) {
@@ -260,12 +273,11 @@ export async function PUT(
   }
 }
 
-// Handler zum Löschen eines Benutzers
+// Handler zum Löschen eines Benutzers (unverändert)
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  // ... (DELETE-Handler bleibt unverändert) ...
   const { id: targetUserId } = await params;
   try {
     const session = await auth(); 
