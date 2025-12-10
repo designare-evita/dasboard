@@ -661,7 +661,8 @@ export async function getTopConvertingPages(
   }
 }
 
-// ✅ NEU: Funktion für Cron-Job - GSC Daten für spezifische Pages mit Vergleich
+// Funktion für Cron-Job - GSC Daten für spezifische Pages mit Vergleich
+// Mit BATCHING für große URL-Listen (GSC API Limit umgehen)
 export interface GscPageData {
   clicks: number;
   clicks_change: number;
@@ -669,6 +670,59 @@ export interface GscPageData {
   impressions_change: number;
   position: number;
   position_change: number;
+}
+
+const GSC_BATCH_SIZE = 20; // Max URLs pro API-Request (GSC hat Regex-Längenlimit)
+
+async function fetchGscBatch(
+  searchconsole: any,
+  siteUrl: string,
+  pageUrls: string[],
+  startDate: string,
+  endDate: string
+): Promise<Map<string, { clicks: number; impressions: number; position: number }>> {
+  const dataMap = new Map<string, { clicks: number; impressions: number; position: number }>();
+  
+  if (pageUrls.length === 0) return dataMap;
+
+  try {
+    const response = await searchconsole.searchanalytics.query({
+      siteUrl,
+      requestBody: {
+        startDate,
+        endDate,
+        dimensions: ['page'],
+        dimensionFilterGroups: [
+          {
+            filters: [
+              {
+                dimension: 'page',
+                operator: 'including_regex',
+                expression: pageUrls.map(url => url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')
+              }
+            ]
+          }
+        ],
+        rowLimit: 25000,
+      },
+    });
+
+    for (const row of response.data.rows || []) {
+      const page = row.keys?.[0];
+      if (page) {
+        dataMap.set(page, {
+          clicks: row.clicks || 0,
+          impressions: row.impressions || 0,
+          position: row.position || 0
+        });
+      }
+    }
+  } catch (error: any) {
+    // Bei Fehler loggen aber nicht abbrechen - andere Batches können noch funktionieren
+    console.error(`[GSC Batch] Fehler für ${pageUrls.length} URLs:`, error.message);
+  }
+
+  return dataMap;
 }
 
 export async function getGscDataForPagesWithComparison(
@@ -682,50 +736,79 @@ export async function getGscDataForPagesWithComparison(
 
   const resultMap = new Map<string, GscPageData>();
 
-  try {
-    // 1. Current Period Data
-    const currentResponse = await searchconsole.searchanalytics.query({
-      siteUrl,
-      requestBody: {
-        startDate: currentRange.startDate,
-        endDate: currentRange.endDate,
-        dimensions: ['page'],
-        dimensionFilterGroups: [
-          {
-            filters: [
-              {
-                dimension: 'page',
-                operator: 'including_regex',
-                expression: pageUrls.map(url => url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')
-              }
-            ]
-          }
-        ],
-        rowLimit: 25000,
-      },
-    });
+  // ✅ NEU: URLs in Batches aufteilen
+  const batches: string[][] = [];
+  for (let i = 0; i < pageUrls.length; i += GSC_BATCH_SIZE) {
+    batches.push(pageUrls.slice(i, i + GSC_BATCH_SIZE));
+  }
 
-    // 2. Previous Period Data
-    const previousResponse = await searchconsole.searchanalytics.query({
-      siteUrl,
-      requestBody: {
-        startDate: previousRange.startDate,
-        endDate: previousRange.endDate,
-        dimensions: ['page'],
-        dimensionFilterGroups: [
-          {
-            filters: [
-              {
-                dimension: 'page',
-                operator: 'including_regex',
-                expression: pageUrls.map(url => url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')
-              }
-            ]
-          }
-        ],
-        rowLimit: 25000,
-      },
-    });
+  console.log(`[GSC] Verarbeite ${pageUrls.length} URLs in ${batches.length} Batches...`);
+
+  try {
+    // Alle Current Period Batches parallel abfragen
+    const currentDataMaps = await Promise.all(
+      batches.map(batch => fetchGscBatch(searchconsole, siteUrl, batch, currentRange.startDate, currentRange.endDate))
+    );
+
+    // Alle Previous Period Batches parallel abfragen
+    const previousDataMaps = await Promise.all(
+      batches.map(batch => fetchGscBatch(searchconsole, siteUrl, batch, previousRange.startDate, previousRange.endDate))
+    );
+
+    // Ergebnisse zusammenführen
+    const currentData = new Map<string, { clicks: number; impressions: number; position: number }>();
+    const previousData = new Map<string, { clicks: number; impressions: number; position: number }>();
+
+    for (const map of currentDataMaps) {
+      for (const [key, value] of map.entries()) {
+        currentData.set(key, value);
+      }
+    }
+
+    for (const map of previousDataMaps) {
+      for (const [key, value] of map.entries()) {
+        previousData.set(key, value);
+      }
+    }
+
+    // Changes berechnen
+    for (const url of pageUrls) {
+      const current = currentData.get(url);
+      const previous = previousData.get(url);
+
+      if (current) {
+        const clicksChange = previous ? 
+          (previous.clicks > 0 ? ((current.clicks - previous.clicks) / previous.clicks) * 100 : 100) 
+          : (current.clicks > 0 ? 100 : 0);
+        
+        const impressionsChange = previous ? 
+          (previous.impressions > 0 ? ((current.impressions - previous.impressions) / previous.impressions) * 100 : 100)
+          : (current.impressions > 0 ? 100 : 0);
+        
+        const positionChange = previous ? 
+          (current.position - previous.position)
+          : 0;
+
+        resultMap.set(url, {
+          clicks: current.clicks,
+          clicks_change: clicksChange,
+          impressions: current.impressions,
+          impressions_change: impressionsChange,
+          position: current.position,
+          position_change: positionChange
+        });
+      }
+    }
+
+    console.log(`[GSC] ✅ ${resultMap.size} von ${pageUrls.length} URLs erfolgreich abgerufen.`);
+    return resultMap;
+
+  } catch (error) {
+    console.error('Error in getGscDataForPagesWithComparison:', error);
+    throw error;
+  }
+}
+
 
     // 3. Parse Current Data
     const currentData = new Map<string, { clicks: number; impressions: number; position: number }>();
