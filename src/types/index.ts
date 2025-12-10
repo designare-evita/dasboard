@@ -28,6 +28,7 @@ export interface User {
   project_start_date?: Date | null;
   project_duration_months?: number | null;
   project_timeline_active?: boolean | null;
+  maintenance_mode?: boolean; 
 
   // Landingpage Statistiken
   landingpages_count?: number;
