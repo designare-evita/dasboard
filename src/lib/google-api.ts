@@ -661,8 +661,9 @@ export async function getTopConvertingPages(
   }
 }
 
-// Funktion für Cron-Job - GSC Daten für spezifische Pages mit Vergleich
+// ✅ GSC Daten für spezifische Pages mit Vergleich
 // Mit BATCHING für große URL-Listen (GSC API Limit umgehen)
+
 export interface GscPageData {
   clicks: number;
   clicks_change: number;
@@ -736,7 +737,7 @@ export async function getGscDataForPagesWithComparison(
 
   const resultMap = new Map<string, GscPageData>();
 
-  // ✅ NEU: URLs in Batches aufteilen
+  // ✅ URLs in Batches aufteilen
   const batches: string[][] = [];
   for (let i = 0; i < pageUrls.length; i += GSC_BATCH_SIZE) {
     batches.push(pageUrls.slice(i, i + GSC_BATCH_SIZE));
@@ -801,70 +802,6 @@ export async function getGscDataForPagesWithComparison(
     }
 
     console.log(`[GSC] ✅ ${resultMap.size} von ${pageUrls.length} URLs erfolgreich abgerufen.`);
-    return resultMap;
-
-  } catch (error) {
-    console.error('Error in getGscDataForPagesWithComparison:', error);
-    throw error;
-  }
-}
-
-
-    // 3. Parse Current Data
-    const currentData = new Map<string, { clicks: number; impressions: number; position: number }>();
-    for (const row of currentResponse.data.rows || []) {
-      const page = row.keys?.[0];
-      if (page) {
-        currentData.set(page, {
-          clicks: row.clicks || 0,
-          impressions: row.impressions || 0,
-          position: row.position || 0
-        });
-      }
-    }
-
-    // 4. Parse Previous Data
-    const previousData = new Map<string, { clicks: number; impressions: number; position: number }>();
-    for (const row of previousResponse.data.rows || []) {
-      const page = row.keys?.[0];
-      if (page) {
-        previousData.set(page, {
-          clicks: row.clicks || 0,
-          impressions: row.impressions || 0,
-          position: row.position || 0
-        });
-      }
-    }
-
-    // 5. Calculate Changes
-    for (const url of pageUrls) {
-      const current = currentData.get(url);
-      const previous = previousData.get(url);
-
-      if (current) {
-        const clicksChange = previous ? 
-          (previous.clicks > 0 ? ((current.clicks - previous.clicks) / previous.clicks) * 100 : 100) 
-          : (current.clicks > 0 ? 100 : 0);
-        
-        const impressionsChange = previous ? 
-          (previous.impressions > 0 ? ((current.impressions - previous.impressions) / previous.impressions) * 100 : 100)
-          : (current.impressions > 0 ? 100 : 0);
-        
-        const positionChange = previous ? 
-          (current.position - previous.position) // Position: negative = besser
-          : 0;
-
-        resultMap.set(url, {
-          clicks: current.clicks,
-          clicks_change: clicksChange,
-          impressions: current.impressions,
-          impressions_change: impressionsChange,
-          position: current.position,
-          position_change: positionChange
-        });
-      }
-    }
-
     return resultMap;
 
   } catch (error) {
