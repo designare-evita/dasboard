@@ -212,7 +212,7 @@ export async function getTopQueries(
         startDate,
         endDate,
         dimensions: ['query', 'page'],
-        rowLimit: 500,
+        rowLimit: 1000,
       },
     });
 
@@ -274,7 +274,7 @@ export async function getTopQueries(
 
     return results
       .sort((a, b) => b.clicks - a.clicks)
-      .slice(0, 10);
+      .slice(0, 200);
 
   } catch (error) {
     console.error('Top Queries Error:', error);
