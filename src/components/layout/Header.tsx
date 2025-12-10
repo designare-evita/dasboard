@@ -7,7 +7,7 @@ import { useSession, signOut } from 'next-auth/react';
 import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import NotificationBell from '@/components/NotificationBell';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   List, 
   X, 
@@ -18,7 +18,7 @@ import {
   BoxArrowRight, 
   BoxArrowInRight,
   HddNetwork,
-  Magic // ✅ NEU: Icon für KI Tool
+  Magic
 } from 'react-bootstrap-icons';
 
 export default function Header() {
@@ -26,17 +26,67 @@ export default function Header() {
   const pathname = usePathname(); 
   
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  
+  // NEU: Wartungsmodus-Check
+  const [isInMaintenance, setIsInMaintenance] = useState(false);
+  const [isCheckingMaintenance, setIsCheckingMaintenance] = useState(true);
 
   const isAdmin = session?.user?.role === 'ADMIN' || session?.user?.role === 'SUPERADMIN'; 
   const isSuperAdmin = session?.user?.role === 'SUPERADMIN'; 
   const isUser = session?.user?.role === 'BENUTZER'; 
 
-  // ✅ Logo-Logik (unverändert)
+  // Logo-Logik
   const defaultLogo = "/logo-data-peak.webp";
   const logoSrc = session?.user?.logo_url || defaultLogo;
   const priorityLoad = logoSrc === defaultLogo;
 
+  // NEU: Wartungsmodus-Status prüfen
+  useEffect(() => {
+    const checkMaintenanceStatus = async () => {
+      // Nicht prüfen wenn nicht eingeloggt
+      if (status !== 'authenticated' || !session?.user) {
+        setIsCheckingMaintenance(false);
+        setIsInMaintenance(false);
+        return;
+      }
+
+      // SUPERADMIN ist immer ausgenommen
+      if (session.user.role === 'SUPERADMIN') {
+        setIsCheckingMaintenance(false);
+        setIsInMaintenance(false);
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/admin/maintenance?checkSelf=true');
+        const data = await res.json();
+        setIsInMaintenance(data.isInMaintenance === true);
+      } catch (e) {
+        console.error('Failed to check maintenance status:', e);
+        setIsInMaintenance(false);
+      } finally {
+        setIsCheckingMaintenance(false);
+      }
+    };
+
+    if (status !== 'loading') {
+      checkMaintenanceStatus();
+    }
+  }, [session, status]);
+
+  // Login-Seite: Header nicht anzeigen
   if (pathname === '/login') { 
+    return null;
+  }
+
+  // NEU: Wartungsmodus aktiv -> Header ausblenden
+  if (isInMaintenance) {
+    return null;
+  }
+
+  // NEU: Während der Prüfung Header nicht anzeigen (verhindert Flackern)
+  // Optional: Du kannst dies entfernen, wenn du lieber den Header sofort zeigst
+  if (isCheckingMaintenance && status === 'authenticated' && session?.user?.role !== 'SUPERADMIN') {
     return null;
   }
 
@@ -99,7 +149,7 @@ export default function Header() {
                 </Link>
               )}
               
-              {/* ✅ NEU: KI Tool Button (Desktop) */}
+              {/* KI Tool Button (Desktop) */}
               {isAdmin && (
                 <Link href="/admin/ki-tool" passHref>
                   <Button variant={pathname === '/admin/ki-tool' ? 'default' : 'outline'} className="gap-2">
@@ -201,7 +251,7 @@ export default function Header() {
                   </Button>
                 </Link>
 
-                {/* ✅ NEU: KI Tool Button (Mobil) */}
+                {/* KI Tool Button (Mobil) */}
                 <Link href="/admin/ki-tool" passHref>
                   <Button variant={pathname === '/admin/ki-tool' ? 'default' : 'outline'} className="w-full justify-start gap-2">
                     <Magic size={16} />
