@@ -6,8 +6,8 @@ import { getGscDataForPagesWithComparison } from '@/lib/google-api';
 import type { User } from '@/types';
 
 // Konfiguration
-const BATCH_SIZE = 5; // Anzahl der User, die gleichzeitig verarbeitet werden
-const MAX_EXECUTION_TIME_MS = 50 * 1000; // 50 Sekunden (Sicherheitsabstand zu Vercel 60s Limit)
+const BATCH_SIZE = 5;
+const MAX_EXECUTION_TIME_MS = 50 * 1000;
 
 // === Hilfsfunktionen ===
 
@@ -18,7 +18,7 @@ function formatDate(date: Date): string {
 function calculateDateRanges() {
   const today = new Date();
   const endDateCurrent = new Date(today);
-  endDateCurrent.setDate(endDateCurrent.getDate() - 2); // GSC Verzögerung
+  endDateCurrent.setDate(endDateCurrent.getDate() - 2);
   
   const startDateCurrent = new Date(endDateCurrent);
   const daysBack = 29; 
@@ -33,6 +33,24 @@ function calculateDateRanges() {
     currentRange: { startDate: formatDate(startDateCurrent), endDate: formatDate(endDateCurrent) },
     previousRange: { startDate: formatDate(startDatePrevious), endDate: formatDate(endDatePrevious) },
   };
+}
+
+// ✅ NEU: Hilfsfunktion für sichere Rundung (null-safe)
+function safeRound(value: number | null | undefined): number {
+  if (value === null || value === undefined || isNaN(value)) {
+    return 0;
+  }
+  return Math.round(value);
+}
+
+// ✅ NEU: Für Position mit 1 Dezimalstelle (optional, falls du NUMERIC verwendest)
+function roundPosition(value: number | null | undefined): number {
+  if (value === null || value === undefined || isNaN(value)) {
+    return 0;
+  }
+  // Für INTEGER-Spalten: Math.round(value)
+  // Für NUMERIC-Spalten: Math.round(value * 10) / 10 (1 Dezimalstelle)
+  return Math.round(value);
 }
 
 // Verarbeitet EINEN einzelnen User
@@ -54,6 +72,7 @@ async function processUser(
       );
 
       if (landingpageRows.length === 0) {
+        client.release();
         return { success: true, count: 0, msg: 'Keine Landingpages' };
       }
 
@@ -61,7 +80,6 @@ async function processUser(
       const pageIdMap = new Map(landingpageRows.map(lp => [lp.url, lp.id]));
 
       // 2. GSC Daten holen
-      // (Hinweis: GSC API Limits beachten, aber bei 5 parallelen Usern meist OK)
       const gscDataMap = await getGscDataForPagesWithComparison(
         user.gsc_site_url!,
         pageUrls,
@@ -75,6 +93,7 @@ async function processUser(
       for (const [url, data] of gscDataMap.entries()) {
         const landingpageId = pageIdMap.get(url);
         if (landingpageId) {
+          // ✅ FIX: Alle Werte runden vor dem DB-Insert
           await client.query(
             `UPDATE landingpages
              SET 
@@ -84,9 +103,12 @@ async function processUser(
                gsc_last_updated = NOW(), gsc_last_range = '30d'
              WHERE id = $7;`,
             [
-              data.clicks, data.clicks_change,
-              data.impressions, data.impressions_change,
-              data.position, data.position_change,
+              safeRound(data.clicks),
+              safeRound(data.clicks_change),
+              safeRound(data.impressions),
+              safeRound(data.impressions_change),
+              roundPosition(data.position),      // ← Das war der Fehler!
+              safeRound(data.position_change),
               landingpageId
             ]
           );
@@ -111,7 +133,7 @@ async function processUser(
 }
 
 // === MAIN ROUTE ===
-export const dynamic = 'force-dynamic'; // Wichtig für Cron
+export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
@@ -142,7 +164,7 @@ export async function POST(request: NextRequest) {
     // 3. Batch-Verarbeitung (Parallelisierung)
     for (let i = 0; i < users.length; i += BATCH_SIZE) {
       
-      // Zeit-Check: Haben wir noch genug Zeit für den nächsten Batch?
+      // Zeit-Check
       if (Date.now() - startTime > MAX_EXECUTION_TIME_MS) {
         console.warn('[CRON] ⚠️ Zeitlimit fast erreicht. Stoppe vorzeitig.');
         errors.push('Zeitlimit erreicht - Job unvollständig');
@@ -152,7 +174,6 @@ export async function POST(request: NextRequest) {
       const batch = users.slice(i, i + BATCH_SIZE);
       console.log(`[CRON] Verarbeite Batch ${Math.floor(i / BATCH_SIZE) + 1} (${batch.length} User)...`);
 
-      // Promise.allSettled sorgt dafür, dass ein Fehler nicht den ganzen Batch stoppt
       const results = await Promise.allSettled(
         batch.map(user => processUser(user, ranges))
       );
