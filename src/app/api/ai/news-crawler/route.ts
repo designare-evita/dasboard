@@ -24,9 +24,9 @@ export const maxDuration = 60;
 /**
  * Ruft die URL ab und gibt den bereinigten Haupttext des Artikels zurück.
  * @param url Die zu scrapende URL.
- * @returns { url: string, title: string, text: string }
+ * @returns { url: string, title: string, text: string, date: string }
  */
-async function fetchAndCleanArticle(url: string): Promise<{ url: string, title: string, text: string }> {
+async function fetchAndCleanArticle(url: string): Promise<{ url: string, title: string, text: string, date: string }> {
   try {
     const res = await fetch(url, {
       headers: { 
@@ -43,6 +43,50 @@ async function fetchAndCleanArticle(url: string): Promise<{ url: string, title: 
     
     const title = $('title').text().trim() || $('meta[property="og:title"]').attr('content') || '';
     
+    // NEU: Datum extrahieren (verschiedene Methoden)
+    let date = '';
+    
+    // Methode 1: Schema.org datePublished
+    const schemaDate = $('meta[property="article:published_time"]').attr('content') 
+                    || $('meta[name="date"]').attr('content')
+                    || $('meta[name="pubdate"]').attr('content')
+                    || $('meta[property="og:published_time"]').attr('content')
+                    || $('time[datetime]').attr('datetime')
+                    || $('time').attr('datetime');
+    
+    if (schemaDate) {
+      try {
+        const parsedDate = new Date(schemaDate);
+        if (!isNaN(parsedDate.getTime())) {
+          date = parsedDate.toLocaleDateString('de-DE', { 
+            day: '2-digit', 
+            month: '2-digit', 
+            year: 'numeric' 
+          });
+        }
+      } catch {}
+    }
+    
+    // Methode 2: JSON-LD Schema durchsuchen
+    if (!date) {
+      $('script[type="application/ld+json"]').each((_, el) => {
+        try {
+          const json = JSON.parse($(el).html() || '');
+          const dateStr = json.datePublished || json.dateCreated || json.dateModified;
+          if (dateStr) {
+            const parsedDate = new Date(dateStr);
+            if (!isNaN(parsedDate.getTime())) {
+              date = parsedDate.toLocaleDateString('de-DE', { 
+                day: '2-digit', 
+                month: '2-digit', 
+                year: 'numeric' 
+              });
+            }
+          }
+        } catch {}
+      });
+    }
+    
     // Versuch, den Hauptinhalt zu isolieren (häufige Selektoren für Artikel)
     $('script, style, nav, footer, aside, header, iframe, svg, noscript, head, .comments, .sidebar').remove();
     
@@ -52,9 +96,9 @@ async function fetchAndCleanArticle(url: string): Promise<{ url: string, title: 
     // Text extrahieren, bereinigen und auf max. 8000 Zeichen begrenzen
     const text = mainContent.text().replace(/\s+/g, ' ').trim().slice(0, 8000);
     
-    return { url, title, text };
+    return { url, title, text, date };
   } catch(e) {
-    return { url, title: 'Scraping Fehler', text: `Inhalt konnte nicht geladen werden: ${e instanceof Error ? e.message : 'Unbekannter Fehler'}` };
+    return { url, title: 'Scraping Fehler', text: `Inhalt konnte nicht geladen werden: ${e instanceof Error ? e.message : 'Unbekannter Fehler'}`, date: '' };
   }
 }
 
@@ -81,8 +125,8 @@ export async function POST(req: NextRequest) {
     let searchResults: { items?: { link: string, title: string }[] } = {};
     const searchQuery = `${topic} News`; 
     
-    // API-URL zusammenbauen (Standardformat für Google Custom Search JSON API)
-    const apiUrl = `https://www.googleapis.com/customsearch/v1?key=${GOOGLE_SEARCH_API_KEY}&cx=${GOOGLE_SEARCH_CX_ID}&q=${encodeURIComponent(searchQuery)}`;
+    // API-URL zusammenbauen (num=5 für 5 Ergebnisse)
+    const apiUrl = `https://www.googleapis.com/customsearch/v1?key=${GOOGLE_SEARCH_API_KEY}&cx=${GOOGLE_SEARCH_CX_ID}&q=${encodeURIComponent(searchQuery)}&num=5`;
 
     try {
       const googleResponse = await fetch(apiUrl, {
@@ -102,10 +146,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: `Fehler beim Abrufen der Suchergebnisse: ${error instanceof Error ? error.message : 'API-Problem'}` }, { status: 500 });
     }
     
-    // Extrahiere bis zu 3 relevante URLs (aus dem 'items' Array der GCS API Antwort)
+    // NEU: Extrahiere bis zu 5 relevante URLs (vorher 3)
     const articleUrls = searchResults.items
                         ?.map((item: any) => item.link) 
-                        .slice(0, 3) || [];
+                        .slice(0, 5) || [];
     
     if (articleUrls.length === 0) {
       return NextResponse.json({ message: `Keine relevanten Artikel zu "${topic}" gefunden.` }, { status: 404 });
@@ -115,13 +159,22 @@ export async function POST(req: NextRequest) {
     const articlePromises = articleUrls.map((url: string) => fetchAndCleanArticle(url));
     const fetchedArticles = await Promise.all(articlePromises);
 
+    // Aktuelles Datum für den Report
+    const reportDate = new Date().toLocaleDateString('de-DE', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
 
     // 3. Prompt für die KI erstellen
     const articleContext = fetchedArticles.map((a, i) => `
-══════════════════════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════════════════════════════
 ARTIKEL ${i + 1}: ${a.title}
 Quelle: ${a.url}
-══════════════════════════════════════════════════════════════════════════════
+${a.date ? `Veröffentlicht: ${a.date}` : 'Datum: Nicht verfügbar'}
+═══════════════════════════════════════════════════════════════════════════════
 TEXT-AUSZUG:
 "${a.text.slice(0, 2000)}..."
 `).join('\n');
@@ -132,13 +185,18 @@ Analysiere die folgenden Artikel zum Thema "${topic}". Dein Ziel ist es, die wic
 
 ${getCompactStyleGuide()}
 
-══════════════════════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════════════════════════════
 ANALYSE BASIERT AUF: "${topic}"
+REPORT ERSTELLT AM: ${reportDate}
 ${articleContext}
-══════════════════════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════════════════════════════
 
 ERSTELLE DIESEN REPORT:
 (Achte auf das strikte HTML/Tailwind-Format)
+
+<div class="${STYLES.cardHeaderSmall} mb-4">
+  <p class="${STYLES.textMuted}"><i class="bi bi-calendar3"></i> Report erstellt am: <strong>${reportDate}</strong></p>
+</div>
 
 1. <h3 class="${STYLES.h3}"><i class="bi bi-patch-question"></i> Worum geht es?</h3>
    <div class="${STYLES.infoBox}">
@@ -147,10 +205,12 @@ ERSTELLE DIESEN REPORT:
      </p>
    </div>
 
-2. <h3 class="${STYLES.h3}"><i class="bi bi-lightbulb"></i> Die 3 wichtigsten Key Takeaways</h3>
+2. <h3 class="${STYLES.h3}"><i class="bi bi-lightbulb"></i> Die 5 wichtigsten Key Takeaways</h3>
    <div class="${STYLES.card}">
-     <h4 class="${STYLES.h4}">Erkenntnisse für interne Weiterbildung</h4>
+     <h4 class="${STYLES.h4}">Erkenntnisse für Recherche</h4>
      <ol class="${STYLES.list}">
+       <li>[Kompakte Kernaussage aus den Artikeln, 1 Satz]</li>
+       <li>[Kompakte Kernaussage aus den Artikeln, 1 Satz]</li>
        <li>[Kompakte Kernaussage aus den Artikeln, 1 Satz]</li>
        <li>[Kompakte Kernaussage aus den Artikeln, 1 Satz]</li>
        <li>[Kompakte Kernaussage aus den Artikeln, 1 Satz]</li>
@@ -174,8 +234,9 @@ ERSTELLE DIESEN REPORT:
       `<div class="${STYLES.subpageItem} ${STYLES.flexStart}">
          <i class="bi bi-file-earmark-text-fill ${STYLES.iconIndigo}"></i> 
          <span>
-           <strong>${a.title.slice(0, 70)}...</strong> 
-           <span class="${STYLES.textMuted}">(${new URL(a.url).hostname})</span>
+           <strong>${a.title.slice(0, 70)}${a.title.length > 70 ? '...' : ''}</strong> 
+           ${a.date ? `<span class="${STYLES.textMuted}">(${a.date})</span>` : ''}
+           <span class="${STYLES.textMuted}"> - ${new URL(a.url).hostname}</span>
          </span>
        </div>`
     ).join('\n')}
