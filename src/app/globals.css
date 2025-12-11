@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 :root {
+  /* Wir erzwingen hier dauerhaft die Light-Mode Farben */
   --background: #ffffff;
   --foreground: #171717;
   --primary-highlight: #188BDB; 
@@ -13,12 +14,9 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+/* ENTFERNT: Der folgende Block wurde gelöscht, um Dark Mode zu verhindern.
+   @media (prefers-color-scheme: dark) { ... } 
+*/
 
 body {
   background: var(--background);
@@ -38,20 +36,17 @@ body {
   background-attachment: fixed;
 }
 
-/* 2. Hilfsklassen (ohne @apply-Verschachtelung, um Fehler zu vermeiden) */
-
-/* Basis Glas-Stil */
+/* 2. Hilfsklassen */
 .glass-panel {
   @apply bg-white/80 backdrop-blur-md border border-white/60;
 }
 
-/* Weicher Schatten (direkt als CSS, da custom) */
 .soft-shadow {
   box-shadow: 0 8px 30px -8px rgba(79, 70, 229, 0.06), 
               0 2px 4px -1px rgba(0, 0, 0, 0.02);
 }
 
-/* 3. Kombinierte Klasse für Karten (Hier werden die Styles direkt angewendet, statt @apply zu nutzen) */
+/* 3. Kombinierte Klasse für Karten */
 .card-glass {
   @apply bg-white/80 backdrop-blur-md border border-white/60 rounded-xl;
   box-shadow: 0 8px 30px -8px rgba(79, 70, 229, 0.06), 
@@ -66,12 +61,11 @@ body {
   }
 }
 
-
 /* ============================================================
-   PDF-EXPORT STYLES - OPTIMIERT
+   PDF-EXPORT STYLES
+   (Der Rest der Datei bleibt unverändert)
    ============================================================ */
 @media print {
-  
   @page {
     size: A4 portrait;
     margin: 8mm 8mm 10mm 8mm;
@@ -91,7 +85,6 @@ body {
     padding: 0 !important;
   }
 
-  /* UI-Elemente verstecken */
   header, footer, nav, button, [role="tooltip"], .print-hidden {
     display: none !important;
   }
@@ -103,7 +96,6 @@ body {
     display: block !important;
   }
 
-  /* --- Basis-Karten-Styling im Druck --- */
   .bg-white, .bg-gray-50, .card-glass, .glass-panel {
     background-color: white !important;
     border: 1px solid #ddd !important;
@@ -113,7 +105,6 @@ body {
     backdrop-filter: none !important;
   }
 
-  /* --- 1. TIMELINE WIDGET --- */
   .print-timeline {
     display: block !important;
     break-inside: avoid !important;
@@ -131,7 +122,6 @@ body {
     border: 1px solid #eee !important;
   }
 
-  /* --- 2. DASHBOARD HEADER --- */
   .print-header {
     break-inside: avoid;
     margin-bottom: 10px;
@@ -141,7 +131,6 @@ body {
     display: none !important;
   }
 
-  /* --- 3. KPI CARDS --- */
   .print-kpi-grid .grid {
     display: grid !important;
     grid-template-columns: repeat(4, 1fr) !important; 
@@ -153,7 +142,6 @@ body {
     min-height: 0 !important;
   }
   
-  /* --- 4. TREND CHART --- */
   .print-trend-chart {
     break-inside: avoid !important;
     page-break-inside: avoid !important;
@@ -164,7 +152,6 @@ body {
     height: 220px !important;
   }
 
-  /* --- 5. AI TRAFFIC & TOP QUERIES --- */
   .print-traffic-grid {
     display: grid !important;
     grid-template-columns: 1fr 1fr !important;
@@ -176,7 +163,6 @@ body {
     font-size: 7pt !important;
   }
 
-  /* --- 6. PIE CHARTS --- */
   .print-pie-grid {
     display: grid !important;
     grid-template-columns: 1fr 1fr 1fr !important;
@@ -193,7 +179,6 @@ body {
     height: 180px !important;
   }
 
-  /* --- 7. SEMRUSH KEYWORDS --- */
   .print-semrush-grid {
     display: block !important;
     margin-top: 20px !important;
@@ -210,7 +195,6 @@ body {
     padding: 2px 4px !important;
   }
 
-  /* ALLGEMEINE CHART-FIXES */
   .recharts-wrapper {
     width: 100% !important;
   }
