@@ -18,7 +18,7 @@ export const runtime = 'nodejs';
 export const maxDuration = 300; // Erhöht auf 5 Minuten für Vercel Pro
 
 // ============================================================================
-// HILFSFUNKTIONEN
+// HILFSFUNKTIONEN (Fetch & Clean - Unverändert)
 // ============================================================================
 
 /**
@@ -247,25 +247,38 @@ Antworte NUR mit HTML.
 
     // 4. Streamen des Ergebnisses mit Fallback
     try {
-      // Versuch 1: Gemini 3 Pro für maximale Reasoning-Power
       console.log('🤖 Versuche News-Analyse mit Gemini 3 Pro Preview...');
       const result = streamText({
         model: google('gemini-3-pro-preview'), // ✅ KORRIGIERT
         prompt: newsCrawlerPrompt,
         temperature: 0.3,
       });
-      return result.toTextStreamResponse();
+
+      // ✅ Header hinzufügen: Erfolgreich Gemini 3
+      return result.toTextStreamResponse({
+        headers: {
+          'X-AI-Model': 'gemini-3-pro-preview',
+          'X-AI-Status': 'primary'
+        }
+      });
 
     } catch (e) {
       console.warn('⚠️ Gemini 3 Pro failed for News Crawler, falling back to Flash:', e);
       
-      // Fallback: Dein bewährtes Flash-Modell
+      // Fallback: Dein bisheriges Flash-Modell
       const result = streamText({
         model: google('gemini-2.5-flash'), // Dein ursprüngliches Modell
         prompt: newsCrawlerPrompt,
         temperature: 0.3,
       });
-      return result.toTextStreamResponse();
+
+      // ✅ Header hinzufügen: Fallback auf Flash
+      return result.toTextStreamResponse({
+        headers: {
+          'X-AI-Model': 'gemini-2.5-flash',
+          'X-AI-Status': 'fallback'
+        }
+      });
     }
 
   } catch (error) {
