@@ -15,7 +15,7 @@ const google = createGoogleGenerativeAI({
 });
 
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+export const maxDuration = 300; // Erhöht auf 5 Minuten für Vercel Pro
 
 // ============================================================================
 // HILFSFUNKTIONEN
@@ -245,19 +245,29 @@ ERSTELLE DIESEN REPORT:
 Antworte NUR mit HTML.
   `;
 
-    // 4. Streamen des Ergebnisses
+    // 4. Streamen des Ergebnisses mit Fallback
     try {
+      // Versuch 1: Gemini 3 Pro für maximale Reasoning-Power
+      console.log('🤖 Versuche News-Analyse mit Gemini 3 Pro Preview...');
       const result = streamText({
-        model: google('gemini-2.5-flash'),
+        model: google('gemini-3-pro-preview'), // ✅ KORRIGIERT
         prompt: newsCrawlerPrompt,
         temperature: 0.3,
       });
-
       return result.toTextStreamResponse();
+
     } catch (e) {
-      console.error('❌ Gemini Streaming Error:', e);
-      return NextResponse.json({ message: 'Fehler beim Generieren des KI-Reports.' }, { status: 500 });
+      console.warn('⚠️ Gemini 3 Pro failed for News Crawler, falling back to Flash:', e);
+      
+      // Fallback: Dein bewährtes Flash-Modell
+      const result = streamText({
+        model: google('gemini-2.5-flash'), // Dein ursprüngliches Modell
+        prompt: newsCrawlerPrompt,
+        temperature: 0.3,
+      });
+      return result.toTextStreamResponse();
     }
+
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
     console.error('❌ News Crawler Server Error:', error);
