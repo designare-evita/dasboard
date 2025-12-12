@@ -10,10 +10,10 @@ const google = createGoogleGenerativeAI({
 });
 
 export const runtime = 'nodejs';
-export const maxDuration = 300; // 5 Minuten für Vercel Pro
+export const maxDuration = 300; // 5 Minuten (Vercel Pro) für Deep Research Tasks
 
 // ============================================================================
-// FUNKTIONEN (CMS Detection, etc. - unverändert)
+// FUNKTIONEN (Scraping & Detection - Unverändert)
 // ============================================================================
 
 // CMS-Erkennung mit Scoring
@@ -300,7 +300,7 @@ async function scrapeUrl(url: string) {
 }
 
 // ============================================================================
-// MAIN HANDLER
+// MAIN HANDLER - Unterstützt Single-URL und Vergleichs-Modus
 // ============================================================================
 
 export async function POST(req: NextRequest) {
@@ -335,7 +335,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ========================================================================
-    // PROMPTS (Inhalte bleiben gleich)
+    // PROMPTS (Kompakte Ansicht für Code - Inhalte unverändert)
     // ========================================================================
     const singlePrompt = `
 Du bist ein SEO-Experte. Analysiere diese Webseite detailliert.
@@ -567,27 +567,40 @@ Antworte NUR mit HTML. Kompakt!
     // Richtigen Prompt wählen
     const prompt = isCompareMode ? comparePrompt : singlePrompt;
 
-    // --- HYBRID STRATEGY: Try Pro Model (Gemini 3.0 Pro) first, fallback to Flash ---
+    // --- HYBRID STRATEGY ---
     try {
-      // Versuch 1: High-Intelligence Model
       console.log('🤖 Versuche High-Intelligence Model (Gemini 3 Pro Preview)...');
       const result = streamText({
         model: google('gemini-3-pro-preview'), // ✅ KORRIGIERT: Das echte 3.0 Modell
         prompt: prompt,
         temperature: 0.3,
       });
-      return result.toTextStreamResponse();
+
+      // ✅ Header hinzufügen: Zeigt an, dass das Pro-Modell verwendet wurde
+      return result.toTextStreamResponse({
+        headers: {
+          'X-AI-Model': 'gemini-3-pro-preview',
+          'X-AI-Status': 'primary'
+        }
+      });
       
     } catch (error) {
       console.warn('⚠️ Gemini 3 Pro failed, falling back to Flash:', error);
       
       // Fallback: Dein bewährtes Flash-Modell
       const result = streamText({
-        model: google('gemini-2.5-flash'), // Dein ursprüngliches Modell
+        model: google('gemini-2.5-flash'),
         prompt: prompt,
         temperature: 0.3,
       });
-      return result.toTextStreamResponse();
+
+      // ✅ Header hinzufügen: Zeigt an, dass der Fallback griff
+      return result.toTextStreamResponse({
+        headers: {
+          'X-AI-Model': 'gemini-2.5-flash',
+          'X-AI-Status': 'fallback'
+        }
+      });
     }
 
   } catch (error: unknown) {
