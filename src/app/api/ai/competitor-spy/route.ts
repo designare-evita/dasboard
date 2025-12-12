@@ -10,10 +10,10 @@ const google = createGoogleGenerativeAI({
 });
 
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+export const maxDuration = 300; // 5 Minuten für Vercel Pro
 
 // ============================================================================
-// FUNKTIONEN
+// FUNKTIONEN (CMS Detection, etc. - unverändert)
 // ============================================================================
 
 // CMS-Erkennung mit Scoring
@@ -63,18 +63,16 @@ function detectCMS(html: string, $: cheerio.CheerioAPI): { cms: string; confiden
 }
 
 // Tech-Stack
-function detectTechStack(html: string, $: cheerio.CheerioAPI): string[] { // <-- $ Parameter hinzugefügt
+function detectTechStack(html: string, $: cheerio.CheerioAPI): string[] { 
   const stack: string[] = [];
   const htmlLower = html.toLowerCase();
   
   // 1. React (Präzise)
-  // Prüfen auf Core-Bibliotheken oder das typische DOM-Root-Attribut
   if (htmlLower.includes('react.js') || htmlLower.includes('react-dom') || $('[data-reactroot]').length > 0) {
       stack.push('React');
   }
 
   // 2. Angular (Präzise)
-  // Prüfen auf spezifische Angular-Elemente oder Bundles
   if (htmlLower.includes('angular.json') || htmlLower.includes('zone.js') || $('app-root').length > 0 || htmlLower.includes('ng-version=')) {
       stack.push('Angular');
   } else if (html.includes('ng-') || html.includes('*ngFor')) {
@@ -91,7 +89,6 @@ function detectTechStack(html: string, $: cheerio.CheerioAPI): string[] { // <--
   
   // 5. CSS/UI Frameworks
   if (htmlLower.includes('bootstrap')) stack.push('Bootstrap');
-  // Tailwind CSS (Bleibt bei der robusten Regex-Prüfung)
   if (html.match(/class="[^"]*\b(flex |grid |p-\d|m-\d|text-sm|bg-|rounded-)/)) stack.push('Tailwind CSS');
   
   // 6. Analytics/Performance
@@ -111,7 +108,6 @@ function detectFeatures(html: string, $: cheerio.CheerioAPI): string[] {
   const features: string[] = [];
   const htmlLower = html.toLowerCase();
   
-  // KI-Assistent / Chatbot: ERWEITERT um GEMINI
   if (htmlLower.includes('chatbot') || htmlLower.includes('ai-assistant') || htmlLower.includes('ki-assistent') ||
       htmlLower.includes('openai') || htmlLower.includes('gpt') || htmlLower.includes('gemini') || 
       $('[class*="chat"]').length > 2) {
@@ -133,7 +129,6 @@ function detectFeatures(html: string, $: cheerio.CheerioAPI): string[] {
     features.push('PWA-fähig');
   }
   
-  // E-Commerce: Präzisere Erkennung, um False Positives in Theme-Konfigurationen zu vermeiden
   const hasEcommerceKeywords = htmlLower.includes('woocommerce') ||
                                htmlLower.includes('warenkorb') ||
                                htmlLower.includes('checkout') ||
@@ -261,16 +256,15 @@ async function scrapeUrl(url: string) {
   const metaDesc = $('meta[name="description"]').attr('content')?.trim() || '';
   
   const cmsInfo = detectCMS(html, $);
-  const techStack = detectTechStack(html, $); // <-- Korrigierter Aufruf
+  const techStack = detectTechStack(html, $);
   const features = detectFeatures(html, $); 
   
   const navLinks = extractMainNavLinks(html, $, url);
   const subpagePromises = navLinks.map(link => scrapeSubpage(link));
   const subpages = await Promise.all(subpagePromises);
   
-  // NEUE TECHNISCHE METRIKEN
-  const htmlSizeKB = (Buffer.byteLength(html, 'utf8') / 1024).toFixed(2); // Größe des HTML in KB
-  const usesWebP = html.toLowerCase().includes('.webp'); // WebP-Format-Erkennung
+  const htmlSizeKB = (Buffer.byteLength(html, 'utf8') / 1024).toFixed(2);
+  const usesWebP = html.toLowerCase().includes('.webp');
   
   $('script, style, nav, footer, iframe, svg, noscript, head').remove();
   
@@ -300,35 +294,30 @@ async function scrapeUrl(url: string) {
     wordCount, uniqueTexts,
     cms: cmsInfo, techStack, features,
     subpages: subpages.filter(s => s.wordCount > 0),
-    // NEUE WERTE IM RETURN
     htmlSizeKB,
     usesWebP
   };
 }
 
 // ============================================================================
-// MAIN HANDLER - Unterstützt Single-URL und Vergleichs-Modus
+// MAIN HANDLER
 // ============================================================================
 
 export async function POST(req: NextRequest) {
   try {
     const { myUrl, competitorUrl } = await req.json();
 
-    // Mindestens eine URL erforderlich
     if (!myUrl) {
       return NextResponse.json({ message: 'Mindestens eine URL ist erforderlich.' }, { status: 400 });
     }
 
-    // Modus bestimmen: Single oder Compare
     const isCompareMode = !!competitorUrl;
 
-    // Daten scrapen
     const myData = await scrapeUrl(myUrl).catch(e => ({ 
       error: true, url: myUrl, title: 'Fehler', metaDesc: '', h1: '', h2Elements: [], h2Count: 0,
       text: '', wordCount: 0, uniqueTexts: [],
       cms: { cms: 'Fehler', confidence: 'n/a', hints: [e.message], isCustom: false },
       techStack: [], features: [], subpages: [],
-      // Hinzugefügte Felder für TypeScript-Konsistenz:
       htmlSizeKB: 'n/a', 
       usesWebP: false 
     }));
@@ -340,14 +329,13 @@ export async function POST(req: NextRequest) {
         text: '', wordCount: 0, uniqueTexts: [],
         cms: { cms: 'Fehler', confidence: 'n/a', hints: [e.message], isCustom: false },
         techStack: [], features: [], subpages: [],
-        // Hinzugefügte Felder für TypeScript-Konsistenz:
         htmlSizeKB: 'n/a', 
         usesWebP: false
       }));
     }
 
     // ========================================================================
-    // PROMPT - SINGLE MODE (nur eine URL)
+    // PROMPTS (Inhalte bleiben gleich)
     // ========================================================================
     const singlePrompt = `
 Du bist ein SEO-Experte. Analysiere diese Webseite detailliert.
@@ -470,9 +458,6 @@ ERSTELLE DIESEN REPORT:
 Antworte NUR mit HTML. Ersetze alle [Platzhalter] mit echtem Content!
 `;
 
-    // ========================================================================
-    // PROMPT - COMPARE MODE (zwei URLs)
-    // ========================================================================
     const comparePrompt = `
 Du bist ein SEO-Stratege. Analysiere zwei Webseiten FAIR und OBJEKTIV.
 
@@ -582,13 +567,28 @@ Antworte NUR mit HTML. Kompakt!
     // Richtigen Prompt wählen
     const prompt = isCompareMode ? comparePrompt : singlePrompt;
 
-    const result = streamText({
-      model: google('gemini-2.5-flash'),
-      prompt: prompt,
-      temperature: 0.3,
-    });
-
-    return result.toTextStreamResponse();
+    // --- HYBRID STRATEGY: Try Pro Model (Gemini 3.0 Pro) first, fallback to Flash ---
+    try {
+      // Versuch 1: High-Intelligence Model
+      console.log('🤖 Versuche High-Intelligence Model (Gemini 3 Pro Preview)...');
+      const result = streamText({
+        model: google('gemini-3-pro-preview'), // ✅ KORRIGIERT: Das echte 3.0 Modell
+        prompt: prompt,
+        temperature: 0.3,
+      });
+      return result.toTextStreamResponse();
+      
+    } catch (error) {
+      console.warn('⚠️ Gemini 3 Pro failed, falling back to Flash:', error);
+      
+      // Fallback: Dein bewährtes Flash-Modell
+      const result = streamText({
+        model: google('gemini-2.5-flash'), // Dein ursprüngliches Modell
+        prompt: prompt,
+        temperature: 0.3,
+      });
+      return result.toTextStreamResponse();
+    }
 
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
