@@ -16,30 +16,62 @@ import {
   InfoCircle
 } from 'react-bootstrap-icons';
 
+// --- ÄNDERUNG 1: Interface an die Aufrufe in page.tsx anpassen ---
 interface Props {
-  defaultDomain?: string; // Optional: Wird vom Parent (page.tsx) übergeben
+  projectId?: string;        // Neu: Projekt-ID (optional gemacht, falls mal nicht vorhanden)
+  domain?: string;           // Umbenannt von defaultDomain zu domain (passend zum Aufruf)
+  keywords?: any[];          // Neu: Keywords vom Parent (Typ any, da Struktur von 'Keyword' hier unbekannt)
+  loadingKeywords?: boolean; // Neu: Ladestatus
 }
 
-export default function LandingPageGenerator({ defaultDomain = '' }: Props) {
+export default function LandingPageGenerator({ 
+  projectId, 
+  domain = '', 
+  keywords: initialKeywords = [], // Wir nennen es um, um Konflikt mit dem State zu vermeiden
+  loadingKeywords = false 
+}: Props) {
+  
   // --- Inputs ---
   const [topic, setTopic] = useState('');
   const [targetAudience, setTargetAudience] = useState('');
+  
+  // State für Keywords (String Array)
   const [keywords, setKeywords] = useState<string[]>([]);
   
   // Die "Spy" URL (Quelle für Daten/Stil)
   const [referenceUrl, setReferenceUrl] = useState('');
-  // Unsere eigene Domain (zum Vergleich für die KI)
-  const [myDomain, setMyDomain] = useState(defaultDomain);
+  // Unsere eigene Domain
+  const [myDomain, setMyDomain] = useState(domain);
 
   // --- UI States ---
   const [copied, setCopied] = useState(false);
   const [isSpying, setIsSpying] = useState(false);
   const [spyData, setSpyData] = useState<string | null>(null);
 
-  // Sync prop changes to state
+  // --- ÄNDERUNG 2: Sync von Props zu State ---
+
+  // 1. Domain synchronisieren
   useEffect(() => {
-    if (defaultDomain) setMyDomain(defaultDomain);
-  }, [defaultDomain]);
+    if (domain) setMyDomain(domain);
+  }, [domain]);
+
+  // 2. Keywords synchronisieren (wenn vom Parent geladen)
+  useEffect(() => {
+    if (initialKeywords && initialKeywords.length > 0) {
+      // Wir wandeln die eingehenden Keywords in simple Strings um
+      // Annahme: Das Keyword-Objekt hat eine Eigenschaft 'term', 'word' oder ist direkt ein String
+      const mappedKeywords = initialKeywords.map((k: any) => {
+        if (typeof k === 'string') return k;
+        return k.term || k.keyword || k.word || ''; // Hier ggf. anpassen, je nachdem wie dein Keyword-Objekt aussieht
+      }).filter(k => k !== '');
+      
+      setKeywords(prev => {
+        // Nur setzen, wenn noch keine eigenen Keywords eingegeben wurden, um Überschreiben zu vermeiden
+        if (prev.length === 0) return mappedKeywords;
+        return prev;
+      });
+    }
+  }, [initialKeywords]);
 
   // --- KI Hook ---
   const { complete, completion, isLoading: isGenerating } = useCompletion({
@@ -60,18 +92,17 @@ export default function LandingPageGenerator({ defaultDomain = '' }: Props) {
       setIsSpying(true);
       toast.info('Analysiere Referenz-Webseite...');
       
-      // Wir nutzen den Competitor-Spy Endpunkt (der kann jede URL scrapen)
       const res = await fetch('/api/ai/competitor-spy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          myUrl: referenceUrl, // Wir nutzen "myUrl" als generischen Parameter für Single-Scan
+          myUrl: referenceUrl, 
         }),
       });
 
       if (!res.ok) throw new Error('Analyse fehlgeschlagen');
       
-      const data = await res.text(); // Wir nehmen den rohen HTML/Text Output
+      const data = await res.text(); 
       setSpyData(data);
       toast.success('Stil & Inhalt erfasst!');
     } catch (e) {
@@ -88,14 +119,9 @@ export default function LandingPageGenerator({ defaultDomain = '' }: Props) {
       return;
     }
 
-    // Wenn eine URL eingegeben, aber noch nicht analysiert wurde -> Nachholen
     let currentSpyData = spyData;
     if (referenceUrl && !currentSpyData) {
       await handleAnalyzeUrl();
-      // Hinweis: Da React State asynchron ist, würden wir hier eigentlich warten müssen.
-      // Der Einfachheit halber verlassen wir uns darauf, dass der User "Analysieren" klickt 
-      // oder wir lösen es im nächsten Update via Chaining. 
-      // Für jetzt: Wenn Spy läuft, blockt der Button eh.
     }
 
     await complete('', {
@@ -103,12 +129,12 @@ export default function LandingPageGenerator({ defaultDomain = '' }: Props) {
         topic, 
         keywords, 
         targetAudience, 
-        domain: myDomain, // WICHTIG für Brand Voice Check im Backend!
-        toneOfVoice: 'professional', // Fallback, wird durch Spy überschrieben
+        domain: myDomain, 
+        toneOfVoice: 'professional', 
         contextData: { 
           source: 'User Input',
-          // Wir geben das Analyse-Ergebnis weiter
-          competitorAnalysis: currentSpyData || undefined 
+          competitorAnalysis: currentSpyData || undefined,
+          projectId // Wir geben die ProjektID mit ans Backend weiter (falls benötigt)
         }
       }
     });
@@ -123,7 +149,7 @@ export default function LandingPageGenerator({ defaultDomain = '' }: Props) {
     }
   };
 
-  const isLoading = isSpying || isGenerating;
+  const isLoading = isSpying || isGenerating || loadingKeywords; // loadingKeywords hier integriert
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
@@ -140,7 +166,7 @@ export default function LandingPageGenerator({ defaultDomain = '' }: Props) {
              </p>
           </div>
           
-          {/* Domain Einstellung (für Brand Voice Check) */}
+          {/* Domain Einstellung */}
           <div className="space-y-2">
             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Deine Domain</label>
             <div className="relative">
@@ -166,7 +192,12 @@ export default function LandingPageGenerator({ defaultDomain = '' }: Props) {
               className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
             />
             
-            <ManualKeywordInput keywords={keywords} onChange={setKeywords} />
+            {/* Ladeindikator für Keywords */}
+            {loadingKeywords ? (
+                <div className="text-xs text-indigo-500 animate-pulse">Lade Keywords aus Projekt...</div>
+            ) : (
+                <ManualKeywordInput keywords={keywords} onChange={setKeywords} />
+            )}
           </div>
 
           <div className="space-y-2">
@@ -212,7 +243,6 @@ export default function LandingPageGenerator({ defaultDomain = '' }: Props) {
                </Button>
              </div>
 
-             {/* Erklärungstext was passiert */}
              {referenceUrl && (
                <div className="text-[11px] text-amber-800 bg-amber-100/50 p-2 rounded flex gap-2 items-start">
                  <InfoCircle className="mt-0.5 shrink-0" />
