@@ -1,6 +1,7 @@
+// src/components/admin/ki/LandingpageGenerator.tsx
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import Image from 'next/image';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -204,12 +205,16 @@ export default function LandingPageGenerator({
     try {
         setIsAnalyzingGap(true);
         toast.info('Führe Gap-Analyse durch...');
+        
+        // Wir senden "topic" statt "url", damit die Route in den Generator-Modus schaltet
         const res = await fetch('/api/ai/content-gap', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ topic, domain }),
         });
+        
         if (!res.ok) throw new Error('Gap-Analyse fehlgeschlagen');
+        
         const data = await res.text();
         setCachedGapData(data);
         setUseGapAnalysis(true);
@@ -330,7 +335,6 @@ export default function LandingPageGenerator({
     }
   };
 
-  // FIX: copyToClipboard durch navigator.clipboard ersetzt
   const handleCopy = async () => {
     if (generatedContent) {
         try {
@@ -400,6 +404,7 @@ export default function LandingPageGenerator({
             />
           </div>
 
+          {/* CONTENT TYPE SELECTOR */}
           <div className="mt-4">
             <label className="text-sm font-semibold text-gray-700 mb-2 block">Art des Inhalts</label>
             <div className="grid grid-cols-2 gap-2 p-1 bg-gray-100 rounded-xl">
@@ -522,8 +527,8 @@ export default function LandingPageGenerator({
                 )}
               </div>
 
-              {/* Gap Analysis */}
-<div className="p-3 bg-gray-50 rounded-lg transition-all">
+              {/* Gap Analysis (Verbessert: Ergebnis sichtbar!) */}
+              <div className="p-3 bg-gray-50 rounded-lg transition-all">
                 <div className="flex items-center justify-between mb-2">
                     <label className="flex items-center gap-2 cursor-pointer">
                         <input 
@@ -548,7 +553,7 @@ export default function LandingPageGenerator({
                     </Button>
                 </div>
                 
-                {/* STATUS & ERGEBNIS ANZEIGE */}
+                {/* STATUS & ERGEBNIS ANZEIGE (NEU) */}
                 <div className="text-xs text-gray-500 pl-6">
                     {!cachedGapData && !isAnalyzingGap && 'Findet fehlende Themen für bessere Rankings.'}
                     {isAnalyzingGap && <span className="text-indigo-600 animate-pulse">Analysiere Wettbewerb & Semantik...</span>}
@@ -560,14 +565,17 @@ export default function LandingPageGenerator({
                                 <CheckLg /> Analyse erfolgreich!
                             </div>
                             <div className="prose prose-sm max-w-none text-gray-600 text-[11px] leading-relaxed gap-content">
-                                <p className="mb-1 font-medium">Empfohlene Ergänzungen:</p>
-                                {/* Wir rendern das HTML der KI direkt hier */}
+                                <p className="mb-1 font-medium text-gray-800">Empfohlene Ergänzungen:</p>
                                 <div dangerouslySetInnerHTML={{ __html: cachedGapData }} />
                             </div>
                         </div>
                     )}
                 </div>
               </div>
+
+            </div>
+          )}
+        </div>
 
         {/* 3. KEYWORDS CARD */}
         <div className="bg-white border border-gray-100 shadow-sm rounded-2xl p-4">
