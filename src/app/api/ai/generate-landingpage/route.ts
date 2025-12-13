@@ -25,7 +25,7 @@ interface ContextData {
   gscKeywordsRaw?: Keyword[];  // Vollständige Keyword-Objekte für Analyse
   newsInsights?: string;
   gapAnalysis?: string;
-  competitorAnalysis?: string; // ✅ NEU: Für Brand Voice Clone & Spy
+  competitorAnalysis?: string; // Für Brand Voice Clone & Spy
 }
 
 interface LandingpageRequest {
@@ -38,7 +38,7 @@ interface LandingpageRequest {
 }
 
 // ============================================================================
-// TONE MAPPING
+// TONE MAPPING (Fallback, falls kein Spy-Data)
 // ============================================================================
 
 const TONE_INSTRUCTIONS: Record<string, string> = {
@@ -132,24 +132,27 @@ ${gapText}
 `;
     }
 
-    // 4. BRAND VOICE CLONE & SPY (✅ Das ist das neue Feature)
+    // 4. BRAND VOICE CLONE & SPY (Logik angepasst: STIL IMMER ÜBERNEHMEN)
     let styleInstruction = TONE_INSTRUCTIONS[toneOfVoice] || TONE_INSTRUCTIONS.professional;
 
     if (contextData?.competitorAnalysis) {
       // Wir haben Spy-Daten!
-      const spyText = contextData.competitorAnalysis.slice(0, 3000); // Limitieren
-      // Prüfen, ob es die eigene Domain ist (einfacher Check)
-      const isOwnDomain = domain && spyText.includes(domain);
+      const spyText = contextData.competitorAnalysis.slice(0, 4000); // Mehr Kontext erlauben (4000 chars)
 
       styleInstruction = `
-### ⚠️ WICHTIG: BRAND VOICE CLONE / STIL-ADAPTION
-Wir haben eine Text-Analyse einer existierenden Webseite vorliegen.
+### ⚠️ WICHTIG: STIL- UND WORDING-ADAPTION (PRIORITÄT 1)
+Wir haben eine Analyse eines Referenz-Textes vorliegen. Deine wichtigste Aufgabe ist es, den **Schreibstil (Brand Voice) dieses Textes zu adaptieren**.
 
-${isOwnDomain 
-  ? '👉 Dies ist die EIGENE Webseite des Kunden. **IMITIERE diesen "Brand Voice" und Schreibstil exakt!** Achte genau auf Wortwahl, Satzlänge, Ansprache (Du/Sie) und Stimmung.' 
-  : '👉 Dies ist ein WETTBEWERBER. Analysiere dessen Schwächen im Text und **schreibe BESSER, überzeugender und klarer** als diese Vorlage.'}
+Analysiere den folgenden Referenz-Text auf:
+1. **Wortwahl & Vokabular:** Welche spezifischen Begriffe oder Adjektive werden genutzt?
+2. **Satzstruktur:** Sind die Sätze kurz und knackig oder lang und erklärend?
+3. **Ansprache:** Wird der Leser geduzt oder gesiezt? Ist es direkt oder distanziert?
+4. **Stimmung:** Ist der Text euphorisch, nüchtern, witzig oder autoritär?
 
-REFERENZ-TEXT (Zur Analyse):
+👉 **WENDE DIESEN ANALYSIERTEN STIL EXAKT AUF DEN NEUEN TEXT AN!**
+Schreibe so, als ob der Autor des Referenz-Textes diesen neuen Text verfasst hätte.
+
+REFERENZ-TEXT (Quelle für den Stil):
 """
 ${spyText}
 """
@@ -162,7 +165,7 @@ ${spyText}
       ? `\n**VORGESCHLAGENE FAQ-FRAGEN (aus echten Suchanfragen):**\n${suggestedFaqs.map(q => `- "${q}"`).join('\n')}\n→ Integriere diese Fragen in die FAQ-Section!`
       : '';
     
-    // Hauptprompt mit erweiterten Qualitätskriterien
+    // Hauptprompt
     const prompt = `
 Du bist ein erfahrener SEO-Copywriter und Content-Stratege mit 10+ Jahren Erfahrung.
 Erstelle den vollständigen Textinhalt für eine hochwertige, rankingfähige Landingpage.
@@ -177,7 +180,7 @@ DOMAIN: ${domain || 'Nicht angegeben'}
 ZIELGRUPPE: ${targetAudience || 'Allgemein'}
 ALLE KEYWORDS: ${keywords.join(', ')}
 
-${styleInstruction}
+${toneInstructions}
 
 ${contextSection ? `
 ═══════════════════════════════════════════════════════════════════════════════
@@ -210,12 +213,8 @@ QUALITÄTSKRITERIEN (STRIKT EINHALTEN!)
 - KURZE SÄTZE: Maximal 20 Wörter pro Satz
 - KURZE ABSÄTZE: Maximal 3-4 Sätze pro Absatz
 - AKTIVE SPRACHE: "Wir optimieren Ihre Website" statt "Ihre Website wird optimiert"
-- DIREKTE ANSPRACHE: Den Leser mit "Sie" direkt ansprechen (außer Brand Voice sagt "Du")
+- DIREKTE ANSPRACHE: Den Leser mit "Sie" direkt ansprechen
 - EINFACHE WÖRTER: Fachbegriffe kurz erklären oder vermeiden
-- **KONSISTENTE PERSPEKTIVE:** Entscheide dich für EINE Perspektive und bleibe dabei!
-  → Bei Unternehmen/Agenturen: Immer "Wir" (nie zwischen "Ich" und "Wir" wechseln!)
-  → Bei Einzelpersonen/Freelancern: Immer "Ich"
-  → NIEMALS im selben Text mischen!
 
 ### 4. CONVERSION-OPTIMIERUNG
 - KLARE CTAs: Jede Section endet mit einer Handlungsaufforderung
