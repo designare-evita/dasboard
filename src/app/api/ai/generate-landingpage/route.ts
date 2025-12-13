@@ -3,6 +3,11 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { streamText } from 'ai';
 import { NextRequest, NextResponse } from 'next/server';
 import { STYLES } from '@/lib/ai-styles';
+import { 
+  analyzeKeywords, 
+  generateKeywordPromptContext,
+  type Keyword 
+} from '@/lib/keyword-analyzer';
 
 const google = createGoogleGenerativeAI({
   apiKey: process.env.GEMINI_API_KEY || '',
@@ -17,6 +22,7 @@ export const maxDuration = 120; // 2 Minuten für komplexe Generierung
 
 interface ContextData {
   gscKeywords?: string[];
+  gscKeywordsRaw?: Keyword[];  // Vollständige Keyword-Objekte für Analyse
   newsInsights?: string;
   gapAnalysis?: string;
 }
@@ -85,10 +91,20 @@ export async function POST(req: NextRequest) {
     // Kontext-Blöcke aufbauen
     let contextSection = '';
 
-    if (contextData?.gscKeywords && contextData.gscKeywords.length > 0) {
+    // GSC Keywords - Intelligente Analyse
+    let keywordAnalysis = null;
+    let mainKeyword = keywords[0] || topic; // Fallback
+    
+    if (contextData?.gscKeywordsRaw && contextData.gscKeywordsRaw.length > 0) {
+      // Vollständige Analyse mit allen Daten
+      keywordAnalysis = analyzeKeywords(contextData.gscKeywordsRaw, topic);
+      mainKeyword = keywordAnalysis.mainKeyword || keywords[0] || topic;
+      contextSection += generateKeywordPromptContext(keywordAnalysis);
+    } else if (contextData?.gscKeywords && contextData.gscKeywords.length > 0) {
+      // Fallback: Nur Keyword-Namen ohne Metriken
       contextSection += `
-### GSC KEYWORDS (aus Google Search Console - hohe Relevanz!)
-Diese Keywords bringen bereits Traffic. MUSS integriert werden:
+### GSC KEYWORDS (aus Google Search Console)
+Diese Keywords sind relevant für das Thema:
 ${contextData.gscKeywords.map(k => `- "${k}"`).join('\n')}
 `;
     }
@@ -118,8 +134,11 @@ ${gapText}
     // Tonalitäts-Instruktionen
     const toneInstructions = TONE_INSTRUCTIONS[toneOfVoice] || TONE_INSTRUCTIONS.professional;
 
-    // Hauptkeyword extrahieren (erstes Keyword oder Topic)
-    const mainKeyword = keywords[0] || topic;
+    // FAQ-Vorschläge aus Fragen-Keywords
+    const suggestedFaqs = keywordAnalysis?.questionKeywords || [];
+    const faqInstruction = suggestedFaqs.length > 0 
+      ? `\n**VORGESCHLAGENE FAQ-FRAGEN (aus echten Suchanfragen):**\n${suggestedFaqs.map(q => `- "${q}"`).join('\n')}\n→ Integriere diese Fragen in die FAQ-Section!`
+      : '';
     
     // Hauptprompt mit erweiterten Qualitätskriterien
     const prompt = `
@@ -143,6 +162,7 @@ ${contextSection ? `
 ZUSÄTZLICHER KONTEXT (aus Datenquellen)
 ═══════════════════════════════════════════════════════════════════════════════
 ${contextSection}
+${faqInstruction}
 ` : ''}
 
 ═══════════════════════════════════════════════════════════════════════════════
