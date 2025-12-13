@@ -25,6 +25,7 @@ interface ContextData {
   gscKeywordsRaw?: Keyword[];  // Vollständige Keyword-Objekte für Analyse
   newsInsights?: string;
   gapAnalysis?: string;
+  competitorAnalysis?: string; // ✅ NEU: Für Brand Voice Clone & Spy
 }
 
 interface LandingpageRequest {
@@ -91,7 +92,7 @@ export async function POST(req: NextRequest) {
     // Kontext-Blöcke aufbauen
     let contextSection = '';
 
-    // GSC Keywords - Intelligente Analyse
+    // 1. GSC Keywords - Intelligente Analyse
     let keywordAnalysis = null;
     let mainKeyword = keywords[0] || topic; // Fallback
     
@@ -109,8 +110,8 @@ ${contextData.gscKeywords.map(k => `- "${k}"`).join('\n')}
 `;
     }
 
+    // 2. News Insights
     if (contextData?.newsInsights) {
-      // Extrahiere nur die Key Takeaways aus dem News-Crawler Output
       const takeawaysMatch = contextData.newsInsights.match(/Key Takeaways[\s\S]*?(?=<h3|$)/i);
       const relevantNews = takeawaysMatch ? takeawaysMatch[0] : contextData.newsInsights.slice(0, 1500);
       
@@ -121,8 +122,8 @@ ${relevantNews.replace(/<[^>]*>/g, '').slice(0, 1000)}
 `;
     }
 
+    // 3. Gap Analysis
     if (contextData?.gapAnalysis) {
-      // Extrahiere die wichtigsten Lücken
       const gapText = contextData.gapAnalysis.replace(/<[^>]*>/g, '').slice(0, 800);
       
       contextSection += `
@@ -131,8 +132,29 @@ ${gapText}
 `;
     }
 
-    // Tonalitäts-Instruktionen
-    const toneInstructions = TONE_INSTRUCTIONS[toneOfVoice] || TONE_INSTRUCTIONS.professional;
+    // 4. BRAND VOICE CLONE & SPY (✅ Das ist das neue Feature)
+    let styleInstruction = TONE_INSTRUCTIONS[toneOfVoice] || TONE_INSTRUCTIONS.professional;
+
+    if (contextData?.competitorAnalysis) {
+      // Wir haben Spy-Daten!
+      const spyText = contextData.competitorAnalysis.slice(0, 3000); // Limitieren
+      // Prüfen, ob es die eigene Domain ist (einfacher Check)
+      const isOwnDomain = domain && spyText.includes(domain);
+
+      styleInstruction = `
+### ⚠️ WICHTIG: BRAND VOICE CLONE / STIL-ADAPTION
+Wir haben eine Text-Analyse einer existierenden Webseite vorliegen.
+
+${isOwnDomain 
+  ? '👉 Dies ist die EIGENE Webseite des Kunden. **IMITIERE diesen "Brand Voice" und Schreibstil exakt!** Achte genau auf Wortwahl, Satzlänge, Ansprache (Du/Sie) und Stimmung.' 
+  : '👉 Dies ist ein WETTBEWERBER. Analysiere dessen Schwächen im Text und **schreibe BESSER, überzeugender und klarer** als diese Vorlage.'}
+
+REFERENZ-TEXT (Zur Analyse):
+"""
+${spyText}
+"""
+      `;
+    }
 
     // FAQ-Vorschläge aus Fragen-Keywords
     const suggestedFaqs = keywordAnalysis?.questionKeywords || [];
@@ -155,7 +177,7 @@ DOMAIN: ${domain || 'Nicht angegeben'}
 ZIELGRUPPE: ${targetAudience || 'Allgemein'}
 ALLE KEYWORDS: ${keywords.join(', ')}
 
-${toneInstructions}
+${styleInstruction}
 
 ${contextSection ? `
 ═══════════════════════════════════════════════════════════════════════════════
@@ -188,10 +210,8 @@ QUALITÄTSKRITERIEN (STRIKT EINHALTEN!)
 - KURZE SÄTZE: Maximal 20 Wörter pro Satz
 - KURZE ABSÄTZE: Maximal 3-4 Sätze pro Absatz
 - AKTIVE SPRACHE: "Wir optimieren Ihre Website" statt "Ihre Website wird optimiert"
-- DIREKTE ANSPRACHE: Den Leser mit "Sie" direkt ansprechen
+- DIREKTE ANSPRACHE: Den Leser mit "Sie" direkt ansprechen (außer Brand Voice sagt "Du")
 - EINFACHE WÖRTER: Fachbegriffe kurz erklären oder vermeiden
-- Prüfe JEDEN Satz auf Tippfehler und grammatikalische Korrektheit.
-- Vermeide unnötiges "Denglisch". Nutze deutsche Begriffe, es sei denn, es handelt sich um feststehende Marketing-Fachbegriffe.
 - **KONSISTENTE PERSPEKTIVE:** Entscheide dich für EINE Perspektive und bleibe dabei!
   → Bei Unternehmen/Agenturen: Immer "Wir" (nie zwischen "Ich" und "Wir" wechseln!)
   → Bei Einzelpersonen/Freelancern: Immer "Ich"
