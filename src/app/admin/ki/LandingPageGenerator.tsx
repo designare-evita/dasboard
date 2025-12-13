@@ -560,20 +560,20 @@ export default function LandingpageGenerator({
 
       {/* RECHTER BEREICH: OUTPUT */}
       <div className="lg:col-span-8">
-        <div className="bg-white border border-gray-100 shadow-xl rounded-2xl p-8 h-full min-h-[600px] flex flex-col relative overflow-hidden">
+        <div className="bg-white border border-gray-100 shadow-xl rounded-2xl p-8 h-full min-h-[600px] flex flex-col relative">
           {/* Decorative Blurs */}
-          <div className="absolute top-0 right-0 w-64 h-64 bg-purple-100 rounded-full mix-blend-multiply filter blur-3xl opacity-30"></div>
-          <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-100 rounded-full mix-blend-multiply filter blur-3xl opacity-30"></div>
+          <div className="absolute top-0 right-0 w-64 h-64 bg-purple-100 rounded-full mix-blend-multiply filter blur-3xl opacity-30 pointer-events-none"></div>
+          <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-100 rounded-full mix-blend-multiply filter blur-3xl opacity-30 pointer-events-none"></div>
 
           {/* Header mit Export */}
-          <div className="flex items-center justify-between mb-4 z-10">
+          <div className="flex items-center justify-between mb-4 z-20 relative">
             <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
               <FileText className="text-purple-500" />
               Generierter Content
             </h2>
 
             {generatedContent && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 relative">
                 {/* Copy Button */}
                 <button
                   onClick={handleCopy}
@@ -591,13 +591,19 @@ export default function LandingpageGenerator({
                   >
                     <Download size={16} />
                     Export
-                    <ChevronDown size={14} />
+                    <ChevronDown size={14} className={`transition-transform ${showExportMenu ? 'rotate-180' : ''}`} />
                   </button>
 
                   {showExportMenu && (
-                    <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-lg z-20 overflow-hidden animate-in slide-in-from-top-2">
-                      <button
-                        onClick={() => handleExport('txt')}
+                    <>
+                      {/* Backdrop zum Schließen */}
+                      <div 
+                        className="fixed inset-0 z-30" 
+                        onClick={() => setShowExportMenu(false)}
+                      />
+                      <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-xl z-40 overflow-hidden animate-in slide-in-from-top-2">
+                        <button
+                          onClick={() => handleExport('txt')}
                         className="w-full px-4 py-3 text-left text-sm hover:bg-gray-50 flex items-center gap-2 transition-colors"
                       >
                         <FileText className="text-gray-400" />
@@ -617,7 +623,8 @@ export default function LandingpageGenerator({
                         <Markdown className="text-blue-400" />
                         Als Markdown (.md)
                       </button>
-                    </div>
+                      </div>
+                    </>
                   )}
                 </div>
               </div>
@@ -627,7 +634,7 @@ export default function LandingpageGenerator({
           {/* Content Output */}
           <div
             ref={outputRef}
-            className="flex-1 bg-gray-50/50 rounded-xl border border-gray-200/60 p-4 overflow-y-auto z-10 custom-scrollbar ai-output"
+            className="flex-1 bg-gray-50/50 rounded-xl border border-gray-200/60 p-4 overflow-y-auto custom-scrollbar ai-output relative z-0"
           >
             {generatedContent ? (
               <div
