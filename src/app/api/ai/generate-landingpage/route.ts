@@ -190,6 +190,10 @@ QUALITÄTSKRITERIEN (STRIKT EINHALTEN!)
 - AKTIVE SPRACHE: "Wir optimieren Ihre Website" statt "Ihre Website wird optimiert"
 - DIREKTE ANSPRACHE: Den Leser mit "Sie" direkt ansprechen
 - EINFACHE WÖRTER: Fachbegriffe kurz erklären oder vermeiden
+- **KONSISTENTE PERSPEKTIVE:** Entscheide dich für EINE Perspektive und bleibe dabei!
+  → Bei Unternehmen/Agenturen: Immer "Wir" (nie zwischen "Ich" und "Wir" wechseln!)
+  → Bei Einzelpersonen/Freelancern: Immer "Ich"
+  → NIEMALS im selben Text mischen!
 
 ### 4. CONVERSION-OPTIMIERUNG
 - KLARE CTAs: Jede Section endet mit einer Handlungsaufforderung
