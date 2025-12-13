@@ -14,16 +14,55 @@ export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   try {
-    const { url, keywords } = await req.json();
+    const body = await req.json();
+    
+    // ========================================================================
+    // FALL 1: Generator-Modus (Brainstorming anhand von Thema)
+    // Wird vom LandingpageGenerator genutzt
+    // ========================================================================
+    if (body.topic) {
+      const { topic, domain } = body;
+      
+      const prompt = `
+Du bist ein SEO-Stratege. Führe eine kurze, prägnante Content-Gap-Analyse durch.
+
+THEMA: "${topic}"
+ZIEL-DOMAIN: "${domain || 'Nicht angegeben'}"
+
+AUFGABE:
+Identifiziere 3-5 wichtige Unterthemen oder Aspekte, die bei diesem Thema oft vergessen werden, aber für ein Top-Ranking bei Google entscheidend sind (semantische Vollständigkeit).
+
+FORMAT:
+Gib das Ergebnis als einfache HTML-Liste (<ul><li>...</li></ul>) zurück. 
+Jeder Punkt soll:
+1. Den fehlenden Aspekt benennen (fett).
+2. Kurz erklären, warum er wichtig ist.
+Keine Einleitung, kein Markdown, nur das HTML.
+      `;
+
+      const result = streamText({
+        model: google('gemini-2.5-flash'),
+        prompt: prompt,
+        temperature: 0.6,
+      });
+
+      return result.toTextStreamResponse();
+    }
+
+    // ========================================================================
+    // FALL 2: Analyzer-Modus (Prüfung einer URL)
+    // Deine existierende Logik für CtrBooster / URL-Checks
+    // ========================================================================
+    const { url, keywords } = body;
 
     if (!url || !keywords || keywords.length === 0) {
       return NextResponse.json(
-        { message: 'URL und Keywords sind erforderlich.' },
+        { message: 'Entweder "topic" ODER "url" + "keywords" sind erforderlich.' },
         { status: 400 }
       );
     }
 
-    // Webseite scrapen
+    // Webseite scrapen (Existierende Logik)
     const pageRes = await fetch(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
@@ -37,43 +76,23 @@ export async function POST(req: NextRequest) {
     const html = await pageRes.text();
     const $ = cheerio.load(html);
 
-    $('script, style, nav, footer, iframe, svg, noscript, head').remove();
-    
-    const title = $('title').text().trim();
-    const h1 = $('h1').text().trim();
-    
-    const bodyText = $('body')
-      .text()
-      .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, 15000); 
+    $('script, style, nav, footer, svg, button').remove();
+    const pageText = $('body').text().replace(/\s+/g, ' ').slice(0, 15000); 
 
-    // Prompt mit zentralen Styles
+    // Prompt für URL-Analyse (Existierende Logik)
     const prompt = `
-      Du bist ein Senior SEO-Experte. Führe eine "Content Gap Analyse" durch.
-
-      DATEN:
-      - URL: ${url}
-      - Title/H1: ${title} / ${h1}
-      - Top Keywords (aus GSC): ${keywords.join(', ')}
-
-      WEBSITEN-TEXT (Auszug):
-      """
-      ${bodyText}
-      """
-
-      REGELN FÜR FORMATIERUNG (STRIKT BEFOLGEN):
-      1. VERWENDE KEIN MARKDOWN!
-      2. Nutze AUSSCHLIESSLICH HTML-Tags mit Tailwind-Klassen.
-      3. Nutze Bootstrap Icons: <i class="bi bi-icon-name"></i>
+      Du bist ein knallharter Content-Auditor.
       
-      STYLING VORGABEN:
-      - Überschriften: <h3 class="${STYLES.h3}"><i class="bi bi-icon"></i> TITEL</h3>
-      - Fließtext: <p class="${STYLES.p}">TEXT</p>
-      - Listen-Container: <ul class="${STYLES.list}">
-      - Listen-Items: <li class="${STYLES.listItem} bg-gray-50 p-2.5 rounded-lg border border-gray-100"><i class="bi bi-dot ${STYLES.iconIndigo}"></i><span><strong class="font-bold text-gray-900">Thema:</strong> Inhalt...</span></li>
-      - Keywords hervorheben: <span class="${STYLES.badgeIndigo}">KEYWORD</span>
-      - Optimierungs-Box: <div class="${STYLES.indigoBox} my-2">
+      ZIEL: Finde Lücken im Content der URL im Vergleich zu den Target-Keywords.
+      
+      URL CONTENT (Auszug):
+      "${pageText.slice(0, 4000)}..."
+
+      TARGET KEYWORDS:
+      ${keywords.map((k: any) => `- ${k.term || k}`).join('\n')}
+
+      STYLES TO USE:
+      - H3: <h3 class="${STYLES.h3}">...</h3>
       - Label: <span class="${STYLES.label}">LABEL</span>
 
       AUFGABE:
@@ -104,10 +123,10 @@ export async function POST(req: NextRequest) {
 
     return result.toTextStreamResponse();
 
-  } catch (error: any) {
-    console.error('❌ Content Gap Error:', error);
+  } catch (error: unknown) {
+    console.error('Content Gap Error:', error);
     return NextResponse.json(
-      { message: error.message || 'Fehler bei der Analyse' },
+      { message: error instanceof Error ? error.message : 'Analyse fehlgeschlagen' }, 
       { status: 500 }
     );
   }
