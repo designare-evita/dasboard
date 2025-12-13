@@ -5,7 +5,7 @@ import { ChatQuote, QuestionCircle, PatchCheckFill } from 'react-bootstrap-icons
 import { cn } from '@/lib/utils';
 
 interface AiQuestionsCardProps {
-  queries?: Array<{
+  queries: Array<{
     query: string;
     clicks: number;
     impressions: number;
