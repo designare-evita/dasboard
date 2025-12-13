@@ -523,7 +523,7 @@ export default function LandingPageGenerator({
               </div>
 
               {/* Gap Analysis */}
-              <div className="p-3 bg-gray-50 rounded-lg">
+<div className="p-3 bg-gray-50 rounded-lg transition-all">
                 <div className="flex items-center justify-between mb-2">
                     <label className="flex items-center gap-2 cursor-pointer">
                         <input 
@@ -542,19 +542,32 @@ export default function LandingPageGenerator({
                         disabled={isAnalyzingGap || !topic}
                         variant="ghost" 
                         size="sm" 
-                        className="h-6 text-xs px-2 text-indigo-600 hover:bg-indigo-50"
+                        className="h-6 text-xs px-2 text-indigo-600 hover:bg-indigo-50 border border-indigo-100 bg-white"
                     >
-                        {isAnalyzingGap ? <ArrowRepeat className="animate-spin" /> : 'Scan'}
+                        {isAnalyzingGap ? <ArrowRepeat className="animate-spin" /> : 'Jetzt scannen'}
                     </Button>
                 </div>
+                
+                {/* STATUS & ERGEBNIS ANZEIGE */}
                 <div className="text-xs text-gray-500 pl-6">
-                    {cachedGapData ? 'Daten verfügbar' : 'Noch keine Analyse'}
+                    {!cachedGapData && !isAnalyzingGap && 'Findet fehlende Themen für bessere Rankings.'}
+                    {isAnalyzingGap && <span className="text-indigo-600 animate-pulse">Analysiere Wettbewerb & Semantik...</span>}
+                    
+                    {/* HIER IST DIE NEUE ERGEBNIS-BOX */}
+                    {cachedGapData && !isAnalyzingGap && (
+                        <div className="mt-2 p-3 bg-white border border-indigo-100 rounded-lg shadow-sm">
+                            <div className="flex items-center gap-1 text-green-600 font-semibold mb-1">
+                                <CheckLg /> Analyse erfolgreich!
+                            </div>
+                            <div className="prose prose-sm max-w-none text-gray-600 text-[11px] leading-relaxed gap-content">
+                                <p className="mb-1 font-medium">Empfohlene Ergänzungen:</p>
+                                {/* Wir rendern das HTML der KI direkt hier */}
+                                <div dangerouslySetInnerHTML={{ __html: cachedGapData }} />
+                            </div>
+                        </div>
+                    )}
                 </div>
               </div>
-
-            </div>
-          )}
-        </div>
 
         {/* 3. KEYWORDS CARD */}
         <div className="bg-white border border-gray-100 shadow-sm rounded-2xl p-4">
