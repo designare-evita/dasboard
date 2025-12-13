@@ -33,6 +33,7 @@ interface LandingpageRequest {
   keywords: string[];
   targetAudience?: string;
   toneOfVoice: 'professional' | 'casual' | 'technical' | 'emotional';
+  contentType: 'landingpage' | 'blog'; // WICHTIG: Unterscheidung
   contextData?: ContextData;
   domain?: string;
 }
@@ -79,7 +80,7 @@ const TONE_INSTRUCTIONS: Record<string, string> = {
 export async function POST(req: NextRequest) {
   try {
     const body: LandingpageRequest = await req.json();
-    const { topic, keywords, targetAudience, toneOfVoice, contextData, domain } = body;
+    const { topic, keywords, targetAudience, toneOfVoice, contentType = 'landingpage', contextData, domain } = body;
 
     // Validierung
     if (!topic || !keywords || keywords.length === 0) {
@@ -132,7 +133,7 @@ ${gapText}
 `;
     }
 
-    // 4. BRAND VOICE CLONE & SPY (Logik angepasst: STIL IMMER ÜBERNEHMEN)
+    // 4. BRAND VOICE CLONE & SPY
     let toneInstructions = TONE_INSTRUCTIONS[toneOfVoice] || TONE_INSTRUCTIONS.professional;
 
     if (contextData?.competitorAnalysis) {
@@ -165,8 +166,139 @@ ${spyText}
       ? `\n**VORGESCHLAGENE FAQ-FRAGEN (aus echten Suchanfragen):**\n${suggestedFaqs.map(q => `- "${q}"`).join('\n')}\n→ Integriere diese Fragen in die FAQ-Section!`
       : '';
     
-    // Hauptprompt (Jetzt mit der VOLLSTÄNDIGEN STRUKTUR)
-    const prompt = `
+    // ========================================================================
+    // PROMPT AUSWAHL
+    // ========================================================================
+
+    let prompt = '';
+
+    if (contentType === 'blog') {
+      // ----------------------------------------------------------------------
+      // BLOG PROMPT (High End Qualität)
+      // ----------------------------------------------------------------------
+      prompt = `
+Du bist ein erfahrener Fachredakteur und SEO-Experte mit 10+ Jahren Erfahrung.
+Erstelle einen detaillierten, hochwertigen Blogartikel (Ratgeber-Content).
+
+═══════════════════════════════════════════════════════════════════════════════
+AUFTRAG
+═══════════════════════════════════════════════════════════════════════════════
+
+THEMA: "${topic}"
+HAUPTKEYWORD: "${mainKeyword}"
+DOMAIN: ${domain || 'Nicht angegeben'}
+ZIELGRUPPE: ${targetAudience || 'Allgemein'}
+ALLE KEYWORDS: ${keywords.join(', ')}
+
+${toneInstructions}
+
+${contextSection ? `
+═══════════════════════════════════════════════════════════════════════════════
+ZUSÄTZLICHER KONTEXT
+═══════════════════════════════════════════════════════════════════════════════
+${contextSection}
+${faqInstruction}
+` : ''}
+
+═══════════════════════════════════════════════════════════════════════════════
+QUALITÄTSKRITERIEN (STRIKT EINHALTEN!)
+═══════════════════════════════════════════════════════════════════════════════
+
+### 1. MEHRWERT & TIEFE
+- Kein "Fluff" oder oberflächliches Geschwafel. Gehe in die Tiefe.
+- Liefere konkrete Lösungen, keine abstrakten Beschreibungen.
+- Nutze "Pro-Tipps" und Warnhinweise (Do's and Don'ts).
+
+### 2. STRUKTUR & LESBARKEIT
+- H1 muss knallig sein und zum Klicken anregen (Clickbait aber seriös).
+- Kurze Absätze (max 3-4 Zeilen).
+- Viele Zwischenüberschriften (H2, H3).
+- Nutze Listen, Fettungen und Infoboxen.
+
+### 3. SEO & KEYWORDS
+- Hauptkeyword "${mainKeyword}" in H1, Einleitung und Fazit.
+- Nebenkeywords natürlich im Text verteilen.
+
+═══════════════════════════════════════════════════════════════════════════════
+OUTPUT ANFORDERUNGEN
+═══════════════════════════════════════════════════════════════════════════════
+
+Generiere NUR den HTML-Code (Tailwind CSS).
+Struktur:
+
+1. <h1 class="text-3xl md:text-4xl font-bold text-gray-900 mb-6">
+     [Titel mit "${mainKeyword}"]
+   </h1>
+
+2. <div class="bg-indigo-50 p-6 rounded-xl mb-8 border border-indigo-100">
+     <h3 class="font-bold text-indigo-900 mb-3">Das Wichtigste in Kürze:</h3>
+     <ul class="space-y-2">
+       <li class="flex gap-2 text-indigo-900"><span class="text-indigo-600">✓</span> [Key Takeaway 1]</li>
+       <li class="flex gap-2 text-indigo-900"><span class="text-indigo-600">✓</span> [Key Takeaway 2]</li>
+       <li class="flex gap-2 text-indigo-900"><span class="text-indigo-600">✓</span> [Key Takeaway 3]</li>
+     </ul>
+   </div>
+
+3. <p class="text-xl text-gray-600 mb-8 leading-relaxed">
+     [Starke Einleitung: Problemaufriss und Versprechen]
+   </p>
+
+4. <section class="mb-10">
+     <h2 class="${STYLES.h3} mb-4">[H2: Grundlagen / Definition]</h2>
+     <p class="${STYLES.p}">[Erklärender Text...]</p>
+   </section>
+
+5. <section class="mb-10">
+     <h2 class="${STYLES.h3} mb-4">[H2: Deep Dive - Hauptteil]</h2>
+     <p class="${STYLES.p}">[Detaillierter Content...]</p>
+     <div class="my-6 p-5 bg-yellow-50 border-l-4 border-yellow-400 rounded-r-lg">
+       <strong class="text-yellow-800 block mb-1">💡 Experten-Tipp:</strong>
+       <p class="text-yellow-700 m-0 text-sm">[Ein wertvoller Tipp aus der Praxis]</p>
+     </div>
+     <p class="${STYLES.p}">[Weiterer Text...]</p>
+   </section>
+
+6. <section class="mb-10">
+     <h2 class="${STYLES.h3} mb-4">[H2: Anleitung / Schritt-für-Schritt]</h2>
+     <ul class="${STYLES.list}">
+       <li class="${STYLES.listItem}"><strong class="text-gray-900">1. [Schritt]:</strong> [Erklärung]</li>
+       <li class="${STYLES.listItem}"><strong class="text-gray-900">2. [Schritt]:</strong> [Erklärung]</li>
+       <li class="${STYLES.listItem}"><strong class="text-gray-900">3. [Schritt]:</strong> [Erklärung]</li>
+     </ul>
+   </section>
+
+7. <section class="mb-10">
+     <h2 class="${STYLES.h3} mb-4">Häufige Fehler (und wie man sie vermeidet)</h2>
+     <div class="grid md:grid-cols-2 gap-4">
+       <div class="bg-red-50 p-4 rounded-lg border border-red-100">
+         <strong class="text-red-700 block mb-1">❌ Falsch:</strong>
+         <span class="text-sm text-red-600">[Typischer Fehler]</span>
+       </div>
+       <div class="bg-green-50 p-4 rounded-lg border border-green-100">
+         <strong class="text-green-700 block mb-1">✅ Richtig:</strong>
+         <span class="text-sm text-green-600">[Lösung/Best Practice]</span>
+       </div>
+     </div>
+   </section>
+
+8. <section class="mb-10 bg-gray-50 p-8 rounded-xl">
+     <h2 class="${STYLES.h3} mb-4">Fazit</h2>
+     <p class="${STYLES.p}">[Zusammenfassung und Ausblick]</p>
+   </section>
+
+9. <div class="mt-8 pt-8 border-t border-gray-100 text-center">
+      <p class="font-medium text-gray-900 mb-4">Fanden Sie diesen Artikel hilfreich?</p>
+      [Passender CTA für einen Blog, z.B. Newsletter oder Kontakt]
+   </div>
+
+WICHTIG: Generiere NUR den HTML-Code. Mindestens 1200 Wörter für den Blogpost.
+      `;
+
+    } else {
+      // ----------------------------------------------------------------------
+      // LANDINGPAGE PROMPT (EXAKT DEIN UPLOAD - UNGEKÜRZT)
+      // ----------------------------------------------------------------------
+      prompt = `
 Du bist ein erfahrener SEO-Copywriter und Content-Stratege mit 10+ Jahren Erfahrung.
 Erstelle den vollständigen Textinhalt für eine hochwertige, rankingfähige Landingpage.
 
@@ -329,7 +461,8 @@ STRUKTUR (in dieser Reihenfolge):
 
 WICHTIG: Generiere NUR den HTML-Code. Keine Einleitung, keine Erklärungen.
 Prüfe vor Ausgabe: Ist "${mainKeyword}" in H1 und erstem Absatz? Mindestens 900 Wörter?
-`;
+      `;
+    }
 
     // --- STREAMING ---
     try {
