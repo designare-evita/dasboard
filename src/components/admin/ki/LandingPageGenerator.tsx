@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { ManualKeywordInput } from '@/components/ManualKeywordInput';
-import { useCompletion } from 'ai/react';
+// ✅ KORREKTUR: Importiere von '@ai-sdk/react' statt 'ai/react'
+import { useCompletion } from '@ai-sdk/react'; 
 import { toast } from 'sonner';
 import { Magic, FileEarmarkText, Copy, PencilSquare } from 'react-bootstrap-icons';
 
