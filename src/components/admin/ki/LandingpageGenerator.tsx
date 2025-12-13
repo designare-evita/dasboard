@@ -132,6 +132,18 @@ export default function LandingPageGenerator({
 
   const totalKeywordCount = getAllKeywords().length;
 
+  // --- HELPER: Gap-Analyse Text extrahieren (Fix 2) ---
+  const extractGapText = (html: string): string[] => {
+    // Entferne HTML-Tags und extrahiere Listenpunkte
+    const text = html.replace(/<[^>]*>/g, '');
+    // Splitte bei Zeilenumbrüchen oder Listenpunkten
+    const items = text
+      .split(/[\n•\-]/)
+      .map(item => item.trim())
+      .filter(item => item.length > 10 && item.length < 200);
+    return items.slice(0, 5); // Max 5 Items
+  };
+
   // --- EXPORT FUNKTION (Direkt implementiert) ---
   const handleExport = (format: 'txt' | 'html' | 'md') => {
     if (!generatedContent) {
@@ -527,7 +539,7 @@ export default function LandingPageGenerator({
                 )}
               </div>
 
-              {/* Gap Analysis (Verbessert: Ergebnis sichtbar!) */}
+              {/* Gap Analysis (Fix 2: Besseres Styling) */}
               <div className="p-3 bg-gray-50 rounded-lg transition-all">
                 <div className="flex items-center justify-between mb-2">
                     <label className="flex items-center gap-2 cursor-pointer">
@@ -553,21 +565,31 @@ export default function LandingPageGenerator({
                     </Button>
                 </div>
                 
-                {/* STATUS & ERGEBNIS ANZEIGE (NEU) */}
+                {/* STATUS & ERGEBNIS ANZEIGE (Fix 2: Besseres Styling) */}
                 <div className="text-xs text-gray-500 pl-6">
                     {!cachedGapData && !isAnalyzingGap && 'Findet fehlende Themen für bessere Rankings.'}
                     {isAnalyzingGap && <span className="text-indigo-600 animate-pulse">Analysiere Wettbewerb & Semantik...</span>}
                     
-                    {/* HIER IST DIE NEUE ERGEBNIS-BOX */}
+                    {/* ERGEBNIS-BOX MIT SAUBEREM STYLING */}
                     {cachedGapData && !isAnalyzingGap && (
-                        <div className="mt-2 p-3 bg-white border border-indigo-100 rounded-lg shadow-sm">
-                            <div className="flex items-center gap-1 text-green-600 font-semibold mb-1">
+                        <div className="mt-2 p-3 bg-white border border-green-200 rounded-lg shadow-sm">
+                            <div className="flex items-center gap-1 text-green-600 font-semibold mb-2">
                                 <CheckLg /> Analyse erfolgreich!
                             </div>
-                            <div className="prose prose-sm max-w-none text-gray-600 text-[11px] leading-relaxed gap-content">
-                                <p className="mb-1 font-medium text-gray-800">Empfohlene Ergänzungen:</p>
-                                <div dangerouslySetInnerHTML={{ __html: cachedGapData }} />
-                            </div>
+                            <p className="text-[11px] font-medium text-gray-700 mb-2">Empfohlene Ergänzungen:</p>
+                            <ul className="space-y-1.5">
+                                {extractGapText(cachedGapData).map((item, idx) => (
+                                    <li key={idx} className="flex items-start gap-2 text-[11px] text-gray-600">
+                                        <span className="text-indigo-500 mt-0.5">•</span>
+                                        <span>{item}</span>
+                                    </li>
+                                ))}
+                            </ul>
+                            {useGapAnalysis && (
+                                <div className="mt-2 pt-2 border-t border-gray-100 text-[10px] text-green-600 font-medium">
+                                    ✓ Wird bei Generierung berücksichtigt
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
@@ -597,34 +619,61 @@ export default function LandingPageGenerator({
       </div>
 
       {/* --- OUTPUT (RECHTS) --- */}
+      {/* Fix 1: overflow-hidden ENTFERNT damit Export-Dropdown sichtbar ist */}
       <div className="lg:col-span-8">
-        <div className="bg-white border border-gray-100 shadow-xl rounded-2xl p-8 h-full min-h-[600px] flex flex-col relative overflow-hidden">
-          <div className="flex items-center justify-between mb-4 z-10">
+        <div className="bg-white border border-gray-100 shadow-xl rounded-2xl p-8 h-full min-h-[600px] flex flex-col relative">
+          {/* Header mit Export - z-index erhöht */}
+          <div className="flex items-center justify-between mb-4 relative z-20">
             <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2"><FileText className="text-purple-500" /> Ergebnis</h2>
             {generatedContent && (
-              <div className="flex gap-2">
-                <button onClick={handleCopy} className="p-2 hover:bg-gray-100 rounded-lg text-gray-600"><ClipboardCheck/></button>
+              <div className="flex gap-2 relative">
+                <button onClick={handleCopy} className="p-2 hover:bg-gray-100 rounded-lg text-gray-600" title="In Zwischenablage kopieren"><ClipboardCheck/></button>
                 
-                {/* Export Dropdown */}
+                {/* Export Dropdown - Fix 1: Höherer z-index + Backdrop */}
                 <div className="relative">
                    <button 
                       onClick={() => setShowExportMenu(!showExportMenu)} 
                       className="flex items-center gap-1 px-3 py-2 bg-purple-50 text-purple-700 hover:bg-purple-100 rounded-lg text-sm font-medium"
                    >
-                      <Download/> Export
+                      <Download size={16} /> Export <ChevronDown size={14} className={`transition-transform ${showExportMenu ? 'rotate-180' : ''}`} />
                    </button>
                    {showExportMenu && (
-                     <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-xl z-50 animate-in fade-in slide-in-from-top-2">
-                       <button onClick={() => handleExport('txt')} className="w-full px-4 py-3 text-left text-sm hover:bg-gray-50 border-b border-gray-100">Als Text (.txt)</button>
-                       <button onClick={() => handleExport('html')} className="w-full px-4 py-3 text-left text-sm hover:bg-gray-50 border-b border-gray-100">Als HTML (.html)</button>
-                       <button onClick={() => handleExport('md')} className="w-full px-4 py-3 text-left text-sm hover:bg-gray-50">Als Markdown (.md)</button>
-                     </div>
+                     <>
+                       {/* Backdrop zum Schließen bei Klick außerhalb */}
+                       <div 
+                         className="fixed inset-0 z-30" 
+                         onClick={() => setShowExportMenu(false)}
+                       />
+                       {/* Dropdown-Menü */}
+                       <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-xl z-40 animate-in fade-in slide-in-from-top-2">
+                         <button 
+                           onClick={() => handleExport('txt')} 
+                           className="w-full px-4 py-3 text-left text-sm hover:bg-gray-50 flex items-center gap-2 rounded-t-xl"
+                         >
+                           <FileText className="text-gray-400" /> Als Text (.txt)
+                         </button>
+                         <button 
+                           onClick={() => handleExport('html')} 
+                           className="w-full px-4 py-3 text-left text-sm hover:bg-gray-50 flex items-center gap-2 border-t border-gray-100"
+                         >
+                           <FileEarmarkCode className="text-orange-400" /> Als HTML (.html)
+                         </button>
+                         <button 
+                           onClick={() => handleExport('md')} 
+                           className="w-full px-4 py-3 text-left text-sm hover:bg-gray-50 flex items-center gap-2 border-t border-gray-100 rounded-b-xl"
+                         >
+                           <Markdown className="text-blue-400" /> Als Markdown (.md)
+                         </button>
+                       </div>
+                     </>
                    )}
                 </div>
               </div>
             )}
           </div>
-          <div ref={outputRef} className="flex-1 bg-gray-50/50 rounded-xl border border-gray-200/60 p-6 overflow-y-auto z-10 custom-scrollbar ai-output relative">
+          
+          {/* Output-Bereich - z-index niedriger als Header */}
+          <div ref={outputRef} className="flex-1 bg-gray-50/50 rounded-xl border border-gray-200/60 p-6 overflow-y-auto relative z-0 custom-scrollbar ai-output">
             {generatedContent ? (
               <div className="ai-content prose max-w-none" dangerouslySetInnerHTML={{ __html: generatedContent }} />
             ) : (
