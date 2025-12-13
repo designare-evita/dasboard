@@ -21,14 +21,10 @@ import {
   Binoculars,
   CheckLg,
   InfoCircle,
-  ArrowRepeat
+  ArrowRepeat,
+  LayoutTextWindowReverse, // Icon für Blog
+  WindowDesktop          // Icon für Landingpage
 } from 'react-bootstrap-icons';
-import {
-  downloadAsText,
-  downloadAsHtml,
-  downloadAsMarkdown,
-  copyToClipboard,
-} from '@/lib/export-utils';
 
 // ============================================================================
 // TYPES
@@ -41,7 +37,6 @@ interface Keyword {
   impressions: number;
 }
 
-// Angepasst für page.tsx Kompatibilität
 interface LandingpageGeneratorProps {
   projectId?: string;
   domain?: string;
@@ -50,6 +45,7 @@ interface LandingpageGeneratorProps {
 }
 
 type ToneOfVoice = 'professional' | 'casual' | 'technical' | 'emotional';
+type ContentType = 'landingpage' | 'blog'; // NEU: Unterscheidung
 
 interface ContextData {
   gscKeywords?: string[];
@@ -87,6 +83,7 @@ export default function LandingPageGenerator({
   const [topic, setTopic] = useState('');
   const [targetAudience, setTargetAudience] = useState('');
   const [tone, setTone] = useState<ToneOfVoice>('professional');
+  const [contentType, setContentType] = useState<ContentType>('landingpage'); // NEU
   const [customKeywords, setCustomKeywords] = useState('');
   
   // SPY FEATURE
@@ -134,6 +131,47 @@ export default function LandingPageGenerator({
 
   const totalKeywordCount = getAllKeywords().length;
 
+  // --- EXPORT FUNKTION (FIXED: Direkt implementiert) ---
+  const handleExport = (format: 'txt' | 'html' | 'md') => {
+    if (!generatedContent) {
+      toast.error('Kein Inhalt zum Exportieren.');
+      return;
+    }
+
+    try {
+      let content = generatedContent;
+      let mimeType = 'text/plain';
+      let extension = format;
+
+      if (format === 'html') {
+        mimeType = 'text/html';
+        // HTML Wrapper hinzufügen falls gewünscht, oder roh lassen
+        content = `<!DOCTYPE html><html><head><title>${topic}</title><meta charset="UTF-8"></head><body>${generatedContent}</body></html>`;
+      } else if (format === 'md') {
+        // Simpler HTML to Markdown Converter (oder Roh-HTML in MD speichern)
+        // Für jetzt speichern wir es als Text mit .md Endung, da der Output HTML ist.
+        // Echte Konvertierung bräuchte eine Lib wie turndown, aber User will oft den Code.
+        mimeType = 'text/markdown';
+      }
+
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${topic.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'content'}.${extension}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      toast.success(`${format.toUpperCase()} Export gestartet`);
+      setShowExportMenu(false);
+    } catch (e) {
+      console.error("Export Error:", e);
+      toast.error("Export fehlgeschlagen.");
+    }
+  };
+
   // --- HANDLERS ---
 
   // 1. SPY: URL Analysieren
@@ -141,16 +179,19 @@ export default function LandingPageGenerator({
     if (!referenceUrl) return;
     try {
       setIsSpying(true);
-      toast.info('Analysiere Referenz-Webseite...');
+      // Spy löst jetzt die Lightbox aus (indirekt über isSpying State im Render)
+      
       const res = await fetch('/api/ai/competitor-spy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ myUrl: referenceUrl }),
       });
+
       if (!res.ok) throw new Error('Analyse fehlgeschlagen');
+      
       const data = await res.text();
       setSpyData(data);
-      toast.success('Stil & Inhalt erfasst!');
+      toast.success('Stil & Inhalt erfolgreich erfasst!');
     } catch (e) {
       console.error(e);
       toast.error('Konnte URL nicht analysieren.');
@@ -159,7 +200,7 @@ export default function LandingPageGenerator({
     }
   };
 
-  // 2. GAP: Content Gap Analyse (Fehlte vorher!)
+  // 2. GAP: Content Gap Analyse
   const handleAnalyzeGap = async () => {
     if (!topic) {
         toast.error('Bitte erst ein Thema eingeben.');
@@ -174,9 +215,9 @@ export default function LandingPageGenerator({
             body: JSON.stringify({ topic, domain }),
         });
         if (!res.ok) throw new Error('Gap-Analyse fehlgeschlagen');
-        const data = await res.text(); // oder .json() je nach Endpoint
+        const data = await res.text();
         setCachedGapData(data);
-        setUseGapAnalysis(true); // Automatisch aktivieren
+        setUseGapAnalysis(true);
         toast.success('Content Gaps identifiziert!');
     } catch (e) {
         console.error(e);
@@ -192,7 +233,6 @@ export default function LandingPageGenerator({
     if (getAllKeywords().length === 0) { toast.error('Bitte Keywords angeben.'); return; }
     
     if (useNewsCrawler && newsMode === 'live' && !newsTopic.trim()) {
-       // Fallback: Wenn kein News-Topic, nimm das Hauptthema
        setNewsTopic(topic);
     }
 
@@ -203,7 +243,7 @@ export default function LandingPageGenerator({
     try {
       const contextData: ContextData = {};
       
-      // Spy Data (Auto-Fetch wenn URL da aber noch nicht gescannt)
+      // Spy Data (Auto-Fetch falls nötig)
       let currentSpyData = spyData;
       if (referenceUrl && !currentSpyData) {
          try {
@@ -223,12 +263,10 @@ export default function LandingPageGenerator({
         contextData.gscKeywordsRaw = keywords.slice(0, 30);
       }
       
-      // News-Crawler (Live Logic)
+      // News
       if (useNewsCrawler) {
         if (newsMode === 'live') {
           const fetchTopic = newsTopic.trim() || topic;
-          toast.info(`Suche News zu: ${fetchTopic}...`);
-          
           const newsResponse = await fetch('/api/ai/news-crawler', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -252,7 +290,6 @@ export default function LandingPageGenerator({
         }
       }
       
-      // Gap-Analyse
       if (useGapAnalysis && cachedGapData) {
         contextData.gapAnalysis = cachedGapData;
       }
@@ -263,6 +300,7 @@ export default function LandingPageGenerator({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           topic: topic.trim(),
+          contentType, // NEU: Content Type übergeben
           keywords: getAllKeywords(),
           targetAudience: targetAudience.trim() || undefined,
           toneOfVoice: tone,
@@ -297,16 +335,6 @@ export default function LandingPageGenerator({
     }
   };
 
-  const handleExport = (format: 'txt' | 'html' | 'md') => {
-    if (!generatedContent) return;
-    switch (format) {
-      case 'txt': downloadAsText(generatedContent, topic || 'lp'); break;
-      case 'html': downloadAsHtml(generatedContent, topic || 'lp'); break;
-      case 'md': downloadAsMarkdown(generatedContent, topic || 'lp'); break;
-    }
-    setShowExportMenu(false);
-  };
-
   const handleCopy = async () => {
     if (generatedContent) {
         await copyToClipboard(generatedContent);
@@ -322,19 +350,25 @@ export default function LandingPageGenerator({
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
       
-      {/* LOADING OVERLAY */}
-      {isWaitingForStream && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/70 backdrop-blur-md transition-all animate-in fade-in duration-300">
+      {/* LOADING / SPY LIGHTBOX (Fix für Punkt 4) */}
+      {(isWaitingForStream || isSpying) && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-white/80 backdrop-blur-md transition-all animate-in fade-in duration-300">
           <div className="bg-white p-8 rounded-3xl shadow-2xl border border-gray-100 flex flex-col items-center gap-6 max-w-md w-full text-center">
             <div className="relative w-full flex justify-center">
               <Image src="/data-max-arbeitet.webp" alt="KI arbeitet" width={400} height={400} className="h-[200px] w-auto object-contain" priority />
             </div>
             <div>
-              <h3 className="text-xl font-bold text-gray-800 mb-1">Content wird erstellt</h3>
-              <p className="text-gray-500 text-sm">{useNewsCrawler && newsMode === 'live' ? 'Recherchiere News & schreibe...' : 'Generiere Landingpage...'}</p>
+              <h3 className="text-xl font-bold text-gray-800 mb-1">
+                {isSpying ? 'Analysiere URL...' : 'Content wird erstellt'}
+              </h3>
+              <p className="text-gray-500 text-sm">
+                {isSpying 
+                  ? 'Klone Stil, Wortwahl und Struktur der Zielseite...' 
+                  : (useNewsCrawler && newsMode === 'live' ? 'Recherchiere News & schreibe...' : 'Generiere optimierten Content...')}
+              </p>
             </div>
             <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
-               <div className="h-full bg-purple-500 w-1/3 rounded-full animate-indeterminate-bar"></div>
+               <div className={`h-full bg-purple-500 w-1/3 rounded-full animate-indeterminate-bar ${isSpying ? 'bg-amber-500' : ''}`}></div>
             </div>
           </div>
         </div>
@@ -349,7 +383,7 @@ export default function LandingPageGenerator({
             <div className="w-14 h-14 bg-gradient-to-br from-purple-100 to-indigo-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
               <FileText className="text-2xl text-purple-600" />
             </div>
-            <h3 className="font-bold text-gray-900">Landingpage Generator</h3>
+            <h3 className="font-bold text-gray-900">Content Generator</h3>
             <p className="text-xs text-gray-500 mt-1">für <strong className="text-gray-700">{domain || 'dieses Projekt'}</strong></p>
           </div>
 
@@ -365,13 +399,35 @@ export default function LandingPageGenerator({
             />
           </div>
 
+          {/* NEU: CONTENT TYPE SELECTOR (Fix für Punkt 2) */}
+          <div className="mt-4">
+            <label className="text-sm font-semibold text-gray-700 mb-2 block">Art des Inhalts</label>
+            <div className="grid grid-cols-2 gap-2 p-1 bg-gray-100 rounded-xl">
+               <button
+                 onClick={() => setContentType('landingpage')}
+                 className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-medium transition-all ${contentType === 'landingpage' ? 'bg-white text-purple-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+               >
+                 <WindowDesktop size={14} /> Landingpage
+               </button>
+               <button
+                 onClick={() => setContentType('blog')}
+                 className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-medium transition-all ${contentType === 'blog' ? 'bg-white text-purple-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+               >
+                 <LayoutTextWindowReverse size={14} /> Blog-Artikel
+               </button>
+            </div>
+            <p className="text-[10px] text-gray-400 mt-1.5 px-1">
+              {contentType === 'landingpage' ? 'Fokus auf Conversion, Leads & Verkauf.' : 'Fokus auf Information, SEO-Traffic & Mehrwert.'}
+            </p>
+          </div>
+
           {/* SPY SECTION */}
           <div className="mt-4 bg-amber-50/60 p-4 rounded-xl border border-amber-100 space-y-3">
              <div className="flex items-start gap-2">
                <Binoculars className="text-amber-600 mt-1 shrink-0" /> 
                <div>
-                 <label className="text-sm font-medium text-gray-900 block">Spy & Clone (Optional)</label>
-                 <p className="text-[11px] text-gray-500 leading-tight">URL analysieren und Stil übernehmen.</p>
+                 <label className="text-sm font-medium text-gray-900 block">Spy & Clone (Stil-Kopie)</label>
+                 <p className="text-[11px] text-gray-500 leading-tight">URL analysieren und Wording/Stil exakt übernehmen.</p>
                </div>
              </div>
              <div className="flex gap-2">
@@ -391,8 +447,8 @@ export default function LandingPageGenerator({
                </Button>
              </div>
              {referenceUrl && spyData && (
-                <div className="text-[10px] text-green-700 flex gap-1 items-center">
-                    <CheckLg/> Analyse erfolgreich gespeichert.
+                <div className="text-[10px] text-green-700 flex gap-1 items-center font-medium bg-green-50 p-1.5 rounded border border-green-100">
+                    <CheckLg/> Stil analysiert. Wird angewendet.
                 </div>
              )}
           </div>
@@ -408,7 +464,7 @@ export default function LandingPageGenerator({
           </div>
 
           <div className="mt-4">
-            <label className="text-sm font-semibold text-gray-700 mb-2 block">Tonalität</label>
+            <label className="text-sm font-semibold text-gray-700 mb-2 block">Tonalität (Fallback)</label>
             <div className="grid grid-cols-2 gap-2">
               {TONE_OPTIONS.map((option) => (
                 <button
@@ -422,6 +478,7 @@ export default function LandingPageGenerator({
                 </button>
               ))}
             </div>
+            {spyData && <p className="text-[10px] text-amber-600 mt-1">*Wird durch Spy-Analyse überschrieben.</p>}
           </div>
         </div>
 
@@ -465,7 +522,7 @@ export default function LandingPageGenerator({
                 )}
               </div>
 
-              {/* Gap Analysis (mit Button!) */}
+              {/* Gap Analysis */}
               <div className="p-3 bg-gray-50 rounded-lg">
                 <div className="flex items-center justify-between mb-2">
                     <label className="flex items-center gap-2 cursor-pointer">
@@ -514,7 +571,7 @@ export default function LandingPageGenerator({
         </div>
 
         <Button onClick={handleGenerate} disabled={isGenerating} className="w-full py-6 text-base gap-2 bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-200">
-          {isGenerating ? 'Generiere...' : <><FileText /> Landingpage erstellen</>}
+          {isGenerating ? 'Generiere...' : <><FileText /> {contentType === 'landingpage' ? 'Landingpage erstellen' : 'Blog-Artikel schreiben'}</>}
         </Button>
       </div>
 
@@ -525,27 +582,35 @@ export default function LandingPageGenerator({
             <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2"><FileText className="text-purple-500" /> Ergebnis</h2>
             {generatedContent && (
               <div className="flex gap-2">
-                <button onClick={handleCopy} className="p-2 hover:bg-gray-100 rounded-lg"><ClipboardCheck/></button>
+                <button onClick={handleCopy} className="p-2 hover:bg-gray-100 rounded-lg text-gray-600"><ClipboardCheck/></button>
+                
+                {/* Export Dropdown (FIX: Positioniert und keine externen Utils) */}
                 <div className="relative">
-                   <button onClick={() => setShowExportMenu(!showExportMenu)} className="flex items-center gap-1 px-3 py-2 bg-purple-50 text-purple-700 rounded-lg text-sm font-medium"><Download/> Export</button>
+                   <button 
+                      onClick={() => setShowExportMenu(!showExportMenu)} 
+                      className="flex items-center gap-1 px-3 py-2 bg-purple-50 text-purple-700 hover:bg-purple-100 rounded-lg text-sm font-medium"
+                   >
+                      <Download/> Export
+                   </button>
                    {showExportMenu && (
-                     <div className="absolute right-0 mt-2 w-40 bg-white border rounded-xl shadow-lg z-20">
-                       <button onClick={() => handleExport('txt')} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50">TXT</button>
-                       <button onClick={() => handleExport('html')} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50">HTML</button>
-                       <button onClick={() => handleExport('md')} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50">Markdown</button>
+                     <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-xl z-50 animate-in fade-in slide-in-from-top-2">
+                       <button onClick={() => handleExport('txt')} className="w-full px-4 py-3 text-left text-sm hover:bg-gray-50 border-b border-gray-100">Als Text (.txt)</button>
+                       <button onClick={() => handleExport('html')} className="w-full px-4 py-3 text-left text-sm hover:bg-gray-50 border-b border-gray-100">Als HTML (.html)</button>
+                       <button onClick={() => handleExport('md')} className="w-full px-4 py-3 text-left text-sm hover:bg-gray-50">Als Markdown (.md)</button>
                      </div>
                    )}
                 </div>
               </div>
             )}
           </div>
-          <div ref={outputRef} className="flex-1 bg-gray-50/50 rounded-xl border border-gray-200/60 p-6 overflow-y-auto z-10 custom-scrollbar ai-output">
+          <div ref={outputRef} className="flex-1 bg-gray-50/50 rounded-xl border border-gray-200/60 p-6 overflow-y-auto z-10 custom-scrollbar ai-output relative">
             {generatedContent ? (
               <div className="ai-content prose max-w-none" dangerouslySetInnerHTML={{ __html: generatedContent }} />
             ) : (
               <div className="h-full flex flex-col items-center justify-center text-gray-400 text-center">
                 <FileText className="text-4xl mb-3 text-purple-200" />
-                <p className="font-medium text-gray-500">Bereit.</p>
+                <p className="font-medium text-gray-500">Bereit für Content</p>
+                <p className="text-xs text-gray-400 mt-2">Wähle links Blog oder Landingpage</p>
               </div>
             )}
           </div>
