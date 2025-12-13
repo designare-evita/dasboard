@@ -22,8 +22,8 @@ import {
   CheckLg,
   InfoCircle,
   ArrowRepeat,
-  LayoutTextWindowReverse, // Icon für Blog
-  WindowDesktop          // Icon für Landingpage
+  LayoutTextWindowReverse, 
+  WindowDesktop          
 } from 'react-bootstrap-icons';
 
 // ============================================================================
@@ -45,7 +45,7 @@ interface LandingpageGeneratorProps {
 }
 
 type ToneOfVoice = 'professional' | 'casual' | 'technical' | 'emotional';
-type ContentType = 'landingpage' | 'blog'; // NEU: Unterscheidung
+type ContentType = 'landingpage' | 'blog';
 
 interface ContextData {
   gscKeywords?: string[];
@@ -83,7 +83,7 @@ export default function LandingPageGenerator({
   const [topic, setTopic] = useState('');
   const [targetAudience, setTargetAudience] = useState('');
   const [tone, setTone] = useState<ToneOfVoice>('professional');
-  const [contentType, setContentType] = useState<ContentType>('landingpage'); // NEU
+  const [contentType, setContentType] = useState<ContentType>('landingpage');
   const [customKeywords, setCustomKeywords] = useState('');
   
   // SPY FEATURE
@@ -131,7 +131,7 @@ export default function LandingPageGenerator({
 
   const totalKeywordCount = getAllKeywords().length;
 
-  // --- EXPORT FUNKTION (FIXED: Direkt implementiert) ---
+  // --- EXPORT FUNKTION (Direkt implementiert) ---
   const handleExport = (format: 'txt' | 'html' | 'md') => {
     if (!generatedContent) {
       toast.error('Kein Inhalt zum Exportieren.');
@@ -145,12 +145,8 @@ export default function LandingPageGenerator({
 
       if (format === 'html') {
         mimeType = 'text/html';
-        // HTML Wrapper hinzufügen falls gewünscht, oder roh lassen
         content = `<!DOCTYPE html><html><head><title>${topic}</title><meta charset="UTF-8"></head><body>${generatedContent}</body></html>`;
       } else if (format === 'md') {
-        // Simpler HTML to Markdown Converter (oder Roh-HTML in MD speichern)
-        // Für jetzt speichern wir es als Text mit .md Endung, da der Output HTML ist.
-        // Echte Konvertierung bräuchte eine Lib wie turndown, aber User will oft den Code.
         mimeType = 'text/markdown';
       }
 
@@ -179,7 +175,6 @@ export default function LandingPageGenerator({
     if (!referenceUrl) return;
     try {
       setIsSpying(true);
-      // Spy löst jetzt die Lightbox aus (indirekt über isSpying State im Render)
       
       const res = await fetch('/api/ai/competitor-spy', {
         method: 'POST',
@@ -243,7 +238,7 @@ export default function LandingPageGenerator({
     try {
       const contextData: ContextData = {};
       
-      // Spy Data (Auto-Fetch falls nötig)
+      // Spy Data
       let currentSpyData = spyData;
       if (referenceUrl && !currentSpyData) {
          try {
@@ -300,7 +295,7 @@ export default function LandingPageGenerator({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           topic: topic.trim(),
-          contentType, // NEU: Content Type übergeben
+          contentType, 
           keywords: getAllKeywords(),
           targetAudience: targetAudience.trim() || undefined,
           toneOfVoice: tone,
@@ -335,10 +330,16 @@ export default function LandingPageGenerator({
     }
   };
 
+  // FIX: copyToClipboard durch navigator.clipboard ersetzt
   const handleCopy = async () => {
     if (generatedContent) {
-        await copyToClipboard(generatedContent);
-        toast.success('Kopiert!');
+        try {
+            await navigator.clipboard.writeText(generatedContent);
+            toast.success('Kopiert!');
+        } catch (err) {
+            console.error('Copy failed', err);
+            toast.error('Kopieren fehlgeschlagen');
+        }
     }
   };
 
@@ -350,7 +351,7 @@ export default function LandingPageGenerator({
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
       
-      {/* LOADING / SPY LIGHTBOX (Fix für Punkt 4) */}
+      {/* LOADING / SPY LIGHTBOX */}
       {(isWaitingForStream || isSpying) && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-white/80 backdrop-blur-md transition-all animate-in fade-in duration-300">
           <div className="bg-white p-8 rounded-3xl shadow-2xl border border-gray-100 flex flex-col items-center gap-6 max-w-md w-full text-center">
@@ -399,7 +400,6 @@ export default function LandingPageGenerator({
             />
           </div>
 
-          {/* NEU: CONTENT TYPE SELECTOR (Fix für Punkt 2) */}
           <div className="mt-4">
             <label className="text-sm font-semibold text-gray-700 mb-2 block">Art des Inhalts</label>
             <div className="grid grid-cols-2 gap-2 p-1 bg-gray-100 rounded-xl">
@@ -584,7 +584,7 @@ export default function LandingPageGenerator({
               <div className="flex gap-2">
                 <button onClick={handleCopy} className="p-2 hover:bg-gray-100 rounded-lg text-gray-600"><ClipboardCheck/></button>
                 
-                {/* Export Dropdown (FIX: Positioniert und keine externen Utils) */}
+                {/* Export Dropdown */}
                 <div className="relative">
                    <button 
                       onClick={() => setShowExportMenu(!showExportMenu)} 
