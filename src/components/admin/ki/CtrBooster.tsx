@@ -15,7 +15,7 @@ import { toast } from 'sonner';
 
 // --- Typen ---
 interface CtrBoosterProps {
-  projectId: string;
+  projectId?: string; // ✅ KORREKTUR: Optional gemacht
 }
 
 interface KeywordData {
@@ -39,7 +39,7 @@ interface OptimizationResult {
 
 export default function CtrBooster({ projectId }: CtrBoosterProps) {
   // State
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // ✅ KORREKTUR: Startet mit false wenn kein projectId
   const [keywords, setKeywords] = useState<KeywordData[]>([]);
   const [domain, setDomain] = useState<string>('');
   
@@ -51,6 +51,8 @@ export default function CtrBooster({ projectId }: CtrBoosterProps) {
   // 1. DATEN LADEN
   useEffect(() => {
     async function loadData() {
+      if (!projectId) return; // ✅ KORREKTUR: Früher Abbruch wenn keine projectId
+      
       setLoading(true);
       try {
         // A) Projektdaten für Domain holen
@@ -157,6 +159,17 @@ export default function CtrBooster({ projectId }: CtrBoosterProps) {
   };
 
   // --- RENDER ---
+
+  // ✅ KORREKTUR: Zeige Hinweis wenn keine projectId
+  if (!projectId) {
+    return (
+      <div className="p-8 text-center text-gray-500 bg-gray-50 rounded-xl border border-gray-100">
+        <RocketTakeoff size={32} className="mx-auto mb-4 text-gray-300" />
+        <p className="font-medium">Kein Projekt ausgewählt</p>
+        <p className="text-sm mt-2 opacity-70">Bitte wählen Sie ein Projekt aus, um den CTR Booster zu nutzen.</p>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
