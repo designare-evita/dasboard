@@ -112,8 +112,59 @@ export default function LandingPageGenerator({
   const [generatedContent, setGeneratedContent] = useState('');
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [expandedSection, setExpandedSection] = useState<string | null>('sources');
+  const [showKeywordAnalysis, setShowKeywordAnalysis] = useState(false);
   
   const outputRef = useRef<HTMLDivElement>(null);
+
+  // --- KEYWORD ANALYSE (für Frontend-Anzeige) ---
+  const keywordAnalysis = React.useMemo(() => {
+    if (!keywords || keywords.length === 0) return null;
+    
+    // Sortiere nach Klicks
+    const byClicks = [...keywords].sort((a, b) => b.clicks - a.clicks);
+    const mainKeyword = byClicks[0];
+    
+    // Sekundäre Keywords (Top 5 ohne Main)
+    const secondaryKeywords = byClicks.slice(1, 6);
+    
+    // Striking Distance (Position 4-20)
+    const strikingDistance = keywords
+      .filter(k => k.position >= 4 && k.position <= 20)
+      .sort((a, b) => (b.impressions / b.position) - (a.impressions / a.position))
+      .slice(0, 5)
+      .map(k => ({
+        ...k,
+        priority: k.position <= 10 && k.impressions > 500 ? 'high' as const
+                : k.position <= 15 || k.impressions > 300 ? 'medium' as const
+                : 'low' as const
+      }));
+    
+    // Fragen-Keywords
+    const questionWords = ['was', 'wie', 'wo', 'wer', 'warum', 'wann', 'welche', 'welcher'];
+    const questionKeywords = keywords
+      .filter(k => questionWords.some(w => k.query.toLowerCase().startsWith(w)))
+      .slice(0, 5);
+    
+    // Long-Tail (3+ Wörter)
+    const longTailKeywords = keywords
+      .filter(k => k.query.split(' ').length >= 3)
+      .sort((a, b) => b.clicks - a.clicks)
+      .slice(0, 5);
+    
+    // Stats
+    const totalClicks = keywords.reduce((sum, k) => sum + k.clicks, 0);
+    const totalImpressions = keywords.reduce((sum, k) => sum + k.impressions, 0);
+    const avgPosition = keywords.reduce((sum, k) => sum + k.position, 0) / keywords.length;
+    
+    return {
+      mainKeyword,
+      secondaryKeywords,
+      strikingDistance,
+      questionKeywords,
+      longTailKeywords,
+      stats: { totalClicks, totalImpressions, avgPosition: Math.round(avgPosition * 10) / 10 }
+    };
+  }, [keywords]);
 
   // --- HELPERS ---
   
@@ -509,14 +560,141 @@ export default function LandingPageGenerator({
           {expandedSection === 'sources' && (
             <div className="px-4 pb-4 space-y-3 border-t border-gray-100 pt-3">
               
-              {/* GSC Toggle */}
-              <label className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100">
-                <input type="checkbox" checked={useGscKeywords} onChange={(e) => setUseGscKeywords(e.target.checked)} className="mt-1 rounded text-indigo-600" />
-                <div className="flex-1">
-                  <div className="font-medium text-sm text-gray-800">GSC Keywords</div>
-                  <div className="text-xs text-gray-500">{loadingKeywords ? 'Lade...' : `${keywords.length} verfügbar`}</div>
-                </div>
-              </label>
+              {/* GSC Toggle + Keyword-Analyse */}
+              <div className="p-3 bg-gray-50 rounded-lg space-y-2">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input type="checkbox" checked={useGscKeywords} onChange={(e) => setUseGscKeywords(e.target.checked)} className="mt-1 rounded text-indigo-600" />
+                  <div className="flex-1">
+                    <div className="font-medium text-sm text-gray-800">GSC Keywords</div>
+                    <div className="text-xs text-gray-500">{loadingKeywords ? 'Lade...' : `${keywords.length} verfügbar`}</div>
+                  </div>
+                </label>
+                
+                {/* Keyword-Analyse Toggle & Anzeige */}
+                {useGscKeywords && keywords.length > 0 && keywordAnalysis && (
+                  <div className="pl-6 pt-2 border-t border-gray-200 mt-2">
+                    {/* Quick Stats */}
+                    <div className="flex items-center gap-2 text-[10px] text-gray-500 mb-2">
+                      <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-medium">
+                        🎯 {keywordAnalysis.mainKeyword?.query?.slice(0, 20)}{keywordAnalysis.mainKeyword?.query?.length > 20 ? '...' : ''}
+                      </span>
+                      {keywordAnalysis.strikingDistance.length > 0 && (
+                        <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
+                          📈 {keywordAnalysis.strikingDistance.length} Striking
+                        </span>
+                      )}
+                      {keywordAnalysis.questionKeywords.length > 0 && (
+                        <span className="bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded">
+                          ❓ {keywordAnalysis.questionKeywords.length} FAQ
+                        </span>
+                      )}
+                    </div>
+                    
+                    {/* Expand Button */}
+                    <button
+                      onClick={() => setShowKeywordAnalysis(!showKeywordAnalysis)}
+                      className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center gap-1 font-medium"
+                    >
+                      {showKeywordAnalysis ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                      {showKeywordAnalysis ? 'Analyse ausblenden' : 'Analyse anzeigen'}
+                    </button>
+                    
+                    {/* Expanded Analysis */}
+                    {showKeywordAnalysis && (
+                      <div className="mt-3 space-y-3 animate-in slide-in-from-top-2">
+                        
+                        {/* Hauptkeyword */}
+                        <div className="bg-white p-3 rounded-lg border border-indigo-200 shadow-sm">
+                          <div className="text-[10px] font-bold text-indigo-600 uppercase tracking-wide mb-1">Hauptkeyword</div>
+                          <div className="font-semibold text-gray-900 text-sm">{keywordAnalysis.mainKeyword?.query}</div>
+                          <div className="flex gap-3 mt-1 text-[10px] text-gray-500">
+                            <span>{keywordAnalysis.mainKeyword?.clicks} Klicks</span>
+                            <span>Pos. {Math.round(keywordAnalysis.mainKeyword?.position * 10) / 10}</span>
+                            <span>{keywordAnalysis.mainKeyword?.impressions.toLocaleString('de-DE')} Impr.</span>
+                          </div>
+                        </div>
+                        
+                        {/* Striking Distance */}
+                        {keywordAnalysis.strikingDistance.length > 0 && (
+                          <div className="bg-white p-3 rounded-lg border border-amber-200 shadow-sm">
+                            <div className="text-[10px] font-bold text-amber-600 uppercase tracking-wide mb-2">
+                              🎯 Striking Distance <span className="font-normal text-gray-400">(fast Seite 1!)</span>
+                            </div>
+                            <ul className="space-y-1.5">
+                              {keywordAnalysis.strikingDistance.map((k, idx) => (
+                                <li key={idx} className="flex items-center gap-2 text-[11px]">
+                                  <span className={`w-2 h-2 rounded-full ${
+                                    k.priority === 'high' ? 'bg-red-500' : 
+                                    k.priority === 'medium' ? 'bg-yellow-500' : 'bg-green-500'
+                                  }`}></span>
+                                  <span className="flex-1 text-gray-700 truncate">{k.query}</span>
+                                  <span className="text-gray-400 tabular-nums">Pos. {Math.round(k.position * 10) / 10}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        
+                        {/* Fragen Keywords */}
+                        {keywordAnalysis.questionKeywords.length > 0 && (
+                          <div className="bg-white p-3 rounded-lg border border-purple-200 shadow-sm">
+                            <div className="text-[10px] font-bold text-purple-600 uppercase tracking-wide mb-2">
+                              ❓ Fragen für FAQ
+                            </div>
+                            <ul className="space-y-1">
+                              {keywordAnalysis.questionKeywords.map((k, idx) => (
+                                <li key={idx} className="text-[11px] text-gray-700 flex items-start gap-1.5">
+                                  <span className="text-purple-400">•</span>
+                                  <span>{k.query}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        
+                        {/* Long-Tail */}
+                        {keywordAnalysis.longTailKeywords.length > 0 && (
+                          <div className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm">
+                            <div className="text-[10px] font-bold text-gray-600 uppercase tracking-wide mb-2">
+                              📝 Long-Tail Keywords
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                              {keywordAnalysis.longTailKeywords.map((k, idx) => (
+                                <span key={idx} className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
+                                  {k.query}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Stats Summary */}
+                        <div className="bg-gradient-to-r from-indigo-50 to-purple-50 p-3 rounded-lg border border-indigo-100">
+                          <div className="text-[10px] font-bold text-indigo-600 uppercase tracking-wide mb-2">📊 Statistik</div>
+                          <div className="grid grid-cols-3 gap-2 text-center">
+                            <div>
+                              <div className="text-sm font-bold text-gray-900">{keywordAnalysis.stats.totalClicks.toLocaleString('de-DE')}</div>
+                              <div className="text-[9px] text-gray-500 uppercase">Klicks</div>
+                            </div>
+                            <div>
+                              <div className="text-sm font-bold text-gray-900">{keywordAnalysis.stats.totalImpressions.toLocaleString('de-DE')}</div>
+                              <div className="text-[9px] text-gray-500 uppercase">Impressionen</div>
+                            </div>
+                            <div>
+                              <div className="text-sm font-bold text-gray-900">{keywordAnalysis.stats.avgPosition}</div>
+                              <div className="text-[9px] text-gray-500 uppercase">Ø Position</div>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <p className="text-[9px] text-gray-400 italic">
+                          Diese Analyse wird automatisch bei der Generierung berücksichtigt.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
 
               {/* News Toggle */}
               <div className="p-3 bg-gray-50 rounded-lg space-y-2">
