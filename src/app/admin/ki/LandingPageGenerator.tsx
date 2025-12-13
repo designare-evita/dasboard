@@ -1,4 +1,3 @@
-// src/components/admin/ki/LandingpageGenerator.tsx
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -19,6 +18,10 @@ import {
   Lightning,
   Database,
   PlusCircle,
+  Binoculars, // Neu für Spy
+  CheckLg,    // Neu für Spy
+  InfoCircle, // Neu für Spy
+  Globe       // Neu für Domain Icon
 } from 'react-bootstrap-icons';
 import {
   downloadAsText,
@@ -39,19 +42,20 @@ interface Keyword {
 }
 
 interface LandingpageGeneratorProps {
-  projectId: string;
-  domain: string;
-  keywords: Keyword[];
-  loadingKeywords: boolean;
+  projectId?: string;
+  domain?: string;
+  keywords?: Keyword[];
+  loadingKeywords?: boolean;
 }
 
 type ToneOfVoice = 'professional' | 'casual' | 'technical' | 'emotional';
 
 interface ContextData {
   gscKeywords?: string[];
-  gscKeywordsRaw?: Keyword[];  // Vollständige Keyword-Objekte für Backend-Analyse
+  gscKeywordsRaw?: Keyword[];
   newsInsights?: string;
   gapAnalysis?: string;
+  competitorAnalysis?: string; // ✅ WICHTIG: Für die Route
 }
 
 // ============================================================================
@@ -69,12 +73,13 @@ const TONE_OPTIONS: { value: ToneOfVoice; label: string; description: string }[]
 // COMPONENT
 // ============================================================================
 
-export default function LandingpageGenerator({
+export default function LandingPageGenerator({
   projectId,
-  domain,
-  keywords,
-  loadingKeywords,
+  domain = '',
+  keywords = [],
+  loadingKeywords = false,
 }: LandingpageGeneratorProps) {
+  
   // --- STATES ---
   
   // Basis-Inputs
@@ -83,6 +88,11 @@ export default function LandingpageGenerator({
   const [tone, setTone] = useState<ToneOfVoice>('professional');
   const [customKeywords, setCustomKeywords] = useState('');
   
+  // SPY / COMPETITOR FEATURE (aus Version A übernommen)
+  const [referenceUrl, setReferenceUrl] = useState('');
+  const [isSpying, setIsSpying] = useState(false);
+  const [spyData, setSpyData] = useState<string | null>(null);
+
   // Datenquellen-Toggles
   const [useGscKeywords, setUseGscKeywords] = useState(true);
   const [useNewsCrawler, setUseNewsCrawler] = useState(false);
@@ -107,7 +117,6 @@ export default function LandingpageGenerator({
 
   // --- HELPERS ---
   
-  // Kombiniere alle Keywords
   const getAllKeywords = (): string[] => {
     const result: string[] = [];
     
@@ -136,7 +145,37 @@ export default function LandingpageGenerator({
   const totalKeywordCount = getAllKeywords().length;
 
   // --- HANDLERS ---
+
+  // 1. SPY Handler (Neu hinzugefügt)
+  const handleAnalyzeUrl = async () => {
+    if (!referenceUrl) return;
+    
+    try {
+      setIsSpying(true);
+      toast.info('Analysiere Referenz-Webseite...');
+      
+      const res = await fetch('/api/ai/competitor-spy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          myUrl: referenceUrl, 
+        }),
+      });
+
+      if (!res.ok) throw new Error('Analyse fehlgeschlagen');
+      
+      const data = await res.text(); 
+      setSpyData(data);
+      toast.success('Stil & Inhalt erfolgreich erfasst!');
+    } catch (e) {
+      console.error(e);
+      toast.error('Konnte URL nicht analysieren.');
+    } finally {
+      setIsSpying(false);
+    }
+  };
   
+  // 2. Main Generate Handler
   const handleGenerate = async () => {
     // Validierung
     if (!topic.trim()) {
@@ -162,16 +201,35 @@ export default function LandingpageGenerator({
       // Kontext-Daten sammeln
       const contextData: ContextData = {};
       
-      // GSC Keywords - Sende vollständige Daten für intelligente Analyse
+      // A) Spy Data Check (Falls URL eingegeben aber noch nicht gescannt)
+      let currentSpyData = spyData;
+      if (referenceUrl && !currentSpyData) {
+        toast.info('Analysiere noch kurz die URL...');
+        // Quick fetch copy-paste logic (oder wir nutzen den existierenden Hook logik, hier inline für safety)
+        try {
+            const res = await fetch('/api/ai/competitor-spy', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ myUrl: referenceUrl }),
+            });
+            if (res.ok) currentSpyData = await res.text();
+        } catch(e) {
+            console.error("Auto-Spy failed", e);
+        }
+      }
+      if (currentSpyData) {
+        contextData.competitorAnalysis = currentSpyData;
+      }
+
+      // B) GSC Keywords
       if (useGscKeywords && keywords.length > 0) {
         contextData.gscKeywords = keywords.slice(0, 10).map(k => k.query);
-        contextData.gscKeywordsRaw = keywords.slice(0, 30); // Mehr Daten für bessere Analyse
+        contextData.gscKeywordsRaw = keywords.slice(0, 30);
       }
       
-      // News-Crawler
+      // C) News-Crawler
       if (useNewsCrawler) {
         if (newsMode === 'live' && newsTopic.trim()) {
-          // Live News crawlen
           toast.info('Crawle aktuelle News...');
           
           const newsResponse = await fetch('/api/ai/news-crawler', {
@@ -190,8 +248,6 @@ export default function LandingpageGenerator({
               if (done) break;
               newsContent += decoder.decode(value, { stream: true });
             }
-            
-            // Nur die Key Takeaways extrahieren (vereinfacht)
             contextData.newsInsights = newsContent;
             setCachedNewsData(newsContent);
           }
@@ -200,7 +256,7 @@ export default function LandingpageGenerator({
         }
       }
       
-      // Gap-Analyse
+      // D) Gap-Analyse
       if (useGapAnalysis && cachedGapData) {
         contextData.gapAnalysis = cachedGapData;
       }
@@ -260,40 +316,22 @@ export default function LandingpageGenerator({
       toast.error('Kein Content zum Exportieren vorhanden.');
       return;
     }
-
     switch (format) {
-      case 'txt':
-        downloadAsText(generatedContent, topic || 'landingpage');
-        toast.success('TXT heruntergeladen');
-        break;
-      case 'html':
-        downloadAsHtml(generatedContent, topic || 'landingpage');
-        toast.success('HTML heruntergeladen');
-        break;
-      case 'md':
-        downloadAsMarkdown(generatedContent, topic || 'landingpage');
-        toast.success('Markdown heruntergeladen');
-        break;
+      case 'txt': downloadAsText(generatedContent, topic || 'landingpage'); break;
+      case 'html': downloadAsHtml(generatedContent, topic || 'landingpage'); break;
+      case 'md': downloadAsMarkdown(generatedContent, topic || 'landingpage'); break;
     }
-    
+    toast.success(`${format.toUpperCase()} heruntergeladen`);
     setShowExportMenu(false);
   };
 
   const handleCopy = async () => {
-    if (!generatedContent) {
-      toast.error('Kein Content zum Kopieren vorhanden.');
-      return;
-    }
-    
+    if (!generatedContent) return;
     const success = await copyToClipboard(generatedContent);
-    if (success) {
-      toast.success('In Zwischenablage kopiert!');
-    } else {
-      toast.error('Kopieren fehlgeschlagen');
-    }
+    if (success) toast.success('In Zwischenablage kopiert!');
+    else toast.error('Kopieren fehlgeschlagen');
   };
 
-  // Toggle Section Helper
   const toggleSection = (section: string) => {
     setExpandedSection(expandedSection === section ? null : section);
   };
@@ -317,11 +355,9 @@ export default function LandingpageGenerator({
               />
             </div>
             <div>
-              <h3 className="text-xl font-bold text-gray-800 mb-1">Content wird erstellt</h3>
+              <h3 className="text-xl font-bold text-gray-800 mb-1">KI arbeitet...</h3>
               <p className="text-gray-500 text-sm leading-relaxed">
-                {useNewsCrawler && newsMode === 'live' 
-                  ? 'Crawle News & generiere Content...' 
-                  : 'Generiere optimierte Landingpage...'}
+                {isSpying ? 'Analysiere Wettbewerber...' : 'Generiere optimierte Landingpage...'}
               </p>
             </div>
             <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
@@ -355,22 +391,67 @@ export default function LandingpageGenerator({
               type="text"
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
-              placeholder="z.B. SEO Agentur Wien, Zahnarzt Linz..."
-              className="w-full p-3 bg-purple-50 border border-purple-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 outline-none transition-all text-gray-700 placeholder-purple-300"
+              placeholder="z.B. SEO Agentur Wien..."
+              className="w-full p-3 bg-purple-50 border border-purple-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 outline-none transition-all"
             />
+          </div>
+
+          {/* SPY SECTION (Aus Datei 1 übernommen) */}
+          <div className="mt-4 bg-amber-50/60 p-4 rounded-xl border border-amber-100 space-y-3">
+             <div className="flex items-start gap-2">
+               <Binoculars className="text-amber-600 mt-1 shrink-0" /> 
+               <div>
+                 <label className="text-sm font-medium text-gray-900 block">Referenz-URL (Spy)</label>
+                 <p className="text-[11px] text-gray-500 leading-tight mt-0.5">
+                   Stil & Inhalt einer URL klonen oder verbessern.
+                 </p>
+               </div>
+             </div>
+             
+             <div className="flex gap-2">
+               <input
+                 value={referenceUrl}
+                 onChange={(e) => {
+                   setReferenceUrl(e.target.value);
+                   setSpyData(null); 
+                 }}
+                 placeholder="https://..."
+                 className="flex-1 px-3 py-2 border border-amber-200 bg-white rounded-md text-sm outline-none focus:ring-2 focus:ring-amber-500"
+               />
+               <Button 
+                 onClick={handleAnalyzeUrl}
+                 disabled={!referenceUrl || isSpying || !!spyData}
+                 variant="outline"
+                 size="sm"
+                 className={`border-amber-200 ${spyData ? 'bg-green-50 text-green-700 border-green-200' : 'hover:bg-amber-100 text-amber-700'}`}
+               >
+                 {spyData ? <CheckLg /> : 'Check'}
+               </Button>
+             </div>
+
+             {referenceUrl && (
+               <div className="text-[11px] text-amber-800 bg-amber-100/50 p-2 rounded flex gap-2 items-start">
+                 <InfoCircle className="mt-0.5 shrink-0" />
+                 {domain && referenceUrl.includes(domain) ? (
+                   <span><strong>Brand Voice:</strong> Wir imitieren deinen eigenen Stil.</span>
+                 ) : (
+                   <span><strong>Konkurrenz:</strong> Wir analysieren und schreiben es besser.</span>
+                 )}
+               </div>
+             )}
           </div>
 
           {/* ZIELGRUPPE */}
           <div className="mt-4">
             <label className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-              <Search className="text-gray-500" /> Zielgruppe (optional)
+              <Search className="text-gray-500" /> Zielgruppe
             </label>
             <input
               type="text"
               value={targetAudience}
               onChange={(e) => setTargetAudience(e.target.value)}
-              placeholder="z.B. KMUs, Entscheider, Privatpersonen..."
-              className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-gray-400 outline-none transition-all"
+              placeholder="z.B. Geschäftsführer..."
+              className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-gray-400 outline-none"
             />
           </div>
 
@@ -398,7 +479,7 @@ export default function LandingpageGenerator({
           </div>
         </div>
 
-        {/* DATENQUELLEN CARD */}
+        {/* DATENQUELLEN CARD (Aus Datei 2 übernommen) */}
         <div className="bg-white border border-gray-100 shadow-sm rounded-2xl overflow-hidden">
           <button
             onClick={() => toggleSection('sources')}
@@ -427,7 +508,7 @@ export default function LandingpageGenerator({
                   <div className="text-xs text-gray-500">
                     {loadingKeywords 
                       ? 'Lade...' 
-                      : `${keywords.length} verfügbar (Top 10 werden verwendet)`}
+                      : `${keywords.length} verfügbar (Top 10 verwendet)`}
                   </div>
                 </div>
               </label>
@@ -445,7 +526,6 @@ export default function LandingpageGenerator({
                     <div className="font-medium text-sm text-gray-800 flex items-center gap-2">
                       <Newspaper className="text-indigo-500" /> News-Crawler
                     </div>
-                    <div className="text-xs text-gray-500">Aktuelle Branchennews einbinden</div>
                   </div>
                 </label>
 
@@ -461,7 +541,7 @@ export default function LandingpageGenerator({
                           onChange={() => setNewsMode('live')}
                           className="text-indigo-600"
                         />
-                        Live crawlen
+                        Live
                       </label>
                       <label className="flex items-center gap-1.5 text-xs cursor-pointer">
                         <input
@@ -473,17 +553,16 @@ export default function LandingpageGenerator({
                           className="text-indigo-600"
                           disabled={!cachedNewsData}
                         />
-                        Cache {!cachedNewsData && '(leer)'}
+                        Cache
                       </label>
                     </div>
-                    
                     {newsMode === 'live' && (
                       <input
                         type="text"
                         value={newsTopic}
                         onChange={(e) => setNewsTopic(e.target.value)}
-                        placeholder="News-Topic eingeben..."
-                        className="w-full p-2 bg-white border border-gray-200 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 outline-none"
+                        placeholder="News-Topic..."
+                        className="w-full p-2 bg-white border border-gray-200 rounded-lg text-xs outline-none"
                       />
                     )}
                   </div>
@@ -504,9 +583,7 @@ export default function LandingpageGenerator({
                     <FileEarmarkBarGraph className="text-indigo-500" /> Gap-Analyse
                   </div>
                   <div className="text-xs text-gray-500">
-                    {cachedGapData 
-                      ? 'Ergebnisse aus letzter Analyse verwenden' 
-                      : 'Keine Analyse im Cache'}
+                    {cachedGapData ? 'Verfügbar' : 'Leer'}
                   </div>
                 </div>
               </label>
@@ -520,11 +597,6 @@ export default function LandingpageGenerator({
             <label className="font-semibold text-gray-800 flex items-center gap-2 text-sm">
               <PlusCircle className="text-emerald-500" /> Zusätzliche Keywords
             </label>
-            {customKeywords.trim() && (
-              <span className="text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
-                +{customKeywords.split(/[,\n]+/).filter(k => k.trim()).length}
-              </span>
-            )}
           </div>
           <textarea
             value={customKeywords}
@@ -533,14 +605,6 @@ export default function LandingpageGenerator({
             className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all resize-none h-20"
           />
         </div>
-
-        {/* KEYWORD COUNTER */}
-        {totalKeywordCount > 0 && (
-          <div className="bg-purple-50 border border-purple-100 rounded-xl p-3 flex items-center justify-between">
-            <span className="text-sm text-purple-700">Gesamt Keywords:</span>
-            <span className="font-bold text-purple-700">{totalKeywordCount}</span>
-          </div>
-        )}
 
         {/* GENERATE BUTTON */}
         <Button
@@ -560,71 +624,35 @@ export default function LandingpageGenerator({
 
       {/* RECHTER BEREICH: OUTPUT */}
       <div className="lg:col-span-8">
-        <div className="bg-white border border-gray-100 shadow-xl rounded-2xl p-8 h-full min-h-[600px] flex flex-col relative">
-          {/* Decorative Blurs */}
-          <div className="absolute top-0 right-0 w-64 h-64 bg-purple-100 rounded-full mix-blend-multiply filter blur-3xl opacity-30 pointer-events-none"></div>
-          <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-100 rounded-full mix-blend-multiply filter blur-3xl opacity-30 pointer-events-none"></div>
-
+        <div className="bg-white border border-gray-100 shadow-xl rounded-2xl p-8 h-full min-h-[600px] flex flex-col relative overflow-hidden">
           {/* Header mit Export */}
-          <div className="flex items-center justify-between mb-4 z-20 relative">
+          <div className="flex items-center justify-between mb-4 z-10">
             <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
               <FileText className="text-purple-500" />
               Generierter Content
             </h2>
 
             {generatedContent && (
-              <div className="flex items-center gap-2 relative">
-                {/* Copy Button */}
+              <div className="flex items-center gap-2">
                 <button
                   onClick={handleCopy}
                   className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                  title="In Zwischenablage kopieren"
                 >
                   <ClipboardCheck size={18} />
                 </button>
-
-                {/* Export Dropdown */}
                 <div className="relative">
                   <button
                     onClick={() => setShowExportMenu(!showExportMenu)}
                     className="flex items-center gap-1.5 px-3 py-2 bg-purple-100 text-purple-700 hover:bg-purple-200 rounded-lg text-sm font-medium transition-colors"
                   >
-                    <Download size={16} />
-                    Export
-                    <ChevronDown size={14} className={`transition-transform ${showExportMenu ? 'rotate-180' : ''}`} />
+                    <Download size={16} /> Export
                   </button>
-
                   {showExportMenu && (
-                    <>
-                      {/* Backdrop zum Schließen */}
-                      <div 
-                        className="fixed inset-0 z-30" 
-                        onClick={() => setShowExportMenu(false)}
-                      />
-                      <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-xl z-40 overflow-hidden animate-in slide-in-from-top-2">
-                        <button
-                          onClick={() => handleExport('txt')}
-                        className="w-full px-4 py-3 text-left text-sm hover:bg-gray-50 flex items-center gap-2 transition-colors"
-                      >
-                        <FileText className="text-gray-400" />
-                        Als Text (.txt)
-                      </button>
-                      <button
-                        onClick={() => handleExport('html')}
-                        className="w-full px-4 py-3 text-left text-sm hover:bg-gray-50 flex items-center gap-2 transition-colors border-t border-gray-100"
-                      >
-                        <FileEarmarkCode className="text-orange-400" />
-                        Als HTML (.html)
-                      </button>
-                      <button
-                        onClick={() => handleExport('md')}
-                        className="w-full px-4 py-3 text-left text-sm hover:bg-gray-50 flex items-center gap-2 transition-colors border-t border-gray-100"
-                      >
-                        <Markdown className="text-blue-400" />
-                        Als Markdown (.md)
-                      </button>
-                      </div>
-                    </>
+                    <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-lg z-20">
+                      <button onClick={() => handleExport('txt')} className="w-full px-4 py-3 text-left text-sm hover:bg-gray-50">Als Text</button>
+                      <button onClick={() => handleExport('html')} className="w-full px-4 py-3 text-left text-sm hover:bg-gray-50">Als HTML</button>
+                      <button onClick={() => handleExport('md')} className="w-full px-4 py-3 text-left text-sm hover:bg-gray-50">Als Markdown</button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -634,21 +662,14 @@ export default function LandingpageGenerator({
           {/* Content Output */}
           <div
             ref={outputRef}
-            className="flex-1 bg-gray-50/50 rounded-xl border border-gray-200/60 p-4 overflow-y-auto custom-scrollbar ai-output relative z-0"
+            className="flex-1 bg-gray-50/50 rounded-xl border border-gray-200/60 p-4 overflow-y-auto z-10 custom-scrollbar ai-output"
           >
             {generatedContent ? (
-              <div
-                className="ai-content"
-                dangerouslySetInnerHTML={{ __html: generatedContent }}
-              />
+              <div className="ai-content" dangerouslySetInnerHTML={{ __html: generatedContent }} />
             ) : (
               <div className="h-full flex flex-col items-center justify-center text-gray-400 text-center p-8">
                 <FileText className="text-4xl mb-3 text-purple-200" />
-                <p className="font-medium text-gray-500">Landingpage Generator</p>
-                <p className="text-xs mt-2 max-w-xs">
-                  Geben Sie ein Thema ein, aktivieren Sie Ihre Datenquellen und generieren Sie 
-                  optimierten Content für Ihre Landingpage.
-                </p>
+                <p className="font-medium text-gray-500">Bereit zur Generierung</p>
               </div>
             )}
           </div>
