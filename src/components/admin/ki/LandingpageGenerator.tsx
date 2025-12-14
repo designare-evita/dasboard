@@ -214,7 +214,7 @@ export default function LandingPageGenerator({
   // ============================================================================
   
   // Prüfe ob ein Step abgeschlossen ist
-  const isStepComplete = (step: number): boolean => {
+  const isStepComplete = React.useCallback((step: number): boolean => {
     switch(step) {
       case 1: return topic.trim().length > 0;
       case 2: return true; // Content Type immer gesetzt (hat Default)
@@ -225,25 +225,42 @@ export default function LandingPageGenerator({
       case 7: return totalKeywordCount > 0;
       default: return false;
     }
-  };
+  }, [topic, useGscKeywords, useNewsCrawler, useGapAnalysis, totalKeywordCount]);
 
   // Auto-Advance bei Step-Completion
   useEffect(() => {
     if (!showOnboarding) return;
     
-    if (isStepComplete(currentStep) && !completedSteps.includes(currentStep)) {
-      // Markiere als completed
-      setCompletedSteps([...completedSteps, currentStep]);
+    const stepComplete = isStepComplete(currentStep);
+    const alreadyCompleted = completedSteps.includes(currentStep);
+    
+    // 🔍 DEBUG
+    console.log('🎯 Onboarding Check:', {
+      currentStep,
+      stepComplete,
+      alreadyCompleted,
+      topic: topic.trim(),
+      completedSteps
+    });
+    
+    // Prüfe ob aktueller Step abgeschlossen ist
+    if (stepComplete && !alreadyCompleted) {
+      console.log('✅ Step completed! Advancing...');
       
-      // Auto-Advance nach 400ms (außer bei letztem Step)
+      // Markiere als completed
+      setCompletedSteps(prev => [...prev, currentStep]);
+      
+      // Auto-Advance nach 500ms (außer bei letztem Step)
       if (currentStep < ONBOARDING_STEPS.length) {
         const timer = setTimeout(() => {
-          setCurrentStep(currentStep + 1);
-        }, 400);
+          console.log('⏭️ Moving to step', currentStep + 1);
+          setCurrentStep(prev => prev + 1);
+        }, 500);
         return () => clearTimeout(timer);
       }
     }
-  }, [topic, contentType, tone, useGscKeywords, useNewsCrawler, useGapAnalysis, customKeywords, currentStep, completedSteps, showOnboarding]);
+    // ✅ FIX: completedSteps NICHT in Dependencies (würde Endlosschleife verursachen)
+  }, [topic, contentType, tone, useGscKeywords, useNewsCrawler, useGapAnalysis, customKeywords, currentStep, showOnboarding, isStepComplete, completedSteps]);
 
   // CSS Class Helpers
   const getCardClass = (cardId: string): string => {
