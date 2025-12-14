@@ -213,39 +213,67 @@ export default function LandingPageGenerator({
   // ✅ ONBOARDING LOGIC
   // ============================================================================
   
-  // Prüfe ob ein Step abgeschlossen ist
+  // Prüfe ob ein Step abgeschlossen ist (für Button-Validation)
   const isStepComplete = React.useCallback((step: number): boolean => {
     switch(step) {
       case 1: return topic.trim().length > 0;
-      case 2: return true; // Content Type immer gesetzt (hat Default)
-      case 3: return true; // Optional - Spy
-      case 4: return true; // Optional - Zielgruppe
-      case 5: return true; // Tone immer gesetzt (hat Default)
+      case 2: return true; // Content Type hat Default
+      case 3: return true; // Optional
+      case 4: return true; // Optional
+      case 5: return true; // Tone hat Default
       case 6: return useGscKeywords || useNewsCrawler || useGapAnalysis;
       case 7: return totalKeywordCount > 0;
       default: return false;
     }
   }, [topic, useGscKeywords, useNewsCrawler, useGapAnalysis, totalKeywordCount]);
 
-  // Auto-Advance bei Step-Completion (FIX: Zwei separate useEffects)
+  // Auto-Advance bei Step-Completion
   
-  // 1️⃣ Markiere Steps als completed
+  // 1️⃣ Markiere den AKTUELLEN Step als completed wenn Bedingung erfüllt
   useEffect(() => {
     if (!showOnboarding) return;
+    if (completedSteps.includes(currentStep)) return; // Bereits completed
     
-    if (isStepComplete(currentStep) && !completedSteps.includes(currentStep)) {
-      console.log('✅ Marking step', currentStep, 'as completed');
+    // Prüfe ob aktueller Step complete ist
+    let stepComplete = false;
+    
+    switch(currentStep) {
+      case 1: 
+        stepComplete = topic.trim().length > 0;
+        break;
+      case 2: 
+        stepComplete = true; // Content Type hat Default
+        break;
+      case 3: 
+        stepComplete = true; // Optional - Spy
+        break;
+      case 4: 
+        stepComplete = true; // Optional - Zielgruppe
+        break;
+      case 5: 
+        stepComplete = true; // Tone hat Default
+        break;
+      case 6: 
+        stepComplete = useGscKeywords || useNewsCrawler || useGapAnalysis;
+        break;
+      case 7: 
+        stepComplete = totalKeywordCount > 0;
+        break;
+    }
+    
+    if (stepComplete) {
+      console.log('✅ Step', currentStep, 'is complete');
       setCompletedSteps(prev => [...prev, currentStep]);
     }
-  }, [currentStep, showOnboarding, isStepComplete, completedSteps]);
+  }, [currentStep, topic, useGscKeywords, useNewsCrawler, useGapAnalysis, customKeywords, showOnboarding, completedSteps, totalKeywordCount]);
   
-  // 2️⃣ Auto-Advance wenn Step completed
+  // 2️⃣ Auto-Advance wenn aktueller Step completed ist
   useEffect(() => {
     if (!showOnboarding) return;
     if (!completedSteps.includes(currentStep)) return;
     if (currentStep >= ONBOARDING_STEPS.length) return;
     
-    console.log('⏭️ Auto-advancing from step', currentStep, 'to', currentStep + 1);
+    console.log('⏭️ Advancing from step', currentStep, 'to', currentStep + 1);
     
     const timer = setTimeout(() => {
       setCurrentStep(prev => prev + 1);
