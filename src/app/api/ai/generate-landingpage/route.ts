@@ -6,7 +6,9 @@ import { STYLES } from '@/lib/ai-styles';
 import { 
   analyzeKeywords, 
   generateKeywordPromptContext,
-  type Keyword 
+  generateIntentReport,
+  type Keyword,
+  type SearchIntent
 } from '@/lib/keyword-analyzer';
 
 const google = createGoogleGenerativeAI({
@@ -33,13 +35,13 @@ interface LandingpageRequest {
   keywords: string[];
   targetAudience?: string;
   toneOfVoice: 'professional' | 'casual' | 'technical' | 'emotional';
-  contentType: 'landingpage' | 'blog'; // WICHTIG: Unterscheidung
+  contentType: 'landingpage' | 'blog';
   contextData?: ContextData;
   domain?: string;
 }
 
 // ============================================================================
-// TONE MAPPING (Fallback)
+// TONE MAPPING (Fallback wenn keine Brand Voice)
 // ============================================================================
 
 const TONE_INSTRUCTIONS: Record<string, string> = {
@@ -74,6 +76,179 @@ const TONE_INSTRUCTIONS: Record<string, string> = {
 };
 
 // ============================================================================
+// INTENT-BASIERTE STRUKTUR-GUIDANCE
+// ============================================================================
+
+function generateIntentGuidance(intent: SearchIntent, confidence: string): string {
+  const intentLabels = {
+    informational: 'INFORMATIONS-SUCHE',
+    commercial: 'VERGLEICHS-/RESEARCH-ABSICHT',
+    transactional: 'KAUFABSICHT',
+    navigational: 'NAVIGATIONS-ABSICHT'
+  };
+
+  let guidance = `
+═══════════════════════════════════════════════════════════════════════════════
+🎯 SUCHINTENTIONS-ANALYSE (PRIORITÄT 1 - STRIKT BEFOLGEN!)
+═══════════════════════════════════════════════════════════════════════════════
+
+**ERKANNTE INTENTION: ${intentLabels[intent]}**
+Confidence: ${confidence}
+
+`;
+
+  switch (intent) {
+    case 'transactional':
+      guidance += `
+⚠️ KAUFABSICHT ERKANNT → STRUKTUR ANPASSEN!
+
+**KRITISCHE ELEMENTE (PFLICHT):**
+1. ✅ H1: Keyword + Handlungsaufforderung
+   Beispiel: "SEO Agentur Wien jetzt buchen" statt nur "SEO Agentur Wien"
+
+2. ✅ Hero-Section (direkt nach H1):
+   - Starker CTA-Button above-the-fold
+   - Preis/Angebot sofort sichtbar (wenn verfügbar)
+   - Trust-Badge oder Gütesiegel erwähnen
+
+3. ✅ Mehrere CTAs im Text verteilen:
+   - Nach Benefits-Section
+   - Nach Social Proof
+   - Am Ende (finaler CTA)
+
+4. ✅ Trust-Elemente prominent:
+   - Zahlungsarten / Buchungsoptionen
+   - Geld-zurück-Garantie falls relevant
+   - Kundenbewertungen / Testimonials
+
+5. ✅ WENIGER Erklärungs-Text, MEHR Action:
+   - Kurze, knackige Absätze (max. 3 Sätze)
+   - Bullet Points statt langer Fließtexte
+   - Fokus auf Benefits statt Features
+
+**VERMEIDEN:**
+- Lange theoretische Erklärungen
+- "Mehr erfahren" statt "Jetzt buchen/kaufen"
+- CTA erst ganz am Ende der Seite
+`;
+      break;
+
+    case 'commercial':
+      guidance += `
+⚠️ VERGLEICHS-ABSICHT ERKANNT → STRUKTUR ANPASSEN!
+
+**KRITISCHE ELEMENTE (PFLICHT):**
+1. ✅ H1: Vergleichs-orientiert
+   Beispiel: "Die besten SEO Tools 2025 im Vergleich"
+
+2. ✅ Vergleichstabelle oder Pro/Contra-Listen:
+   - Feature-Vergleich prominent platzieren
+   - Bewertungskriterien transparent machen
+   - "Gewinner"-Kategorien definieren
+
+3. ✅ Bewertungs-Methodik erklären:
+   - Wie wurden die Optionen getestet?
+   - Nach welchen Kriterien bewertet?
+   - Transparenz schafft Vertrauen
+
+4. ✅ Social Proof intensivieren:
+   - Kundenbewertungen / Rezensionen
+   - Testergebnisse / Auszeichnungen
+   - Case Studies oder Erfolgsgeschichten
+
+5. ✅ FAQ: Einwandbehandlung
+   - "Lohnt sich X?"
+   - "X vs Y - Was ist besser?"
+   - "Kosten-Nutzen-Verhältnis?"
+
+**CTAs:**
+- Soft CTAs: "Mehr erfahren", "Details ansehen"
+- Finale Conversion am Ende nach vollem Vergleich
+`;
+      break;
+
+    case 'navigational':
+      guidance += `
+⚠️ NAVIGATIONS-ABSICHT ERKANNT → STRUKTUR ANPASSEN!
+
+**KRITISCHE ELEMENTE (PFLICHT):**
+1. ✅ H1: Brand-Name + Service/Kategorie
+   Beispiel: "Designare SEO - Ihre Agentur in Wien"
+
+2. ✅ Kontakt-Informationen prominent (im oberen Bereich):
+   - Adresse, Telefon, E-Mail
+   - Öffnungszeiten / Verfügbarkeit
+   - Standort-Karte falls relevant
+
+3. ✅ "Über uns" Section früh platzieren:
+   - Team vorstellen
+   - Geschichte / Meilensteine
+   - Was macht uns aus?
+
+4. ✅ Interne Navigation stärken:
+   - Links zu allen wichtigen Unterseiten
+   - Service-Übersicht mit Links
+   - "Direktkontakt"-Optionen
+
+5. ✅ Weniger Verkaufs-Pitch, mehr Information:
+   - Nutzer kennt die Brand bereits
+   - Will primär Kontakt oder spezifische Info finden
+   - Strukturierte Informationen statt Überzeugungsarbeit
+
+**VERMEIDEN:**
+- Lange Verkaufsargumente
+- Übertriebene Selbstdarstellung
+`;
+      break;
+
+    case 'informational':
+    default:
+      guidance += `
+⚠️ INFORMATIONS-ABSICHT ERKANNT → STRUKTUR ANPASSEN!
+
+**KRITISCHE ELEMENTE (PFLICHT):**
+1. ✅ H1: Frage beantworten oder "Was ist X?" Format
+   Beispiel: "Was ist SEO? Der komplette Guide 2025"
+
+2. ✅ Sofortige Antwort im ersten Absatz:
+   - Featured Snippet optimiert
+   - Klare, prägnante Definition
+   - Dann weitere Details
+
+3. ✅ Inhaltsverzeichnis (bei >800 Wörtern):
+   - Ermöglicht schnelles Springen
+   - Zeigt Content-Tiefe
+   - Verbessert User Experience
+
+4. ✅ Detaillierte Erklärungen mit Struktur:
+   - H2/H3 für Unterthemen
+   - Beispiele und Analogien nutzen
+   - Schritt-für-Schritt Anleitungen
+
+5. ✅ FAQ-Section mit W-Fragen:
+   - Beantworte verwandte Fragen
+   - "Wie funktioniert...", "Warum ist..."
+   - Featured Snippet Chancen
+
+6. ✅ Visuelle Elemente erwähnen (konzeptionell):
+   - "Hier könnte eine Infografik zeigen..."
+   - "Beispiel-Diagramm würde verdeutlichen..."
+
+**CTAs:**
+- Soft CTAs: "Jetzt beraten lassen", "Mehr Details"
+- Primär am Ende nach vollständiger Info-Vermittlung
+`;
+      break;
+  }
+
+  guidance += `
+═══════════════════════════════════════════════════════════════════════════════
+`;
+
+  return guidance;
+}
+
+// ============================================================================
 // MAIN HANDLER
 // ============================================================================
 
@@ -82,7 +257,10 @@ export async function POST(req: NextRequest) {
     const body: LandingpageRequest = await req.json();
     const { topic, keywords, targetAudience, toneOfVoice, contentType = 'landingpage', contextData, domain } = body;
 
-    // Validierung
+    // ========================================================================
+    // 1. VALIDIERUNG
+    // ========================================================================
+    
     if (!topic || !keywords || keywords.length === 0) {
       return NextResponse.json(
         { message: 'Thema und mindestens ein Keyword sind erforderlich.' },
@@ -90,18 +268,40 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Kontext-Blöcke aufbauen
+    // ========================================================================
+    // 2. KONTEXT AUFBAUEN
+    // ========================================================================
+    
     let contextSection = '';
 
-    // 1. GSC Keywords - Intelligente Analyse
+    // 2.1 GSC Keywords - Intelligente Analyse MIT INTENT
     let keywordAnalysis = null;
-    let mainKeyword = keywords[0] || topic; // Fallback
+    let mainKeyword = keywords[0] || topic;
+    let intentGuidance = '';
     
     if (contextData?.gscKeywordsRaw && contextData.gscKeywordsRaw.length > 0) {
-      // Vollständige Analyse mit allen Daten
-      keywordAnalysis = analyzeKeywords(contextData.gscKeywordsRaw, topic);
+      // ✅ ERWEITERT: Domain für Intent-Erkennung übergeben
+      keywordAnalysis = analyzeKeywords(
+        contextData.gscKeywordsRaw, 
+        topic,
+        domain // ✅ NEU: Ermöglicht Brand-Keyword-Erkennung
+      );
+      
       mainKeyword = keywordAnalysis.mainKeyword || keywords[0] || topic;
+      
+      // ✅ Generiere erweiterten Keyword-Kontext (inkl. Intent-Infos)
       contextSection += generateKeywordPromptContext(keywordAnalysis);
+      
+      // ✅ NEU: Intent-basierte Struktur-Guidance
+      const mainIntent = keywordAnalysis.intentAnalysis.mainKeywordIntent;
+      intentGuidance = generateIntentGuidance(
+        mainIntent.primaryIntent, 
+        mainIntent.confidence
+      );
+      
+      // Debug-Output (optional)
+      console.log('🎯 Intent-Analyse:', generateIntentReport(mainIntent));
+      
     } else if (contextData?.gscKeywords && contextData.gscKeywords.length > 0) {
       // Fallback: Nur Keyword-Namen ohne Metriken
       contextSection += `
@@ -111,7 +311,7 @@ ${contextData.gscKeywords.map(k => `- "${k}"`).join('\n')}
 `;
     }
 
-    // 2. News Insights
+    // 2.2 News Insights
     if (contextData?.newsInsights) {
       const takeawaysMatch = contextData.newsInsights.match(/Key Takeaways[\s\S]*?(?=<h3|$)/i);
       const relevantNews = takeawaysMatch ? takeawaysMatch[0] : contextData.newsInsights.slice(0, 1500);
@@ -123,7 +323,7 @@ ${relevantNews.replace(/<[^>]*>/g, '').slice(0, 1000)}
 `;
     }
 
-    // 3. Gap Analysis
+    // 2.3 Gap Analysis
     if (contextData?.gapAnalysis) {
       const gapText = contextData.gapAnalysis.replace(/<[^>]*>/g, '').slice(0, 800);
       
@@ -133,11 +333,10 @@ ${gapText}
 `;
     }
 
-    // 4. BRAND VOICE CLONE & SPY
+    // 2.4 BRAND VOICE CLONE & SPY
     let toneInstructions = TONE_INSTRUCTIONS[toneOfVoice] || TONE_INSTRUCTIONS.professional;
 
     if (contextData?.competitorAnalysis) {
-      // Wir haben Spy-Daten!
       const spyText = contextData.competitorAnalysis.slice(0, 4000); 
 
       toneInstructions = `
@@ -160,21 +359,21 @@ ${spyText}
       `;
     }
 
-    // FAQ-Vorschläge aus Fragen-Keywords
+    // 2.5 FAQ-Vorschläge aus Fragen-Keywords
     const suggestedFaqs = keywordAnalysis?.questionKeywords || [];
     const faqInstruction = suggestedFaqs.length > 0 
       ? `\n**VORGESCHLAGENE FAQ-FRAGEN (aus echten Suchanfragen):**\n${suggestedFaqs.map(q => `- "${q}"`).join('\n')}\n→ Integriere diese Fragen in die FAQ-Section!`
       : '';
-    
+
     // ========================================================================
-    // PROMPT AUSWAHL
+    // 3. PROMPT GENERIERUNG
     // ========================================================================
 
     let prompt = '';
 
     if (contentType === 'blog') {
       // ----------------------------------------------------------------------
-      // BLOG PROMPT (High End Qualität)
+      // BLOG PROMPT
       // ----------------------------------------------------------------------
       prompt = `
 Du bist ein erfahrener Fachredakteur und SEO-Experte mit 10+ Jahren Erfahrung.
@@ -192,9 +391,11 @@ ALLE KEYWORDS: ${keywords.join(', ')}
 
 ${toneInstructions}
 
+${intentGuidance}
+
 ${contextSection ? `
 ═══════════════════════════════════════════════════════════════════════════════
-ZUSÄTZLICHER KONTEXT
+ZUSÄTZLICHER KONTEXT (aus Datenquellen)
 ═══════════════════════════════════════════════════════════════════════════════
 ${contextSection}
 ${faqInstruction}
@@ -255,7 +456,6 @@ Struktur:
        <strong class="text-yellow-800 block mb-1">💡 Experten-Tipp:</strong>
        <p class="text-yellow-700 m-0 text-sm">[Ein wertvoller Tipp aus der Praxis]</p>
      </div>
-     <p class="${STYLES.p}">[Weiterer Text...]</p>
    </section>
 
 6. <section class="mb-10">
@@ -296,7 +496,7 @@ WICHTIG: Generiere NUR den HTML-Code. Mindestens 1200 Wörter für den Blogpost.
 
     } else {
       // ----------------------------------------------------------------------
-      // LANDINGPAGE PROMPT (EXAKT DEIN UPLOAD - UNGEKÜRZT)
+      // LANDINGPAGE PROMPT (MIT INTENT-INTEGRATION)
       // ----------------------------------------------------------------------
       prompt = `
 Du bist ein erfahrener SEO-Copywriter und Content-Stratege mit 10+ Jahren Erfahrung.
@@ -313,6 +513,8 @@ ZIELGRUPPE: ${targetAudience || 'Allgemein'}
 ALLE KEYWORDS: ${keywords.join(', ')}
 
 ${toneInstructions}
+
+${intentGuidance}
 
 ${contextSection ? `
 ═══════════════════════════════════════════════════════════════════════════════
@@ -369,6 +571,7 @@ REGELN:
 3. Der Content muss SOFORT verwendbar sein (Copy & Paste)
 4. Fokus auf TEXTBLÖCKE - wenig Design-Elemente
 5. MINDESTENS 900 Wörter für ausreichende Content-Tiefe
+6. ✅ BEFOLGE DIE INTENT-BASIERTE STRUKTUR OBEN!
 
 STRUKTUR (in dieser Reihenfolge):
 
@@ -460,24 +663,33 @@ STRUKTUR (in dieser Reihenfolge):
 ═══════════════════════════════════════════════════════════════════════════════
 
 WICHTIG: Generiere NUR den HTML-Code. Keine Einleitung, keine Erklärungen.
-Prüfe vor Ausgabe: Ist "${mainKeyword}" in H1 und erstem Absatz? Mindestens 900 Wörter?
+Prüfe vor Ausgabe:
+✅ Ist "${mainKeyword}" in H1 und erstem Absatz?
+✅ Mindestens 900 Wörter?
+✅ Wurde die Intent-basierte Struktur befolgt?
       `;
     }
 
-    // --- STREAMING ---
+    // ========================================================================
+    // 4. STREAMING MIT FALLBACK
+    // ========================================================================
+    
     try {
       console.log('🤖 Landingpage Generator: Versuche Gemini 3 Pro Preview...');
       
       const result = streamText({
         model: google('gemini-3-pro-preview'),
         prompt: prompt,
-        temperature: 0.7, // Leicht erhöht für bessere Stil-Adaption
+        temperature: 0.7,
       });
 
       return result.toTextStreamResponse({
         headers: {
           'X-AI-Model': 'gemini-3-pro-preview',
           'X-AI-Status': 'primary',
+          // ✅ NEU: Intent-Info im Header
+          'X-Intent-Detected': keywordAnalysis?.intentAnalysis.dominantIntent || 'unknown',
+          'X-Intent-Confidence': keywordAnalysis?.intentAnalysis.mainKeywordIntent.confidence || 'unknown'
         },
       });
       
@@ -494,6 +706,8 @@ Prüfe vor Ausgabe: Ist "${mainKeyword}" in H1 und erstem Absatz? Mindestens 900
         headers: {
           'X-AI-Model': 'gemini-2.5-flash',
           'X-AI-Status': 'fallback',
+          'X-Intent-Detected': keywordAnalysis?.intentAnalysis.dominantIntent || 'unknown',
+          'X-Intent-Confidence': keywordAnalysis?.intentAnalysis.mainKeywordIntent.confidence || 'unknown'
         },
       });
     }
