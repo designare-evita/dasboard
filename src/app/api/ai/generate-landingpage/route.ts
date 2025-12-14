@@ -1,885 +1,739 @@
-// src/components/admin/ki/LandingpageGenerator.tsx
-'use client';
+// src/app/api/ai/generate-landingpage/route.ts
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import { streamText } from 'ai';
+import { NextRequest, NextResponse } from 'next/server';
+import { STYLES } from '@/lib/ai-styles';
+import { 
+  analyzeKeywords, 
+  generateKeywordPromptContext,
+  generateIntentReport,
+  type Keyword,
+  type SearchIntent
+} from '@/lib/keyword-analyzer';
 
-import React, { useState, useRef } from 'react';
-import Image from 'next/image';
-import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
-import {
-  FileText,
-  Search,
-  Newspaper,
-  FileEarmarkBarGraph,
-  Download,
-  ClipboardCheck,
-  FileEarmarkCode,
-  Markdown,
-  ChevronDown,
-  ChevronUp,
-  Lightning,
-  Database,
-  PlusCircle,
-  Binoculars,
-  CheckLg,
-  InfoCircle,
-  ArrowRepeat,
-  LayoutTextWindowReverse, 
-  WindowDesktop          
-} from 'react-bootstrap-icons';
+const google = createGoogleGenerativeAI({
+  apiKey: process.env.GEMINI_API_KEY || '',
+});
+
+export const runtime = 'nodejs';
+export const maxDuration = 120; // 2 Minuten für komplexe Generierung
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
-interface Keyword {
-  query: string;
-  clicks: number;
-  position: number;
-  impressions: number;
-}
-
-interface LandingpageGeneratorProps {
-  projectId?: string;
-  domain?: string;
-  keywords?: Keyword[];
-  loadingKeywords?: boolean;
-}
-
-type ToneOfVoice = 'professional' | 'casual' | 'technical' | 'emotional';
-type ContentType = 'landingpage' | 'blog';
-
 interface ContextData {
   gscKeywords?: string[];
-  gscKeywordsRaw?: Keyword[];
+  gscKeywordsRaw?: Keyword[];  // Vollständige Keyword-Objekte für Analyse
   newsInsights?: string;
   gapAnalysis?: string;
-  competitorAnalysis?: string;
+  competitorAnalysis?: string; // Für Brand Voice Clone & Spy
+}
+
+interface LandingpageRequest {
+  topic: string;
+  keywords: string[];
+  targetAudience?: string;
+  toneOfVoice: 'professional' | 'casual' | 'technical' | 'emotional';
+  contentType: 'landingpage' | 'blog';
+  contextData?: ContextData;
+  domain?: string;
+  // ✅ NEU: Optionaler Kontext für Produkte/Fakten
+  productContext?: string; 
 }
 
 // ============================================================================
-// CONSTANTS
+// TONE MAPPING (Fallback wenn keine Brand Voice)
 // ============================================================================
 
-const TONE_OPTIONS: { value: ToneOfVoice; label: string; description: string }[] = [
-  { value: 'professional', label: 'Professionell', description: 'Seriös & vertrauenswürdig' },
-  { value: 'casual', label: 'Locker', description: 'Freundlich & nahbar' },
-  { value: 'technical', label: 'Technisch', description: 'Detailliert & fachlich' },
-  { value: 'emotional', label: 'Emotional', description: 'Storytelling & bewegend' },
-];
+const TONE_INSTRUCTIONS: Record<string, string> = {
+  professional: `
+    TONALITÄT: Professionell & Seriös
+    - Verwende eine sachliche, vertrauenswürdige Sprache
+    - Setze auf Fakten und klare Vorteile
+    - Vermeide übertriebene Werbesprache
+    - Sprich den Leser höflich mit "Sie" an
+  `,
+  casual: `
+    TONALITÄT: Locker & Nahbar
+    - Verwende eine freundliche, zugängliche Sprache
+    - Schreibe wie in einem persönlichen Gespräch
+    - Nutze gelegentlich rhetorische Fragen
+    - Der Text darf "Du" verwenden wenn es zur Zielgruppe passt
+  `,
+  technical: `
+    TONALITÄT: Technisch & Detailliert
+    - Verwende Fachbegriffe (aber erkläre sie kurz)
+    - Gehe ins Detail bei Features und Prozessen
+    - Füge konkrete Zahlen und Spezifikationen ein
+    - Strukturiere mit klaren Überschriften und Listen
+  `,
+  emotional: `
+    TONALITÄT: Emotional & Storytelling
+    - Beginne mit einer fesselnden Geschichte oder Szenario
+    - Sprich Emotionen und Wünsche der Zielgruppe an
+    - Nutze bildhafte Sprache und Metaphern
+    - Fokussiere auf Transformation und Ergebnisse
+  `,
+};
 
 // ============================================================================
-// COMPONENT
+// INTENT-BASIERTE STRUKTUR-GUIDANCE
 // ============================================================================
 
-export default function LandingPageGenerator({
-  projectId,
-  domain = '',
-  keywords = [],
-  loadingKeywords = false,
-}: LandingpageGeneratorProps) {
-  
-  // --- STATES ---
-  
-  // Basis-Inputs
-  const [topic, setTopic] = useState('');
-  const [targetAudience, setTargetAudience] = useState('');
-  // ✅ NEU: Kontext für echte Fakten
-  const [productContext, setProductContext] = useState(''); 
-  const [tone, setTone] = useState<ToneOfVoice>('professional');
-  const [contentType, setContentType] = useState<ContentType>('landingpage');
-  const [customKeywords, setCustomKeywords] = useState('');
-  
-  // SPY FEATURE
-  const [referenceUrl, setReferenceUrl] = useState('');
-  const [isSpying, setIsSpying] = useState(false);
-  const [spyData, setSpyData] = useState<string | null>(null);
+function generateIntentGuidance(intent: SearchIntent, confidence: string): string {
+  const intentLabels = {
+    informational: 'INFORMATIONS-SUCHE',
+    commercial: 'VERGLEICHS-/RESEARCH-ABSICHT',
+    transactional: 'KAUFABSICHT',
+    navigational: 'NAVIGATIONS-ABSICHT'
+  };
 
-  // GAP FEATURE
-  const [isAnalyzingGap, setIsAnalyzingGap] = useState(false);
-  const [cachedGapData, setCachedGapData] = useState<string | null>(null);
+  let guidance = `
+═══════════════════════════════════════════════════════════════════════════════
+🎯 SUCHINTENTIONS-ANALYSE (PRIORITÄT 1 - STRIKT BEFOLGEN!)
+═══════════════════════════════════════════════════════════════════════════════
 
-  // Datenquellen-Toggles
-  const [useGscKeywords, setUseGscKeywords] = useState(true);
-  const [useNewsCrawler, setUseNewsCrawler] = useState(false);
-  const [useGapAnalysis, setUseGapAnalysis] = useState(false);
-  
-  // News-Crawler Einstellungen
-  const [newsMode, setNewsMode] = useState<'live' | 'cache'>('live');
-  const [newsTopic, setNewsTopic] = useState('');
-  const [cachedNewsData, setCachedNewsData] = useState<string | null>(null);
-  
-  // UI States
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [isWaitingForStream, setIsWaitingForStream] = useState(false);
-  const [generatedContent, setGeneratedContent] = useState('');
-  const [showExportMenu, setShowExportMenu] = useState(false);
-  const [expandedSection, setExpandedSection] = useState<string | null>('sources');
-  const [showKeywordAnalysis, setShowKeywordAnalysis] = useState(false);
-  
-  const outputRef = useRef<HTMLDivElement>(null);
+**ERKANNTE INTENTION: ${intentLabels[intent]}**
+Confidence: ${confidence}
 
-  // --- KEYWORD ANALYSE (für Frontend-Anzeige) ---
-  const keywordAnalysis = React.useMemo(() => {
-    if (!keywords || keywords.length === 0) return null;
-    
-    // Sortiere nach Klicks
-    const byClicks = [...keywords].sort((a, b) => b.clicks - a.clicks);
-    const mainKeyword = byClicks[0];
-    
-    // Sekundäre Keywords (Top 5 ohne Main)
-    const secondaryKeywords = byClicks.slice(1, 6);
-    
-    // Striking Distance (Position 4-20)
-    const strikingDistance = keywords
-      .filter(k => k.position >= 4 && k.position <= 20)
-      .sort((a, b) => (b.impressions / b.position) - (a.impressions / a.position))
-      .slice(0, 5)
-      .map(k => ({
-        ...k,
-        priority: k.position <= 10 && k.impressions > 500 ? 'high' as const
-                : k.position <= 15 || k.impressions > 300 ? 'medium' as const
-                : 'low' as const
-      }));
-    
-    // Fragen-Keywords
-    const questionWords = ['was', 'wie', 'wo', 'wer', 'warum', 'wann', 'welche', 'welcher'];
-    const questionKeywords = keywords
-      .filter(k => questionWords.some(w => k.query.toLowerCase().startsWith(w)))
-      .slice(0, 5);
-    
-    // Long-Tail (3+ Wörter)
-    const longTailKeywords = keywords
-      .filter(k => k.query.split(' ').length >= 3)
-      .sort((a, b) => b.clicks - a.clicks)
-      .slice(0, 5);
-    
-    // Stats
-    const totalClicks = keywords.reduce((sum, k) => sum + k.clicks, 0);
-    const totalImpressions = keywords.reduce((sum, k) => sum + k.impressions, 0);
-    const avgPosition = keywords.reduce((sum, k) => sum + k.position, 0) / keywords.length;
-    
-    return {
-      mainKeyword,
-      secondaryKeywords,
-      strikingDistance,
-      questionKeywords,
-      longTailKeywords,
-      stats: { totalClicks, totalImpressions, avgPosition: Math.round(avgPosition * 10) / 10 }
-    };
-  }, [keywords]);
+`;
 
-  // --- HELPERS ---
-  
-  const getAllKeywords = (): string[] => {
-    const result: string[] = [];
-    if (useGscKeywords && keywords.length > 0) {
-      keywords.slice(0, 10).forEach(k => { if (!result.includes(k.query)) result.push(k.query); });
+  switch (intent) {
+    case 'transactional':
+      guidance += `
+⚠️ KAUFABSICHT ERKANNT → STRUKTUR ANPASSEN!
+
+**KRITISCHE ELEMENTE (PFLICHT):**
+1. ✅ H1: Keyword + Handlungsaufforderung
+   Beispiel: "SEO Agentur Wien jetzt buchen" statt nur "SEO Agentur Wien"
+
+2. ✅ Hero-Section (direkt nach H1):
+   - Starker CTA-Button above-the-fold
+   - Preis/Angebot sofort sichtbar (wenn verfügbar)
+   - Trust-Badge oder Gütesiegel erwähnen
+
+3. ✅ Mehrere CTAs im Text verteilen:
+   - Nach Benefits-Section
+   - Nach Social Proof
+   - Am Ende (finaler CTA)
+
+4. ✅ Trust-Elemente prominent:
+   - Zahlungsarten / Buchungsoptionen
+   - Geld-zurück-Garantie falls relevant
+   - Kundenbewertungen / Testimonials
+
+5. ✅ WENIGER Erklärungs-Text, MEHR Action:
+   - Kurze, knackige Absätze (max. 3 Sätze)
+   - Bullet Points statt langer Fließtexte
+   - Fokus auf Benefits statt Features
+
+**VERMEIDEN:**
+- Lange theoretische Erklärungen
+- "Mehr erfahren" statt "Jetzt buchen/kaufen"
+- CTA erst ganz am Ende der Seite
+`;
+      break;
+
+    case 'commercial':
+      guidance += `
+⚠️ VERGLEICHS-ABSICHT ERKANNT → STRUKTUR ANPASSEN!
+
+**KRITISCHE ELEMENTE (PFLICHT):**
+1. ✅ H1: Vergleichs-orientiert
+   Beispiel: "Die besten SEO Tools 2025 im Vergleich"
+
+2. ✅ Vergleichstabelle oder Pro/Contra-Listen:
+   - Feature-Vergleich prominent platzieren
+   - Bewertungskriterien transparent machen
+   - "Gewinner"-Kategorien definieren
+
+3. ✅ Bewertungs-Methodik erklären:
+   - Wie wurden die Optionen getestet?
+   - Nach welchen Kriterien bewertet?
+   - Transparenz schafft Vertrauen
+
+4. ✅ Social Proof intensivieren:
+   - Kundenbewertungen / Rezensionen
+   - Testergebnisse / Auszeichnungen
+   - Case Studies oder Erfolgsgeschichten
+
+5. ✅ FAQ: Einwandbehandlung
+   - "Lohnt sich X?"
+   - "X vs Y - Was ist besser?"
+   - "Kosten-Nutzen-Verhältnis?"
+
+**CTAs:**
+- Soft CTAs: "Mehr erfahren", "Details ansehen"
+- Finale Conversion am Ende nach vollem Vergleich
+`;
+      break;
+
+    case 'navigational':
+      guidance += `
+⚠️ NAVIGATIONS-ABSICHT ERKANNT → STRUKTUR ANPASSEN!
+
+**KRITISCHE ELEMENTE (PFLICHT):**
+1. ✅ H1: Brand-Name + Service/Kategorie
+   Beispiel: "Designare SEO - Ihre Agentur in Wien"
+
+2. ✅ Kontakt-Informationen prominent (im oberen Bereich):
+   - Adresse, Telefon, E-Mail
+   - Öffnungszeiten / Verfügbarkeit
+   - Standort-Karte falls relevant
+
+3. ✅ "Über uns" Section früh platzieren:
+   - Team vorstellen
+   - Geschichte / Meilensteine
+   - Was macht uns aus?
+
+4. ✅ Interne Navigation stärken:
+   - Links zu allen wichtigen Unterseiten
+   - Service-Übersicht mit Links
+   - "Direktkontakt"-Optionen
+
+5. ✅ Weniger Verkaufs-Pitch, mehr Information:
+   - Nutzer kennt die Brand bereits
+   - Will primär Kontakt oder spezifische Info finden
+   - Strukturierte Informationen statt Überzeugungsarbeit
+
+**VERMEIDEN:**
+- Lange Verkaufsargumente
+- Übertriebene Selbstdarstellung
+`;
+      break;
+
+    case 'informational':
+    default:
+      guidance += `
+⚠️ INFORMATIONS-ABSICHT ERKANNT → STRUKTUR ANPASSEN!
+
+**KRITISCHE ELEMENTE (PFLICHT):**
+1. ✅ H1: Frage beantworten oder "Was ist X?" Format
+   Beispiel: "Was ist SEO? Der komplette Guide 2025"
+
+2. ✅ Sofortige Antwort im ersten Absatz:
+   - Featured Snippet optimiert
+   - Klare, prägnante Definition
+   - Dann weitere Details
+
+3. ✅ Inhaltsverzeichnis (bei >800 Wörtern):
+   - Ermöglicht schnelles Springen
+   - Zeigt Content-Tiefe
+   - Verbessert User Experience
+
+4. ✅ Detaillierte Erklärungen mit Struktur:
+   - H2/H3 für Unterthemen
+   - Beispiele und Analogien nutzen
+   - Schritt-für-Schritt Anleitungen
+
+5. ✅ FAQ-Section mit W-Fragen:
+   - Beantworte verwandte Fragen
+   - "Wie funktioniert...", "Warum ist..."
+   - Featured Snippet Chancen
+
+6. ✅ Visuelle Elemente erwähnen (konzeptionell):
+   - "Hier könnte eine Infografik zeigen..."
+   - "Beispiel-Diagramm würde verdeutlichen..."
+
+**CTAs:**
+- Soft CTAs: "Jetzt beraten lassen", "Mehr Details"
+- Primär am Ende nach vollständiger Info-Vermittlung
+`;
+      break;
+  }
+
+  guidance += `
+═══════════════════════════════════════════════════════════════════════════════
+`;
+
+  return guidance;
+}
+
+// ============================================================================
+// MAIN HANDLER
+// ============================================================================
+
+export async function POST(req: NextRequest) {
+  try {
+    const body: LandingpageRequest = await req.json();
+    const { 
+        topic, 
+        keywords, 
+        targetAudience, 
+        toneOfVoice, 
+        contentType = 'landingpage', 
+        contextData, 
+        domain,
+        productContext // ✅ NEU
+    } = body;
+
+    // ========================================================================
+    // 1. VALIDIERUNG
+    // ========================================================================
+    
+    if (!topic || !keywords || keywords.length === 0) {
+      return NextResponse.json(
+        { message: 'Thema und mindestens ein Keyword sind erforderlich.' },
+        { status: 400 }
+      );
     }
-    if (customKeywords.trim()) {
-      customKeywords.split(/[,\n]+/).map(k => k.trim()).filter(k => k.length > 0).forEach(k => {
-        if (!result.includes(k)) result.push(k);
+
+    // ========================================================================
+    // 2. KONTEXT AUFBAUEN
+    // ========================================================================
+    
+    let contextSection = '';
+
+    // 2.1 GSC Keywords - Intelligente Analyse MIT INTENT
+    let keywordAnalysis = null;
+    let mainKeyword = keywords[0] || topic;
+    let intentGuidance = '';
+    
+    if (contextData?.gscKeywordsRaw && contextData.gscKeywordsRaw.length > 0) {
+      // ✅ ERWEITERT: Domain für Intent-Erkennung übergeben
+      keywordAnalysis = analyzeKeywords(
+        contextData.gscKeywordsRaw, 
+        topic,
+        domain // ✅ NEU: Ermöglicht Brand-Keyword-Erkennung
+      );
+      
+      mainKeyword = keywordAnalysis.mainKeyword || keywords[0] || topic;
+      
+      // ✅ Generiere erweiterten Keyword-Kontext (inkl. Intent-Infos)
+      contextSection += generateKeywordPromptContext(keywordAnalysis);
+      
+      // ✅ NEU: Intent-basierte Struktur-Guidance
+      const mainIntent = keywordAnalysis.intentAnalysis.mainKeywordIntent;
+      intentGuidance = generateIntentGuidance(
+        mainIntent.primaryIntent, 
+        mainIntent.confidence
+      );
+      
+      // Debug-Output (optional)
+      console.log('🎯 Intent-Analyse:', generateIntentReport(mainIntent));
+      
+    } else if (contextData?.gscKeywords && contextData.gscKeywords.length > 0) {
+      // Fallback: Nur Keyword-Namen ohne Metriken
+      contextSection += `
+### GSC KEYWORDS (aus Google Search Console)
+Diese Keywords sind relevant für das Thema:
+${contextData.gscKeywords.map(k => `- "${k}"`).join('\n')}
+`;
+    }
+
+    // 2.2 News Insights
+    if (contextData?.newsInsights) {
+      const takeawaysMatch = contextData.newsInsights.match(/Key Takeaways[\s\S]*?(?=<h3|$)/i);
+      const relevantNews = takeawaysMatch ? takeawaysMatch[0] : contextData.newsInsights.slice(0, 1500);
+      
+      contextSection += `
+### AKTUELLE BRANCHEN-NEWS (Kontext für Aktualität)
+Nutze diese Informationen um den Content aktuell und relevant zu machen:
+${relevantNews.replace(/<[^>]*>/g, '').slice(0, 1000)}
+`;
+    }
+
+    // 2.3 Gap Analysis
+    if (contextData?.gapAnalysis) {
+      const gapText = contextData.gapAnalysis.replace(/<[^>]*>/g, '').slice(0, 800);
+      
+      contextSection += `
+### CONTENT-GAPS (Fehlende Themen, die abgedeckt werden sollten)
+${gapText}
+`;
+    }
+
+    // 2.4 BRAND VOICE CLONE & SPY
+    let toneInstructions = TONE_INSTRUCTIONS[toneOfVoice] || TONE_INSTRUCTIONS.professional;
+
+    if (contextData?.competitorAnalysis) {
+      const spyText = contextData.competitorAnalysis.slice(0, 4000); 
+
+      toneInstructions = `
+### ⚠️ WICHTIG: STIL- UND WORDING-ADAPTION (PRIORITÄT 1)
+Wir haben eine Analyse eines Referenz-Textes vorliegen. Deine wichtigste Aufgabe ist es, den **Schreibstil (Brand Voice) dieses Textes zu adaptieren**.
+
+Analysiere den folgenden Referenz-Text auf:
+1. **Wortwahl & Vokabular:** Welche spezifischen Begriffe oder Adjektive werden genutzt?
+2. **Satzstruktur:** Sind die Sätze kurz und knackig oder lang und erklärend?
+3. **Ansprache:** Wird der Leser geduzt oder gesiezt? Ist es direkt oder distanziert?
+4. **Stimmung:** Ist der Text euphorisch, nüchtern, witzig oder autoritär?
+
+👉 **WENDE DIESEN ANALYSIERTEN STIL EXAKT AUF DEN NEUEN TEXT AN!**
+Schreibe so, als ob der Autor des Referenz-Textes diesen neuen Text verfasst hätte.
+
+REFERENZ-TEXT (Quelle für den Stil):
+"""
+${spyText}
+"""
+      `;
+    }
+
+    // 2.5 FAQ-Vorschläge aus Fragen-Keywords
+    const suggestedFaqs = keywordAnalysis?.questionKeywords || [];
+    const faqInstruction = suggestedFaqs.length > 0 
+      ? `\n**VORGESCHLAGENE FAQ-FRAGEN (aus echten Suchanfragen):**\n${suggestedFaqs.map(q => `- "${q}"`).join('\n')}\n→ Integriere diese Fragen in die FAQ-Section!`
+      : '';
+
+    // ========================================================================
+    // ✅ NEU: 3. FAKTEN-BLOCK KONSTRUIEREN
+    // ========================================================================
+
+    const productFacts = productContext ? `
+═══════════════════════════════════════════════════════════════════════════════
+✅ ECHTE FAKTEN & USPs (NUTZE DIESE DATEN!)
+═══════════════════════════════════════════════════════════════════════════════
+Integriere diese Informationen zwingend in den Text:
+"${productContext}"
+` : '';
+
+    // ========================================================================
+    // 4. PROMPT GENERIERUNG
+    // ========================================================================
+
+    let prompt = '';
+
+    if (contentType === 'blog') {
+      // ----------------------------------------------------------------------
+      // BLOG PROMPT
+      // ----------------------------------------------------------------------
+      prompt = `
+Du bist ein erfahrener Fachredakteur und SEO-Experte mit 10+ Jahren Erfahrung.
+Erstelle einen detaillierten, hochwertigen Blogartikel (Ratgeber-Content).
+
+═══════════════════════════════════════════════════════════════════════════════
+AUFTRAG
+═══════════════════════════════════════════════════════════════════════════════
+
+THEMA: "${topic}"
+HAUPTKEYWORD: "${mainKeyword}"
+DOMAIN: ${domain || 'Nicht angegeben'}
+ZIELGRUPPE: ${targetAudience || 'Allgemein'}
+ALLE KEYWORDS: ${keywords.join(', ')}
+
+${toneInstructions}
+
+${intentGuidance}
+
+${productFacts}
+
+${contextSection ? `
+═══════════════════════════════════════════════════════════════════════════════
+ZUSÄTZLICHER KONTEXT (aus Datenquellen)
+═══════════════════════════════════════════════════════════════════════════════
+${contextSection}
+${faqInstruction}
+` : ''}
+
+═══════════════════════════════════════════════════════════════════════════════
+QUALITÄTS-REGELN (STRIKT!)
+═══════════════════════════════════════════════════════════════════════════════
+
+### 1. WAHRHEIT & FAKTEN
+- ⚠️ ERFINDE KEINE FAKTEN! Wenn du keine Infos zu Preisen oder Mitarbeiterzahlen hast, nutze Platzhalter wie "[PREIS HIER]" oder "[ANZAHL PROJEKTE]".
+- Nutze die bereitgestellten "ECHTEN FAKTEN" aus dem Kontext oben.
+- Schreibe spezifisch, nicht generisch. Statt "Wir bieten tolle Qualität" schreibe "Wir bieten [USP aus Kontext]".
+
+### 2. STRUKTUR & LESBARKEIT
+- H1 muss knallig sein und zum Klicken anregen.
+- Kurze Absätze (max 3-4 Zeilen).
+- Viele Zwischenüberschriften (H2, H3).
+- Nutze Listen, Fettungen und Infoboxen.
+
+### 3. SEO & KEYWORDS
+- Hauptkeyword "${mainKeyword}" in H1, Einleitung und Fazit.
+- Nebenkeywords natürlich im Text verteilen.
+
+═══════════════════════════════════════════════════════════════════════════════
+OUTPUT ANFORDERUNGEN
+═══════════════════════════════════════════════════════════════════════════════
+
+Generiere NUR den HTML-Code (Tailwind CSS).
+Struktur:
+
+1. <h1 class="text-3xl md:text-4xl font-bold text-gray-900 mb-6">
+     [Titel mit "${mainKeyword}"]
+   </h1>
+
+2. <div class="bg-indigo-50 p-6 rounded-xl mb-8 border border-indigo-100">
+     <h3 class="font-bold text-indigo-900 mb-3">Das Wichtigste in Kürze:</h3>
+     <ul class="space-y-2">
+       <li class="flex gap-2 text-indigo-900"><span class="text-indigo-600">✓</span> [Key Takeaway 1]</li>
+       <li class="flex gap-2 text-indigo-900"><span class="text-indigo-600">✓</span> [Key Takeaway 2]</li>
+       <li class="flex gap-2 text-indigo-900"><span class="text-indigo-600">✓</span> [Key Takeaway 3]</li>
+     </ul>
+   </div>
+
+3. <p class="text-xl text-gray-600 mb-8 leading-relaxed">
+     [Starke Einleitung: Problemaufriss und Versprechen]
+   </p>
+
+4. <section class="mb-10">
+     <h2 class="${STYLES.h3} mb-4">[H2: Grundlagen / Definition]</h2>
+     <p class="${STYLES.p}">[Erklärender Text...]</p>
+   </section>
+
+5. <section class="mb-10">
+     <h2 class="${STYLES.h3} mb-4">[H2: Deep Dive - Hauptteil]</h2>
+     <p class="${STYLES.p}">[Detaillierter Content...]</p>
+     <div class="my-6 p-5 bg-yellow-50 border-l-4 border-yellow-400 rounded-r-lg">
+       <strong class="text-yellow-800 block mb-1">💡 Experten-Tipp:</strong>
+       <p class="text-yellow-700 m-0 text-sm">[Ein wertvoller Tipp aus der Praxis]</p>
+     </div>
+   </section>
+
+6. <section class="mb-10">
+     <h2 class="${STYLES.h3} mb-4">[H2: Anleitung / Schritt-für-Schritt]</h2>
+     <ul class="${STYLES.list}">
+       <li class="${STYLES.listItem}"><strong class="text-gray-900">1. [Schritt]:</strong> [Erklärung]</li>
+       <li class="${STYLES.listItem}"><strong class="text-gray-900">2. [Schritt]:</strong> [Erklärung]</li>
+       <li class="${STYLES.listItem}"><strong class="text-gray-900">3. [Schritt]:</strong> [Erklärung]</li>
+     </ul>
+   </section>
+
+7. <section class="mb-10">
+     <h2 class="${STYLES.h3} mb-4">Häufige Fehler (und wie man sie vermeidet)</h2>
+     <div class="grid md:grid-cols-2 gap-4">
+       <div class="bg-red-50 p-4 rounded-lg border border-red-100">
+         <strong class="text-red-700 block mb-1">❌ Falsch:</strong>
+         <span class="text-sm text-red-600">[Typischer Fehler]</span>
+       </div>
+       <div class="bg-green-50 p-4 rounded-lg border border-green-100">
+         <strong class="text-green-700 block mb-1">✅ Richtig:</strong>
+         <span class="text-sm text-green-600">[Lösung/Best Practice]</span>
+       </div>
+     </div>
+   </section>
+
+8. <section class="mb-10 bg-gray-50 p-8 rounded-xl">
+     <h2 class="${STYLES.h3} mb-4">Fazit</h2>
+     <p class="${STYLES.p}">[Zusammenfassung und Ausblick]</p>
+   </section>
+
+9. <div class="mt-8 pt-8 border-t border-gray-100 text-center">
+      <p class="font-medium text-gray-900 mb-4">Fanden Sie diesen Artikel hilfreich?</p>
+      [Passender CTA für einen Blog, z.B. Newsletter oder Kontakt]
+   </div>
+
+WICHTIG: Generiere NUR den HTML-Code. Mindestens 1200 Wörter für den Blogpost.
+      `;
+
+    } else {
+      // ----------------------------------------------------------------------
+      // LANDINGPAGE PROMPT (MIT INTENT-INTEGRATION)
+      // ----------------------------------------------------------------------
+      prompt = `
+Du bist ein erfahrener SEO-Copywriter und Content-Stratege mit 10+ Jahren Erfahrung.
+Erstelle den vollständigen Textinhalt für eine hochwertige, rankingfähige Landingpage.
+
+═══════════════════════════════════════════════════════════════════════════════
+AUFTRAG
+═══════════════════════════════════════════════════════════════════════════════
+
+THEMA / FOKUS: "${topic}"
+HAUPTKEYWORD: "${mainKeyword}"
+DOMAIN: ${domain || 'Nicht angegeben'}
+ZIELGRUPPE: ${targetAudience || 'Allgemein'}
+ALLE KEYWORDS: ${keywords.join(', ')}
+
+${toneInstructions}
+
+${intentGuidance}
+
+${productFacts}
+
+${contextSection ? `
+═══════════════════════════════════════════════════════════════════════════════
+ZUSÄTZLICHER KONTEXT (aus Datenquellen)
+═══════════════════════════════════════════════════════════════════════════════
+${contextSection}
+${faqInstruction}
+` : ''}
+
+═══════════════════════════════════════════════════════════════════════════════
+QUALITÄTS-REGELN (STRIKT!)
+═══════════════════════════════════════════════════════════════════════════════
+
+### 1. WAHRHEIT & FAKTEN (WICHTIGSTE REGEL!)
+- ⚠️ ERFINDE KEINE FAKTEN! Wenn du keine Infos zu Preisen oder Mitarbeiterzahlen hast, nutze Platzhalter wie "[PREIS HIER]" oder "[ANZAHL PROJEKTE]".
+- Nutze die bereitgestellten "ECHTEN FAKTEN" aus dem Kontext oben.
+- Schreibe spezifisch, nicht generisch. Statt "Wir bieten tolle Qualität" schreibe "Wir bieten [USP aus Kontext]".
+
+### 2. MODERNES SEO (KEIN SPAM!)
+- KEIN "Keyword-Stuffing"! Die Lesbarkeit geht vor.
+- Platziere das Hauptkeyword "${mainKeyword}" in H1 und Einleitung.
+- Verwende danach Synonyme und natürliche Sprache.
+- Schreibe für MENSCHEN, nicht für Google-Bots.
+
+### 3. CONVERSION-OPTIMIERUNG & TRUST
+- E-E-A-T: Zeige Expertise durch präzise Fachsprache, nicht durch erfundene Behauptungen.
+- TRUST: Nutze die echten Fakten aus dem Input, um Vertrauen aufzubauen.
+- KLARE CTAs: Jede Section endet mit einer Handlungsaufforderung.
+- **KONSISTENTE PERSPEKTIVE:** Entscheide dich für EINE Perspektive und bleibe dabei!
+  → Bei Unternehmen/Agenturen: Immer "Wir"
+  → Bei Einzelpersonen/Freelancern: Immer "Ich"
+
+### 4. FORMATIERUNG & STRUKTUR
+- Nutze viele <h3 class="${STYLES.h3}"> Zwischenüberschriften.
+- Halte Absätze extrem kurz (max. 3 Zeilen).
+- Nutze Fettungen (<b>...</b>) für Schlüsselsätze, damit man den Text scannen kann.
+
+═══════════════════════════════════════════════════════════════════════════════
+OUTPUT ANFORDERUNGEN
+═══════════════════════════════════════════════════════════════════════════════
+
+REGELN:
+1. KEIN MARKDOWN - nur HTML mit Tailwind-Klassen
+2. Integriere ALLE angegebenen Keywords natürlich in den Text
+3. Der Content muss SOFORT verwendbar sein (Copy & Paste)
+4. Fokus auf TEXTBLÖCKE - wenig Design-Elemente
+5. MINDESTENS 900 Wörter für ausreichende Content-Tiefe
+6. ✅ BEFOLGE DIE INTENT-BASIERTE STRUKTUR OBEN!
+
+STRUKTUR (in dieser Reihenfolge):
+
+1. <h1 class="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+     [Aufmerksamkeitsstarke H1 - MUSS "${mainKeyword}" enthalten!]
+   </h1>
+
+2. <p class="text-xl text-gray-600 mb-8 leading-relaxed">
+     [Einleitender Absatz mit HAUPTKEYWORD - Hook, UVP & Benefit in 2-3 Sätzen]
+   </p>
+
+3. <section class="mb-8">
+     <h2 class="${STYLES.h3} mb-4">[Nutzen-orientierte H2 mit Keyword-Variante]</h2>
+     <p class="${STYLES.p}">[Ausführlicher Absatz - Problem der Zielgruppe ansprechen, min. 100 Wörter]</p>
+     <p class="${STYLES.p}">[Zweiter Absatz - Lösung präsentieren mit konkreten Vorteilen]</p>
+     <p class="${STYLES.p} font-medium text-indigo-700">[Mini-CTA: "Erfahren Sie mehr..." oder "Kontaktieren Sie uns..."]</p>
+   </section>
+
+4. <section class="mb-8">
+     <h2 class="${STYLES.h3} mb-4">[E-E-A-T H2: "Unsere Expertise" / "Warum wir"]</h2>
+     <p class="${STYLES.p}">[Authority-Building: Nutze die FAKTEN aus dem Kontext]</p>
+     <p class="${STYLES.p}">[Experience: Ein konkretes Beispiel oder Erfolgsgeschichte]</p>
+   </section>
+
+5. <section class="mb-8">
+     <h2 class="${STYLES.h3} mb-4">Ihre Vorteile auf einen Blick</h2>
+     <ul class="${STYLES.list}">
+       <li class="${STYLES.listItem} bg-white p-3 rounded-lg border border-gray-100">
+         <strong class="text-indigo-700">[Benefit 1]:</strong> [Konkreter Nutzen, nicht Feature]
+       </li>
+       <li class="${STYLES.listItem} bg-white p-3 rounded-lg border border-gray-100">
+         <strong class="text-indigo-700">[Benefit 2]:</strong> [Mit Zahl oder Zeitangabe wenn möglich]
+       </li>
+       <li class="${STYLES.listItem} bg-white p-3 rounded-lg border border-gray-100">
+         <strong class="text-indigo-700">[Benefit 3]:</strong> [Emotionaler Nutzen]
+       </li>
+       <li class="${STYLES.listItem} bg-white p-3 rounded-lg border border-gray-100">
+         <strong class="text-indigo-700">[Benefit 4]:</strong> [Trust-Element: Garantie/Support]
+       </li>
+     </ul>
+   </section>
+
+6. <section class="mb-8 bg-gray-50 p-6 rounded-xl">
+     <h2 class="${STYLES.h3} mb-4">[Social Proof H2: "Das sagen unsere Kunden" / "Erfolge"]</h2>
+     <p class="${STYLES.p}">[Referenz-Absatz: Branche, Anzahl Kunden, durchschnittliche Ergebnisse]</p>
+     <p class="${STYLES.p} italic text-gray-600">[Optional: Kurzes Zitat-Beispiel eines fiktiven zufriedenen Kunden]</p>
+   </section>
+
+7. <section class="mb-8">
+     <h2 class="${STYLES.h3} mb-4">Häufig gestellte Fragen</h2>
+     <div class="space-y-3">
+       <details class="bg-gray-50 p-4 rounded-lg group">
+         <summary class="font-semibold cursor-pointer flex justify-between items-center">
+           [Frage 1 - MUSS Hauptkeyword enthalten]
+           <span class="text-gray-400 group-open:rotate-180 transition-transform">▼</span>
+         </summary>
+         <p class="mt-3 text-gray-600">[Ausführliche Antwort mit LSI-Keywords, 2-3 Sätze]</p>
+       </details>
+       <details class="bg-gray-50 p-4 rounded-lg group">
+         <summary class="font-semibold cursor-pointer flex justify-between items-center">
+           [Frage 2 - Keyword-Variante]
+           <span class="text-gray-400 group-open:rotate-180 transition-transform">▼</span>
+         </summary>
+         <p class="mt-3 text-gray-600">[Antwort mit konkreten Zahlen/Fakten]</p>
+       </details>
+       <details class="bg-gray-50 p-4 rounded-lg group">
+         <summary class="font-semibold cursor-pointer flex justify-between items-center">
+           [Frage 3 - Einwandbehandlung: Kosten/Zeit/Aufwand]
+           <span class="text-gray-400 group-open:rotate-180 transition-transform">▼</span>
+         </summary>
+         <p class="mt-3 text-gray-600">[Antwort die Bedenken ausräumt]</p>
+       </details>
+       <details class="bg-gray-50 p-4 rounded-lg group">
+         <summary class="font-semibold cursor-pointer flex justify-between items-center">
+           [Frage 4 - "Wie läuft der Prozess ab?" o.ä.]
+           <span class="text-gray-400 group-open:rotate-180 transition-transform">▼</span>
+         </summary>
+         <p class="mt-3 text-gray-600">[Klare Schritte, Transparenz schaffen]</p>
+       </details>
+     </div>
+   </section>
+
+8. <section class="bg-gradient-to-r from-indigo-600 to-purple-600 p-8 rounded-xl text-white">
+     <h2 class="text-2xl font-bold mb-3">[Starker CTA-Titel mit Urgency]</h2>
+     <p class="text-indigo-100 mb-4">[Zusammenfassung des Hauptnutzens + Handlungsaufforderung]</p>
+     <p class="font-semibold">[Konkreter nächster Schritt: "Jetzt unverbindlich anfragen" / "Kostenlose Erstberatung sichern"]</p>
+   </section>
+
+═══════════════════════════════════════════════════════════════════════════════
+
+WICHTIG: Generiere NUR den HTML-Code. Keine Einleitung, keine Erklärungen.
+Prüfe vor Ausgabe:
+✅ Ist "${mainKeyword}" in H1 und erstem Absatz?
+✅ Mindestens 900 Wörter?
+✅ Wurde die Intent-basierte Struktur befolgt?
+✅ Wurden die FAKTEN aus dem Kontext genutzt (keine Lügen)?
+      `;
+    }
+
+    // ========================================================================
+    // 5. STREAMING MIT FALLBACK
+    // ========================================================================
+    
+    try {
+      console.log('🤖 Landingpage Generator: Versuche Gemini 3 Pro Preview...');
+      
+      const result = streamText({
+        model: google('gemini-3-pro-preview'),
+        prompt: prompt,
+        temperature: 0.7,
+      });
+
+      return result.toTextStreamResponse({
+        headers: {
+          'X-AI-Model': 'gemini-3-pro-preview',
+          'X-AI-Status': 'primary',
+          // ✅ NEU: Intent-Info im Header
+          'X-Intent-Detected': keywordAnalysis?.intentAnalysis.dominantIntent || 'unknown',
+          'X-Intent-Confidence': keywordAnalysis?.intentAnalysis.mainKeywordIntent.confidence || 'unknown'
+        },
+      });
+      
+    } catch (error) {
+      console.warn('⚠️ Gemini 3 Pro failed, falling back to Flash:', error);
+
+      const result = streamText({
+        model: google('gemini-2.5-flash'),
+        prompt: prompt,
+        temperature: 0.7,
+      });
+
+      return result.toTextStreamResponse({
+        headers: {
+          'X-AI-Model': 'gemini-2.5-flash',
+          'X-AI-Status': 'fallback',
+          'X-Intent-Detected': keywordAnalysis?.intentAnalysis.dominantIntent || 'unknown',
+          'X-Intent-Confidence': keywordAnalysis?.intentAnalysis.mainKeywordIntent.confidence || 'unknown'
+        },
       });
     }
-    return result;
-  };
 
-  const totalKeywordCount = getAllKeywords().length;
-
-  // --- HELPER: Gap-Analyse Text extrahieren ---
-  const extractGapText = (html: string): string[] => {
-    const text = html.replace(/<[^>]*>/g, '');
-    const items = text
-      .split(/[\n•\-]/)
-      .map(item => item.trim())
-      .filter(item => item.length > 10 && item.length < 200);
-    return items.slice(0, 5); 
-  };
-
-  // --- EXPORT FUNKTION ---
-  const handleExport = (format: 'txt' | 'html' | 'md') => {
-    if (!generatedContent) {
-      toast.error('Kein Inhalt zum Exportieren.');
-      return;
-    }
-
-    try {
-      let content = generatedContent;
-      let mimeType = 'text/plain';
-      let extension = format;
-
-      if (format === 'html') {
-        mimeType = 'text/html';
-        content = `<!DOCTYPE html><html><head><title>${topic}</title><meta charset="UTF-8"></head><body>${generatedContent}</body></html>`;
-      } else if (format === 'md') {
-        mimeType = 'text/markdown';
-      }
-
-      const blob = new Blob([content], { type: mimeType });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${topic.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'content'}.${extension}`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      
-      toast.success(`${format.toUpperCase()} Export gestartet`);
-      setShowExportMenu(false);
-    } catch (e) {
-      console.error("Export Error:", e);
-      toast.error("Export fehlgeschlagen.");
-    }
-  };
-
-  // --- HANDLERS ---
-
-  // 1. SPY: URL Analysieren
-  const handleAnalyzeUrl = async () => {
-    if (!referenceUrl) return;
-    try {
-      setIsSpying(true);
-      
-      const res = await fetch('/api/ai/competitor-spy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ myUrl: referenceUrl }),
-      });
-
-      if (!res.ok) throw new Error('Analyse fehlgeschlagen');
-      
-      const data = await res.text();
-      setSpyData(data);
-      toast.success('Stil & Inhalt erfolgreich erfasst!');
-    } catch (e) {
-      console.error(e);
-      toast.error('Konnte URL nicht analysieren.');
-    } finally {
-      setIsSpying(false);
-    }
-  };
-
-  // 2. GAP: Content Gap Analyse
-  const handleAnalyzeGap = async () => {
-    if (!topic) {
-        toast.error('Bitte erst ein Thema eingeben.');
-        return;
-    }
-    try {
-        setIsAnalyzingGap(true);
-        toast.info('Führe Gap-Analyse durch...');
-        
-        const res = await fetch('/api/ai/content-gap', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ topic, domain }),
-        });
-        
-        if (!res.ok) throw new Error('Gap-Analyse fehlgeschlagen');
-        
-        const data = await res.text();
-        setCachedGapData(data);
-        setUseGapAnalysis(true);
-        toast.success('Content Gaps identifiziert!');
-    } catch (e) {
-        console.error(e);
-        toast.error('Gap-Analyse Fehler');
-    } finally {
-        setIsAnalyzingGap(false);
-    }
-  };
-
-  // 3. MAIN: Generierung
-  const handleGenerate = async () => {
-    if (!topic.trim()) { toast.error('Bitte geben Sie ein Thema ein.'); return; }
-    if (getAllKeywords().length === 0) { toast.error('Bitte Keywords angeben.'); return; }
-    
-    if (useNewsCrawler && newsMode === 'live' && !newsTopic.trim()) {
-       setNewsTopic(topic);
-    }
-
-    setIsGenerating(true);
-    setIsWaitingForStream(true);
-    setGeneratedContent('');
-
-    try {
-      const contextData: ContextData = {};
-      
-      // Spy Data
-      let currentSpyData = spyData;
-      if (referenceUrl && !currentSpyData) {
-         try {
-            const res = await fetch('/api/ai/competitor-spy', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ myUrl: referenceUrl }),
-            });
-            if (res.ok) currentSpyData = await res.text();
-         } catch(e) { console.error(e); }
-      }
-      if (currentSpyData) contextData.competitorAnalysis = currentSpyData;
-
-      // GSC
-      if (useGscKeywords && keywords.length > 0) {
-        contextData.gscKeywords = keywords.slice(0, 10).map(k => k.query);
-        contextData.gscKeywordsRaw = keywords.slice(0, 30);
-      }
-      
-      // News
-      if (useNewsCrawler) {
-        if (newsMode === 'live') {
-          const fetchTopic = newsTopic.trim() || topic;
-          const newsResponse = await fetch('/api/ai/news-crawler', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ topic: fetchTopic }),
-          });
-          
-          if (newsResponse.ok && newsResponse.body) {
-            const reader = newsResponse.body.getReader();
-            const decoder = new TextDecoder();
-            let newsContent = '';
-            while (true) {
-              const { value, done } = await reader.read();
-              if (done) break;
-              newsContent += decoder.decode(value, { stream: true });
-            }
-            contextData.newsInsights = newsContent;
-            setCachedNewsData(newsContent);
-          }
-        } else if (newsMode === 'cache' && cachedNewsData) {
-          contextData.newsInsights = cachedNewsData;
-        }
-      }
-      
-      if (useGapAnalysis && cachedGapData) {
-        contextData.gapAnalysis = cachedGapData;
-      }
-
-      // API Call
-      const response = await fetch('/api/ai/generate-landingpage', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          topic: topic.trim(),
-          contentType, 
-          keywords: getAllKeywords(),
-          targetAudience: targetAudience.trim() || undefined,
-          // ✅ NEU: Product Context senden
-          productContext: productContext.trim(),
-          toneOfVoice: tone,
-          contextData,
-          domain,
-        }),
-      });
-
-      setIsWaitingForStream(false);
-
-      if (!response.ok) throw new Error(await response.text());
-      if (!response.body) throw new Error('Kein Stream');
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let done = false;
-
-      while (!done) {
-        const { value, done: doneReading } = await reader.read();
-        done = doneReading;
-        const chunkValue = decoder.decode(value, { stream: true });
-        setGeneratedContent((prev) => prev + chunkValue);
-        if (outputRef.current) outputRef.current.scrollTop = outputRef.current.scrollHeight;
-      }
-      toast.success('Content erfolgreich generiert!');
-    } catch (error: any) {
-      console.error(error);
-      toast.error(`Fehler: ${error.message}`);
-      setIsWaitingForStream(false);
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  const handleCopy = async () => {
-    if (generatedContent) {
-        try {
-            await navigator.clipboard.writeText(generatedContent);
-            toast.success('Kopiert!');
-        } catch (err) {
-            console.error('Copy failed', err);
-            toast.error('Kopieren fehlgeschlagen');
-        }
-    }
-  };
-
-  const toggleSection = (section: string) => {
-    setExpandedSection(expandedSection === section ? null : section);
-  };
-
-  // --- RENDER ---
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-      
-      {/* LOADING / SPY LIGHTBOX */}
-      {(isWaitingForStream || isSpying) && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-white/80 backdrop-blur-md transition-all animate-in fade-in duration-300">
-          <div className="bg-white p-8 rounded-3xl shadow-2xl border border-gray-100 flex flex-col items-center gap-6 max-w-md w-full text-center">
-            <div className="relative w-full flex justify-center">
-              <Image src="/data-max-arbeitet.webp" alt="KI arbeitet" width={400} height={400} className="h-[200px] w-auto object-contain" priority />
-            </div>
-            <div>
-              <h3 className="text-xl font-bold text-gray-800 mb-1">
-                {isSpying ? 'Analysiere URL...' : 'Content wird erstellt'}
-              </h3>
-              <p className="text-gray-500 text-sm">
-                {isSpying 
-                  ? 'Klone Stil, Wortwahl und Struktur der Zielseite...' 
-                  : (useNewsCrawler && newsMode === 'live' ? 'Recherchiere News & schreibe...' : 'Generiere optimierten Content...')}
-              </p>
-            </div>
-            <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
-               <div className={`h-full bg-purple-500 w-1/3 rounded-full animate-indeterminate-bar ${isSpying ? 'bg-amber-500' : ''}`}></div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* --- INPUTS (LINKS) --- */}
-      <div className="lg:col-span-4 space-y-4">
-        
-        {/* 1. BRIEFING CARD */}
-        <div className="bg-white border border-gray-100 shadow-sm rounded-2xl p-6">
-          <div className="text-center pb-4 border-b border-gray-100">
-            <div className="w-14 h-14 bg-gradient-to-br from-purple-100 to-indigo-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
-              <FileText className="text-2xl text-purple-600" />
-            </div>
-            <h3 className="font-bold text-gray-900">Content Generator</h3>
-            <p className="text-xs text-gray-500 mt-1">für <strong className="text-gray-700">{domain || 'dieses Projekt'}</strong></p>
-          </div>
-
-          <div className="mt-4">
-            <label className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-              <Lightning className="text-purple-500" /> Thema / H1 *
-            </label>
-            <input
-              value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-              placeholder="z.B. IT-Service München..."
-              className="w-full p-3 bg-purple-50 border border-purple-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 outline-none"
-            />
-          </div>
-
-          {/* CONTENT TYPE SELECTOR */}
-          <div className="mt-4">
-            <label className="text-sm font-semibold text-gray-700 mb-2 block">Art des Inhalts</label>
-            <div className="grid grid-cols-2 gap-2 p-1 bg-gray-100 rounded-xl">
-               <button
-                 onClick={() => setContentType('landingpage')}
-                 className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-medium transition-all ${contentType === 'landingpage' ? 'bg-white text-purple-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-               >
-                 <WindowDesktop size={14} /> Landingpage
-               </button>
-               <button
-                 onClick={() => setContentType('blog')}
-                 className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-medium transition-all ${contentType === 'blog' ? 'bg-white text-purple-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-               >
-                 <LayoutTextWindowReverse size={14} /> Blog-Artikel
-               </button>
-            </div>
-            <p className="text-[10px] text-gray-400 mt-1.5 px-1">
-              {contentType === 'landingpage' ? 'Fokus auf Conversion, Leads & Verkauf.' : 'Fokus auf Information, SEO-Traffic & Mehrwert.'}
-            </p>
-          </div>
-
-          {/* SPY SECTION */}
-          <div className="mt-4 bg-amber-50/60 p-4 rounded-xl border border-amber-100 space-y-3">
-             <div className="flex items-start gap-2">
-               <Binoculars className="text-amber-600 mt-1 shrink-0" /> 
-               <div>
-                 <label className="text-sm font-medium text-gray-900 block">Spy & Clone (Stil-Kopie)</label>
-                 <p className="text-[11px] text-gray-500 leading-tight">URL analysieren und Wording/Stil exakt übernehmen.</p>
-               </div>
-             </div>
-             <div className="flex gap-2">
-               <input
-                 value={referenceUrl}
-                 onChange={(e) => { setReferenceUrl(e.target.value); setSpyData(null); }}
-                 placeholder="https://..."
-                 className="flex-1 px-3 py-2 border border-amber-200 bg-white rounded-lg text-sm outline-none focus:ring-2 focus:ring-amber-500"
-               />
-               <Button 
-                 onClick={handleAnalyzeUrl}
-                 disabled={!referenceUrl || isSpying || !!spyData}
-                 variant="outline" size="sm"
-                 className={`border-amber-200 ${spyData ? 'bg-green-50 text-green-700' : 'hover:bg-amber-100 text-amber-700'}`}
-               >
-                 {spyData ? <CheckLg /> : 'Check'}
-               </Button>
-             </div>
-             {referenceUrl && spyData && (
-                <div className="text-[10px] text-green-700 flex gap-1 items-center font-medium bg-green-50 p-1.5 rounded border border-green-100">
-                    <CheckLg/> Stil analysiert. Wird angewendet.
-                </div>
-             )}
-          </div>
-
-          <div className="mt-4">
-            <label className="text-sm font-semibold text-gray-700 mb-2 block">Zielgruppe</label>
-            <input
-              value={targetAudience}
-              onChange={(e) => setTargetAudience(e.target.value)}
-              placeholder="z.B. KMUs, Ärzte..."
-              className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-gray-400 outline-none"
-            />
-          </div>
-
-          {/* ✅ NEU: PRODUKT KONTEXT FELD */}
-          <div className="mt-4">
-            <label className="text-sm font-semibold text-gray-700 mb-2 block">
-              Produktdetails & USPs (WICHTIG für Qualität!)
-            </label>
-            <textarea
-              value={productContext}
-              onChange={(e) => setProductContext(e.target.value)}
-              placeholder="Hier Fakten reinwerfen: Preise, Unique Selling Points, Garantien, Firmengeschichte, Angebot..."
-              className="w-full p-3 bg-indigo-50 border border-indigo-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none h-24"
-            />
-            <p className="text-[10px] text-gray-400 mt-1">
-              Je mehr Infos hier stehen, desto weniger muss die KI "erfinden".
-            </p>
-          </div>
-
-          <div className="mt-4">
-            <label className="text-sm font-semibold text-gray-700 mb-2 block">Tonalität (Fallback)</label>
-            <div className="grid grid-cols-2 gap-2">
-              {TONE_OPTIONS.map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => setTone(option.value)}
-                  className={`p-2.5 rounded-lg border text-left text-xs transition-all ${
-                    tone === option.value ? 'bg-purple-50 border-purple-300 text-purple-700' : 'bg-white border-gray-200 text-gray-600'
-                  }`}
-                >
-                  <span className="font-medium block">{option.label}</span>
-                </button>
-              ))}
-            </div>
-            {spyData && <p className="text-[10px] text-amber-600 mt-1">*Wird durch Spy-Analyse überschrieben.</p>}
-          </div>
-        </div>
-
-        {/* 2. DATENQUELLEN CARD */}
-        <div className="bg-white border border-gray-100 shadow-sm rounded-2xl overflow-hidden">
-          <button onClick={() => toggleSection('sources')} className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
-            <div className="flex items-center gap-2 font-semibold text-gray-800"><Database className="text-indigo-500" /> Datenquellen</div>
-            {expandedSection === 'sources' ? <ChevronUp /> : <ChevronDown />}
-          </button>
-
-          {expandedSection === 'sources' && (
-            <div className="px-4 pb-4 space-y-3 border-t border-gray-100 pt-3">
-              
-              {/* GSC Toggle + Keyword-Analyse */}
-              <div className="p-3 bg-gray-50 rounded-lg space-y-2">
-                <label className="flex items-start gap-3 cursor-pointer">
-                  <input type="checkbox" checked={useGscKeywords} onChange={(e) => setUseGscKeywords(e.target.checked)} className="mt-1 rounded text-indigo-600" />
-                  <div className="flex-1">
-                    <div className="font-medium text-sm text-gray-800">GSC Keywords</div>
-                    <div className="text-xs text-gray-500">{loadingKeywords ? 'Lade...' : `${keywords.length} verfügbar`}</div>
-                  </div>
-                </label>
-                
-                {/* Keyword-Analyse Toggle & Anzeige */}
-                {useGscKeywords && keywords.length > 0 && keywordAnalysis && (
-                  <div className="pl-6 pt-2 border-t border-gray-200 mt-2">
-                    {/* Quick Stats */}
-                    <div className="flex items-center gap-2 text-[10px] text-gray-500 mb-2">
-                      <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-medium">
-                        🎯 {keywordAnalysis.mainKeyword?.query?.slice(0, 20)}{keywordAnalysis.mainKeyword?.query?.length > 20 ? '...' : ''}
-                      </span>
-                      {keywordAnalysis.strikingDistance.length > 0 && (
-                        <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
-                          📈 {keywordAnalysis.strikingDistance.length} Striking
-                        </span>
-                      )}
-                      {keywordAnalysis.questionKeywords.length > 0 && (
-                        <span className="bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded">
-                          ❓ {keywordAnalysis.questionKeywords.length} FAQ
-                        </span>
-                      )}
-                    </div>
-                    
-                    {/* Expand Button */}
-                    <button
-                      onClick={() => setShowKeywordAnalysis(!showKeywordAnalysis)}
-                      className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center gap-1 font-medium"
-                    >
-                      {showKeywordAnalysis ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                      {showKeywordAnalysis ? 'Analyse ausblenden' : 'Analyse anzeigen'}
-                    </button>
-                    
-                    {/* Expanded Analysis */}
-                    {showKeywordAnalysis && (
-                      <div className="mt-3 space-y-3 animate-in slide-in-from-top-2">
-                        
-                        {/* Hauptkeyword */}
-                        <div className="bg-white p-3 rounded-lg border border-indigo-200 shadow-sm">
-                          <div className="text-[10px] font-bold text-indigo-600 uppercase tracking-wide mb-1">Hauptkeyword</div>
-                          <div className="font-semibold text-gray-900 text-sm">{keywordAnalysis.mainKeyword?.query}</div>
-                          <div className="flex gap-3 mt-1 text-[10px] text-gray-500">
-                            <span>{keywordAnalysis.mainKeyword?.clicks} Klicks</span>
-                            <span>Pos. {Math.round(keywordAnalysis.mainKeyword?.position * 10) / 10}</span>
-                            <span>{keywordAnalysis.mainKeyword?.impressions.toLocaleString('de-DE')} Impr.</span>
-                          </div>
-                        </div>
-                        
-                        {/* Striking Distance */}
-                        {keywordAnalysis.strikingDistance.length > 0 && (
-                          <div className="bg-white p-3 rounded-lg border border-amber-200 shadow-sm">
-                            <div className="text-[10px] font-bold text-amber-600 uppercase tracking-wide mb-2">
-                              🎯 Striking Distance <span className="font-normal text-gray-400">(fast Seite 1!)</span>
-                            </div>
-                            <ul className="space-y-1.5">
-                              {keywordAnalysis.strikingDistance.map((k, idx) => (
-                                <li key={idx} className="flex items-center gap-2 text-[11px]">
-                                  <span className={`w-2 h-2 rounded-full ${
-                                    k.priority === 'high' ? 'bg-red-500' : 
-                                    k.priority === 'medium' ? 'bg-yellow-500' : 'bg-green-500'
-                                  }`}></span>
-                                  <span className="flex-1 text-gray-700 truncate">{k.query}</span>
-                                  <span className="text-gray-400 tabular-nums">Pos. {Math.round(k.position * 10) / 10}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                        
-                        {/* Fragen Keywords */}
-                        {keywordAnalysis.questionKeywords.length > 0 && (
-                          <div className="bg-white p-3 rounded-lg border border-purple-200 shadow-sm">
-                            <div className="text-[10px] font-bold text-purple-600 uppercase tracking-wide mb-2">
-                              ❓ Fragen für FAQ
-                            </div>
-                            <ul className="space-y-1">
-                              {keywordAnalysis.questionKeywords.map((k, idx) => (
-                                <li key={idx} className="text-[11px] text-gray-700 flex items-start gap-1.5">
-                                  <span className="text-purple-400">•</span>
-                                  <span>{k.query}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                        
-                        {/* Long-Tail */}
-                        {keywordAnalysis.longTailKeywords.length > 0 && (
-                          <div className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm">
-                            <div className="text-[10px] font-bold text-gray-600 uppercase tracking-wide mb-2">
-                              📝 Long-Tail Keywords
-                            </div>
-                            <div className="flex flex-wrap gap-1">
-                              {keywordAnalysis.longTailKeywords.map((k, idx) => (
-                                <span key={idx} className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
-                                  {k.query}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        
-                        {/* Stats Summary */}
-                        <div className="bg-gradient-to-r from-indigo-50 to-purple-50 p-3 rounded-lg border border-indigo-100">
-                          <div className="text-[10px] font-bold text-indigo-600 uppercase tracking-wide mb-2">📊 Statistik</div>
-                          <div className="grid grid-cols-3 gap-2 text-center">
-                            <div>
-                              <div className="text-sm font-bold text-gray-900">{keywordAnalysis.stats.totalClicks.toLocaleString('de-DE')}</div>
-                              <div className="text-[9px] text-gray-500 uppercase">Klicks</div>
-                            </div>
-                            <div>
-                              <div className="text-sm font-bold text-gray-900">{keywordAnalysis.stats.totalImpressions.toLocaleString('de-DE')}</div>
-                              <div className="text-[9px] text-gray-500 uppercase">Impressionen</div>
-                            </div>
-                            <div>
-                              <div className="text-sm font-bold text-gray-900">{keywordAnalysis.stats.avgPosition}</div>
-                              <div className="text-[9px] text-gray-500 uppercase">Ø Position</div>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        <p className="text-[9px] text-gray-400 italic">
-                          Diese Analyse wird automatisch bei der Generierung berücksichtigt.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* News Toggle */}
-              <div className="p-3 bg-gray-50 rounded-lg space-y-2">
-                <label className="flex items-start gap-3 cursor-pointer">
-                  <input type="checkbox" checked={useNewsCrawler} onChange={(e) => setUseNewsCrawler(e.target.checked)} className="mt-1 rounded text-indigo-600" />
-                  <div className="flex-1">
-                    <div className="font-medium text-sm text-gray-800 flex items-center gap-2"><Newspaper className="text-indigo-500" /> News-Crawler</div>
-                  </div>
-                </label>
-                {useNewsCrawler && (
-                    <div className="pl-6 space-y-2">
-                        <div className="flex gap-2 text-xs">
-                           <button onClick={() => setNewsMode('live')} className={`px-2 py-1 rounded border ${newsMode==='live' ? 'bg-indigo-100 border-indigo-200 text-indigo-700' : 'bg-white'}`}>Live</button>
-                           <button onClick={() => setNewsMode('cache')} disabled={!cachedNewsData} className={`px-2 py-1 rounded border ${newsMode==='cache' ? 'bg-indigo-100 border-indigo-200 text-indigo-700' : 'bg-white opacity-50'}`}>Cache</button>
-                        </div>
-                        {newsMode === 'live' && (
-                            <input value={newsTopic} onChange={(e) => setNewsTopic(e.target.value)} placeholder="News Thema (leer = H1)" className="w-full p-1.5 text-xs border rounded" />
-                        )}
-                    </div>
-                )}
-              </div>
-
-              {/* Gap Analysis */}
-              <div className="p-3 bg-gray-50 rounded-lg transition-all">
-                <div className="flex items-center justify-between mb-2">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                        <input 
-                            type="checkbox" 
-                            checked={useGapAnalysis} 
-                            onChange={(e) => setUseGapAnalysis(e.target.checked)} 
-                            disabled={!cachedGapData}
-                            className="rounded text-indigo-600 disabled:opacity-50" 
-                        />
-                        <span className="font-medium text-sm text-gray-800 flex items-center gap-2">
-                            <FileEarmarkBarGraph className="text-indigo-500" /> Gap-Analyse
-                        </span>
-                    </label>
-                    <Button 
-                        onClick={handleAnalyzeGap} 
-                        disabled={isAnalyzingGap || !topic}
-                        variant="ghost" 
-                        size="sm" 
-                        className="h-6 text-xs px-2 text-indigo-600 hover:bg-indigo-50 border border-indigo-100 bg-white"
-                    >
-                        {isAnalyzingGap ? <ArrowRepeat className="animate-spin" /> : 'Jetzt scannen'}
-                    </Button>
-                </div>
-                
-                {/* STATUS & ERGEBNIS ANZEIGE */}
-                <div className="text-xs text-gray-500 pl-6">
-                    {!cachedGapData && !isAnalyzingGap && 'Findet fehlende Themen für bessere Rankings.'}
-                    {isAnalyzingGap && <span className="text-indigo-600 animate-pulse">Analysiere Wettbewerb & Semantik...</span>}
-                    
-                    {/* ERGEBNIS-BOX MIT SAUBEREM STYLING */}
-                    {cachedGapData && !isAnalyzingGap && (
-                        <div className="mt-2 p-3 bg-white border border-green-200 rounded-lg shadow-sm">
-                            <div className="flex items-center gap-1 text-green-600 font-semibold mb-2">
-                                <CheckLg /> Analyse erfolgreich!
-                            </div>
-                            <p className="text-[11px] font-medium text-gray-700 mb-2">Empfohlene Ergänzungen:</p>
-                            <ul className="space-y-1.5">
-                                {extractGapText(cachedGapData).map((item, idx) => (
-                                    <li key={idx} className="flex items-start gap-2 text-[11px] text-gray-600">
-                                        <span className="text-indigo-500 mt-0.5">•</span>
-                                        <span>{item}</span>
-                                    </li>
-                                ))}
-                            </ul>
-                            {useGapAnalysis && (
-                                <div className="mt-2 pt-2 border-t border-gray-100 text-[10px] text-green-600 font-medium">
-                                    ✓ Wird bei Generierung berücksichtigt
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
-              </div>
-
-            </div>
-          )}
-        </div>
-
-        {/* 3. KEYWORDS CARD */}
-        <div className="bg-white border border-gray-100 shadow-sm rounded-2xl p-4">
-          <div className="flex justify-between items-center mb-2">
-            <label className="font-semibold text-gray-800 flex items-center gap-2 text-sm"><PlusCircle className="text-emerald-500" /> Manuelle Keywords</label>
-            <span className="text-xs font-medium text-gray-400">{totalKeywordCount} Total</span>
-          </div>
-          <textarea
-            value={customKeywords}
-            onChange={(e) => setCustomKeywords(e.target.value)}
-            placeholder="Keywords hier einfügen..."
-            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none h-20 resize-none"
-          />
-        </div>
-
-        <Button onClick={handleGenerate} disabled={isGenerating} className="w-full py-6 text-base gap-2 bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-200">
-          {isGenerating ? 'Generiere...' : <><FileText /> {contentType === 'landingpage' ? 'Landingpage erstellen' : 'Blog-Artikel schreiben'}</>}
-        </Button>
-      </div>
-
-      {/* --- OUTPUT (RECHTS) --- */}
-      <div className="lg:col-span-8">
-        <div className="bg-white border border-gray-100 shadow-xl rounded-2xl p-8 h-full min-h-[600px] flex flex-col relative">
-          {/* Header mit Export - z-index erhöht */}
-          <div className="flex items-center justify-between mb-4 relative z-20">
-            <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2"><FileText className="text-purple-500" /> Ergebnis</h2>
-            {generatedContent && (
-              <div className="flex gap-2 relative">
-                <button onClick={handleCopy} className="p-2 hover:bg-gray-100 rounded-lg text-gray-600" title="In Zwischenablage kopieren"><ClipboardCheck/></button>
-                
-                {/* Export Dropdown */}
-                <div className="relative">
-                   <button 
-                      onClick={() => setShowExportMenu(!showExportMenu)} 
-                      className="flex items-center gap-1 px-3 py-2 bg-purple-50 text-purple-700 hover:bg-purple-100 rounded-lg text-sm font-medium"
-                   >
-                      <Download size={16} /> Export <ChevronDown size={14} className={`transition-transform ${showExportMenu ? 'rotate-180' : ''}`} />
-                   </button>
-                   {showExportMenu && (
-                     <>
-                       {/* Backdrop zum Schließen bei Klick außerhalb */}
-                       <div 
-                         className="fixed inset-0 z-30" 
-                         onClick={() => setShowExportMenu(false)}
-                       />
-                       {/* Dropdown-Menü */}
-                       <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-xl z-40 animate-in fade-in slide-in-from-top-2">
-                         <button 
-                           onClick={() => handleExport('txt')} 
-                           className="w-full px-4 py-3 text-left text-sm hover:bg-gray-50 flex items-center gap-2 rounded-t-xl"
-                         >
-                           <FileText className="text-gray-400" /> Als Text (.txt)
-                         </button>
-                         <button 
-                           onClick={() => handleExport('html')} 
-                           className="w-full px-4 py-3 text-left text-sm hover:bg-gray-50 flex items-center gap-2 border-t border-gray-100"
-                         >
-                           <FileEarmarkCode className="text-orange-400" /> Als HTML (.html)
-                         </button>
-                         <button 
-                           onClick={() => handleExport('md')} 
-                           className="w-full px-4 py-3 text-left text-sm hover:bg-gray-50 flex items-center gap-2 border-t border-gray-100 rounded-b-xl"
-                         >
-                           <Markdown className="text-blue-400" /> Als Markdown (.md)
-                         </button>
-                       </div>
-                     </>
-                   )}
-                </div>
-              </div>
-            )}
-          </div>
-          
-          {/* Output-Bereich - z-index niedriger als Header */}
-          <div ref={outputRef} className="flex-1 bg-gray-50/50 rounded-xl border border-gray-200/60 p-6 overflow-y-auto relative z-0 custom-scrollbar ai-output">
-            {generatedContent ? (
-              <div className="ai-content prose max-w-none" dangerouslySetInnerHTML={{ __html: generatedContent }} />
-            ) : (
-              <div className="h-full flex flex-col items-center justify-center text-gray-400 text-center">
-                <FileText className="text-4xl mb-3 text-purple-200" />
-                <p className="font-medium text-gray-500">Bereit für Content</p>
-                <p className="text-xs text-gray-400 mt-2">Wähle links Blog oder Landingpage</p>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
+    console.error('❌ Landingpage Generator Error:', error);
+    return NextResponse.json({ message: errorMessage }, { status: 500 });
+  }
 }
