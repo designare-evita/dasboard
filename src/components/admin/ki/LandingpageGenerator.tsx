@@ -278,7 +278,7 @@ export default function LandingPageGenerator({
           console.log('⏭️ Auto-advancing to step', currentStep + 1);
           setCurrentStep(prev => prev + 1);
         }, 600);
-        return () => clearTimeout(timer);
+        return () => clearTimeout(timer); // ✅ FIX: Cleanup!
       }
     }
   }, [currentStep, topic, useGscKeywords, useNewsCrawler, useGapAnalysis, customKeywords, showOnboarding, completedSteps, totalKeywordCount]);
