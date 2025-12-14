@@ -232,55 +232,56 @@ export default function LandingPageGenerator({
   // 1️⃣ Markiere den AKTUELLEN Step als completed wenn Bedingung erfüllt
   useEffect(() => {
     if (!showOnboarding) return;
-    if (completedSteps.includes(currentStep)) return; // Bereits completed
+    if (completedSteps.includes(currentStep)) return;
     
-    // Prüfe ob aktueller Step complete ist
     let stepComplete = false;
+    let autoAdvance = false; // ✅ NEU: Nur bestimmte Steps auto-advance
     
     switch(currentStep) {
       case 1: 
         stepComplete = topic.trim().length > 0;
+        autoAdvance = true; // ✅ Thema → auto-advance
         break;
       case 2: 
         stepComplete = true; // Content Type hat Default
+        autoAdvance = false; // ⏸️ KEIN auto-advance - User soll bewusst wählen
         break;
       case 3: 
         stepComplete = true; // Optional - Spy
+        autoAdvance = false; // ⏸️ KEIN auto-advance - ist optional
         break;
       case 4: 
         stepComplete = true; // Optional - Zielgruppe
+        autoAdvance = false; // ⏸️ KEIN auto-advance - ist optional
         break;
       case 5: 
         stepComplete = true; // Tone hat Default
+        autoAdvance = false; // ⏸️ KEIN auto-advance - User soll bewusst wählen
         break;
       case 6: 
         stepComplete = useGscKeywords || useNewsCrawler || useGapAnalysis;
+        autoAdvance = true; // ✅ Datenquellen → auto-advance
         break;
       case 7: 
         stepComplete = totalKeywordCount > 0;
+        autoAdvance = true; // ✅ Keywords → auto-advance
         break;
     }
     
     if (stepComplete) {
-      console.log('✅ Step', currentStep, 'is complete');
+      console.log('✅ Step', currentStep, 'is complete, auto-advance:', autoAdvance);
       setCompletedSteps(prev => [...prev, currentStep]);
+      
+      // ✅ Nur auto-advance wenn explizit erlaubt
+      if (autoAdvance && currentStep < ONBOARDING_STEPS.length) {
+        const timer = setTimeout(() => {
+          console.log('⏭️ Auto-advancing to step', currentStep + 1);
+          setCurrentStep(prev => prev + 1);
+        }, 600);
+        return () => clearTimeout(timer);
+      }
     }
   }, [currentStep, topic, useGscKeywords, useNewsCrawler, useGapAnalysis, customKeywords, showOnboarding, completedSteps, totalKeywordCount]);
-  
-  // 2️⃣ Auto-Advance wenn aktueller Step completed ist
-  useEffect(() => {
-    if (!showOnboarding) return;
-    if (!completedSteps.includes(currentStep)) return;
-    if (currentStep >= ONBOARDING_STEPS.length) return;
-    
-    console.log('⏭️ Advancing from step', currentStep, 'to', currentStep + 1);
-    
-    const timer = setTimeout(() => {
-      setCurrentStep(prev => prev + 1);
-    }, 600);
-    
-    return () => clearTimeout(timer);
-  }, [completedSteps, currentStep, showOnboarding]);
 
   // CSS Class Helpers
   const getCardClass = (cardId: string): string => {
@@ -704,6 +705,16 @@ export default function LandingPageGenerator({
             <p className="text-[10px] text-gray-400 mt-1.5 px-1">
               {contentType === 'landingpage' ? 'Fokus auf Conversion, Leads & Verkauf.' : 'Fokus auf Information, SEO-Traffic & Mehrwert.'}
             </p>
+            
+            {/* ✅ WEITER-BUTTON (nur wenn Onboarding aktiv und Step 2 ist aktuell) */}
+            {showOnboarding && currentStep === 2 && (
+              <button
+                onClick={() => setCurrentStep(3)}
+                className="mt-3 w-full py-2 px-4 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2"
+              >
+                Weiter zu Schritt 3 →
+              </button>
+            )}
           </div>
 
           {/* STEP 3: SPY SECTION */}
@@ -738,6 +749,16 @@ export default function LandingPageGenerator({
                   </div>
               )}
             </div>
+            
+            {/* ✅ WEITER-BUTTON (Überspringen möglich) */}
+            {showOnboarding && currentStep === 3 && (
+              <button
+                onClick={() => setCurrentStep(4)}
+                className="mt-3 w-full py-2 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2"
+              >
+                {spyData ? 'Weiter zu Schritt 4 →' : 'Überspringen (Optional) →'}
+              </button>
+            )}
           </div>
 
           {/* STEP 4: ZIELGRUPPE */}
@@ -751,6 +772,16 @@ export default function LandingPageGenerator({
               placeholder="z.B. KMUs, Ärzte..."
               className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-gray-400 outline-none"
             />
+            
+            {/* ✅ WEITER-BUTTON */}
+            {showOnboarding && currentStep === 4 && (
+              <button
+                onClick={() => setCurrentStep(5)}
+                className="mt-3 w-full py-2 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2"
+              >
+                {targetAudience ? 'Weiter zu Schritt 5 →' : 'Überspringen (Optional) →'}
+              </button>
+            )}
           </div>
 
           {/* STEP 5: TONALITÄT */}
@@ -770,6 +801,16 @@ export default function LandingPageGenerator({
               ))}
             </div>
             {spyData && <p className="text-[10px] text-amber-600 mt-1">*Wird durch Spy-Analyse überschrieben.</p>}
+            
+            {/* ✅ WEITER-BUTTON */}
+            {showOnboarding && currentStep === 5 && (
+              <button
+                onClick={() => setCurrentStep(6)}
+                className="mt-3 w-full py-2 px-4 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2"
+              >
+                Weiter zu Schritt 6 →
+              </button>
+            )}
           </div>
         </div>
 
