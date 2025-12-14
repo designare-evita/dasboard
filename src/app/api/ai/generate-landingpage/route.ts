@@ -396,44 +396,156 @@ Integriere diese Informationen zwingend in den Text:
     // ========================================================================
 
     let sectionInstruction = "";
+    let sectionStructure = "";
 
     switch (section) {
       case 'intro':
         sectionInstruction = `
 ⚠️ SEKTIONS-AUFTRAG: NUR HERO & EINLEITUNG
-Generiere NUR den Hero-Bereich (H1) und die Einleitung (Problem & Lösung). 
+Generiere AUSSCHLIESSLICH den Hero-Bereich (H1) und die Einleitung (Problem & Lösung). 
 Fokus auf starke Hooks und emotionale Ansprache.
-KEIN FAQ, KEINE Benefits-Liste, KEIN Social Proof.
+STOPPE DANACH! KEIN FAQ, KEINE Benefits-Liste, KEIN Social Proof, KEINE weiteren Sektionen!
+`;
+        sectionStructure = `
+STRUKTUR (NUR DIESE ELEMENTE!):
+
+# [Aufmerksamkeitsstarke H1 - MUSS "${mainKeyword}" enthalten!]
+
+[Einleitender Absatz mit HAUPTKEYWORD - Hook, UVP & Benefit in 2-3 Sätzen]
+
+## [Problem-Aufriss H2]
+[Ausführlicher Absatz - Problem der Zielgruppe ansprechen, emotional, min. 150 Wörter]
+
+## [Lösungs-Versprechen H2]
+[Zweiter Absatz - Lösung präsentieren mit konkreten Vorteilen, min. 150 Wörter]
+
+> **CTA:** [Mini-CTA: "Erfahren Sie mehr..." oder "Kontaktieren Sie uns..."]
+
+WICHTIG: STOPPE HIER! Generiere KEINE weiteren Sektionen!
 `;
         break;
       case 'benefits':
         sectionInstruction = `
 ⚠️ SEKTIONS-AUFTRAG: NUR VORTEILE & FEATURES
-Generiere NUR die Nutzen-Argumentation (H2), Features und USPs.
-Sei extrem detailliert und spezifisch.
-KEINE Einleitung, KEIN FAQ, KEIN Social Proof.
+Generiere AUSSCHLIESSLICH die Nutzen-Argumentation, Features und USPs.
+Sei extrem detailliert und spezifisch. Mindestens 6-8 Vorteile mit ausführlicher Erklärung.
+STOPPE DANACH! KEINE Einleitung, KEIN FAQ, KEIN Social Proof!
+`;
+        sectionStructure = `
+STRUKTUR (NUR DIESE ELEMENTE!):
+
+## Ihre Vorteile auf einen Blick
+
+### [Vorteil 1 - mit Keyword-Bezug]
+[Ausführliche Erklärung des Nutzens, min. 50 Wörter, konkret und spezifisch]
+
+### [Vorteil 2]
+[Ausführliche Erklärung, mit Zahlen oder Zeitangaben wenn möglich]
+
+### [Vorteil 3]
+[Emotionaler Nutzen, was verändert sich für den Kunden?]
+
+### [Vorteil 4]
+[Trust-Element: Garantie, Support, Sicherheit]
+
+### [Vorteil 5]
+[Weiterer relevanter Vorteil]
+
+### [Vorteil 6]
+[Weiterer relevanter Vorteil]
+
+## Features im Detail
+
+* **[Feature 1]:** [Technische/praktische Erklärung]
+* **[Feature 2]:** [Was macht es besonders?]
+* **[Feature 3]:** [Alleinstellungsmerkmal]
+* **[Feature 4]:** [Praktischer Nutzen]
+
+WICHTIG: STOPPE HIER! Generiere KEINE Einleitung, KEIN FAQ, KEINEN Social Proof!
 `;
         break;
       case 'trust':
         sectionInstruction = `
 ⚠️ SEKTIONS-AUFTRAG: NUR SOCIAL PROOF & TRUST
-Generiere NUR Trust-Elemente: Testimonials, Referenzen, Zahlen, Auszeichnungen.
+Generiere AUSSCHLIESSLICH Trust-Elemente: Testimonials, Referenzen, Zahlen, Auszeichnungen, Expertise.
 Fokus auf Glaubwürdigkeit und Vertrauensaufbau.
-KEINE Einleitung, KEINE Benefits, KEIN FAQ.
+STOPPE DANACH! KEINE Einleitung, KEINE Benefits-Liste, KEIN FAQ!
+`;
+        sectionStructure = `
+STRUKTUR (NUR DIESE ELEMENTE!):
+
+## Unsere Expertise
+
+[Authority-Building: Erfahrung, Qualifikationen, Hintergrund - min. 100 Wörter]
+
+## Das sagen unsere Kunden
+
+> _"[Testimonial 1 - authentisch klingend, mit konkretem Ergebnis]"_
+> — [Name], [Position/Unternehmen]
+
+> _"[Testimonial 2 - anderer Aspekt hervorheben]"_
+> — [Name], [Position/Unternehmen]
+
+> _"[Testimonial 3 - emotionaler Fokus]"_
+> — [Name], [Position/Unternehmen]
+
+## Zahlen & Fakten
+
+* **[Zahl 1]** [Kunden/Projekte/Jahre Erfahrung]
+* **[Zahl 2]** [Erfolgsquote/Zufriedenheit]
+* **[Zahl 3]** [Relevante Metrik]
+
+## Auszeichnungen & Zertifizierungen
+
+[Falls relevant: Siegel, Zertifikate, Partnerschaften, Medienerwähnungen]
+
+WICHTIG: STOPPE HIER! Generiere KEINE Einleitung, KEINE Benefits, KEIN FAQ!
 `;
         break;
       case 'faq':
         sectionInstruction = `
 ⚠️ SEKTIONS-AUFTRAG: NUR FAQ & ABSCHLUSS
-Generiere NUR eine umfangreiche FAQ-Sektion (mind. 5 Fragen) und das Fazit mit CTA.
+Generiere AUSSCHLIESSLICH eine umfangreiche FAQ-Sektion (mind. 6 Fragen) und das Fazit mit starkem CTA.
 Fokus auf Einwandbehandlung und Handlungsaufforderung.
-KEINE Einleitung, KEINE Benefits, KEIN Social Proof davor.
+STOPPE DANACH! KEINE Einleitung, KEINE Benefits, KEIN Social Proof davor!
+`;
+        sectionStructure = `
+STRUKTUR (NUR DIESE ELEMENTE!):
+
+## Häufig gestellte Fragen
+
+### [Frage 1 - MUSS Hauptkeyword "${mainKeyword}" enthalten]
+[Ausführliche Antwort mit LSI-Keywords, 3-4 Sätze]
+
+### [Frage 2 - Keyword-Variante]
+[Antwort mit konkreten Zahlen/Fakten]
+
+### [Frage 3 - Kosten/Preis-Frage]
+[Transparente Antwort, Wert hervorheben]
+
+### [Frage 4 - Zeitrahmen/Ablauf]
+[Klare Schritte, Transparenz schaffen]
+
+### [Frage 5 - Einwand/Bedenken]
+[Bedenken ausräumen, Sicherheit geben]
+
+### [Frage 6 - Vergleich/Alternative]
+[Warum diese Lösung die beste ist]
+
+---
+
+## [Starker CTA-Titel mit Urgency]
+
+[Zusammenfassung des Hauptnutzens + emotionale Handlungsaufforderung, min. 50 Wörter]
+
+**[Konkreter nächster Schritt: "Jetzt unverbindlich anfragen" / "Kostenlose Erstberatung sichern"]**
+
+WICHTIG: STOPPE HIER! Generiere KEINE Einleitung, KEINE Benefits, KEINEN Social Proof!
 `;
         break;
       default:
-        sectionInstruction = `
-AUFTRAG: Generiere die VOLLSTÄNDIGE Landingpage-Struktur.
-`;
+        sectionInstruction = "";
+        sectionStructure = ""; // Leer = nutze Standard-Struktur unten
     }
 
     // ========================================================================
@@ -607,10 +719,9 @@ REGELN:
 1. ✅ GENERIERE NUR SAUBERES MARKDOWN (.md) - KEIN HTML!
 2. Integriere ALLE angegebenen Keywords natürlich in den Text
 3. Der Content muss SOFORT verwendbar sein (Copy & Paste)
-4. MINDESTENS 900 Wörter für ausreichende Content-Tiefe
-5. ✅ BEFOLGE DIE INTENT-BASIERTE STRUKTUR OBEN!
+${sectionStructure ? '4. ✅ BEFOLGE EXAKT DIE SEKTIONS-STRUKTUR UNTEN - NICHTS ANDERES!' : '4. MINDESTENS 900 Wörter für ausreichende Content-Tiefe\n5. ✅ BEFOLGE DIE INTENT-BASIERTE STRUKTUR OBEN!'}
 
-STRUKTUR (in dieser Reihenfolge):
+${sectionStructure || `STRUKTUR (in dieser Reihenfolge):
 
 # [Aufmerksamkeitsstarke H1 - MUSS "${mainKeyword}" enthalten!]
 
@@ -658,16 +769,16 @@ STRUKTUR (in dieser Reihenfolge):
 ## [Starker CTA-Titel mit Urgency]
 [Zusammenfassung des Hauptnutzens + Handlungsaufforderung]
 
-**[Konkreter nächster Schritt: "Jetzt unverbindlich anfragen" / "Kostenlose Erstberatung sichern"]**
+**[Konkreter nächster Schritt: "Jetzt unverbindlich anfragen" / "Kostenlose Erstberatung sichern"]**`}
 
 ═══════════════════════════════════════════════════════════════════════════════
 
 WICHTIG: Generiere NUR Markdown. Keine Einleitung, keine Erklärungen.
-Prüfe vor Ausgabe:
+${sectionStructure ? `⚠️ KRITISCH: Generiere NUR die oben angegebene Sektion! KEINE anderen Teile!` : `Prüfe vor Ausgabe:
 ✅ Ist "${mainKeyword}" in H1 und erstem Absatz?
 ✅ Mindestens 900 Wörter?
 ✅ Wurde die Intent-basierte Struktur befolgt?
-✅ Wurden die FAKTEN aus dem Kontext genutzt (keine Lügen)?
+✅ Wurden die FAKTEN aus dem Kontext genutzt (keine Lügen)?`}
       `;
     }
 
