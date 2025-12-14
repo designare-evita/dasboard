@@ -38,7 +38,7 @@ interface LandingpageRequest {
   contentType: 'landingpage' | 'blog';
   contextData?: ContextData;
   domain?: string;
-  // ✅ NEU: Optionaler Kontext für Produkte/Fakten
+  // ✅ Optionaler Kontext für Produkte/Fakten
   productContext?: string; 
 }
 
@@ -109,7 +109,7 @@ Confidence: ${confidence}
    Beispiel: "SEO Agentur Wien jetzt buchen" statt nur "SEO Agentur Wien"
 
 2. ✅ Hero-Section (direkt nach H1):
-   - Starker CTA-Button above-the-fold
+   - Starker CTA (Call-to-Action) Link/Button
    - Preis/Angebot sofort sichtbar (wenn verfügbar)
    - Trust-Badge oder Gütesiegel erwähnen
 
@@ -449,74 +449,44 @@ QUALITÄTS-REGELN (STRIKT!)
 OUTPUT ANFORDERUNGEN
 ═══════════════════════════════════════════════════════════════════════════════
 
-Generiere NUR den HTML-Code (Tailwind CSS).
+Generiere NUR sauberes **Markdown** (.md). KEIN HTML.
 Struktur:
 
-1. <h1 class="text-3xl md:text-4xl font-bold text-gray-900 mb-6">
-     [Titel mit "${mainKeyword}"]
-   </h1>
+# [Titel mit "${mainKeyword}"]
 
-2. <div class="bg-indigo-50 p-6 rounded-xl mb-8 border border-indigo-100">
-     <h3 class="font-bold text-indigo-900 mb-3">Das Wichtigste in Kürze:</h3>
-     <ul class="space-y-2">
-       <li class="flex gap-2 text-indigo-900"><span class="text-indigo-600">✓</span> [Key Takeaway 1]</li>
-       <li class="flex gap-2 text-indigo-900"><span class="text-indigo-600">✓</span> [Key Takeaway 2]</li>
-       <li class="flex gap-2 text-indigo-900"><span class="text-indigo-600">✓</span> [Key Takeaway 3]</li>
-     </ul>
-   </div>
+> **Das Wichtigste in Kürze:**
+> * [Key Takeaway 1]
+> * [Key Takeaway 2]
+> * [Key Takeaway 3]
 
-3. <p class="text-xl text-gray-600 mb-8 leading-relaxed">
-     [Starke Einleitung: Problemaufriss und Versprechen]
-   </p>
+[Starke Einleitung: Problemaufriss und Versprechen]
 
-4. <section class="mb-10">
-     <h2 class="${STYLES.h3} mb-4">[H2: Grundlagen / Definition]</h2>
-     <p class="${STYLES.p}">[Erklärender Text...]</p>
-   </section>
+## [H2: Grundlagen / Definition]
+[Erklärender Text...]
 
-5. <section class="mb-10">
-     <h2 class="${STYLES.h3} mb-4">[H2: Deep Dive - Hauptteil]</h2>
-     <p class="${STYLES.p}">[Detaillierter Content...]</p>
-     <div class="my-6 p-5 bg-yellow-50 border-l-4 border-yellow-400 rounded-r-lg">
-       <strong class="text-yellow-800 block mb-1">💡 Experten-Tipp:</strong>
-       <p class="text-yellow-700 m-0 text-sm">[Ein wertvoller Tipp aus der Praxis]</p>
-     </div>
-   </section>
+## [H2: Deep Dive - Hauptteil]
+[Detaillierter Content...]
 
-6. <section class="mb-10">
-     <h2 class="${STYLES.h3} mb-4">[H2: Anleitung / Schritt-für-Schritt]</h2>
-     <ul class="${STYLES.list}">
-       <li class="${STYLES.listItem}"><strong class="text-gray-900">1. [Schritt]:</strong> [Erklärung]</li>
-       <li class="${STYLES.listItem}"><strong class="text-gray-900">2. [Schritt]:</strong> [Erklärung]</li>
-       <li class="${STYLES.listItem}"><strong class="text-gray-900">3. [Schritt]:</strong> [Erklärung]</li>
-     </ul>
-   </section>
+> 💡 **Experten-Tipp:**
+> [Ein wertvoller Tipp aus der Praxis]
 
-7. <section class="mb-10">
-     <h2 class="${STYLES.h3} mb-4">Häufige Fehler (und wie man sie vermeidet)</h2>
-     <div class="grid md:grid-cols-2 gap-4">
-       <div class="bg-red-50 p-4 rounded-lg border border-red-100">
-         <strong class="text-red-700 block mb-1">❌ Falsch:</strong>
-         <span class="text-sm text-red-600">[Typischer Fehler]</span>
-       </div>
-       <div class="bg-green-50 p-4 rounded-lg border border-green-100">
-         <strong class="text-green-700 block mb-1">✅ Richtig:</strong>
-         <span class="text-sm text-green-600">[Lösung/Best Practice]</span>
-       </div>
-     </div>
-   </section>
+## [H2: Anleitung / Schritt-für-Schritt]
+1. **[Schritt 1]:** [Erklärung]
+2. **[Schritt 2]:** [Erklärung]
+3. **[Schritt 3]:** [Erklärung]
 
-8. <section class="mb-10 bg-gray-50 p-8 rounded-xl">
-     <h2 class="${STYLES.h3} mb-4">Fazit</h2>
-     <p class="${STYLES.p}">[Zusammenfassung und Ausblick]</p>
-   </section>
+## Häufige Fehler (und wie man sie vermeidet)
+* ❌ **Falsch:** [Typischer Fehler]
+* ✅ **Richtig:** [Lösung/Best Practice]
 
-9. <div class="mt-8 pt-8 border-t border-gray-100 text-center">
-      <p class="font-medium text-gray-900 mb-4">Fanden Sie diesen Artikel hilfreich?</p>
-      [Passender CTA für einen Blog, z.B. Newsletter oder Kontakt]
-   </div>
+## Fazit
+[Zusammenfassung und Ausblick]
 
-WICHTIG: Generiere NUR den HTML-Code. Mindestens 1200 Wörter für den Blogpost.
+---
+**Fanden Sie diesen Artikel hilfreich?**
+[Passender CTA für einen Blog, z.B. Newsletter oder Kontakt]
+
+WICHTIG: Generiere NUR den Markdown-Code. Mindestens 1200 Wörter.
       `;
 
     } else {
@@ -575,112 +545,74 @@ QUALITÄTS-REGELN (STRIKT!)
   → Bei Einzelpersonen/Freelancern: Immer "Ich"
 
 ### 4. FORMATIERUNG & STRUKTUR
-- Nutze viele <h3 class="${STYLES.h3}"> Zwischenüberschriften.
+- Nutze Markdown für die Struktur (#, ##, ###).
 - Halte Absätze extrem kurz (max. 3 Zeilen).
-- Nutze Fettungen (<b>...</b>) für Schlüsselsätze, damit man den Text scannen kann.
+- Nutze Fettungen (**...**) für Schlüsselsätze, damit man den Text scannen kann.
 
 ═══════════════════════════════════════════════════════════════════════════════
 OUTPUT ANFORDERUNGEN
 ═══════════════════════════════════════════════════════════════════════════════
 
 REGELN:
-1. KEIN MARKDOWN - nur HTML mit Tailwind-Klassen
+1. ✅ GENERIERE NUR SAUBERES MARKDOWN (.md) - KEIN HTML!
 2. Integriere ALLE angegebenen Keywords natürlich in den Text
 3. Der Content muss SOFORT verwendbar sein (Copy & Paste)
-4. Fokus auf TEXTBLÖCKE - wenig Design-Elemente
-5. MINDESTENS 900 Wörter für ausreichende Content-Tiefe
-6. ✅ BEFOLGE DIE INTENT-BASIERTE STRUKTUR OBEN!
+4. MINDESTENS 900 Wörter für ausreichende Content-Tiefe
+5. ✅ BEFOLGE DIE INTENT-BASIERTE STRUKTUR OBEN!
 
 STRUKTUR (in dieser Reihenfolge):
 
-1. <h1 class="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-     [Aufmerksamkeitsstarke H1 - MUSS "${mainKeyword}" enthalten!]
-   </h1>
+# [Aufmerksamkeitsstarke H1 - MUSS "${mainKeyword}" enthalten!]
 
-2. <p class="text-xl text-gray-600 mb-8 leading-relaxed">
-     [Einleitender Absatz mit HAUPTKEYWORD - Hook, UVP & Benefit in 2-3 Sätzen]
-   </p>
+[Einleitender Absatz mit HAUPTKEYWORD - Hook, UVP & Benefit in 2-3 Sätzen]
 
-3. <section class="mb-8">
-     <h2 class="${STYLES.h3} mb-4">[Nutzen-orientierte H2 mit Keyword-Variante]</h2>
-     <p class="${STYLES.p}">[Ausführlicher Absatz - Problem der Zielgruppe ansprechen, min. 100 Wörter]</p>
-     <p class="${STYLES.p}">[Zweiter Absatz - Lösung präsentieren mit konkreten Vorteilen]</p>
-     <p class="${STYLES.p} font-medium text-indigo-700">[Mini-CTA: "Erfahren Sie mehr..." oder "Kontaktieren Sie uns..."]</p>
-   </section>
+## [Nutzen-orientierte H2 mit Keyword-Variante]
+[Ausführlicher Absatz - Problem der Zielgruppe ansprechen, min. 100 Wörter]
 
-4. <section class="mb-8">
-     <h2 class="${STYLES.h3} mb-4">[E-E-A-T H2: "Unsere Expertise" / "Warum wir"]</h2>
-     <p class="${STYLES.p}">[Authority-Building: Nutze die FAKTEN aus dem Kontext]</p>
-     <p class="${STYLES.p}">[Experience: Ein konkretes Beispiel oder Erfolgsgeschichte]</p>
-   </section>
+[Zweiter Absatz - Lösung präsentieren mit konkreten Vorteilen]
 
-5. <section class="mb-8">
-     <h2 class="${STYLES.h3} mb-4">Ihre Vorteile auf einen Blick</h2>
-     <ul class="${STYLES.list}">
-       <li class="${STYLES.listItem} bg-white p-3 rounded-lg border border-gray-100">
-         <strong class="text-indigo-700">[Benefit 1]:</strong> [Konkreter Nutzen, nicht Feature]
-       </li>
-       <li class="${STYLES.listItem} bg-white p-3 rounded-lg border border-gray-100">
-         <strong class="text-indigo-700">[Benefit 2]:</strong> [Mit Zahl oder Zeitangabe wenn möglich]
-       </li>
-       <li class="${STYLES.listItem} bg-white p-3 rounded-lg border border-gray-100">
-         <strong class="text-indigo-700">[Benefit 3]:</strong> [Emotionaler Nutzen]
-       </li>
-       <li class="${STYLES.listItem} bg-white p-3 rounded-lg border border-gray-100">
-         <strong class="text-indigo-700">[Benefit 4]:</strong> [Trust-Element: Garantie/Support]
-       </li>
-     </ul>
-   </section>
+> **CTA:** [Mini-CTA: "Erfahren Sie mehr..." oder "Kontaktieren Sie uns..."]
 
-6. <section class="mb-8 bg-gray-50 p-6 rounded-xl">
-     <h2 class="${STYLES.h3} mb-4">[Social Proof H2: "Das sagen unsere Kunden" / "Erfolge"]</h2>
-     <p class="${STYLES.p}">[Referenz-Absatz: Branche, Anzahl Kunden, durchschnittliche Ergebnisse]</p>
-     <p class="${STYLES.p} italic text-gray-600">[Optional: Kurzes Zitat-Beispiel eines fiktiven zufriedenen Kunden]</p>
-   </section>
+## [E-E-A-T H2: "Unsere Expertise" / "Warum wir"]
+[Authority-Building: Nutze die FAKTEN aus dem Kontext]
 
-7. <section class="mb-8">
-     <h2 class="${STYLES.h3} mb-4">Häufig gestellte Fragen</h2>
-     <div class="space-y-3">
-       <details class="bg-gray-50 p-4 rounded-lg group">
-         <summary class="font-semibold cursor-pointer flex justify-between items-center">
-           [Frage 1 - MUSS Hauptkeyword enthalten]
-           <span class="text-gray-400 group-open:rotate-180 transition-transform">▼</span>
-         </summary>
-         <p class="mt-3 text-gray-600">[Ausführliche Antwort mit LSI-Keywords, 2-3 Sätze]</p>
-       </details>
-       <details class="bg-gray-50 p-4 rounded-lg group">
-         <summary class="font-semibold cursor-pointer flex justify-between items-center">
-           [Frage 2 - Keyword-Variante]
-           <span class="text-gray-400 group-open:rotate-180 transition-transform">▼</span>
-         </summary>
-         <p class="mt-3 text-gray-600">[Antwort mit konkreten Zahlen/Fakten]</p>
-       </details>
-       <details class="bg-gray-50 p-4 rounded-lg group">
-         <summary class="font-semibold cursor-pointer flex justify-between items-center">
-           [Frage 3 - Einwandbehandlung: Kosten/Zeit/Aufwand]
-           <span class="text-gray-400 group-open:rotate-180 transition-transform">▼</span>
-         </summary>
-         <p class="mt-3 text-gray-600">[Antwort die Bedenken ausräumt]</p>
-       </details>
-       <details class="bg-gray-50 p-4 rounded-lg group">
-         <summary class="font-semibold cursor-pointer flex justify-between items-center">
-           [Frage 4 - "Wie läuft der Prozess ab?" o.ä.]
-           <span class="text-gray-400 group-open:rotate-180 transition-transform">▼</span>
-         </summary>
-         <p class="mt-3 text-gray-600">[Klare Schritte, Transparenz schaffen]</p>
-       </details>
-     </div>
-   </section>
+[Experience: Ein konkretes Beispiel oder Erfolgsgeschichte]
 
-8. <section class="bg-gradient-to-r from-indigo-600 to-purple-600 p-8 rounded-xl text-white">
-     <h2 class="text-2xl font-bold mb-3">[Starker CTA-Titel mit Urgency]</h2>
-     <p class="text-indigo-100 mb-4">[Zusammenfassung des Hauptnutzens + Handlungsaufforderung]</p>
-     <p class="font-semibold">[Konkreter nächster Schritt: "Jetzt unverbindlich anfragen" / "Kostenlose Erstberatung sichern"]</p>
-   </section>
+## Ihre Vorteile auf einen Blick
+* **[Benefit 1]:** [Konkreter Nutzen, nicht Feature]
+* **[Benefit 2]:** [Mit Zahl oder Zeitangabe wenn möglich]
+* **[Benefit 3]:** [Emotionaler Nutzen]
+* **[Benefit 4]:** [Trust-Element: Garantie/Support]
+
+## [Social Proof H2: "Das sagen unsere Kunden" / "Erfolge"]
+[Referenz-Absatz: Branche, Anzahl Kunden, durchschnittliche Ergebnisse]
+
+> _"[Optional: Kurzes Zitat-Beispiel eines fiktiven zufriedenen Kunden]"_
+
+## Häufig gestellte Fragen
+
+### [Frage 1 - MUSS Hauptkeyword enthalten]
+[Ausführliche Antwort mit LSI-Keywords, 2-3 Sätze]
+
+### [Frage 2 - Keyword-Variante]
+[Antwort mit konkreten Zahlen/Fakten]
+
+### [Frage 3 - Einwandbehandlung: Kosten/Zeit/Aufwand]
+[Antwort die Bedenken ausräumt]
+
+### [Frage 4 - "Wie läuft der Prozess ab?" o.ä.]
+[Klare Schritte, Transparenz schaffen]
+
+---
+
+## [Starker CTA-Titel mit Urgency]
+[Zusammenfassung des Hauptnutzens + Handlungsaufforderung]
+
+**[Konkreter nächster Schritt: "Jetzt unverbindlich anfragen" / "Kostenlose Erstberatung sichern"]**
 
 ═══════════════════════════════════════════════════════════════════════════════
 
-WICHTIG: Generiere NUR den HTML-Code. Keine Einleitung, keine Erklärungen.
+WICHTIG: Generiere NUR Markdown. Keine Einleitung, keine Erklärungen.
 Prüfe vor Ausgabe:
 ✅ Ist "${mainKeyword}" in H1 und erstem Absatz?
 ✅ Mindestens 900 Wörter?
