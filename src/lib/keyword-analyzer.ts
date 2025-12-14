@@ -1,8 +1,15 @@
-// src/lib/keyword-analyzer.ts
+// src/lib/keyword-analyzer.ts (ERWEITERT MIT INTENT-ANALYSE)
 // Intelligente Analyse von GSC Keywords für den Landingpage Generator
 
+import { 
+  analyzeSearchIntent, 
+  analyzeBatchIntent,
+  type SearchIntent,
+  type IntentAnalysis 
+} from './intent-analyzer';
+
 // ============================================================================
-// TYPES
+// TYPES (ERWEITERT)
 // ============================================================================
 
 export interface Keyword {
@@ -17,12 +24,14 @@ export interface StrikingDistanceKeyword {
   position: number;
   impressions: number;
   priority: 'high' | 'medium' | 'low';
+  intent?: SearchIntent; // ✅ NEU
 }
 
 export interface KeywordCluster {
   theme: string;
   keywords: string[];
   totalClicks: number;
+  dominantIntent?: SearchIntent; // ✅ NEU
 }
 
 export interface KeywordAnalysis {
@@ -43,6 +52,13 @@ export interface KeywordAnalysis {
   
   // Keyword-Cluster (thematisch gruppiert)
   clusters: KeywordCluster[];
+  
+  // ✅ NEU: Intent-Analyse
+  intentAnalysis: {
+    dominantIntent: SearchIntent;
+    intentDistribution: Record<SearchIntent, number>;
+    mainKeywordIntent: IntentAnalysis;
+  };
   
   // Statistiken
   stats: {
@@ -76,18 +92,31 @@ const STOP_WORDS = [
 ];
 
 // ============================================================================
-// MAIN ANALYSIS FUNCTION
+// MAIN ANALYSIS FUNCTION (ERWEITERT)
 // ============================================================================
 
 /**
  * Analysiert GSC Keywords und extrahiert strukturierte Insights
  * @param keywords - Array von Keyword-Objekten aus GSC
  * @param topic - Optionales Thema als Fallback für Hauptkeyword
- * @returns KeywordAnalysis Objekt mit allen Insights
+ * @param domain - Optional: Domain für Intent-Analyse
+ * @returns KeywordAnalysis Objekt mit allen Insights inkl. Intent
  */
-export function analyzeKeywords(keywords: Keyword[], topic?: string): KeywordAnalysis {
+export function analyzeKeywords(
+  keywords: Keyword[], 
+  topic?: string,
+  domain?: string
+): KeywordAnalysis {
   // Edge Case: Keine Keywords
   if (!keywords || keywords.length === 0) {
+    const emptyIntentAnalysis: IntentAnalysis = {
+      keyword: topic || '',
+      primaryIntent: 'informational',
+      confidence: 'low',
+      signals: [],
+      contentRecommendations: []
+    };
+
     return {
       mainKeyword: topic || '',
       secondaryKeywords: [],
@@ -95,6 +124,11 @@ export function analyzeKeywords(keywords: Keyword[], topic?: string): KeywordAna
       longTailKeywords: [],
       questionKeywords: [],
       clusters: [],
+      intentAnalysis: {
+        dominantIntent: 'informational',
+        intentDistribution: { informational: 0, commercial: 0, transactional: 0, navigational: 0 },
+        mainKeywordIntent: emptyIntentAnalysis
+      },
       stats: {
         totalKeywords: 0,
         totalClicks: 0,
@@ -118,8 +152,8 @@ export function analyzeKeywords(keywords: Keyword[], topic?: string): KeywordAna
     .slice(1, 6)
     .map(k => k.query);
   
-  // 5. Striking Distance Keywords
-  const strikingDistance = findStrikingDistance(keywords);
+  // 5. Striking Distance Keywords (mit Intent)
+  const strikingDistance = findStrikingDistance(keywords, domain);
   
   // 6. Long-Tail Keywords (3+ Wörter)
   const longTailKeywords = findLongTailKeywords(keywords);
@@ -127,8 +161,13 @@ export function analyzeKeywords(keywords: Keyword[], topic?: string): KeywordAna
   // 7. Fragen-Keywords
   const questionKeywords = findQuestionKeywords(keywords);
   
-  // 8. Keyword-Cluster
-  const clusters = createKeywordClusters(keywords);
+  // 8. Keyword-Cluster (mit Intent)
+  const clusters = createKeywordClusters(keywords, domain);
+
+  // ✅ 9. INTENT-ANALYSE
+  const allQueries = keywords.map(k => k.query);
+  const batchIntent = analyzeBatchIntent(allQueries, { domain });
+  const mainKeywordIntent = analyzeSearchIntent(mainKeyword, { domain });
 
   return {
     mainKeyword,
@@ -137,12 +176,17 @@ export function analyzeKeywords(keywords: Keyword[], topic?: string): KeywordAna
     longTailKeywords,
     questionKeywords,
     clusters,
+    intentAnalysis: {
+      dominantIntent: batchIntent.dominantIntent,
+      intentDistribution: batchIntent.intentDistribution,
+      mainKeywordIntent
+    },
     stats
   };
 }
 
 // ============================================================================
-// HELPER FUNCTIONS
+// HELPER FUNCTIONS (teilweise erweitert)
 // ============================================================================
 
 /**
@@ -165,47 +209,44 @@ function calculateStats(keywords: Keyword[]) {
 }
 
 /**
- * Findet Striking Distance Keywords (Position 4-20)
- * Diese haben hohes Potenzial für schnelle Ranking-Verbesserungen
+ * Findet Striking Distance Keywords (Position 4-20) - ERWEITERT mit Intent
  */
-function findStrikingDistance(keywords: Keyword[]): StrikingDistanceKeyword[] {
+function findStrikingDistance(keywords: Keyword[], domain?: string): StrikingDistanceKeyword[] {
   return keywords
     .filter(k => k.position >= 4 && k.position <= 20)
     .sort((a, b) => {
-      // Sortiere nach einem Score: Impressionen / Position
-      // Höhere Impressionen + niedrigere Position = besseres Potenzial
       const scoreA = a.impressions / a.position;
       const scoreB = b.impressions / b.position;
       return scoreB - scoreA;
     })
     .slice(0, 7)
-    .map(k => ({
-      keyword: k.query,
-      position: Math.round(k.position * 10) / 10,
-      impressions: k.impressions,
-      priority: determinePriority(k)
-    }));
+    .map(k => {
+      const intent = analyzeSearchIntent(k.query, { domain }).primaryIntent;
+      return {
+        keyword: k.query,
+        position: Math.round(k.position * 10) / 10,
+        impressions: k.impressions,
+        priority: determinePriority(k),
+        intent // ✅ NEU
+      };
+    });
 }
 
 /**
  * Bestimmt die Priorität eines Striking Distance Keywords
  */
 function determinePriority(keyword: Keyword): 'high' | 'medium' | 'low' {
-  // High: Position 4-10 UND > 500 Impressionen
   if (keyword.position <= 10 && keyword.impressions > 500) {
     return 'high';
   }
-  // Medium: Position 4-15 ODER > 300 Impressionen
   if (keyword.position <= 15 || keyword.impressions > 300) {
     return 'medium';
   }
-  // Low: Rest
   return 'low';
 }
 
 /**
  * Findet Long-Tail Keywords (3+ Wörter)
- * Diese sind oft spezifischer und leichter zu ranken
  */
 function findLongTailKeywords(keywords: Keyword[]): string[] {
   return keywords
@@ -220,7 +261,6 @@ function findLongTailKeywords(keywords: Keyword[]): string[] {
 
 /**
  * Findet Fragen-Keywords (W-Fragen)
- * Ideal für FAQ-Sections und Featured Snippets
  */
 function findQuestionKeywords(keywords: Keyword[]): string[] {
   const allQuestionWords = [...QUESTION_WORDS_DE, ...QUESTION_WORDS_EN];
@@ -236,25 +276,21 @@ function findQuestionKeywords(keywords: Keyword[]): string[] {
 }
 
 /**
- * Erstellt thematische Keyword-Cluster
- * Gruppiert Keywords nach gemeinsamen Begriffen
+ * Erstellt thematische Keyword-Cluster - ERWEITERT mit Intent
  */
-function createKeywordClusters(keywords: Keyword[]): KeywordCluster[] {
+function createKeywordClusters(keywords: Keyword[], domain?: string): KeywordCluster[] {
   const clusterMap = new Map<string, { keywords: Keyword[]; totalClicks: number }>();
   
   keywords.forEach(k => {
-    // Extrahiere signifikante Wörter (keine Stoppwörter, min. 3 Zeichen)
     const words = k.query.toLowerCase().split(/\s+/)
       .filter(w => w.length >= 3 && !STOP_WORDS.includes(w));
     
-    // Füge zu jedem relevanten Wort-Cluster hinzu
     words.forEach(word => {
       if (!clusterMap.has(word)) {
         clusterMap.set(word, { keywords: [], totalClicks: 0 });
       }
       const cluster = clusterMap.get(word)!;
       
-      // Vermeide Duplikate
       if (!cluster.keywords.some(existing => existing.query === k.query)) {
         cluster.keywords.push(k);
         cluster.totalClicks += k.clicks;
@@ -262,23 +298,29 @@ function createKeywordClusters(keywords: Keyword[]): KeywordCluster[] {
     });
   });
   
-  // Filtere und sortiere Cluster
   return Array.from(clusterMap.entries())
-    .filter(([_, data]) => data.keywords.length >= 2) // Mindestens 2 Keywords
-    .sort((a, b) => b[1].totalClicks - a[1].totalClicks) // Nach Klicks sortieren
-    .slice(0, 5) // Top 5 Cluster
-    .map(([theme, data]) => ({
-      theme: theme.charAt(0).toUpperCase() + theme.slice(1), // Capitalize
-      keywords: data.keywords
-        .sort((a, b) => b.clicks - a.clicks)
-        .slice(0, 5)
-        .map(k => k.query),
-      totalClicks: data.totalClicks
-    }));
+    .filter(([_, data]) => data.keywords.length >= 2)
+    .sort((a, b) => b[1].totalClicks - a[1].totalClicks)
+    .slice(0, 5)
+    .map(([theme, data]) => {
+      // ✅ Bestimme dominanten Intent des Clusters
+      const clusterQueries = data.keywords.map(k => k.query);
+      const batchIntent = analyzeBatchIntent(clusterQueries, { domain });
+
+      return {
+        theme: theme.charAt(0).toUpperCase() + theme.slice(1),
+        keywords: data.keywords
+          .sort((a, b) => b.clicks - a.clicks)
+          .slice(0, 5)
+          .map(k => k.query),
+        totalClicks: data.totalClicks,
+        dominantIntent: batchIntent.dominantIntent // ✅ NEU
+      };
+    });
 }
 
 // ============================================================================
-// PROMPT GENERATOR
+// PROMPT GENERATOR (ERWEITERT mit Intent)
 // ============================================================================
 
 /**
@@ -291,12 +333,39 @@ export function generateKeywordPromptContext(analysis: KeywordAnalysis): string 
     return '';
   }
 
+  // ✅ Intent-Labels für bessere Lesbarkeit
+  const intentLabels: Record<SearchIntent, string> = {
+    informational: 'Informations-Suche (Nutzer will lernen)',
+    commercial: 'Vergleichs-/Research-Absicht (Nutzer recherchiert vor Kauf)',
+    transactional: 'Kaufabsicht (Nutzer will kaufen/buchen)',
+    navigational: 'Navigations-Absicht (Nutzer sucht spezifische Seite/Marke)'
+  };
+
   let context = `
 ### KEYWORD-ANALYSE (aus Google Search Console - ${analysis.stats.totalKeywords} Keywords analysiert)
 
 **HAUPTKEYWORD (PFLICHT in H1 + erstem Absatz):**
 "${analysis.mainKeyword}"
 → Dieses Keyword hat die meisten Klicks und muss prominent platziert werden!
+
+✅ **SUCHINTENTION DES HAUPTKEYWORDS:**
+**${intentLabels[analysis.intentAnalysis.mainKeywordIntent.primaryIntent]}**
+Confidence: ${analysis.intentAnalysis.mainKeywordIntent.confidence}
+${analysis.intentAnalysis.mainKeywordIntent.secondaryIntent 
+  ? `\nSekundäre Intention: ${intentLabels[analysis.intentAnalysis.mainKeywordIntent.secondaryIntent]}`
+  : ''}
+
+📊 **DOMINANTE INTENTION ALLER KEYWORDS:**
+**${intentLabels[analysis.intentAnalysis.dominantIntent]}**
+
+Intent-Verteilung:
+${Object.entries(analysis.intentAnalysis.intentDistribution)
+  .sort(([, a], [, b]) => b - a)
+  .map(([intent, count]) => `- ${intentLabels[intent as SearchIntent]}: ${count} Keywords`)
+  .join('\n')}
+
+⚠️ **WICHTIG:** Passe die Content-Struktur an die dominante Intention an!
+${generateIntentGuidance(analysis.intentAnalysis.dominantIntent)}
 `;
 
   if (analysis.secondaryKeywords.length > 0) {
@@ -312,7 +381,8 @@ ${analysis.secondaryKeywords.map(k => `- "${k}"`).join('\n')}
 Diese Keywords sind fast auf Seite 1! Besonders wichtig zu integrieren:
 ${analysis.strikingDistance.map(k => {
   const priorityIcon = k.priority === 'high' ? '🔴' : k.priority === 'medium' ? '🟡' : '🟢';
-  return `${priorityIcon} "${k.keyword}" (Pos. ${k.position}, ${k.impressions.toLocaleString('de-DE')} Impressionen)`;
+  const intentIcon = k.intent === 'transactional' ? '💰' : k.intent === 'commercial' ? '🔍' : k.intent === 'informational' ? '📚' : '🧭';
+  return `${priorityIcon} ${intentIcon} "${k.keyword}" (Pos. ${k.position}, ${k.impressions.toLocaleString('de-DE')} Impressionen)`;
 }).join('\n')}
 `;
   }
@@ -335,9 +405,10 @@ ${analysis.questionKeywords.map(k => `- "${k}"`).join('\n')}
   if (analysis.clusters.length > 0) {
     context += `
 **THEMEN-CLUSTER (für semantische Vollständigkeit):**
-${analysis.clusters.map(c => 
-  `• ${c.theme} (${c.totalClicks} Klicks): ${c.keywords.slice(0, 3).join(', ')}${c.keywords.length > 3 ? '...' : ''}`
-).join('\n')}
+${analysis.clusters.map(c => {
+  const intentIcon = c.dominantIntent === 'transactional' ? '💰' : c.dominantIntent === 'commercial' ? '🔍' : c.dominantIntent === 'informational' ? '📚' : '🧭';
+  return `${intentIcon} ${c.theme} (${c.totalClicks} Klicks, Intent: ${c.dominantIntent}): ${c.keywords.slice(0, 3).join(', ')}${c.keywords.length > 3 ? '...' : ''}`;
+}).join('\n')}
 `;
   }
 
@@ -353,13 +424,56 @@ ${analysis.clusters.map(c =>
   return context;
 }
 
+/**
+ * ✅ NEU: Generiert Intent-basierte Content-Guidance
+ */
+function generateIntentGuidance(intent: SearchIntent): string {
+  switch (intent) {
+    case 'transactional':
+      return `
+→ FOKUS: Kaufabschluss erleichtern
+   • Starke CTAs above-the-fold
+   • Preis/Angebot prominent zeigen
+   • Trust-Elemente (Gütesiegel, Garantien)
+   • Weniger lange Erklärungen, mehr Action
+`;
+    
+    case 'commercial':
+      return `
+→ FOKUS: Vergleich & Bewertung
+   • Pro/Contra-Listen
+   • Vergleichstabellen
+   • Social Proof (Bewertungen, Tests)
+   • Objektive Bewertungskriterien
+   • Soft CTAs ("Mehr erfahren")
+`;
+    
+    case 'navigational':
+      return `
+→ FOKUS: Brand-Präsenz & Navigation
+   • Klare Firmen-Infos (Über uns, Team)
+   • Kontakt-Daten prominent
+   • Starke interne Verlinkung
+   • Standort/Öffnungszeiten wenn relevant
+`;
+    
+    case 'informational':
+    default:
+      return `
+→ FOKUS: Wissen vermitteln
+   • Detaillierte Erklärungen
+   • FAQ-Section mit W-Fragen
+   • Beispiele und Anleitungen
+   • Visuelle Elemente (Infografiken)
+   • Soft CTAs am Ende
+`;
+  }
+}
+
 // ============================================================================
-// UTILITY EXPORTS
+// UTILITY EXPORTS (unverändert)
 // ============================================================================
 
-/**
- * Schnelle Extraktion nur des Hauptkeywords
- */
 export function getMainKeyword(keywords: Keyword[], fallback?: string): string {
   if (!keywords || keywords.length === 0) {
     return fallback || '';
@@ -369,17 +483,11 @@ export function getMainKeyword(keywords: Keyword[], fallback?: string): string {
   return sorted[0]?.query || fallback || '';
 }
 
-/**
- * Prüft ob ein Keyword eine Frage ist
- */
 export function isQuestionKeyword(query: string): boolean {
   const firstWord = query.toLowerCase().split(/\s+/)[0];
   return [...QUESTION_WORDS_DE, ...QUESTION_WORDS_EN].includes(firstWord);
 }
 
-/**
- * Berechnet die Keyword-Dichte in einem Text
- */
 export function calculateKeywordDensity(text: string, keyword: string): number {
   const cleanText = text.toLowerCase().replace(/[^\w\säöüß]/g, '');
   const words = cleanText.split(/\s+/).filter(w => w.length > 0);
@@ -387,7 +495,6 @@ export function calculateKeywordDensity(text: string, keyword: string): number {
   
   if (words.length === 0) return 0;
   
-  // Zähle exakte Matches und Teil-Matches
   let count = 0;
   const keywordWords = keywordLower.split(/\s+/);
   
@@ -398,7 +505,16 @@ export function calculateKeywordDensity(text: string, keyword: string): number {
     }
   }
   
-  // Dichte = (Keyword-Vorkommen * Keyword-Wortanzahl) / Gesamt-Wörter * 100
   const density = (count * keywordWords.length) / words.length * 100;
   return Math.round(density * 100) / 100;
 }
+
+// ✅ NEU: Export Intent-Analyzer Funktionen
+export { 
+  analyzeSearchIntent, 
+  analyzeBatchIntent, 
+  isTransactional,
+  generateIntentReport,
+  type SearchIntent,
+  type IntentAnalysis 
+} from './intent-analyzer';
