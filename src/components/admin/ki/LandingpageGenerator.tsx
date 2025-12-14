@@ -5,6 +5,7 @@ import React, { useState, useRef } from 'react';
 import Image from 'next/image';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import ReactMarkdown from 'react-markdown'; // ✅ NEU: Für sauberes Rendering
 import {
   FileText,
   Search,
@@ -83,7 +84,7 @@ export default function LandingPageGenerator({
   // Basis-Inputs
   const [topic, setTopic] = useState('');
   const [targetAudience, setTargetAudience] = useState('');
-  // ✅ NEU: Kontext für echte Fakten
+  // ✅ Kontext für echte Fakten
   const [productContext, setProductContext] = useState(''); 
   const [tone, setTone] = useState<ToneOfVoice>('professional');
   const [contentType, setContentType] = useState<ContentType>('landingpage');
@@ -209,7 +210,8 @@ export default function LandingPageGenerator({
 
       if (format === 'html') {
         mimeType = 'text/html';
-        content = `<!DOCTYPE html><html><head><title>${topic}</title><meta charset="UTF-8"></head><body>${generatedContent}</body></html>`;
+        // Einfacher HTML Wrapper für Markdown Content (würde idealerweise gerendert werden, hier Rohdaten)
+        content = `<!DOCTYPE html><html><head><title>${topic}</title><meta charset="UTF-8"></head><body><pre>${generatedContent}</pre></body></html>`;
       } else if (format === 'md') {
         mimeType = 'text/markdown';
       }
@@ -365,7 +367,7 @@ export default function LandingPageGenerator({
           contentType, 
           keywords: getAllKeywords(),
           targetAudience: targetAudience.trim() || undefined,
-          // ✅ NEU: Product Context senden
+          // ✅ Product Context senden
           productContext: productContext.trim(),
           toneOfVoice: tone,
           contextData,
@@ -532,7 +534,7 @@ export default function LandingPageGenerator({
             />
           </div>
 
-          {/* ✅ NEU: PRODUKT KONTEXT FELD */}
+          {/* ✅ PRODUKT KONTEXT FELD (Anti-Lügen) */}
           <div className="mt-4">
             <label className="text-sm font-semibold text-gray-700 mb-2 block">
               Produktdetails & USPs (WICHTIG für Qualität!)
@@ -866,10 +868,12 @@ export default function LandingPageGenerator({
             )}
           </div>
           
-          {/* Output-Bereich - z-index niedriger als Header */}
+          {/* Output-Bereich - ✅ NEU: Mit ReactMarkdown und Tailwind Prose */}
           <div ref={outputRef} className="flex-1 bg-gray-50/50 rounded-xl border border-gray-200/60 p-6 overflow-y-auto relative z-0 custom-scrollbar ai-output">
             {generatedContent ? (
-              <div className="ai-content prose max-w-none" dangerouslySetInnerHTML={{ __html: generatedContent }} />
+              <div className="ai-content prose prose-indigo max-w-none">
+                 <ReactMarkdown>{generatedContent}</ReactMarkdown>
+              </div>
             ) : (
               <div className="h-full flex flex-col items-center justify-center text-gray-400 text-center">
                 <FileText className="text-4xl mb-3 text-purple-200" />
