@@ -40,8 +40,8 @@ interface LandingpageRequest {
   domain?: string;
   // ✅ Optionaler Kontext für Produkte/Fakten
   productContext?: string; 
-  // NEU: Sektions-Auswahl
-  section?: 'full' | 'intro' | 'benefits' | 'trust' | 'faq';
+  // NEU: Sektions-Auswahl (Landingpage: full/intro/benefits/trust/faq, Blog: full/intro/main/faq/conclusion)
+  section?: 'full' | 'intro' | 'benefits' | 'trust' | 'faq' | 'main' | 'conclusion';
 }
 
 // ============================================================================
@@ -398,15 +398,17 @@ Integriere diese Informationen zwingend in den Text:
     let sectionInstruction = "";
     let sectionStructure = "";
 
-    switch (section) {
-      case 'intro':
-        sectionInstruction = `
+    // LANDINGPAGE SEKTIONEN
+    if (contentType === 'landingpage') {
+      switch (section) {
+        case 'intro':
+          sectionInstruction = `
 ⚠️ SEKTIONS-AUFTRAG: NUR HERO & EINLEITUNG
 Generiere AUSSCHLIESSLICH den Hero-Bereich (H1) und die Einleitung (Problem & Lösung). 
 Fokus auf starke Hooks und emotionale Ansprache.
 STOPPE DANACH! KEIN FAQ, KEINE Benefits-Liste, KEIN Social Proof, KEINE weiteren Sektionen!
 `;
-        sectionStructure = `
+          sectionStructure = `
 STRUKTUR (NUR DIESE ELEMENTE!):
 
 # [Aufmerksamkeitsstarke H1 - MUSS "${mainKeyword}" enthalten!]
@@ -423,15 +425,15 @@ STRUKTUR (NUR DIESE ELEMENTE!):
 
 WICHTIG: STOPPE HIER! Generiere KEINE weiteren Sektionen!
 `;
-        break;
-      case 'benefits':
-        sectionInstruction = `
+          break;
+        case 'benefits':
+          sectionInstruction = `
 ⚠️ SEKTIONS-AUFTRAG: NUR VORTEILE & FEATURES
 Generiere AUSSCHLIESSLICH die Nutzen-Argumentation, Features und USPs.
 Sei extrem detailliert und spezifisch. Mindestens 6-8 Vorteile mit ausführlicher Erklärung.
 STOPPE DANACH! KEINE Einleitung, KEIN FAQ, KEIN Social Proof!
 `;
-        sectionStructure = `
+          sectionStructure = `
 STRUKTUR (NUR DIESE ELEMENTE!):
 
 ## Ihre Vorteile auf einen Blick
@@ -463,15 +465,15 @@ STRUKTUR (NUR DIESE ELEMENTE!):
 
 WICHTIG: STOPPE HIER! Generiere KEINE Einleitung, KEIN FAQ, KEINEN Social Proof!
 `;
-        break;
-      case 'trust':
-        sectionInstruction = `
+          break;
+        case 'trust':
+          sectionInstruction = `
 ⚠️ SEKTIONS-AUFTRAG: NUR SOCIAL PROOF & TRUST
 Generiere AUSSCHLIESSLICH Trust-Elemente: Testimonials, Referenzen, Zahlen, Auszeichnungen, Expertise.
 Fokus auf Glaubwürdigkeit und Vertrauensaufbau.
 STOPPE DANACH! KEINE Einleitung, KEINE Benefits-Liste, KEIN FAQ!
 `;
-        sectionStructure = `
+          sectionStructure = `
 STRUKTUR (NUR DIESE ELEMENTE!):
 
 ## Unsere Expertise
@@ -501,15 +503,15 @@ STRUKTUR (NUR DIESE ELEMENTE!):
 
 WICHTIG: STOPPE HIER! Generiere KEINE Einleitung, KEINE Benefits, KEIN FAQ!
 `;
-        break;
-      case 'faq':
-        sectionInstruction = `
+          break;
+        case 'faq':
+          sectionInstruction = `
 ⚠️ SEKTIONS-AUFTRAG: NUR FAQ & ABSCHLUSS
 Generiere AUSSCHLIESSLICH eine umfangreiche FAQ-Sektion (mind. 6 Fragen) und das Fazit mit starkem CTA.
 Fokus auf Einwandbehandlung und Handlungsaufforderung.
 STOPPE DANACH! KEINE Einleitung, KEINE Benefits, KEIN Social Proof davor!
 `;
-        sectionStructure = `
+          sectionStructure = `
 STRUKTUR (NUR DIESE ELEMENTE!):
 
 ## Häufig gestellte Fragen
@@ -542,10 +544,168 @@ STRUKTUR (NUR DIESE ELEMENTE!):
 
 WICHTIG: STOPPE HIER! Generiere KEINE Einleitung, KEINE Benefits, KEINEN Social Proof!
 `;
-        break;
-      default:
-        sectionInstruction = "";
-        sectionStructure = ""; // Leer = nutze Standard-Struktur unten
+          break;
+        default:
+          sectionInstruction = "";
+          sectionStructure = "";
+      }
+    }
+    // BLOG SEKTIONEN
+    else if (contentType === 'blog') {
+      switch (section) {
+        case 'intro':
+          sectionInstruction = `
+⚠️ SEKTIONS-AUFTRAG: NUR EINLEITUNG & HOOK
+Generiere AUSSCHLIESSLICH die Headline (H1) und eine packende Einleitung.
+Fokus auf: Aufmerksamkeit gewinnen, Problem aufzeigen, Neugier wecken.
+STOPPE DANACH! KEIN Hauptteil, KEIN FAQ, KEIN Fazit!
+`;
+          sectionStructure = `
+STRUKTUR (NUR DIESE ELEMENTE!):
+
+# [Packende H1 mit "${mainKeyword}" - Neugier wecken!]
+
+> **Das Wichtigste in Kürze:**
+> * [Key Takeaway 1 - Was lernt der Leser?]
+> * [Key Takeaway 2 - Welches Problem wird gelöst?]
+> * [Key Takeaway 3 - Warum ist das relevant?]
+
+[Einleitender Absatz: Hook mit überraschender Statistik, Frage oder Aussage - min. 80 Wörter]
+
+[Zweiter Absatz: Problem vertiefen, Relevanz für den Leser herstellen - min. 80 Wörter]
+
+[Dritter Absatz: Vorschau auf den Artikel, was wird der Leser erfahren? - min. 60 Wörter]
+
+WICHTIG: STOPPE HIER! Generiere KEINEN Hauptteil, KEIN FAQ, KEIN Fazit!
+`;
+          break;
+        case 'main':
+          sectionInstruction = `
+⚠️ SEKTIONS-AUFTRAG: NUR HAUPTTEIL (DEEP DIVE)
+Generiere AUSSCHLIESSLICH den informativen Hauptteil des Artikels.
+Detaillierte Erklärungen, Anleitungen, Beispiele, Tipps.
+STOPPE DANACH! KEINE Einleitung, KEIN FAQ, KEIN Fazit!
+`;
+          sectionStructure = `
+STRUKTUR (NUR DIESE ELEMENTE!):
+
+## [H2: Grundlagen / Definition von "${mainKeyword}"]
+[Ausführliche Erklärung des Konzepts, min. 150 Wörter]
+
+## [H2: Warum ist das wichtig? / Die Vorteile]
+[Relevanz und Nutzen erklären, min. 150 Wörter]
+
+## [H2: Schritt-für-Schritt Anleitung / So funktioniert es]
+
+### Schritt 1: [Erster Schritt]
+[Detaillierte Erklärung mit praktischen Tipps]
+
+### Schritt 2: [Zweiter Schritt]
+[Detaillierte Erklärung mit praktischen Tipps]
+
+### Schritt 3: [Dritter Schritt]
+[Detaillierte Erklärung mit praktischen Tipps]
+
+### Schritt 4: [Vierter Schritt]
+[Detaillierte Erklärung mit praktischen Tipps]
+
+> 💡 **Experten-Tipp:**
+> [Ein wertvoller Insider-Tipp aus der Praxis]
+
+## [H2: Häufige Fehler vermeiden]
+
+* ❌ **Falsch:** [Typischer Fehler 1]
+* ✅ **Richtig:** [Bessere Vorgehensweise]
+
+* ❌ **Falsch:** [Typischer Fehler 2]
+* ✅ **Richtig:** [Bessere Vorgehensweise]
+
+* ❌ **Falsch:** [Typischer Fehler 3]
+* ✅ **Richtig:** [Bessere Vorgehensweise]
+
+## [H2: Fortgeschrittene Tipps / Best Practices]
+[Weiterführende Informationen für erfahrene Leser, min. 150 Wörter]
+
+WICHTIG: STOPPE HIER! Generiere KEINE Einleitung, KEIN FAQ, KEIN Fazit!
+`;
+          break;
+        case 'faq':
+          sectionInstruction = `
+⚠️ SEKTIONS-AUFTRAG: NUR FAQ-SEKTION
+Generiere AUSSCHLIESSLICH eine umfangreiche FAQ-Sektion zum Thema.
+Fokus auf häufige Leserfragen, Featured-Snippet-Optimierung.
+STOPPE DANACH! KEINE Einleitung, KEIN Hauptteil, KEIN Fazit!
+`;
+          sectionStructure = `
+STRUKTUR (NUR DIESE ELEMENTE!):
+
+## Häufig gestellte Fragen zu ${mainKeyword}
+
+### Was ist ${mainKeyword}?
+[Klare, prägnante Definition in 2-3 Sätzen - Featured Snippet optimiert]
+
+### Wie funktioniert ${mainKeyword}?
+[Prozess oder Mechanismus erklären, 3-4 Sätze]
+
+### Was kostet ${mainKeyword}? / Lohnt sich ${mainKeyword}?
+[Kosten-Nutzen-Betrachtung, realistische Einschätzung]
+
+### Für wen eignet sich ${mainKeyword}?
+[Zielgruppen definieren, Anwendungsfälle nennen]
+
+### Welche Alternativen gibt es zu ${mainKeyword}?
+[2-3 Alternativen kurz vorstellen, Vor-/Nachteile]
+
+### Wie lange dauert ${mainKeyword}? / Wann sehe ich Ergebnisse?
+[Realistische Zeitrahmen nennen]
+
+### Was sind die häufigsten Fehler bei ${mainKeyword}?
+[Top 3 Fehler und wie man sie vermeidet]
+
+### Wo finde ich mehr Informationen zu ${mainKeyword}?
+[Weiterführende Ressourcen, nächste Schritte]
+
+WICHTIG: STOPPE HIER! Generiere KEINE Einleitung, KEINEN Hauptteil, KEIN Fazit!
+`;
+          break;
+        case 'conclusion':
+          sectionInstruction = `
+⚠️ SEKTIONS-AUFTRAG: NUR FAZIT & CTA
+Generiere AUSSCHLIESSLICH das Fazit mit Zusammenfassung und Call-to-Action.
+Fokus auf Key Takeaways und nächste Schritte für den Leser.
+STOPPE DANACH! KEINE Einleitung, KEIN Hauptteil, KEIN FAQ davor!
+`;
+          sectionStructure = `
+STRUKTUR (NUR DIESE ELEMENTE!):
+
+## Fazit: [Zusammenfassender Titel mit "${mainKeyword}"]
+
+[Zusammenfassung der wichtigsten Erkenntnisse in 2-3 Sätzen]
+
+### Die wichtigsten Punkte auf einen Blick:
+
+* ✅ [Key Takeaway 1 - Wichtigste Erkenntnis]
+* ✅ [Key Takeaway 2 - Praktischer Nutzen]
+* ✅ [Key Takeaway 3 - Handlungsempfehlung]
+* ✅ [Key Takeaway 4 - Ausblick/Nächster Schritt]
+
+[Abschließender Absatz: Motivation und Ermutigung zum Handeln, min. 80 Wörter]
+
+---
+
+**Fanden Sie diesen Artikel hilfreich?**
+
+[Call-to-Action: Newsletter, Kontakt, weiterführende Artikel, Social Sharing - je nach Kontext]
+
+**[Konkreter nächster Schritt für den Leser]**
+
+WICHTIG: STOPPE HIER! Generiere KEINE Einleitung, KEINEN Hauptteil, KEIN FAQ!
+`;
+          break;
+        default:
+          sectionInstruction = "";
+          sectionStructure = "";
+      }
     }
 
     // ========================================================================
@@ -571,6 +731,8 @@ HAUPTKEYWORD: "${mainKeyword}"
 DOMAIN: ${domain || 'Nicht angegeben'}
 ZIELGRUPPE: ${targetAudience || 'Allgemein'}
 ALLE KEYWORDS: ${keywords.join(', ')}
+
+${sectionInstruction}
 
 ${toneInstructions}
 
@@ -610,6 +772,7 @@ OUTPUT ANFORDERUNGEN
 ═══════════════════════════════════════════════════════════════════════════════
 
 Generiere NUR sauberes **Markdown** (.md). KEIN HTML.
+${sectionStructure ? `${sectionStructure}` : `
 Struktur:
 
 # [Titel mit "${mainKeyword}"]
@@ -646,7 +809,8 @@ Struktur:
 **Fanden Sie diesen Artikel hilfreich?**
 [Passender CTA für einen Blog, z.B. Newsletter oder Kontakt]
 
-WICHTIG: Generiere NUR den Markdown-Code. Mindestens 1200 Wörter.
+WICHTIG: Generiere NUR den Markdown-Code. Mindestens 1200 Wörter.`}
+${sectionStructure ? `\n⚠️ KRITISCH: Generiere NUR die oben angegebene Sektion! KEINE anderen Teile!` : ''}
       `;
 
     } else {
