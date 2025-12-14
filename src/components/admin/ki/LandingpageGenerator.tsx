@@ -1,7 +1,7 @@
 // src/components/admin/ki/LandingpageGenerator.tsx
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import Image from 'next/image';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -67,24 +67,6 @@ const TONE_OPTIONS: { value: ToneOfVoice; label: string; description: string }[]
   { value: 'emotional', label: 'Emotional', description: 'Storytelling & bewegend' },
 ];
 
-// ✅ STEP DEFINITION
-interface OnboardingStep {
-  id: number;
-  label: string;
-  optional?: boolean;
-  cardId?: string; // Welche Card gehört zu diesem Step
-}
-
-const ONBOARDING_STEPS: OnboardingStep[] = [
-  { id: 1, label: 'Thema / H1', cardId: 'briefing' },
-  { id: 2, label: 'Art des Inhalts', cardId: 'briefing' },
-  { id: 3, label: 'Spy & Clone', optional: true, cardId: 'briefing' },
-  { id: 4, label: 'Zielgruppe', optional: true, cardId: 'briefing' },
-  { id: 5, label: 'Tonalität', cardId: 'briefing' },
-  { id: 6, label: 'Datenquellen', cardId: 'sources' },
-  { id: 7, label: 'Keywords', cardId: 'keywords' },
-];
-
 // ============================================================================
 // COMPONENT
 // ============================================================================
@@ -132,22 +114,20 @@ export default function LandingPageGenerator({
   const [expandedSection, setExpandedSection] = useState<string | null>('sources');
   const [showKeywordAnalysis, setShowKeywordAnalysis] = useState(false);
   
-  // ✅ ONBOARDING STATES
-  const [currentStep, setCurrentStep] = useState(1);
-  const [completedSteps, setCompletedSteps] = useState<number[]>([]);
-  const [showOnboarding, setShowOnboarding] = useState(true); // User kann es ausschalten
-  
   const outputRef = useRef<HTMLDivElement>(null);
 
   // --- KEYWORD ANALYSE (für Frontend-Anzeige) ---
   const keywordAnalysis = React.useMemo(() => {
     if (!keywords || keywords.length === 0) return null;
     
+    // Sortiere nach Klicks
     const byClicks = [...keywords].sort((a, b) => b.clicks - a.clicks);
     const mainKeyword = byClicks[0];
     
+    // Sekundäre Keywords (Top 5 ohne Main)
     const secondaryKeywords = byClicks.slice(1, 6);
     
+    // Striking Distance (Position 4-20)
     const strikingDistance = keywords
       .filter(k => k.position >= 4 && k.position <= 20)
       .sort((a, b) => (b.impressions / b.position) - (a.impressions / a.position))
@@ -159,16 +139,19 @@ export default function LandingPageGenerator({
                 : 'low' as const
       }));
     
+    // Fragen-Keywords
     const questionWords = ['was', 'wie', 'wo', 'wer', 'warum', 'wann', 'welche', 'welcher'];
     const questionKeywords = keywords
       .filter(k => questionWords.some(w => k.query.toLowerCase().startsWith(w)))
       .slice(0, 5);
     
+    // Long-Tail (3+ Wörter)
     const longTailKeywords = keywords
       .filter(k => k.query.split(' ').length >= 3)
       .sort((a, b) => b.clicks - a.clicks)
       .slice(0, 5);
     
+    // Stats
     const totalClicks = keywords.reduce((sum, k) => sum + k.clicks, 0);
     const totalImpressions = keywords.reduce((sum, k) => sum + k.impressions, 0);
     const avgPosition = keywords.reduce((sum, k) => sum + k.position, 0) / keywords.length;
@@ -200,139 +183,19 @@ export default function LandingPageGenerator({
 
   const totalKeywordCount = getAllKeywords().length;
 
+  // --- HELPER: Gap-Analyse Text extrahieren (Fix 2) ---
   const extractGapText = (html: string): string[] => {
+    // Entferne HTML-Tags und extrahiere Listenpunkte
     const text = html.replace(/<[^>]*>/g, '');
+    // Splitte bei Zeilenumbrüchen oder Listenpunkten
     const items = text
       .split(/[\n•\-]/)
       .map(item => item.trim())
       .filter(item => item.length > 10 && item.length < 200);
-    return items.slice(0, 5);
+    return items.slice(0, 5); // Max 5 Items
   };
 
-  // ============================================================================
-  // ✅ ONBOARDING LOGIC
-  // ============================================================================
-  
-  // Prüfe ob ein Step abgeschlossen ist (für Button-Validation)
-  const isStepComplete = React.useCallback((step: number): boolean => {
-    switch(step) {
-      case 1: return topic.trim().length > 0;
-      case 2: return true; // Content Type hat Default
-      case 3: return true; // Optional
-      case 4: return true; // Optional
-      case 5: return true; // Tone hat Default
-      case 6: return useGscKeywords || useNewsCrawler || useGapAnalysis;
-      case 7: return totalKeywordCount > 0;
-      default: return false;
-    }
-  }, [topic, useGscKeywords, useNewsCrawler, useGapAnalysis, totalKeywordCount]);
-
-  // Auto-Advance bei Step-Completion
-  
-  // 1️⃣ Markiere den AKTUELLEN Step als completed wenn Bedingung erfüllt
-  useEffect(() => {
-    if (!showOnboarding) return;
-    if (completedSteps.includes(currentStep)) return;
-    
-    let stepComplete = false;
-    let autoAdvance = false; // ✅ NEU: Nur bestimmte Steps auto-advance
-    
-    switch(currentStep) {
-      case 1: 
-        stepComplete = topic.trim().length > 0;
-        autoAdvance = true; // ✅ Thema → auto-advance
-        break;
-      case 2: 
-        stepComplete = true; // Content Type hat Default
-        autoAdvance = false; // ⏸️ KEIN auto-advance - User soll bewusst wählen
-        break;
-      case 3: 
-        stepComplete = true; // Optional - Spy
-        autoAdvance = false; // ⏸️ KEIN auto-advance - ist optional
-        break;
-      case 4: 
-        stepComplete = true; // Optional - Zielgruppe
-        autoAdvance = false; // ⏸️ KEIN auto-advance - ist optional
-        break;
-      case 5: 
-        stepComplete = true; // Tone hat Default
-        autoAdvance = false; // ⏸️ KEIN auto-advance - User soll bewusst wählen
-        break;
-      case 6: 
-        stepComplete = useGscKeywords || useNewsCrawler || useGapAnalysis;
-        autoAdvance = true; // ✅ Datenquellen → auto-advance
-        break;
-      case 7: 
-        stepComplete = totalKeywordCount > 0;
-        autoAdvance = true; // ✅ Keywords → auto-advance
-        break;
-    }
-    
-    if (stepComplete) {
-      console.log('✅ Step', currentStep, 'is complete, auto-advance:', autoAdvance);
-      setCompletedSteps(prev => [...prev, currentStep]);
-      
-      // ✅ Nur auto-advance wenn explizit erlaubt
-      if (autoAdvance && currentStep < ONBOARDING_STEPS.length) {
-        const timer = setTimeout(() => {
-          console.log('⏭️ Auto-advancing to step', currentStep + 1);
-          setCurrentStep(prev => prev + 1);
-        }, 600);
-        return () => clearTimeout(timer); // ✅ FIX: Cleanup!
-      }
-    }
-  }, [currentStep, topic, useGscKeywords, useNewsCrawler, useGapAnalysis, customKeywords, showOnboarding, completedSteps, totalKeywordCount]);
-
-  // CSS Class Helpers
-  const getCardClass = (cardId: string): string => {
-    const cardSteps = ONBOARDING_STEPS.filter(s => s.cardId === cardId).map(s => s.id);
-    const minStep = Math.min(...cardSteps);
-    const maxStep = Math.max(...cardSteps);
-    
-    if (!showOnboarding) return 'bg-white border border-gray-100 shadow-sm rounded-2xl transition-all duration-300';
-    
-    // Aktiv wenn currentStep in diesem Card ist
-    if (currentStep >= minStep && currentStep <= maxStep) {
-      return 'bg-white border-2 border-purple-400 shadow-lg shadow-purple-100 rounded-2xl transition-all duration-300';
-    }
-    
-    // Completed wenn alle Steps des Cards abgeschlossen
-    if (cardSteps.every(s => completedSteps.includes(s))) {
-      return 'bg-white border-2 border-green-400 shadow-sm rounded-2xl transition-all duration-300';
-    }
-    
-    // Inactive wenn noch nicht dran
-    if (currentStep < minStep) {
-      return 'bg-white border border-gray-200 rounded-2xl transition-all duration-300 opacity-40 blur-sm pointer-events-none';
-    }
-    
-    return 'bg-white border border-gray-100 shadow-sm rounded-2xl transition-all duration-300';
-  };
-
-  const getFieldClass = (fieldStep: number): string => {
-    if (!showOnboarding) return 'transition-all duration-300';
-    
-    if (currentStep >= fieldStep) {
-      return 'transition-all duration-300 opacity-100';
-    }
-    return 'transition-all duration-300 opacity-30 pointer-events-none blur-sm';
-  };
-
-  const shouldShowStepBadge = (cardId: string): boolean => {
-    if (!showOnboarding) return false;
-    const cardSteps = ONBOARDING_STEPS.filter(s => s.cardId === cardId).map(s => s.id);
-    return cardSteps.includes(currentStep);
-  };
-
-  const getCurrentStepForCard = (cardId: string): OnboardingStep | null => {
-    if (!showOnboarding) return null;
-    return ONBOARDING_STEPS.find(s => s.cardId === cardId && s.id === currentStep) || null;
-  };
-
-  // ============================================================================
-  // HANDLERS (Unverändert)
-  // ============================================================================
-
+  // --- EXPORT FUNKTION (Direkt implementiert) ---
   const handleExport = (format: 'txt' | 'html' | 'md') => {
     if (!generatedContent) {
       toast.error('Kein Inhalt zum Exportieren.');
@@ -369,6 +232,9 @@ export default function LandingPageGenerator({
     }
   };
 
+  // --- HANDLERS ---
+
+  // 1. SPY: URL Analysieren
   const handleAnalyzeUrl = async () => {
     if (!referenceUrl) return;
     try {
@@ -393,6 +259,7 @@ export default function LandingPageGenerator({
     }
   };
 
+  // 2. GAP: Content Gap Analyse
   const handleAnalyzeGap = async () => {
     if (!topic) {
         toast.error('Bitte erst ein Thema eingeben.');
@@ -402,6 +269,7 @@ export default function LandingPageGenerator({
         setIsAnalyzingGap(true);
         toast.info('Führe Gap-Analyse durch...');
         
+        // Wir senden "topic" statt "url", damit die Route in den Generator-Modus schaltet
         const res = await fetch('/api/ai/content-gap', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -422,12 +290,10 @@ export default function LandingPageGenerator({
     }
   };
 
+  // 3. MAIN: Generierung
   const handleGenerate = async () => {
     if (!topic.trim()) { toast.error('Bitte geben Sie ein Thema ein.'); return; }
     if (getAllKeywords().length === 0) { toast.error('Bitte Keywords angeben.'); return; }
-    
-    // ✅ Onboarding deaktivieren bei erster Generierung
-    if (showOnboarding) setShowOnboarding(false);
     
     if (useNewsCrawler && newsMode === 'live' && !newsTopic.trim()) {
        setNewsTopic(topic);
@@ -440,6 +306,7 @@ export default function LandingPageGenerator({
     try {
       const contextData: ContextData = {};
       
+      // Spy Data
       let currentSpyData = spyData;
       if (referenceUrl && !currentSpyData) {
          try {
@@ -453,11 +320,13 @@ export default function LandingPageGenerator({
       }
       if (currentSpyData) contextData.competitorAnalysis = currentSpyData;
 
+      // GSC
       if (useGscKeywords && keywords.length > 0) {
         contextData.gscKeywords = keywords.slice(0, 10).map(k => k.query);
         contextData.gscKeywordsRaw = keywords.slice(0, 30);
       }
       
+      // News
       if (useNewsCrawler) {
         if (newsMode === 'live') {
           const fetchTopic = newsTopic.trim() || topic;
@@ -488,6 +357,7 @@ export default function LandingPageGenerator({
         contextData.gapAnalysis = cachedGapData;
       }
 
+      // API Call
       const response = await fetch('/api/ai/generate-landingpage', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -546,22 +416,7 @@ export default function LandingPageGenerator({
 
   // --- RENDER ---
   return (
-    <div className="space-y-6">
-      
-      {/* ✅ ONBOARDING TOGGLE (Oben rechts) */}
-      {!isGenerating && (
-        <div className="flex justify-end">
-          <button
-            onClick={() => setShowOnboarding(!showOnboarding)}
-            className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-gray-600 hover:text-purple-600 bg-white border border-gray-200 rounded-lg hover:border-purple-300 transition-all"
-          >
-            <InfoCircle size={14} />
-            {showOnboarding ? 'Schritt-für-Schritt ausblenden' : 'Schritt-für-Schritt einblenden'}
-          </button>
-        </div>
-      )}
-      
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
       
       {/* LOADING / SPY LIGHTBOX */}
       {(isWaitingForStream || isSpying) && (
@@ -590,71 +445,8 @@ export default function LandingPageGenerator({
       {/* --- INPUTS (LINKS) --- */}
       <div className="lg:col-span-4 space-y-4">
         
-        {/* ✅ PROGRESS TRACKER (nur wenn Onboarding aktiv) */}
-        {showOnboarding && (
-          <div className="bg-white border border-gray-100 shadow-sm rounded-2xl p-5 animate-in fade-in slide-in-from-top-2">
-            <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-              🎯 Fortschritt
-              <span className="ml-auto text-purple-600">{completedSteps.length}/{ONBOARDING_STEPS.length}</span>
-            </div>
-            <div className="space-y-2">
-              {ONBOARDING_STEPS.map((step) => {
-                const isActive = currentStep === step.id;
-                const isCompleted = completedSteps.includes(step.id);
-                
-                return (
-                  <div
-                    key={step.id}
-                    className={`flex items-center gap-3 p-2 rounded-lg transition-all ${
-                      isActive ? 'bg-purple-50' : ''
-                    }`}
-                  >
-                    <div
-                      className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all ${
-                        isCompleted
-                          ? 'bg-green-500 border-green-500 text-white'
-                          : isActive
-                          ? 'bg-purple-600 border-purple-600 text-white animate-pulse'
-                          : 'bg-white border-gray-300 text-gray-400'
-                      }`}
-                    >
-                      {isCompleted ? '✓' : step.id}
-                    </div>
-                    <div
-                      className={`text-sm font-medium transition-all ${
-                        isCompleted
-                          ? 'text-green-600 line-through opacity-70'
-                          : isActive
-                          ? 'text-purple-700 font-semibold'
-                          : 'text-gray-600'
-                      }`}
-                    >
-                      {step.label}
-                      {step.optional && (
-                        <span className="text-[10px] text-gray-400 ml-1">(optional)</span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-        
         {/* 1. BRIEFING CARD */}
-        <div className={`${getCardClass('briefing')} p-6 relative`}>
-          
-          {/* ✅ STEP BADGE (pulsierend) */}
-          {shouldShowStepBadge('briefing') && (() => {
-            const step = getCurrentStepForCard('briefing');
-            return step ? (
-              <div className="absolute top-4 right-4 bg-gradient-to-r from-purple-600 to-purple-500 text-white px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-purple-200 animate-in fade-in zoom-in-95">
-                <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-                Schritt {step.id}
-              </div>
-            ) : null;
-          })()}
-          
+        <div className="bg-white border border-gray-100 shadow-sm rounded-2xl p-6">
           <div className="text-center pb-4 border-b border-gray-100">
             <div className="w-14 h-14 bg-gradient-to-br from-purple-100 to-indigo-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
               <FileText className="text-2xl text-purple-600" />
@@ -663,8 +455,7 @@ export default function LandingPageGenerator({
             <p className="text-xs text-gray-500 mt-1">für <strong className="text-gray-700">{domain || 'dieses Projekt'}</strong></p>
           </div>
 
-          {/* STEP 1: THEMA */}
-          <div className={`mt-4 ${getFieldClass(1)}`}>
+          <div className="mt-4">
             <label className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
               <Lightning className="text-purple-500" /> Thema / H1 *
             </label>
@@ -672,21 +463,12 @@ export default function LandingPageGenerator({
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
               placeholder="z.B. IT-Service München..."
-              className="w-full p-3 bg-purple-50 border border-purple-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 outline-none transition-all"
+              className="w-full p-3 bg-purple-50 border border-purple-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 outline-none"
             />
-            {/* ✅ TOOLTIP (nur bei aktiv) */}
-            {showOnboarding && currentStep === 1 && (
-              <div className="mt-3 bg-indigo-50 border border-indigo-200 rounded-lg p-3 flex gap-2 animate-in slide-in-from-top-2">
-                <InfoCircle className="text-indigo-600 shrink-0 mt-0.5" size={16} />
-                <div className="text-xs text-indigo-700 leading-relaxed">
-                  <strong>Tipp:</strong> Verwende dein Hauptkeyword hier. Beispiel: "SEO Agentur Wien" oder "Zahnarzt Linz für Angstpatienten"
-                </div>
-              </div>
-            )}
           </div>
 
-          {/* STEP 2: CONTENT TYPE */}
-          <div className={`mt-4 ${getFieldClass(2)}`}>
+          {/* CONTENT TYPE SELECTOR */}
+          <div className="mt-4">
             <label className="text-sm font-semibold text-gray-700 mb-2 block">Art des Inhalts</label>
             <div className="grid grid-cols-2 gap-2 p-1 bg-gray-100 rounded-xl">
                <button
@@ -705,87 +487,51 @@ export default function LandingPageGenerator({
             <p className="text-[10px] text-gray-400 mt-1.5 px-1">
               {contentType === 'landingpage' ? 'Fokus auf Conversion, Leads & Verkauf.' : 'Fokus auf Information, SEO-Traffic & Mehrwert.'}
             </p>
-            
-            {/* ✅ WEITER-BUTTON (nur wenn Onboarding aktiv und Step 2 ist aktuell) */}
-            {showOnboarding && currentStep === 2 && (
-              <button
-                onClick={() => setCurrentStep(3)}
-                className="mt-3 w-full py-2 px-4 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2"
-              >
-                Weiter zu Schritt 3 →
-              </button>
-            )}
           </div>
 
-          {/* STEP 3: SPY SECTION */}
-          <div className={`mt-4 ${getFieldClass(3)}`}>
-            <div className="bg-amber-50/60 p-4 rounded-xl border border-amber-100 space-y-3">
-              <div className="flex items-start gap-2">
-                <Binoculars className="text-amber-600 mt-1 shrink-0" /> 
-                <div>
-                  <label className="text-sm font-medium text-gray-900 block">Spy & Clone (Stil-Kopie)</label>
-                  <p className="text-[11px] text-gray-500 leading-tight">URL analysieren und Wording/Stil exakt übernehmen.</p>
+          {/* SPY SECTION */}
+          <div className="mt-4 bg-amber-50/60 p-4 rounded-xl border border-amber-100 space-y-3">
+             <div className="flex items-start gap-2">
+               <Binoculars className="text-amber-600 mt-1 shrink-0" /> 
+               <div>
+                 <label className="text-sm font-medium text-gray-900 block">Spy & Clone (Stil-Kopie)</label>
+                 <p className="text-[11px] text-gray-500 leading-tight">URL analysieren und Wording/Stil exakt übernehmen.</p>
+               </div>
+             </div>
+             <div className="flex gap-2">
+               <input
+                 value={referenceUrl}
+                 onChange={(e) => { setReferenceUrl(e.target.value); setSpyData(null); }}
+                 placeholder="https://..."
+                 className="flex-1 px-3 py-2 border border-amber-200 bg-white rounded-lg text-sm outline-none focus:ring-2 focus:ring-amber-500"
+               />
+               <Button 
+                 onClick={handleAnalyzeUrl}
+                 disabled={!referenceUrl || isSpying || !!spyData}
+                 variant="outline" size="sm"
+                 className={`border-amber-200 ${spyData ? 'bg-green-50 text-green-700' : 'hover:bg-amber-100 text-amber-700'}`}
+               >
+                 {spyData ? <CheckLg /> : 'Check'}
+               </Button>
+             </div>
+             {referenceUrl && spyData && (
+                <div className="text-[10px] text-green-700 flex gap-1 items-center font-medium bg-green-50 p-1.5 rounded border border-green-100">
+                    <CheckLg/> Stil analysiert. Wird angewendet.
                 </div>
-              </div>
-              <div className="flex gap-2">
-                <input
-                  value={referenceUrl}
-                  onChange={(e) => { setReferenceUrl(e.target.value); setSpyData(null); }}
-                  placeholder="https://..."
-                  className="flex-1 px-3 py-2 border border-amber-200 bg-white rounded-lg text-sm outline-none focus:ring-2 focus:ring-amber-500"
-                />
-                <Button 
-                  onClick={handleAnalyzeUrl}
-                  disabled={!referenceUrl || isSpying || !!spyData}
-                  variant="outline" size="sm"
-                  className={`border-amber-200 ${spyData ? 'bg-green-50 text-green-700' : 'hover:bg-amber-100 text-amber-700'}`}
-                >
-                  {spyData ? <CheckLg /> : 'Check'}
-                </Button>
-              </div>
-              {referenceUrl && spyData && (
-                  <div className="text-[10px] text-green-700 flex gap-1 items-center font-medium bg-green-50 p-1.5 rounded border border-green-100">
-                      <CheckLg/> Stil analysiert. Wird angewendet.
-                  </div>
-              )}
-            </div>
-            
-            {/* ✅ WEITER-BUTTON (Überspringen möglich) */}
-            {showOnboarding && currentStep === 3 && (
-              <button
-                onClick={() => setCurrentStep(4)}
-                className="mt-3 w-full py-2 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2"
-              >
-                {spyData ? 'Weiter zu Schritt 4 →' : 'Überspringen (Optional) →'}
-              </button>
-            )}
+             )}
           </div>
 
-          {/* STEP 4: ZIELGRUPPE */}
-          <div className={`mt-4 ${getFieldClass(4)}`}>
-            <label className="text-sm font-semibold text-gray-700 mb-2 block">
-              Zielgruppe <span className="text-xs text-gray-400">(optional)</span>
-            </label>
+          <div className="mt-4">
+            <label className="text-sm font-semibold text-gray-700 mb-2 block">Zielgruppe</label>
             <input
               value={targetAudience}
               onChange={(e) => setTargetAudience(e.target.value)}
               placeholder="z.B. KMUs, Ärzte..."
               className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-gray-400 outline-none"
             />
-            
-            {/* ✅ WEITER-BUTTON */}
-            {showOnboarding && currentStep === 4 && (
-              <button
-                onClick={() => setCurrentStep(5)}
-                className="mt-3 w-full py-2 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2"
-              >
-                {targetAudience ? 'Weiter zu Schritt 5 →' : 'Überspringen (Optional) →'}
-              </button>
-            )}
           </div>
 
-          {/* STEP 5: TONALITÄT */}
-          <div className={`mt-4 ${getFieldClass(5)}`}>
+          <div className="mt-4">
             <label className="text-sm font-semibold text-gray-700 mb-2 block">Tonalität (Fallback)</label>
             <div className="grid grid-cols-2 gap-2">
               {TONE_OPTIONS.map((option) => (
@@ -801,30 +547,11 @@ export default function LandingPageGenerator({
               ))}
             </div>
             {spyData && <p className="text-[10px] text-amber-600 mt-1">*Wird durch Spy-Analyse überschrieben.</p>}
-            
-            {/* ✅ WEITER-BUTTON */}
-            {showOnboarding && currentStep === 5 && (
-              <button
-                onClick={() => setCurrentStep(6)}
-                className="mt-3 w-full py-2 px-4 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2"
-              >
-                Weiter zu Schritt 6 →
-              </button>
-            )}
           </div>
         </div>
 
         {/* 2. DATENQUELLEN CARD */}
-        <div className={`${getCardClass('sources')} overflow-hidden relative`}>
-          
-          {/* ✅ STEP BADGE */}
-          {shouldShowStepBadge('sources') && (
-            <div className="absolute top-4 right-4 bg-gradient-to-r from-purple-600 to-purple-500 text-white px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-purple-200 z-10 animate-in fade-in zoom-in-95">
-              <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-              Schritt 6
-            </div>
-          )}
-          
+        <div className="bg-white border border-gray-100 shadow-sm rounded-2xl overflow-hidden">
           <button onClick={() => toggleSection('sources')} className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
             <div className="flex items-center gap-2 font-semibold text-gray-800"><Database className="text-indigo-500" /> Datenquellen</div>
             {expandedSection === 'sources' ? <ChevronUp /> : <ChevronDown />}
@@ -843,8 +570,10 @@ export default function LandingPageGenerator({
                   </div>
                 </label>
                 
+                {/* Keyword-Analyse Toggle & Anzeige */}
                 {useGscKeywords && keywords.length > 0 && keywordAnalysis && (
                   <div className="pl-6 pt-2 border-t border-gray-200 mt-2">
+                    {/* Quick Stats */}
                     <div className="flex items-center gap-2 text-[10px] text-gray-500 mb-2">
                       <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-medium">
                         🎯 {keywordAnalysis.mainKeyword?.query?.slice(0, 20)}{keywordAnalysis.mainKeyword?.query?.length > 20 ? '...' : ''}
@@ -861,6 +590,7 @@ export default function LandingPageGenerator({
                       )}
                     </div>
                     
+                    {/* Expand Button */}
                     <button
                       onClick={() => setShowKeywordAnalysis(!showKeywordAnalysis)}
                       className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center gap-1 font-medium"
@@ -869,9 +599,11 @@ export default function LandingPageGenerator({
                       {showKeywordAnalysis ? 'Analyse ausblenden' : 'Analyse anzeigen'}
                     </button>
                     
+                    {/* Expanded Analysis */}
                     {showKeywordAnalysis && (
                       <div className="mt-3 space-y-3 animate-in slide-in-from-top-2">
                         
+                        {/* Hauptkeyword */}
                         <div className="bg-white p-3 rounded-lg border border-indigo-200 shadow-sm">
                           <div className="text-[10px] font-bold text-indigo-600 uppercase tracking-wide mb-1">Hauptkeyword</div>
                           <div className="font-semibold text-gray-900 text-sm">{keywordAnalysis.mainKeyword?.query}</div>
@@ -882,6 +614,7 @@ export default function LandingPageGenerator({
                           </div>
                         </div>
                         
+                        {/* Striking Distance */}
                         {keywordAnalysis.strikingDistance.length > 0 && (
                           <div className="bg-white p-3 rounded-lg border border-amber-200 shadow-sm">
                             <div className="text-[10px] font-bold text-amber-600 uppercase tracking-wide mb-2">
@@ -902,6 +635,7 @@ export default function LandingPageGenerator({
                           </div>
                         )}
                         
+                        {/* Fragen Keywords */}
                         {keywordAnalysis.questionKeywords.length > 0 && (
                           <div className="bg-white p-3 rounded-lg border border-purple-200 shadow-sm">
                             <div className="text-[10px] font-bold text-purple-600 uppercase tracking-wide mb-2">
@@ -918,6 +652,7 @@ export default function LandingPageGenerator({
                           </div>
                         )}
                         
+                        {/* Long-Tail */}
                         {keywordAnalysis.longTailKeywords.length > 0 && (
                           <div className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm">
                             <div className="text-[10px] font-bold text-gray-600 uppercase tracking-wide mb-2">
@@ -933,6 +668,7 @@ export default function LandingPageGenerator({
                           </div>
                         )}
                         
+                        {/* Stats Summary */}
                         <div className="bg-gradient-to-r from-indigo-50 to-purple-50 p-3 rounded-lg border border-indigo-100">
                           <div className="text-[10px] font-bold text-indigo-600 uppercase tracking-wide mb-2">📊 Statistik</div>
                           <div className="grid grid-cols-3 gap-2 text-center">
@@ -981,7 +717,7 @@ export default function LandingPageGenerator({
                 )}
               </div>
 
-              {/* Gap Analysis */}
+              {/* Gap Analysis (Fix 2: Besseres Styling) */}
               <div className="p-3 bg-gray-50 rounded-lg transition-all">
                 <div className="flex items-center justify-between mb-2">
                     <label className="flex items-center gap-2 cursor-pointer">
@@ -1007,10 +743,12 @@ export default function LandingPageGenerator({
                     </Button>
                 </div>
                 
+                {/* STATUS & ERGEBNIS ANZEIGE (Fix 2: Besseres Styling) */}
                 <div className="text-xs text-gray-500 pl-6">
                     {!cachedGapData && !isAnalyzingGap && 'Findet fehlende Themen für bessere Rankings.'}
                     {isAnalyzingGap && <span className="text-indigo-600 animate-pulse">Analysiere Wettbewerb & Semantik...</span>}
                     
+                    {/* ERGEBNIS-BOX MIT SAUBEREM STYLING */}
                     {cachedGapData && !isAnalyzingGap && (
                         <div className="mt-2 p-3 bg-white border border-green-200 rounded-lg shadow-sm">
                             <div className="flex items-center gap-1 text-green-600 font-semibold mb-2">
@@ -1040,16 +778,7 @@ export default function LandingPageGenerator({
         </div>
 
         {/* 3. KEYWORDS CARD */}
-        <div className={`${getCardClass('keywords')} p-4 relative`}>
-          
-          {/* ✅ STEP BADGE */}
-          {shouldShowStepBadge('keywords') && (
-            <div className="absolute top-4 right-4 bg-gradient-to-r from-purple-600 to-purple-500 text-white px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-purple-200 z-10 animate-in fade-in zoom-in-95">
-              <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-              Schritt 7
-            </div>
-          )}
-          
+        <div className="bg-white border border-gray-100 shadow-sm rounded-2xl p-4">
           <div className="flex justify-between items-center mb-2">
             <label className="font-semibold text-gray-800 flex items-center gap-2 text-sm"><PlusCircle className="text-emerald-500" /> Manuelle Keywords</label>
             <span className="text-xs font-medium text-gray-400">{totalKeywordCount} Total</span>
@@ -1062,24 +791,23 @@ export default function LandingPageGenerator({
           />
         </div>
 
-        <Button 
-          onClick={handleGenerate} 
-          disabled={isGenerating || (showOnboarding && completedSteps.length < ONBOARDING_STEPS.length)} 
-          className="w-full py-6 text-base gap-2 bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-200"
-        >
+        <Button onClick={handleGenerate} disabled={isGenerating} className="w-full py-6 text-base gap-2 bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-200">
           {isGenerating ? 'Generiere...' : <><FileText /> {contentType === 'landingpage' ? 'Landingpage erstellen' : 'Blog-Artikel schreiben'}</>}
         </Button>
       </div>
 
       {/* --- OUTPUT (RECHTS) --- */}
+      {/* Fix 1: overflow-hidden ENTFERNT damit Export-Dropdown sichtbar ist */}
       <div className="lg:col-span-8">
         <div className="bg-white border border-gray-100 shadow-xl rounded-2xl p-8 h-full min-h-[600px] flex flex-col relative">
+          {/* Header mit Export - z-index erhöht */}
           <div className="flex items-center justify-between mb-4 relative z-20">
             <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2"><FileText className="text-purple-500" /> Ergebnis</h2>
             {generatedContent && (
               <div className="flex gap-2 relative">
                 <button onClick={handleCopy} className="p-2 hover:bg-gray-100 rounded-lg text-gray-600" title="In Zwischenablage kopieren"><ClipboardCheck/></button>
                 
+                {/* Export Dropdown - Fix 1: Höherer z-index + Backdrop */}
                 <div className="relative">
                    <button 
                       onClick={() => setShowExportMenu(!showExportMenu)} 
@@ -1089,10 +817,12 @@ export default function LandingPageGenerator({
                    </button>
                    {showExportMenu && (
                      <>
+                       {/* Backdrop zum Schließen bei Klick außerhalb */}
                        <div 
                          className="fixed inset-0 z-30" 
                          onClick={() => setShowExportMenu(false)}
                        />
+                       {/* Dropdown-Menü */}
                        <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-xl z-40 animate-in fade-in slide-in-from-top-2">
                          <button 
                            onClick={() => handleExport('txt')} 
@@ -1120,6 +850,7 @@ export default function LandingPageGenerator({
             )}
           </div>
           
+          {/* Output-Bereich - z-index niedriger als Header */}
           <div ref={outputRef} className="flex-1 bg-gray-50/50 rounded-xl border border-gray-200/60 p-6 overflow-y-auto relative z-0 custom-scrollbar ai-output">
             {generatedContent ? (
               <div className="ai-content prose max-w-none" dangerouslySetInnerHTML={{ __html: generatedContent }} />
@@ -1133,18 +864,6 @@ export default function LandingPageGenerator({
           </div>
         </div>
       </div>
-    </div>
-    
-    {/* ✅ CUSTOM STYLES */}
-    <style jsx global>{`
-      @keyframes indeterminate-bar {
-        0% { transform: translateX(-100%); }
-        100% { transform: translateX(300%); }
-      }
-      .animate-indeterminate-bar {
-        animation: indeterminate-bar 1.5s infinite linear;
-      }
-    `}</style>
     </div>
   );
 }
