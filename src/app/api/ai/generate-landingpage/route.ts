@@ -40,6 +40,8 @@ interface LandingpageRequest {
   domain?: string;
   // ✅ Optionaler Kontext für Produkte/Fakten
   productContext?: string; 
+  // NEU: Sektions-Auswahl
+  section?: 'full' | 'intro' | 'benefits' | 'trust' | 'faq';
 }
 
 // ============================================================================
@@ -265,7 +267,8 @@ export async function POST(req: NextRequest) {
         contentType = 'landingpage', 
         contextData, 
         domain,
-        productContext // ✅ NEU
+        productContext, // ✅ NEU
+        section = 'full' // NEU: Sektions-Auswahl (default: full)
     } = body;
 
     // ========================================================================
@@ -389,6 +392,51 @@ Integriere diese Informationen zwingend in den Text:
 ` : '';
 
     // ========================================================================
+    // NEU: SEKTIONS-SPEZIFISCHE INSTRUKTION
+    // ========================================================================
+
+    let sectionInstruction = "";
+
+    switch (section) {
+      case 'intro':
+        sectionInstruction = `
+⚠️ SEKTIONS-AUFTRAG: NUR HERO & EINLEITUNG
+Generiere NUR den Hero-Bereich (H1) und die Einleitung (Problem & Lösung). 
+Fokus auf starke Hooks und emotionale Ansprache.
+KEIN FAQ, KEINE Benefits-Liste, KEIN Social Proof.
+`;
+        break;
+      case 'benefits':
+        sectionInstruction = `
+⚠️ SEKTIONS-AUFTRAG: NUR VORTEILE & FEATURES
+Generiere NUR die Nutzen-Argumentation (H2), Features und USPs.
+Sei extrem detailliert und spezifisch.
+KEINE Einleitung, KEIN FAQ, KEIN Social Proof.
+`;
+        break;
+      case 'trust':
+        sectionInstruction = `
+⚠️ SEKTIONS-AUFTRAG: NUR SOCIAL PROOF & TRUST
+Generiere NUR Trust-Elemente: Testimonials, Referenzen, Zahlen, Auszeichnungen.
+Fokus auf Glaubwürdigkeit und Vertrauensaufbau.
+KEINE Einleitung, KEINE Benefits, KEIN FAQ.
+`;
+        break;
+      case 'faq':
+        sectionInstruction = `
+⚠️ SEKTIONS-AUFTRAG: NUR FAQ & ABSCHLUSS
+Generiere NUR eine umfangreiche FAQ-Sektion (mind. 5 Fragen) und das Fazit mit CTA.
+Fokus auf Einwandbehandlung und Handlungsaufforderung.
+KEINE Einleitung, KEINE Benefits, KEIN Social Proof davor.
+`;
+        break;
+      default:
+        sectionInstruction = `
+AUFTRAG: Generiere die VOLLSTÄNDIGE Landingpage-Struktur.
+`;
+    }
+
+    // ========================================================================
     // 4. PROMPT GENERIERUNG
     // ========================================================================
 
@@ -506,6 +554,8 @@ HAUPTKEYWORD: "${mainKeyword}"
 DOMAIN: ${domain || 'Nicht angegeben'}
 ZIELGRUPPE: ${targetAudience || 'Allgemein'}
 ALLE KEYWORDS: ${keywords.join(', ')}
+
+${sectionInstruction}
 
 ${toneInstructions}
 
