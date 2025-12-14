@@ -83,6 +83,8 @@ export default function LandingPageGenerator({
   // Basis-Inputs
   const [topic, setTopic] = useState('');
   const [targetAudience, setTargetAudience] = useState('');
+  // ✅ NEU: Kontext für echte Fakten
+  const [productContext, setProductContext] = useState(''); 
   const [tone, setTone] = useState<ToneOfVoice>('professional');
   const [contentType, setContentType] = useState<ContentType>('landingpage');
   const [customKeywords, setCustomKeywords] = useState('');
@@ -183,19 +185,17 @@ export default function LandingPageGenerator({
 
   const totalKeywordCount = getAllKeywords().length;
 
-  // --- HELPER: Gap-Analyse Text extrahieren (Fix 2) ---
+  // --- HELPER: Gap-Analyse Text extrahieren ---
   const extractGapText = (html: string): string[] => {
-    // Entferne HTML-Tags und extrahiere Listenpunkte
     const text = html.replace(/<[^>]*>/g, '');
-    // Splitte bei Zeilenumbrüchen oder Listenpunkten
     const items = text
       .split(/[\n•\-]/)
       .map(item => item.trim())
       .filter(item => item.length > 10 && item.length < 200);
-    return items.slice(0, 5); // Max 5 Items
+    return items.slice(0, 5); 
   };
 
-  // --- EXPORT FUNKTION (Direkt implementiert) ---
+  // --- EXPORT FUNKTION ---
   const handleExport = (format: 'txt' | 'html' | 'md') => {
     if (!generatedContent) {
       toast.error('Kein Inhalt zum Exportieren.');
@@ -269,7 +269,6 @@ export default function LandingPageGenerator({
         setIsAnalyzingGap(true);
         toast.info('Führe Gap-Analyse durch...');
         
-        // Wir senden "topic" statt "url", damit die Route in den Generator-Modus schaltet
         const res = await fetch('/api/ai/content-gap', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -366,6 +365,8 @@ export default function LandingPageGenerator({
           contentType, 
           keywords: getAllKeywords(),
           targetAudience: targetAudience.trim() || undefined,
+          // ✅ NEU: Product Context senden
+          productContext: productContext.trim(),
           toneOfVoice: tone,
           contextData,
           domain,
@@ -529,6 +530,22 @@ export default function LandingPageGenerator({
               placeholder="z.B. KMUs, Ärzte..."
               className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-gray-400 outline-none"
             />
+          </div>
+
+          {/* ✅ NEU: PRODUKT KONTEXT FELD */}
+          <div className="mt-4">
+            <label className="text-sm font-semibold text-gray-700 mb-2 block">
+              Produktdetails & USPs (WICHTIG für Qualität!)
+            </label>
+            <textarea
+              value={productContext}
+              onChange={(e) => setProductContext(e.target.value)}
+              placeholder="Hier Fakten reinwerfen: Preise, Unique Selling Points, Garantien, Firmengeschichte, Angebot..."
+              className="w-full p-3 bg-indigo-50 border border-indigo-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none h-24"
+            />
+            <p className="text-[10px] text-gray-400 mt-1">
+              Je mehr Infos hier stehen, desto weniger muss die KI "erfinden".
+            </p>
           </div>
 
           <div className="mt-4">
@@ -717,7 +734,7 @@ export default function LandingPageGenerator({
                 )}
               </div>
 
-              {/* Gap Analysis (Fix 2: Besseres Styling) */}
+              {/* Gap Analysis */}
               <div className="p-3 bg-gray-50 rounded-lg transition-all">
                 <div className="flex items-center justify-between mb-2">
                     <label className="flex items-center gap-2 cursor-pointer">
@@ -743,7 +760,7 @@ export default function LandingPageGenerator({
                     </Button>
                 </div>
                 
-                {/* STATUS & ERGEBNIS ANZEIGE (Fix 2: Besseres Styling) */}
+                {/* STATUS & ERGEBNIS ANZEIGE */}
                 <div className="text-xs text-gray-500 pl-6">
                     {!cachedGapData && !isAnalyzingGap && 'Findet fehlende Themen für bessere Rankings.'}
                     {isAnalyzingGap && <span className="text-indigo-600 animate-pulse">Analysiere Wettbewerb & Semantik...</span>}
@@ -797,7 +814,6 @@ export default function LandingPageGenerator({
       </div>
 
       {/* --- OUTPUT (RECHTS) --- */}
-      {/* Fix 1: overflow-hidden ENTFERNT damit Export-Dropdown sichtbar ist */}
       <div className="lg:col-span-8">
         <div className="bg-white border border-gray-100 shadow-xl rounded-2xl p-8 h-full min-h-[600px] flex flex-col relative">
           {/* Header mit Export - z-index erhöht */}
@@ -807,7 +823,7 @@ export default function LandingPageGenerator({
               <div className="flex gap-2 relative">
                 <button onClick={handleCopy} className="p-2 hover:bg-gray-100 rounded-lg text-gray-600" title="In Zwischenablage kopieren"><ClipboardCheck/></button>
                 
-                {/* Export Dropdown - Fix 1: Höherer z-index + Backdrop */}
+                {/* Export Dropdown */}
                 <div className="relative">
                    <button 
                       onClick={() => setShowExportMenu(!showExportMenu)} 
