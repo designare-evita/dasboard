@@ -88,6 +88,7 @@ export default function LandingPageGenerator({
   const [productContext, setProductContext] = useState(''); 
   const [tone, setTone] = useState<ToneOfVoice>('professional');
   const [contentType, setContentType] = useState<ContentType>('landingpage');
+  const [generationMode, setGenerationMode] = useState('full'); // 'full', 'intro', 'benefits', 'trust', 'faq'
   const [customKeywords, setCustomKeywords] = useState('');
   
   // SPY FEATURE
@@ -372,6 +373,7 @@ export default function LandingPageGenerator({
           toneOfVoice: tone,
           contextData,
           domain,
+          section: generationMode, // NEU: Sektions-Auswahl
         }),
       });
 
@@ -809,6 +811,19 @@ export default function LandingPageGenerator({
             className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none h-20 resize-none"
           />
         </div>
+
+        {/* Generation Mode Selector */}
+        <select 
+          value={generationMode} 
+          onChange={(e) => setGenerationMode(e.target.value)}
+          className="w-full p-3 mb-4 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 outline-none"
+        >
+          <option value="full">📑 Komplette Landingpage (Draft)</option>
+          <option value="intro">🚀 Nur Hero & Einleitung (Hook)</option>
+          <option value="benefits">💎 Nur Vorteile & Features</option>
+          <option value="trust">⭐ Nur Social Proof & Trust</option>
+          <option value="faq">❓ Nur FAQ & Abschluss</option>
+        </select>
 
         <Button onClick={handleGenerate} disabled={isGenerating} className="w-full py-6 text-base gap-2 bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-200">
           {isGenerating ? 'Generiere...' : <><FileText /> {contentType === 'landingpage' ? 'Landingpage erstellen' : 'Blog-Artikel schreiben'}</>}
