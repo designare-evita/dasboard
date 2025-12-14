@@ -639,7 +639,7 @@ export default function LandingPageGenerator({
                         {keywordAnalysis.strikingDistance.length > 0 && (
                           <div className="bg-white p-3 rounded-lg border border-amber-200 shadow-sm">
                             <div className="text-[10px] font-bold text-amber-600 uppercase tracking-wide mb-2">
-                              🎯 Striking Distance <span className="font-normal text-gray-400">(fast Seite 1!)</span>
+                              Striking Distance <span className="font-normal text-gray-400">(fast Seite 1!)</span>
                             </div>
                             <ul className="space-y-1.5">
                               {keywordAnalysis.strikingDistance.map((k, idx) => (
@@ -660,7 +660,7 @@ export default function LandingPageGenerator({
                         {keywordAnalysis.questionKeywords.length > 0 && (
                           <div className="bg-white p-3 rounded-lg border border-purple-200 shadow-sm">
                             <div className="text-[10px] font-bold text-purple-600 uppercase tracking-wide mb-2">
-                              ❓ Fragen für FAQ
+                              Fragen für FAQ
                             </div>
                             <ul className="space-y-1">
                               {keywordAnalysis.questionKeywords.map((k, idx) => (
@@ -677,7 +677,7 @@ export default function LandingPageGenerator({
                         {keywordAnalysis.longTailKeywords.length > 0 && (
                           <div className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm">
                             <div className="text-[10px] font-bold text-gray-600 uppercase tracking-wide mb-2">
-                              📝 Long-Tail Keywords
+                              Long-Tail Keywords
                             </div>
                             <div className="flex flex-wrap gap-1">
                               {keywordAnalysis.longTailKeywords.map((k, idx) => (
@@ -818,11 +818,11 @@ export default function LandingPageGenerator({
           onChange={(e) => setGenerationMode(e.target.value)}
           className="w-full p-3 mb-4 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 outline-none"
         >
-          <option value="full">📑 Komplette Landingpage (Draft)</option>
-          <option value="intro">🚀 Nur Hero & Einleitung (Hook)</option>
-          <option value="benefits">💎 Nur Vorteile & Features</option>
-          <option value="trust">⭐ Nur Social Proof & Trust</option>
-          <option value="faq">❓ Nur FAQ & Abschluss</option>
+          <option value="full">Komplette Landingpage (Draft)</option>
+          <option value="intro">Nur Hero & Einleitung (Hook)</option>
+          <option value="benefits">Nur Vorteile & Features</option>
+          <option value="trust">Nur Social Proof & Trust</option>
+          <option value="faq">Nur FAQ & Abschluss</option>
         </select>
 
         <Button onClick={handleGenerate} disabled={isGenerating} className="w-full py-6 text-base gap-2 bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-200">
