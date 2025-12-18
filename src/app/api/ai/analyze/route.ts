@@ -64,17 +64,18 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Daten für KI aufbereiten (Zusammenfassung)
+    // FIX: Zugriff auf die korrekten Properties des ProjectDashboardData Typs
     const summaryData = `
-      Nutzer: ${analyticsData.summary.users} (Änderung: ${change(analyticsData.summary.usersChange)}%)
-      Sitzungen: ${analyticsData.summary.sessions} (Änderung: ${change(analyticsData.summary.sessionsChange)}%)
-      Absprungrate: ${fmt(analyticsData.summary.bounceRate)}%
-      Durschn. Sitzungsdauer: ${fmt(analyticsData.summary.avgSessionDuration)}s
+      Nutzer: ${analyticsData.users ?? 0} (Änderung: ${change(analyticsData.usersChange)}%)
+      Sitzungen: ${analyticsData.sessions ?? 0} (Änderung: ${change(analyticsData.sessionsChange)}%)
+      Absprungrate: ${fmt(analyticsData.bounceRate)}%
+      Durschn. Sitzungsdauer: ${fmt(analyticsData.avgSessionDuration)}s
       
       Top Seiten (Views):
-      ${analyticsData.pages.slice(0, 5).map(p => `- ${p.path}: ${p.views} Views`).join('\n')}
+      ${analyticsData.pages?.slice(0, 5).map(p => `- ${p.path}: ${p.views} Views`).join('\n') || 'Keine Daten'}
 
       Top Quellen:
-      ${analyticsData.sources.slice(0, 5).map(s => `- ${s.source}: ${s.users} User`).join('\n')}
+      ${analyticsData.sources?.slice(0, 5).map(s => `- ${s.source}: ${s.users} User`).join('\n') || 'Keine Daten'}
     `;
 
     // 4. Prompt Engineering
