@@ -1,13 +1,8 @@
 // src/app/api/ai/content-gap/route.ts
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { streamText } from 'ai';
+import { streamTextSafe } from '@/lib/ai-config'; // <--- Zentraler Import
 import * as cheerio from 'cheerio';
 import { NextRequest, NextResponse } from 'next/server';
 import { STYLES } from '@/lib/ai-styles';
-
-const google = createGoogleGenerativeAI({
-  apiKey: process.env.GEMINI_API_KEY || '',
-});
 
 export const runtime = 'nodejs'; 
 export const maxDuration = 60;
@@ -37,63 +32,68 @@ Gib das Ergebnis als einfache HTML-Liste (<ul><li>...</li></ul>) zurück.
 Jeder Punkt soll:
 1. Den fehlenden Aspekt benennen (fett).
 2. Kurz erklären, warum er wichtig ist.
-Keine Einleitung, kein Markdown, nur das HTML.
+
+STYLING:
+Nutze diese Tailwind-Klassen:
+- Liste: <ul class="${STYLES.list}">
+- Item: <li class="mb-2 text-indigo-950">
+- Highlight: <strong class="text-indigo-600 font-medium">
+
+Antworte NUR mit dem HTML-Code der Liste. Keine Einleitung.
       `;
 
-      const result = streamText({
-        model: google('gemini-2.5-flash'),
+      // NEU: Zentraler Aufruf mit Fallback
+      const result = await streamTextSafe({
         prompt: prompt,
-        temperature: 0.6,
+        temperature: 0.7, // Etwas kreativer für Brainstorming
       });
 
       return result.toTextStreamResponse();
     }
 
     // ========================================================================
-    // FALL 2: Analyzer-Modus (Prüfung einer URL)
-    // Deine existierende Logik für CtrBooster / URL-Checks
+    // FALL 2: Analyse-Modus (URL vs. Keywords)
+    // Wird im "Content Gap" Tool genutzt
     // ========================================================================
     const { url, keywords } = body;
 
-    if (!url || !keywords || keywords.length === 0) {
-      return NextResponse.json(
-        { message: 'Entweder "topic" ODER "url" + "keywords" sind erforderlich.' },
-        { status: 400 }
-      );
+    if (!url || !keywords) {
+      return NextResponse.json({ message: 'URL und Keywords erforderlich' }, { status: 400 });
     }
 
-    // Webseite scrapen (Existierende Logik)
-    const pageRes = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-      }
-    });
-
-    if (!pageRes.ok) {
-      throw new Error(`Konnte URL nicht abrufen: ${pageRes.statusText} (${pageRes.status})`);
-    }
-
-    const html = await pageRes.text();
+    // 1. Content scrapen
+    const response = await fetch(url, { headers: { 'User-Agent': 'Googlebot-Simulator' } });
+    const html = await response.text();
     const $ = cheerio.load(html);
+    
+    // Nur relevanten Text extrahieren
+    $('script, style, nav, footer, iframe, svg').remove();
+    const content = $('body').text().replace(/\s+/g, ' ').substring(0, 6000);
+    const title = $('title').text();
+    const h1 = $('h1').first().text();
 
-    $('script, style, nav, footer, svg, button').remove();
-    const pageText = $('body').text().replace(/\s+/g, ' ').slice(0, 15000); 
-
-    // Prompt für URL-Analyse (Existierende Logik)
+    // 2. Prompt bauen
     const prompt = `
       Du bist ein knallharter Content-Auditor.
       
-      ZIEL: Finde Lücken im Content der URL im Vergleich zu den Target-Keywords.
+      ZIEL-URL: ${url}
+      TITEL: ${title}
+      H1: ${h1}
       
-      URL CONTENT (Auszug):
-      "${pageText.slice(0, 4000)}..."
-
-      TARGET KEYWORDS:
-      ${keywords.map((k: any) => `- ${k.term || k}`).join('\n')}
-
-      STYLES TO USE:
-      - H3: <h3 class="${STYLES.h3}">...</h3>
-      - Label: <span class="${STYLES.label}">LABEL</span>
+      ZIEL-KEYWORDS: ${keywords}
+      
+      IST-INHALT (Auszug):
+      ${content}...
+      
+      FORMATIERUNG:
+      Nutze NUR HTML (kein Markdown). Nutze Tailwind Klassen.
+      Icons: Bootstrap Icons (bi-...).
+      
+      Styling Konstanten:
+      - Boxen: ${STYLES.card}
+      - Headlines: ${STYLES.h3}
+      - Listen: ${STYLES.list}
+      - Labels: <span class="${STYLES.label}">LABEL</span>
 
       AUFGABE:
       Analysiere, wie gut der Text die Keywords abdeckt. Erstelle folgenden HTML-Report:
@@ -116,18 +116,16 @@ Keine Einleitung, kein Markdown, nur das HTML.
       Antworte direkt mit dem HTML-Code. Keine Einleitung.
     `;
 
-    const result = streamText({
-      model: google('gemini-2.5-flash'), 
+    // NEU: Zentraler Aufruf mit Fallback
+    const result = await streamTextSafe({
       prompt: prompt,
+      // Standard-Temperature (0.7) aus Config wird genutzt, wenn nicht überschrieben
     });
 
     return result.toTextStreamResponse();
 
   } catch (error: unknown) {
     console.error('Content Gap Error:', error);
-    return NextResponse.json(
-      { message: error instanceof Error ? error.message : 'Analyse fehlgeschlagen' }, 
-      { status: 500 }
-    );
+    return NextResponse.json({ message: 'Analyse fehlgeschlagen' }, { status: 500 });
   }
 }
