@@ -1,13 +1,9 @@
 // src/app/api/ai/schema-analyzer/route.ts
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { streamText } from 'ai';
 import * as cheerio from 'cheerio';
 import { NextRequest, NextResponse } from 'next/server';
 import { STYLES, getCompactStyleGuide } from '@/lib/ai-styles';
-
-const google = createGoogleGenerativeAI({
-  apiKey: process.env.GEMINI_API_KEY || '',
-});
+import { google, AI_CONFIG } from '@/lib/ai-config';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -61,50 +57,36 @@ function detectCMS(html: string, $: cheerio.CheerioAPI): { cms: string; confiden
   return { cms: 'Selbstprogrammiert', confidence: 'hoch', hints, isCustom: true };
 }
 
-// Tech-Stack (nur für Kontext - mit der letzten Korrektur)
+// Tech-Stack (nur für Kontext)
 function detectTechStack(html: string, $: cheerio.CheerioAPI): string[] {
   const stack: string[] = [];
   const htmlLower = html.toLowerCase();
   
-  // React (Präzise)
   if (htmlLower.includes('react.js') || htmlLower.includes('react-dom') || $('[data-reactroot]').length > 0) {
       stack.push('React');
   }
-
-  // Angular (Präzise)
   if (htmlLower.includes('angular.json') || htmlLower.includes('zone.js') || $('app-root').length > 0 || htmlLower.includes('ng-version=')) {
       stack.push('Angular');
   } else if (html.includes('ng-') || html.includes('*ngFor')) {
       if (!stack.includes('Angular')) stack.push('Angular');
   }
-
-  // Vue.js
   if (html.includes('v-if=') || html.includes(':class=') || htmlLower.includes('/_nuxt/')) {
       stack.push('Vue.js');
   }
-  
-  // Alpine.js
   if (html.includes('x-data=')) stack.push('Alpine.js');
-  
-  // CSS/UI Frameworks
   if (htmlLower.includes('bootstrap')) stack.push('Bootstrap');
   if (html.match(/class="[^"]*\b(flex |grid |p-\d|m-\d|text-sm|bg-|rounded-)/)) stack.push('Tailwind CSS');
-  
-  // Analytics/Performance
   if (htmlLower.includes('gtag(') || htmlLower.includes('google-analytics')) stack.push('Google Analytics');
   if (htmlLower.includes('googletagmanager.com')) stack.push('Google Tag Manager');
   if (htmlLower.includes('cloudflare')) stack.push('Cloudflare');
-  
-  // Libraries
   if (htmlLower.includes('jquery')) stack.push('jQuery');
   if (htmlLower.includes('gsap')) stack.push('GSAP Animation');
   
   return [...new Set(stack)];
 }
 
-
 // ============================================================================
-// HAUPTSCRAPER (spezialisiert auf Schema-Extraktion)
+// HAUPTSCRAPER
 // ============================================================================
 
 async function scrapeUrl(url: string) {
@@ -114,7 +96,7 @@ async function scrapeUrl(url: string) {
       'Accept': 'text/html',
       'Accept-Language': 'de-DE,de;q=0.9',
     },
-    signal: AbortSignal.timeout(10000) // Timeout für Robustheit
+    signal: AbortSignal.timeout(10000)
   });
   
   if (!res.ok) throw new Error(`Status ${res.status}`);
@@ -126,9 +108,8 @@ async function scrapeUrl(url: string) {
   const metaDesc = $('meta[name="description"]').attr('content')?.trim() || '';
   
   const cmsInfo = detectCMS(html, $);
-  const techStack = detectTechStack(html, $); // TechStack-Erkennung beibehalten
+  const techStack = detectTechStack(html, $);
   
-  // --- STRUKTURIERTE DATEN EXTRAHIEREN (KERN-LOGIK DIESES TOOLS) ---
   const existingSchemaJson: string[] = [];
   const existingSchemaTypes: string[] = [];
   
@@ -137,13 +118,8 @@ async function scrapeUrl(url: string) {
         const jsonText = $(el).html()?.trim();
         if (jsonText) {
             const jsonObject = JSON.parse(jsonText);
-            // Sammeln des JSON-Textes zur Darstellung im Prompt
             existingSchemaJson.push(JSON.stringify(jsonObject, null, 2));
-            
-            // Sammeln der Typen zur Analyse (hilft der KI, Duplikate zu vermeiden)
             const type = jsonObject['@type'] || (Array.isArray(jsonObject) && jsonObject.length > 0 ? jsonObject[0]['@type'] : 'Unbekannt');
-            
-            // Bei Arrays von Schemas die einzelnen Typen sammeln (z.B. @graph)
             if (Array.isArray(jsonObject['@graph'])) {
               jsonObject['@graph'].forEach((item: any) => {
                 if (item['@type'] && !existingSchemaTypes.includes(item['@type'])) {
@@ -155,11 +131,10 @@ async function scrapeUrl(url: string) {
             }
         }
     } catch (e) {
-        existingSchemaJson.push(`// FEHLER: Ungültiges JSON-LD im Quellcode: ${e instanceof Error ? e.message : 'Parsing-Fehler'}`);
+        existingSchemaJson.push(`// FEHLER: Ungültiges JSON-LD: ${e instanceof Error ? e.message : 'Parsing-Fehler'}`);
     }
   });
 
-  // --- CONTENT EXTRAHIEREN (für Kontext) ---
   const h1 = $('h1').first().text().trim().slice(0, 60);
   const h2Elements: string[] = [];
   $('h2').each((_, el) => {
@@ -168,7 +143,6 @@ async function scrapeUrl(url: string) {
   });
   
   $('script, style, nav, footer, iframe, svg, noscript, head').remove();
-  const text = $('body').text().replace(/\s+/g, ' ').trim();
   
   const uniqueTexts: string[] = [];
   $('p').each((i, el) => {
@@ -186,10 +160,9 @@ async function scrapeUrl(url: string) {
     techStack,
     existingSchemaJson, 
     existingSchemaTypes,
-    error: false, // <-- KORRIGIERT: Fügt den Erfolg-Zustand hinzu
+    error: false,
   };
 }
-
 
 // ============================================================================
 // MAIN HANDLER
@@ -203,9 +176,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'URL ist erforderlich.' }, { status: 400 });
     }
 
-    // Daten scrapen (Fehlerbehandlung für TypeScript-Sicherheit)
     const pageData = await scrapeUrl(url).catch(e => ({ 
-      error: true, // <-- KORRIGIERT: Fügt den Fehler-Zustand hinzu
+      error: true,
       url: url, title: 'Fehler beim Scrapen', metaDesc: '', h1: '', 
       h2Elements: [], uniqueTexts: [], cmsInfo: { cms: 'Fehler', confidence: 'n/a', hints: [e.message], isCustom: false },
       techStack: [], 
@@ -213,15 +185,10 @@ export async function POST(req: NextRequest) {
       existingSchemaTypes: ['Error'],
     }));
 
-    // Falls ein kritischer Fehler aufgetreten ist und wir keine Daten haben, beenden wir.
     if (pageData.error) {
          return NextResponse.json({ message: `Fehler: ${pageData.existingSchemaJson[0]}` }, { status: 500 });
     }
 
-
-    // ========================================================================
-    // PROMPT - SCHEMA ANALYSE
-    // ========================================================================
     const schemaAnalysisPrompt = `
 Du bist ein SEO-Experte, der sich auf die Implementierung und Validierung von Schema.org-Markup spezialisiert hat.
 Analysiere die bereitgestellten Seitendaten und die vorhandenen JSON-LD-Daten.
@@ -253,8 +220,8 @@ ERSTELLE DIESEN REPORT:
 1. <h3 class="${STYLES.h3}"><i class="bi bi-patch-check"></i> Analyse VORHANDENER Schemas</h3>
    <div class="${STYLES.infoBox}">
      <p class="${STYLES.p}">
-       Bewerte die VORHANDENEN Schema-Markups. Sind sie relevant? Sind wichtige Felder (z.B. Name, URL, @id) korrekt gesetzt? 
-       Liste nur die gefundenen Haupt-Typen (${pageData.existingSchemaTypes.join(', ') || 'Keine Schemas gefunden'}) und gib eine kurze, präzise Bewertung (1-2 Sätze) ab.
+       Bewerte die VORHANDENEN Schema-Markups. Sind sie relevant? Sind wichtige Felder korrekt gesetzt? 
+       Liste nur die gefundenen Haupt-Typen (${pageData.existingSchemaTypes.join(', ') || 'Keine Schemas gefunden'}) und gib eine kurze Bewertung ab.
      </p>
    </div>
 
@@ -262,7 +229,7 @@ ERSTELLE DIESEN REPORT:
    <div class="${STYLES.recommendBox}">
      <h4 class="font-semibold text-white mb-2"><i class="bi bi-plus-circle"></i> Top 3 Schema-Empfehlungen</h4>
      <ol class="space-y-2 text-sm text-indigo-100">
-       [Formuliere 3 konkrete Vorschläge für Schema-Typen, die dem Content-Kontext (Text/H1/H2) NACHHALTIG FEHLEN und NICHT in der Liste VORHANDENER SCHEMA-TYPEN stehen. Beispiel: <li>Schema-Typ (z.B. 'FAQPage'): Begründung (1 Satz)</li>]
+       [Formuliere 3 konkrete Vorschläge für Schema-Typen, die dem Content-Kontext FEHLEN und NICHT in der Liste VORHANDENER SCHEMA-TYPEN stehen.]
      </ol>
      <div class="${STYLES.warningBox} mt-3">
        <p class="${STYLES.pSmall} text-indigo-900"><i class="bi bi-code-slash"></i> <strong>Achtung:</strong> Die bestehenden Typen sollten NICHT dupliziert werden.</p>
@@ -271,8 +238,8 @@ ERSTELLE DIESEN REPORT:
 
 3. <h3 class="${STYLES.h3}"><i class="bi bi-code"></i> Code-Beispiel</h3>
    <div class="${STYLES.card}">
-     <h4 class="${STYLES.h4}">Beispielcode für den WICHTIGSTEN fehlenden Schema-Typ (Punkt 1 aus Vorschläge)</h4>
-     <p class="${STYLES.p}">Generiere einen vollständigen, gültigen JSON-LD Codeblock für den wichtigsten empfohlenen Schema-Typ, der die Seitendaten (${pageData.title}, ${pageData.h1}, ${pageData.url}) nutzt und relevante Platzhalter für notwendige Felder (z.B. "description": "[Beschreibung hier einfügen]") enthält. Der Code MUSS in einem 
+     <h4 class="${STYLES.h4}">Beispielcode für den WICHTIGSTEN fehlenden Schema-Typ</h4>
+     <p class="${STYLES.p}">Generiere einen vollständigen, gültigen JSON-LD Codeblock für den wichtigsten empfohlenen Schema-Typ. Der Code MUSS in einem 
      <pre class="language-json">...</pre> Block eingeschlossen sein.
      </p>
    </div>
@@ -281,7 +248,7 @@ Antworte NUR mit HTML. Ersetze alle [Platzhalter] mit echtem Content!
 `;
 
     const result = streamText({
-      model: google('gemini-2.5-flash'),
+      model: google(AI_CONFIG.fallbackModel),
       prompt: schemaAnalysisPrompt,
       temperature: 0.3,
     });
