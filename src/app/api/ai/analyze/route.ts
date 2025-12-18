@@ -57,7 +57,18 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Daten laden (wenn nicht im Cache)
-    const analyticsData = await getOrFetchGoogleData(projectId, dateRange);
+    // Hinweis: getOrFetchGoogleData erwartet ein User-Objekt, nicht nur projectId
+    // Wir müssen den User erst laden
+    const { rows: userRows } = await sql`
+      SELECT * FROM users WHERE id = ${projectId}::uuid LIMIT 1
+    `;
+    
+    if (userRows.length === 0) {
+      return NextResponse.json({ message: 'Projekt nicht gefunden' }, { status: 404 });
+    }
+    
+    const user = userRows[0] as User;
+    const analyticsData = await getOrFetchGoogleData(user, dateRange);
 
     if (!analyticsData) {
         return NextResponse.json({ message: 'Keine Daten gefunden' }, { status: 404 });
@@ -65,17 +76,20 @@ export async function POST(req: NextRequest) {
 
     // 3. Daten für KI aufbereiten (Zusammenfassung)
     // FIX: Zugriff auf die korrekten Properties des ProjectDashboardData Typs
+    // Die Struktur ist: analyticsData.kpis.{metric}.value und analyticsData.kpis.{metric}.change
     const summaryData = `
-      Nutzer: ${analyticsData.users ?? 0} (Änderung: ${change(analyticsData.usersChange)}%)
-      Sitzungen: ${analyticsData.sessions ?? 0} (Änderung: ${change(analyticsData.sessionsChange)}%)
-      Absprungrate: ${fmt(analyticsData.bounceRate)}%
-      Durschn. Sitzungsdauer: ${fmt(analyticsData.avgSessionDuration)}s
+      Nutzer: ${analyticsData.kpis.totalUsers?.value ?? 0} (Änderung: ${change(analyticsData.kpis.totalUsers?.change)}%)
+      Sitzungen: ${analyticsData.kpis.sessions?.value ?? 0} (Änderung: ${change(analyticsData.kpis.sessions?.change)}%)
+      Absprungrate: ${fmt(analyticsData.kpis.bounceRate?.value)}%
+      Durschn. Sitzungsdauer: ${fmt(analyticsData.kpis.avgEngagementTime?.value)}s
+      Conversions: ${analyticsData.kpis.conversions?.value ?? 0} (Änderung: ${change(analyticsData.kpis.conversions?.change)}%)
+      Engagement Rate: ${fmt(analyticsData.kpis.engagementRate?.value)}%
       
-      Top Seiten (Views):
-      ${analyticsData.pages?.slice(0, 5).map(p => `- ${p.path}: ${p.views} Views`).join('\n') || 'Keine Daten'}
+      Top Seiten (Conversions):
+      ${analyticsData.topConvertingPages?.slice(0, 5).map(p => `- ${p.path}: ${p.conversions} Conversions`).join('\n') || 'Keine Daten'}
 
-      Top Quellen:
-      ${analyticsData.sources?.slice(0, 5).map(s => `- ${s.source}: ${s.users} User`).join('\n') || 'Keine Daten'}
+      Top Suchanfragen:
+      ${analyticsData.topQueries?.slice(0, 5).map(q => `- ${q.query}: ${q.clicks} Klicks, Position ${q.position?.toFixed(1)}`).join('\n') || 'Keine Daten'}
     `;
 
     // 4. Prompt Engineering
