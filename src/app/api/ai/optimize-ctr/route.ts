@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { generateText } from 'ai';
-
-// Google AI Initialisierung
-const google = createGoogleGenerativeAI({
-  apiKey: process.env.GEMINI_API_KEY || '',
-});
+import { google, AI_CONFIG } from '@/lib/ai-config';
 
 export const runtime = 'nodejs';
 
@@ -33,8 +28,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. KI Generierung (generateText für JSON)
-    // Wir nutzen 'gemini-2.5-flash' wie angefordert. 
-    // Falls es Probleme gibt (wie im vorherigen Chat), kann hier auf 'gemini-1.5-flash' gewechselt werden.
+    // Nutzt Fallback-Modell aus zentraler Config für stabile JSON-Generierung
     const systemPrompt = `
       Du bist ein erstklassiger SEO- & Copywriting-Experte. Dein Spezialgebiet ist die Optimierung von Google SERP-Snippets (CTR-Optimierung).
       
@@ -69,7 +63,7 @@ export async function POST(req: NextRequest) {
     `;
 
     const result = await generateText({
-      model: google('gemini-2.5-flash'), // Modell wie angefordert
+      model: google(AI_CONFIG.fallbackModel), // Fallback für stabile JSON-Generierung
       system: systemPrompt,
       prompt: userPrompt,
       temperature: 0.7, // Kreativ aber fokussiert
