@@ -1,13 +1,9 @@
 // src/app/api/ai/trend-radar/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { streamText } from 'ai';
 import { STYLES, STATUS_COLORS, getCompactStyleGuide } from '@/lib/ai-styles';
-
-const google = createGoogleGenerativeAI({
-  apiKey: process.env.GEMINI_API_KEY || '',
-});
+import { google, AI_CONFIG } from '@/lib/ai-config';
 
 const SERPAPI_KEY = process.env.SERPAPI_KEY || ''; 
 
@@ -206,7 +202,7 @@ ${topHTML}
 Ersetze alle [GENERIERE...] Platzhalter mit echtem Content. Beginne JETZT mit <div class="${STYLES.container}">:`;
 
     const result = streamText({
-      model: google('gemini-2.5-flash'),
+      model: google(AI_CONFIG.fallbackModel),
       prompt: prompt,
       temperature: 0.3,
     });
