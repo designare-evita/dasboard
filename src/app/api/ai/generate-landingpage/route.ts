@@ -1,8 +1,8 @@
 // src/app/api/ai/generate-landingpage/route.ts
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { streamText } from 'ai';
 import { NextRequest, NextResponse } from 'next/server';
 import { STYLES } from '@/lib/ai-styles';
+import { google, AI_CONFIG } from '@/lib/ai-config';
 import { 
   analyzeKeywords, 
   generateKeywordPromptContext,
@@ -10,10 +10,6 @@ import {
   type Keyword,
   type SearchIntent
 } from '@/lib/keyword-analyzer';
-
-const google = createGoogleGenerativeAI({
-  apiKey: process.env.GEMINI_API_KEY || '',
-});
 
 export const runtime = 'nodejs';
 export const maxDuration = 120; // 2 Minuten für komplexe Generierung
@@ -947,21 +943,21 @@ ${sectionStructure ? `⚠️ KRITISCH: Generiere NUR die oben angegebene Sektion
     }
 
     // ========================================================================
-    // 5. STREAMING MIT FALLBACK
+    // 5. STREAMING MIT FALLBACK (ZENTRALE CONFIG)
     // ========================================================================
     
     try {
-      console.log('🤖 Landingpage Generator: Versuche Gemini 3 Pro Preview...');
+      console.log(`🤖 Landingpage Generator: Versuche ${AI_CONFIG.primaryModel}...`);
       
       const result = streamText({
-        model: google('gemini-3-pro-preview'),
+        model: google(AI_CONFIG.primaryModel),
         prompt: prompt,
         temperature: 0.7,
       });
 
       return result.toTextStreamResponse({
         headers: {
-          'X-AI-Model': 'gemini-3-pro-preview',
+          'X-AI-Model': AI_CONFIG.primaryModel,
           'X-AI-Status': 'primary',
           // ✅ NEU: Intent-Info im Header
           'X-Intent-Detected': keywordAnalysis?.intentAnalysis.dominantIntent || 'unknown',
@@ -970,17 +966,17 @@ ${sectionStructure ? `⚠️ KRITISCH: Generiere NUR die oben angegebene Sektion
       });
       
     } catch (error) {
-      console.warn('⚠️ Gemini 3 Pro failed, falling back to Flash:', error);
+      console.warn(`⚠️ ${AI_CONFIG.primaryModel} failed, falling back to ${AI_CONFIG.fallbackModel}:`, error);
 
       const result = streamText({
-        model: google('gemini-2.5-flash'),
+        model: google(AI_CONFIG.fallbackModel),
         prompt: prompt,
         temperature: 0.7,
       });
 
       return result.toTextStreamResponse({
         headers: {
-          'X-AI-Model': 'gemini-2.5-flash',
+          'X-AI-Model': AI_CONFIG.fallbackModel,
           'X-AI-Status': 'fallback',
           'X-Intent-Detected': keywordAnalysis?.intentAnalysis.dominantIntent || 'unknown',
           'X-Intent-Confidence': keywordAnalysis?.intentAnalysis.mainKeywordIntent.confidence || 'unknown'
