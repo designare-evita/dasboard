@@ -1,13 +1,8 @@
 // src/app/api/ai/generate-questions/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { streamText } from 'ai';
 import { STYLES } from '@/lib/ai-styles';
-
-const google = createGoogleGenerativeAI({
-  apiKey: process.env.GEMINI_API_KEY || '',
-});
+import { streamTextSafe } from '@/lib/ai-config'; // <--- Zentraler Import
 
 export const runtime = 'nodejs';
 
@@ -48,8 +43,9 @@ export async function POST(req: NextRequest) {
           </li>
       `;
 
-      const result = streamText({
-        model: google('gemini-2.5-flash'), 
+      // NEU: Zentraler Aufruf mit automatischer Fallback-Logik
+      // (Versucht Gemini 3 -> Fallback auf Gemini 2.5)
+      const result = await streamTextSafe({
         system: systemPrompt,
         prompt: `Domain: "${domain}"\nKeywords: ${keywords.join(', ')}.\n\nGeneriere eine Liste von 10-15 relevanten Fragen als HTML.`,
         temperature: 0.7,
@@ -59,10 +55,11 @@ export async function POST(req: NextRequest) {
       
     } catch (aiError) {
       console.error('[AI Generate] Google API Fehler:', aiError);
-      return NextResponse.json({ message: 'AI Fehler', details: String(aiError) }, { status: 502 });
+      return NextResponse.json({ message: 'Fehler bei der KI-Generierung' }, { status: 500 });
     }
 
   } catch (error) {
-    return NextResponse.json({ message: 'Server Fehler' }, { status: 500 });
+    console.error('[API] Error:', error);
+    return NextResponse.json({ message: 'Interner Serverfehler' }, { status: 500 });
   }
 }
