@@ -1,17 +1,16 @@
 // src/app/api/ai/competitor-spy/route.ts
-import { streamTextSafe } from '@/lib/ai-config'; // <--- Der neue zentrale Import
+import { streamTextSafe } from '@/lib/ai-config';
 import * as cheerio from 'cheerio';
 import { NextRequest, NextResponse } from 'next/server';
 import { STYLES, getCompactStyleGuide } from '@/lib/ai-styles';
 
 export const runtime = 'nodejs';
-export const maxDuration = 300; // 5 Minuten (Vercel Pro) für Deep Research Tasks
+export const maxDuration = 300;
 
 // ============================================================================
-// FUNKTIONEN (Scraping & Detection - Unverändert)
+// FUNKTIONEN (Scraping & Detection)
 // ============================================================================
 
-// CMS-Erkennung mit Scoring
 function detectCMS(html: string, $: cheerio.CheerioAPI): { cms: string; confidence: string; hints: string[]; isCustom: boolean } {
   const hints: string[] = [];
   const htmlLower = html.toLowerCase();
@@ -19,7 +18,7 @@ function detectCMS(html: string, $: cheerio.CheerioAPI): { cms: string; confiden
   
   if (htmlLower.includes('wp-content')) cmsScores['WordPress'] = (cmsScores['WordPress'] || 0) + 3;
   if (htmlLower.includes('wp-includes')) cmsScores['WordPress'] = (cmsScores['WordPress'] || 0) + 3;
-  if ($('meta[name=\"generator\"][content*=\"WordPress\"]').length > 0) cmsScores['WordPress'] = (cmsScores['WordPress'] || 0) + 5;
+  if ($('meta[name="generator"][content*="WordPress"]').length > 0) cmsScores['WordPress'] = (cmsScores['WordPress'] || 0) + 5;
   if (htmlLower.includes('/wp-json/')) cmsScores['WordPress'] = (cmsScores['WordPress'] || 0) + 2;
   
   if (htmlLower.includes('shopify')) cmsScores['Shopify'] = (cmsScores['Shopify'] || 0) + 5;
@@ -57,16 +56,14 @@ async function scrapeContent(url: string) {
     const html = await response.text();
     const $ = cheerio.load(html);
 
-    // Unnötige Elemente entfernen
     $('script, style, nav, footer, iframe, svg, noscript').remove();
 
     const title = $('title').text().trim();
     const description = $('meta[name="description"]').attr('content') || '';
     const h1 = $('h1').map((_, el) => $(el).text().trim()).get().join(' | ');
     
-    // Hauptinhalt extrahieren (versuche main, article oder body)
     let content = $('main').text().trim() || $('article').text().trim() || $('body').text().trim();
-    content = content.replace(/\s+/g, ' ').substring(0, 8000); // Limit für Token
+    content = content.replace(/\s+/g, ' ').substring(0, 8000);
 
     const cmsData = detectCMS(html, $);
 
@@ -83,19 +80,37 @@ async function scrapeContent(url: string) {
 
 export async function POST(req: NextRequest) {
   try {
-    // Auth Check wird hier oft übersprungen oder ist in Middleware, 
-    // aber wir lassen den Try-Block sauber.
-    
     const body = await req.json();
-    const { targetUrl, competitorUrl, keywords } = body;
+    
+    // DEBUG: Logge den empfangenen Body
+    console.log('[Competitor Spy] Empfangener Body:', JSON.stringify(body, null, 2));
+    
+    // FIX: Akzeptiere verschiedene Feldnamen für die URL
+    const targetUrl = body.targetUrl || body.url || body.target || body.siteUrl || body.domain;
+    const competitorUrl = body.competitorUrl || body.competitor || body.compareUrl;
+    const keywords = body.keywords || body.keyword || '';
+
+    // DEBUG: Logge die extrahierten Werte
+    console.log('[Competitor Spy] Extrahierte Werte:', { targetUrl, competitorUrl, keywords });
 
     if (!targetUrl) {
-      return NextResponse.json({ message: 'Ziel-URL ist erforderlich' }, { status: 400 });
+      console.error('[Competitor Spy] Keine URL gefunden in Body:', Object.keys(body));
+      return NextResponse.json({ 
+        message: 'Ziel-URL ist erforderlich',
+        receivedFields: Object.keys(body),
+        hint: 'Sende die URL als "targetUrl", "url" oder "target"'
+      }, { status: 400 });
+    }
+
+    // URL validieren und ggf. Protokoll hinzufügen
+    let normalizedUrl = targetUrl.trim();
+    if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+      normalizedUrl = 'https://' + normalizedUrl;
     }
 
     // 1. Daten holen
     const [targetData, competitorData] = await Promise.all([
-      scrapeContent(targetUrl),
+      scrapeContent(normalizedUrl),
       competitorUrl ? scrapeContent(competitorUrl) : Promise.resolve(null)
     ]);
 
@@ -111,7 +126,7 @@ export async function POST(req: NextRequest) {
     const basePrompt = `
       Du bist ein Elite-SEO-Analyst. Analysiere die Webseite(n) strategisch.
       
-      ZIEL-URL: ${targetUrl}
+      ZIEL-URL: ${normalizedUrl}
       TITEL: ${targetData.title}
       CMS: ${targetData.cmsData.cms}
       KEYWORDS: ${keywords || 'Nicht angegeben'}
@@ -202,20 +217,11 @@ export async function POST(req: NextRequest) {
       Antworte NUR mit HTML. Kompakt!
     `;
 
-    // Richtigen Prompt wählen
     const finalPrompt = isCompareMode ? comparePrompt : singlePrompt;
 
-    // ========================================================================
-    // KI GENERIERUNG MIT ZENTRALEM FALLBACK
-    // ========================================================================
-    // Wir nutzen streamTextSafe: 
-    // 1. Versucht Gemini 3 (Primary aus Config)
-    // 2. Bei Fehler automatisch Fallback auf Gemini 2.5 (Fallback aus Config)
-    
     const result = await streamTextSafe({
       prompt: finalPrompt,
-      temperature: 0.3, // Etwas analytischer/strenger für diese Aufgabe
-      // Optional: System-Prompt könnte hier auch rein, ist aber im Prompt integriert
+      temperature: 0.3,
     });
 
     return result.toTextStreamResponse();
