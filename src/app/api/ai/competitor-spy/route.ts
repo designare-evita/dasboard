@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
     console.log('[Competitor Spy] Empfangener Body:', JSON.stringify(body, null, 2));
     
     // FIX: Akzeptiere verschiedene Feldnamen für die URL
-    const targetUrl = body.targetUrl || body.url || body.target || body.siteUrl || body.domain;
+    const targetUrl = body.targetUrl || body.myUrl || body.url || body.target || body.siteUrl || body.domain;
     const competitorUrl = body.competitorUrl || body.competitor || body.compareUrl;
     const keywords = body.keywords || body.keyword || '';
 
