@@ -5,27 +5,26 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // ============================================================================
 // 1. ZENTRALE MODELL-DEFINITION
-// Ändere hier die Modelle, um sie im GESAMTEN Projekt zu aktualisieren.
 // ============================================================================
 export const AI_CONFIG = {
   primaryModel: 'gemini-3-flash-preview',
   fallbackModel: 'gemini-2.5-flash',
   
+  // Presets für verschiedene Aufgaben
   settings: {
-    strict: { temperature: 0.1 },  
-    balanced: { temperature: 0.7 }, 
-    creative: { temperature: 0.9 }, 
+    strict: { temperature: 0.1 },  // Für JSON / Daten
+    balanced: { temperature: 0.7 }, // Für Chat / Evita (Standard)
+    creative: { temperature: 0.9 }, // Für Marketing-Ideen
   }
 };
 
-// Initialisiere den Vercel AI SDK Client einmal zentral (für route.ts Dateien)
+// Initialisiere den Vercel AI SDK Client einmal zentral
 const google = createGoogleGenerativeAI({
   apiKey: process.env.GEMINI_API_KEY || '',
 });
 
 // ============================================================================
 // 2. HELFER FÜR NEXT.JS ROUTEN (@ai-sdk/google)
-// Ersetzt das manuelle try/catch in jeder Route
 // ============================================================================
 /**
  * Führt streamText automatisch mit dem Fallback-Mechanismus aus.
@@ -34,19 +33,18 @@ const google = createGoogleGenerativeAI({
 export async function streamTextSafe(params: Omit<Parameters<typeof streamText>[0], 'model'>) {
   try {
     // Versuch 1: Primäres Modell (Gemini 3)
-    // console.log(`🤖 AI-Manager: Nutze Primary (${AI_CONFIG.primaryModel})`);
-    return streamText({
+    return await streamText({
       ...params,
       model: google(AI_CONFIG.primaryModel),
-    });
+    } as any); // <--- FIX: "as any" verhindert den TypeScript Union-Fehler
   } catch (error) {
     console.warn(`⚠️ AI-Manager: Primary (${AI_CONFIG.primaryModel}) fehlgeschlagen. Starte Fallback auf ${AI_CONFIG.fallbackModel}.`, error);
     
     // Versuch 2: Fallback Modell (Gemini 2.5)
-    return streamText({
+    return await streamText({
       ...params,
       model: google(AI_CONFIG.fallbackModel),
-    });
+    } as any); // <--- FIX: Auch hier "as any"
   }
 }
 
