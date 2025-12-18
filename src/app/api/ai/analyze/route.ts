@@ -77,13 +77,16 @@ export async function POST(req: NextRequest) {
     // 3. Daten für KI aufbereiten (Zusammenfassung)
     // FIX: Zugriff auf die korrekten Properties des ProjectDashboardData Typs
     // Die Struktur ist: analyticsData.kpis.{metric}.value und analyticsData.kpis.{metric}.change
+    // Optional Chaining für alle Zugriffe um TypeScript-Fehler zu vermeiden
+    const kpis = analyticsData.kpis;
+    
     const summaryData = `
-      Nutzer: ${analyticsData.kpis.totalUsers?.value ?? 0} (Änderung: ${change(analyticsData.kpis.totalUsers?.change)}%)
-      Sitzungen: ${analyticsData.kpis.sessions?.value ?? 0} (Änderung: ${change(analyticsData.kpis.sessions?.change)}%)
-      Absprungrate: ${fmt(analyticsData.kpis.bounceRate?.value)}%
-      Durschn. Sitzungsdauer: ${fmt(analyticsData.kpis.avgEngagementTime?.value)}s
-      Conversions: ${analyticsData.kpis.conversions?.value ?? 0} (Änderung: ${change(analyticsData.kpis.conversions?.change)}%)
-      Engagement Rate: ${fmt(analyticsData.kpis.engagementRate?.value)}%
+      Nutzer: ${kpis?.totalUsers?.value ?? 0} (Änderung: ${change(kpis?.totalUsers?.change)}%)
+      Sitzungen: ${kpis?.sessions?.value ?? 0} (Änderung: ${change(kpis?.sessions?.change)}%)
+      Absprungrate: ${fmt(kpis?.bounceRate?.value)}%
+      Durschn. Sitzungsdauer: ${fmt(kpis?.avgEngagementTime?.value)}s
+      Conversions: ${kpis?.conversions?.value ?? 0} (Änderung: ${change(kpis?.conversions?.change)}%)
+      Engagement Rate: ${fmt(kpis?.engagementRate?.value)}%
       
       Top Seiten (Conversions):
       ${analyticsData.topConvertingPages?.slice(0, 5).map(p => `- ${p.path}: ${p.conversions} Conversions`).join('\n') || 'Keine Daten'}
