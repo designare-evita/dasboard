@@ -13,15 +13,21 @@ export const AI_CONFIG = {
   // Presets für verschiedene Aufgaben
   settings: {
     strict: { temperature: 0.1 },  // Für JSON / Daten
-    balanced: { temperature: 0.7 }, // Für Chat / Evita (Standard)
+    balanced: { temperature: 0.7 }, // Für Data Max
     creative: { temperature: 0.9 }, // Für Marketing-Ideen
-  }
+  },
+  
+  // Default Temperature
+  temperature: 0.7,
 };
 
 // Initialisiere den Vercel AI SDK Client einmal zentral
 const google = createGoogleGenerativeAI({
   apiKey: process.env.GEMINI_API_KEY || '',
 });
+
+// Exportiere den google Client für Routes die ihn direkt brauchen
+export { google };
 
 // ============================================================================
 // 2. HELFER FÜR NEXT.JS ROUTEN (@ai-sdk/google)
@@ -36,7 +42,7 @@ export async function streamTextSafe(params: Omit<Parameters<typeof streamText>[
     return await streamText({
       ...params,
       model: google(AI_CONFIG.primaryModel),
-    } as any); // <--- FIX: "as any" verhindert den TypeScript Union-Fehler
+    } as any);
   } catch (error) {
     console.warn(`⚠️ AI-Manager: Primary (${AI_CONFIG.primaryModel}) fehlgeschlagen. Starte Fallback auf ${AI_CONFIG.fallbackModel}.`, error);
     
@@ -44,7 +50,7 @@ export async function streamTextSafe(params: Omit<Parameters<typeof streamText>[
     return await streamText({
       ...params,
       model: google(AI_CONFIG.fallbackModel),
-    } as any); // <--- FIX: Auch hier "as any"
+    } as any);
   }
 }
 
