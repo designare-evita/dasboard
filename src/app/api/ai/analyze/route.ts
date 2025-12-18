@@ -109,8 +109,7 @@ export async function POST(req: NextRequest) {
       4. <h4 class="text-lg font-semibold text-indigo-900 mt-4 mb-2">Potenzial:</h4> Ein konkreter Verbesserungsvorschlag basierend auf den Daten (z.B. Absprungrate senken).
     `;
 
-    // Spezieller Prompt für Evita-Kunden (wenn wir das Flag hätten, hier einfach Standard)
-    if (userRole === 'admin') {
+    if (userRole === 'ADMIN' || userRole === 'SUPERADMIN') {
       systemPrompt = `
         Du bist ein knallharter Daten-Analyst. Analysiere die folgenden Daten kurz und prägnant.
         Format: HTML.
