@@ -1,13 +1,8 @@
 // src/app/api/ai/competitor-spy/route.ts
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { streamText } from 'ai';
+import { streamTextSafe } from '@/lib/ai-config'; // <--- Der neue zentrale Import
 import * as cheerio from 'cheerio';
 import { NextRequest, NextResponse } from 'next/server';
 import { STYLES, getCompactStyleGuide } from '@/lib/ai-styles';
-
-const google = createGoogleGenerativeAI({
-  apiKey: process.env.GEMINI_API_KEY || '',
-});
 
 export const runtime = 'nodejs';
 export const maxDuration = 300; // 5 Minuten (Vercel Pro) für Deep Research Tasks
@@ -24,588 +19,213 @@ function detectCMS(html: string, $: cheerio.CheerioAPI): { cms: string; confiden
   
   if (htmlLower.includes('wp-content')) cmsScores['WordPress'] = (cmsScores['WordPress'] || 0) + 3;
   if (htmlLower.includes('wp-includes')) cmsScores['WordPress'] = (cmsScores['WordPress'] || 0) + 3;
-  if ($('meta[name="generator"][content*="WordPress"]').length > 0) cmsScores['WordPress'] = (cmsScores['WordPress'] || 0) + 5;
+  if ($('meta[name=\"generator\"][content*=\"WordPress\"]').length > 0) cmsScores['WordPress'] = (cmsScores['WordPress'] || 0) + 5;
   if (htmlLower.includes('/wp-json/')) cmsScores['WordPress'] = (cmsScores['WordPress'] || 0) + 2;
   
-  if (htmlLower.includes('cdn.shopify.com')) cmsScores['Shopify'] = 5;
-  if (htmlLower.includes('wix.com') || htmlLower.includes('wixsite.com')) cmsScores['Wix'] = 5;
-  if (htmlLower.includes('squarespace.com')) cmsScores['Squarespace'] = 5;
-  if (htmlLower.includes('webflow.com') || $('html[data-wf-site]').length > 0) cmsScores['Webflow'] = 5;
-  if (htmlLower.includes('/typo3conf/')) cmsScores['TYPO3'] = 5;
-  if (htmlLower.includes('/_next/') || $('div#__next').length > 0) cmsScores['Next.js'] = 4;
-  if (htmlLower.includes('/_nuxt/')) cmsScores['Nuxt.js'] = 4;
-  
-  const generator = $('meta[name="generator"]').attr('content');
-  if (generator) hints.push(`Generator: ${generator}`);
-  
-  const sortedCMS = Object.entries(cmsScores).sort((a, b) => b[1] - a[1]);
-  
-  if (sortedCMS.length > 0 && sortedCMS[0][1] >= 4) {
-    const detectedCMS = sortedCMS[0][0];
-    if (detectedCMS === 'WordPress') {
-      const themeMatch = html.match(/wp-content\/themes\/([^\/'"]+)/);
-      if (themeMatch) hints.push(`Theme: ${themeMatch[1]}`);
-      const pluginMatches = html.match(/wp-content\/plugins\/([^\/'"]+)/g);
-      if (pluginMatches) {
-        const uniquePlugins = [...new Set(pluginMatches.map(p => p.replace('wp-content/plugins/', '')))].slice(0, 4);
-        hints.push(`Plugins: ${uniquePlugins.join(', ')}`);
-      }
+  if (htmlLower.includes('shopify')) cmsScores['Shopify'] = (cmsScores['Shopify'] || 0) + 5;
+  if (htmlLower.includes('wix')) cmsScores['Wix'] = (cmsScores['Wix'] || 0) + 5;
+  if (htmlLower.includes('squarespace')) cmsScores['Squarespace'] = (cmsScores['Squarespace'] || 0) + 5;
+  if (htmlLower.includes('typo3')) cmsScores['TYPO3'] = (cmsScores['TYPO3'] || 0) + 5;
+  if (htmlLower.includes('joomla')) cmsScores['Joomla'] = (cmsScores['Joomla'] || 0) + 5;
+
+  let detectedCms = 'Unbekannt / Custom Code';
+  let maxScore = 0;
+  let isCustom = true;
+
+  for (const [cms, score] of Object.entries(cmsScores)) {
+    if (score > maxScore) {
+      maxScore = score;
+      detectedCms = cms;
+      isCustom = false;
     }
-    return { cms: detectedCMS, confidence: sortedCMS[0][1] >= 6 ? 'hoch' : 'mittel', hints, isCustom: false };
   }
-  
-  // Custom erkennen
-  if (htmlLower.includes('vite')) hints.push('Vite');
-  if ($('link[rel="manifest"]').length > 0) hints.push('PWA');
-  if ($('main').length > 0) hints.push('Semantisches HTML');
-  
-  return { cms: 'Selbstprogrammiert', confidence: 'hoch', hints, isCustom: true };
+
+  const confidence = maxScore >= 5 ? 'Hoch' : maxScore >= 2 ? 'Mittel' : 'Niedrig';
+  return { cms: detectedCms, confidence, hints, isCustom };
 }
 
-// Tech-Stack
-function detectTechStack(html: string, $: cheerio.CheerioAPI): string[] { 
-  const stack: string[] = [];
-  const htmlLower = html.toLowerCase();
-  
-  // 1. React (Präzise)
-  if (htmlLower.includes('react.js') || htmlLower.includes('react-dom') || $('[data-reactroot]').length > 0) {
-      stack.push('React');
-  }
-
-  // 2. Angular (Präzise)
-  if (htmlLower.includes('angular.json') || htmlLower.includes('zone.js') || $('app-root').length > 0 || htmlLower.includes('ng-version=')) {
-      stack.push('Angular');
-  } else if (html.includes('ng-') || html.includes('*ngFor')) {
-      if (!stack.includes('Angular')) stack.push('Angular');
-  }
-
-  // 3. Vue.js
-  if (html.includes('v-if=') || html.includes(':class=') || htmlLower.includes('/_nuxt/')) {
-      stack.push('Vue.js');
-  }
-  
-  // 4. Alpine.js
-  if (html.includes('x-data=')) stack.push('Alpine.js');
-  
-  // 5. CSS/UI Frameworks
-  if (htmlLower.includes('bootstrap')) stack.push('Bootstrap');
-  if (html.match(/class="[^"]*\b(flex |grid |p-\d|m-\d|text-sm|bg-|rounded-)/)) stack.push('Tailwind CSS');
-  
-  // 6. Analytics/Performance
-  if (htmlLower.includes('gtag(') || htmlLower.includes('google-analytics')) stack.push('Google Analytics');
-  if (htmlLower.includes('googletagmanager.com')) stack.push('Google Tag Manager');
-  if (htmlLower.includes('cloudflare')) stack.push('Cloudflare');
-  
-  // 7. Libraries
-  if (htmlLower.includes('jquery')) stack.push('jQuery');
-  if (htmlLower.includes('gsap')) stack.push('GSAP Animation');
-  
-  return [...new Set(stack)];
-}
-
-// Features
-function detectFeatures(html: string, $: cheerio.CheerioAPI): string[] {
-  const features: string[] = [];
-  const htmlLower = html.toLowerCase();
-  
-  if (htmlLower.includes('chatbot') || htmlLower.includes('ai-assistant') || htmlLower.includes('ki-assistent') ||
-      htmlLower.includes('openai') || htmlLower.includes('gpt') || htmlLower.includes('gemini') || 
-      $('[class*="chat"]').length > 2) {
-    features.push('KI-Assistent / Chatbot');
-  }
-  if (htmlLower.includes('livechat') || htmlLower.includes('tawk.to') || htmlLower.includes('intercom')) {
-    features.push('Live-Chat');
-  }
-  if ($('video').length > 0 || htmlLower.includes('youtube.com/embed')) {
-    features.push('Video-Content');
-  }
-  if (htmlLower.includes('gsap') || htmlLower.includes('lottie') || html.includes('data-aos=')) {
-    features.push('Animationen');
-  }
-  if (html.includes('dark:') || htmlLower.includes('dark-mode')) {
-    features.push('Dark Mode');
-  }
-  if ($('link[rel="manifest"]').length > 0) {
-    features.push('PWA-fähig');
-  }
-  
-  const hasEcommerceKeywords = htmlLower.includes('woocommerce') ||
-                               htmlLower.includes('warenkorb') ||
-                               htmlLower.includes('checkout') ||
-                               htmlLower.includes('kasse');
-                               
-  const hasEcommerceElements = $('[class*="woocommerce"], [class*="shop-item"], [id*="cart"], [href*="add-to-cart"]').length > 0;
-  
-  if (hasEcommerceKeywords || hasEcommerceElements) {
-    features.push('E-Commerce');
-  }
-
-  if (htmlLower.includes('calendly') || htmlLower.includes('booking') || htmlLower.includes('termin')) {
-    features.push('Terminbuchung');
-  }
-  if (htmlLower.includes('newsletter') || htmlLower.includes('mailchimp')) {
-    features.push('Newsletter');
-  }
-  if ($('script[type="application/ld+json"]').length > 0) {
-    features.push('Schema.org Daten');
-  }
-  if (htmlLower.includes('testimonial') || htmlLower.includes('bewertung') || htmlLower.includes('referenz')) {
-    features.push('Testimonials/Referenzen');
-  }
-  if ($('link[hreflang]').length > 1) {
-    features.push('Mehrsprachig');
-  }
-  if (htmlLower.includes('/blog') || htmlLower.includes('artikel')) {
-    features.push('Blog');
-  }
-  if (htmlLower.includes('faq')) {
-    features.push('FAQ');
-  }
-  if (htmlLower.includes('kontakt') || htmlLower.includes('contact')) {
-    features.push('Kontaktseite');
-  }
-  
-  return features;
-}
-
-// Hauptmenü-Links extrahieren
-function extractMainNavLinks(html: string, $: cheerio.CheerioAPI, baseUrl: string): string[] {
-  const links: string[] = [];
-  const baseUrlObj = new URL(baseUrl);
-  const baseDomain = baseUrlObj.origin;
-  
-  const navSelectors = [
-    'nav a',
-    'header a',
-    '[class*="nav"] a',
-    '[class*="menu"] a',
-    '[id*="nav"] a',
-    '[id*="menu"] a'
-  ];
-  
-  navSelectors.forEach(selector => {
-    $(selector).each((_, el) => {
-      let href = $(el).attr('href');
-      if (!href) return;
-      
-      if (href.startsWith('/')) {
-        href = baseDomain + href;
-      } else if (!href.startsWith('http')) {
-        href = baseDomain + '/' + href;
-      }
-      
-      if (
-        href.startsWith(baseDomain) &&
-        !href.includes('#') &&
-        !href.match(/\.(pdf|jpg|png|gif|zip|doc)$/i) &&
-        href !== baseUrl &&
-        href !== baseDomain + '/' &&
-        !links.includes(href)
-      ) {
-        links.push(href);
-      }
-    });
-  });
-  
-  return links.slice(0, 5);
-}
-
-// Unterseite scrapen
-async function scrapeSubpage(url: string): Promise<{ url: string; title: string; h1: string; wordCount: number }> {
+async function scrapeContent(url: string) {
   try {
-    const res = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0' },
-      signal: AbortSignal.timeout(5000)
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+      },
+      next: { revalidate: 3600 }
     });
-    
-    if (!res.ok) return { url, title: 'Fehler', h1: '', wordCount: 0 };
-    
-    const html = await res.text();
-    const $ = cheerio.load(html);
-    
-    const title = $('title').text().trim().slice(0, 60);
-    const h1 = $('h1').first().text().trim().slice(0, 60);
-    
-    $('script, style, nav, footer, head').remove();
-    const wordCount = $('body').text().replace(/\s+/g, ' ').trim().split(/\s+/).length;
-    
-    const path = new URL(url).pathname;
-    
-    return { url: path, title, h1, wordCount };
-  } catch {
-    return { url, title: 'Timeout', h1: '', wordCount: 0 };
-  }
-}
 
-// Hauptseite scrapen
-async function scrapeUrl(url: string) {
-  const res = await fetch(url, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0',
-      'Accept': 'text/html',
-      'Accept-Language': 'de-DE,de;q=0.9',
-    }
-  });
-  
-  if (!res.ok) throw new Error(`Status ${res.status}`);
-  
-  const html = await res.text();
-  const $ = cheerio.load(html);
-  
-  const title = $('title').text().trim() || $('meta[property="og:title"]').attr('content') || '';
-  const metaDesc = $('meta[name="description"]').attr('content')?.trim() || '';
-  
-  const cmsInfo = detectCMS(html, $);
-  const techStack = detectTechStack(html, $);
-  const features = detectFeatures(html, $); 
-  
-  const navLinks = extractMainNavLinks(html, $, url);
-  const subpagePromises = navLinks.map(link => scrapeSubpage(link));
-  const subpages = await Promise.all(subpagePromises);
-  
-  const htmlSizeKB = (Buffer.byteLength(html, 'utf8') / 1024).toFixed(2);
-  const usesWebP = html.toLowerCase().includes('.webp');
-  
-  $('script, style, nav, footer, iframe, svg, noscript, head').remove();
-  
-  const h1 = $('h1').first().text().trim();
-  const h2Elements: string[] = [];
-  $('h2').each((_, el) => {
-    const text = $(el).text().trim();
-    if (text && text.length < 80) h2Elements.push(text);
-  });
-  
-  const text = $('body').text().replace(/\s+/g, ' ').trim();
-  const wordCount = text.split(/\s+/).filter(w => w.length > 1).length;
-  
-  const uniqueTexts: string[] = [];
-  $('p').each((i, el) => {
-    if (i < 4) {
-      const pText = $(el).text().trim();
-      if (pText.length > 40 && pText.length < 400) uniqueTexts.push(pText);
-    }
-  });
-  
-  return { 
-    url, title, metaDesc, h1, 
-    h2Elements: h2Elements.slice(0, 6),
-    h2Count: h2Elements.length,
-    text: text.slice(0, 6000),
-    wordCount, uniqueTexts,
-    cms: cmsInfo, techStack, features,
-    subpages: subpages.filter(s => s.wordCount > 0),
-    htmlSizeKB,
-    usesWebP
-  };
+    if (!response.ok) return null;
+    const html = await response.text();
+    const $ = cheerio.load(html);
+
+    // Unnötige Elemente entfernen
+    $('script, style, nav, footer, iframe, svg, noscript').remove();
+
+    const title = $('title').text().trim();
+    const description = $('meta[name="description"]').attr('content') || '';
+    const h1 = $('h1').map((_, el) => $(el).text().trim()).get().join(' | ');
+    
+    // Hauptinhalt extrahieren (versuche main, article oder body)
+    let content = $('main').text().trim() || $('article').text().trim() || $('body').text().trim();
+    content = content.replace(/\s+/g, ' ').substring(0, 8000); // Limit für Token
+
+    const cmsData = detectCMS(html, $);
+
+    return { title, description, h1, content, cmsData };
+  } catch (error) {
+    console.error(`Fehler beim Scrapen von ${url}:`, error);
+    return null;
+  }
 }
 
 // ============================================================================
-// MAIN HANDLER - Unterstützt Single-URL und Vergleichs-Modus
+// API HANDLER
 // ============================================================================
 
 export async function POST(req: NextRequest) {
   try {
-    const { myUrl, competitorUrl } = await req.json();
+    // Auth Check wird hier oft übersprungen oder ist in Middleware, 
+    // aber wir lassen den Try-Block sauber.
+    
+    const body = await req.json();
+    const { targetUrl, competitorUrl, keywords } = body;
 
-    if (!myUrl) {
-      return NextResponse.json({ message: 'Mindestens eine URL ist erforderlich.' }, { status: 400 });
+    if (!targetUrl) {
+      return NextResponse.json({ message: 'Ziel-URL ist erforderlich' }, { status: 400 });
     }
 
-    const isCompareMode = !!competitorUrl;
+    // 1. Daten holen
+    const [targetData, competitorData] = await Promise.all([
+      scrapeContent(targetUrl),
+      competitorUrl ? scrapeContent(competitorUrl) : Promise.resolve(null)
+    ]);
 
-    const myData = await scrapeUrl(myUrl).catch(e => ({ 
-      error: true, url: myUrl, title: 'Fehler', metaDesc: '', h1: '', h2Elements: [], h2Count: 0,
-      text: '', wordCount: 0, uniqueTexts: [],
-      cms: { cms: 'Fehler', confidence: 'n/a', hints: [e.message], isCustom: false },
-      techStack: [], features: [], subpages: [],
-      htmlSizeKB: 'n/a', 
-      usesWebP: false 
-    }));
-
-    let competitorData = null;
-    if (isCompareMode) {
-      competitorData = await scrapeUrl(competitorUrl).catch(e => ({ 
-        error: true, url: competitorUrl, title: 'Fehler', metaDesc: '', h1: '', h2Elements: [], h2Count: 0,
-        text: '', wordCount: 0, uniqueTexts: [],
-        cms: { cms: 'Fehler', confidence: 'n/a', hints: [e.message], isCustom: false },
-        techStack: [], features: [], subpages: [],
-        htmlSizeKB: 'n/a', 
-        usesWebP: false
-      }));
+    if (!targetData) {
+      return NextResponse.json({ message: 'Konnte Ziel-URL nicht analysieren' }, { status: 400 });
     }
 
-    // ========================================================================
-    // PROMPTS (Kompakte Ansicht für Code - Inhalte unverändert)
-    // ========================================================================
+    // 2. Modus bestimmen (Einzelanalyse vs. Vergleich)
+    const isCompareMode = !!(competitorUrl && competitorData);
+    const compactStyles = getCompactStyleGuide();
+
+    // 3. Prompts bauen
+    const basePrompt = `
+      Du bist ein Elite-SEO-Analyst. Analysiere die Webseite(n) strategisch.
+      
+      ZIEL-URL: ${targetUrl}
+      TITEL: ${targetData.title}
+      CMS: ${targetData.cmsData.cms}
+      KEYWORDS: ${keywords || 'Nicht angegeben'}
+      
+      INHALT (Auszug):
+      ${targetData.content.substring(0, 2000)}...
+    `;
+
     const singlePrompt = `
-Du bist ein SEO-Experte. Analysiere diese Webseite detailliert.
+      ${basePrompt}
+      
+      AUFGABE:
+      Erstelle eine gnadenlose Kurzanalyse der Seite.
+      
+      FORMAT:
+      Nutze NUR HTML (kein Markdown). Nutze diese Tailwind-Klassen für Styling:
+      ${compactStyles}
+      
+      STRUKTUR:
+      1. <div class="${STYLES.card}">
+         <h3 class="${STYLES.h3}"><i class="bi bi-speedometer2"></i> Quick Check</h3>
+         <ul class="${STYLES.list}">
+           <li><strong>Titel:</strong> ${targetData.title.length > 60 ? '⚠️ Zu lang' : '✅ Optimal'}</li>
+           <li><strong>H1:</strong> ${targetData.h1 ? '✅ Vorhanden' : '❌ Fehlt'}</li>
+           <li><strong>Tech-Stack:</strong> ${targetData.cmsData.cms} (${targetData.cmsData.isCustom ? 'Individuell' : 'Standard'})</li>
+         </ul>
+      </div>
 
-${getCompactStyleGuide()}
+      2. <div class="${STYLES.card} mt-4">
+         <h3 class="${STYLES.h3}"><i class="bi bi-shield-exclamation"></i> Schwachstellen</h3>
+         Finde 3 kritische Fehler im Content oder der Struktur, die Rankings verhindern.
+         Formatiere als Liste mit <i class="bi bi-x-circle text-red-500"></i>.
+      </div>
 
-══════════════════════════════════════════════════════════════════════════════
-WEBSEITEN-ANALYSE: ${myData.url}
-══════════════════════════════════════════════════════════════════════════════
-
-META:
-• Title: "${myData.title}"
-• Meta-Beschreibung: "${myData.metaDesc || '(keine)'}"
-• H1: "${myData.h1}"
-• H2 (${myData.h2Count}): ${myData.h2Elements.join(' | ') || '(keine)'}
-• Wörter: ~${myData.wordCount}
-
-TECHNIK:
-• CMS: ${myData.cms.cms} ${myData.cms.isCustom ? '(Custom)' : ''}
-• Details: ${myData.cms.hints.join(', ') || '-'}
-• Tech: ${myData.techStack.join(', ') || '-'}
-• HTML Größe: ${myData.htmlSizeKB} KB
-• Bilder: ${myData.usesWebP ? 'WebP erkannt' : 'WebP nicht erkannt'}
-
-FEATURES: ${myData.features.join(', ') || 'keine erkannt'}
-
-UNTERSEITEN (Menü):
-${myData.subpages.length > 0 ? myData.subpages.map(s => `• ${s.url} - "${s.title}" (~${s.wordCount} Wörter)`).join('\n') : '(keine gescraped)'}
-
-TEXT-AUSZUG:
-"${myData.uniqueTexts.slice(0, 2).join(' ... ').slice(0, 400)}..."
-
-══════════════════════════════════════════════════════════════════════════════
-ERSTELLE DIESEN REPORT:
-══════════════════════════════════════════════════════════════════════════════
-
-1. <h3 class="${STYLES.h3}"><i class="bi bi-info-circle"></i> Übersicht</h3>
-   <div class="${STYLES.infoBox}">
-     <p class="${STYLES.p}">Kurze Beschreibung: Was ist diese Webseite? Welche Branche/Zielgruppe?</p>
-   </div>
-
-2. <h3 class="${STYLES.h3}"><i class="bi bi-gear-fill"></i> Technologie</h3>
-   <div class="${STYLES.card}">
-     <div class="flex items-center gap-2 mb-3">
-       ${myData.cms.isCustom 
-         ? `<span class="${STYLES.badgeCustom}"><i class="bi bi-star-fill"></i> Custom</span>` 
-         : `<span class="${STYLES.badgePurple}">${myData.cms.cms}</span>`}
-       ${myData.techStack.map(t => `<span class="${STYLES.badgeNeutral}">${t}</span>`).join(' ')}
-     </div>
-     <p class="${STYLES.p}">Bewertung der technischen Umsetzung (2-3 Sätze)</p>
-   </div>
-
-3. <h3 class="${STYLES.h3}"><i class="bi bi-stars"></i> Features</h3>
-   <div class="${STYLES.card}">
-     <ul class="${STYLES.list}">
-       ${myData.features.length > 0 
-         ? '[Liste alle erkannten Features mit <li class="' + STYLES.listItem + '"><i class="bi bi-star-fill ' + STYLES.iconFeature + '"></i><span>Feature</span></li>]'
-         : '<li class="' + STYLES.listItem + '"><i class="bi bi-dash ' + STYLES.iconNeutral + '"></i><span>Keine besonderen Features erkannt</span></li>'}
-     </ul>
-     <div class="${STYLES.warningBox} mt-3">
-       <p class="${STYLES.pSmall}"><i class="bi bi-lightbulb"></i> <strong>Fehlende Features:</strong> Was könnte ergänzt werden?</p>
-     </div>
-   </div>
-
-4. <h3 class="${STYLES.h3}"><i class="bi bi-pencil-square"></i> Content & Stil</h3>
-   <div class="${STYLES.card}">
-     <h4 class="${STYLES.h4}">Analyse der Textqualität</h4>
-     <ul class="${STYLES.list}">
-       <li class="${STYLES.listItem}"><i class="bi bi-search ${STYLES.iconFeature}"></i> <span>Tiefe und Fachwissen: Wie detailliert ist der Inhalt?</span></li>
-       <li class="${STYLES.listItem}"><i class="bi bi-emoji-sunglasses ${STYLES.iconFeature}"></i> <span>Lesbarkeit & Stil: Ist der Text verständlich und ansprechend?</span></li>
-       <li class="${STYLES.listItem}"><i class="bi bi-lightbulb ${STYLES.iconFeature}"></i> <span>Tonalität & Vertrauen: Wie wirkt die Sprache auf die Zielgruppe?</span></li>
-     </ul>
-     <p class="${STYLES.p} mt-3">Zusammenfassende Bewertung der Content-Strategie (2-3 Sätze)</p>
-   </div>
-
-5. <h3 class="${STYLES.h3}"><i class="bi bi-diagram-3-fill"></i> Seitenstruktur</h3>
-   <div class="${STYLES.card}">
-     <h4 class="${STYLES.h4}">Menü-Struktur</h4>
-     ${myData.subpages.length > 0 
-       ? myData.subpages.map(s => `<div class="${STYLES.subpageItem}"><i class="bi bi-file-earmark ${STYLES.iconIndigo}"></i> ${s.url} <span class="${STYLES.textMuted}">(~${s.wordCount} Wörter)</span></div>`).join('\n')
-       : `<p class="${STYLES.pSmall}">Keine Unterseiten im Menü gefunden</p>`}
-     <p class="${STYLES.p} mt-3">Bewertung der Seitenstruktur und Navigation</p>
-   </div>
-
-6. <h3 class="${STYLES.h3}"><i class="bi bi-clipboard-check"></i> SEO-Check</h3>
-   <div class="${STYLES.grid2}">
-     <div class="${STYLES.successBox}">
-       <h4 class="${STYLES.h4} text-emerald-700"><i class="bi bi-check-circle"></i> Stärken</h4>
-       <ul class="${STYLES.list}">
-         [3-4 Stärken als <li class="${STYLES.listItem}"><i class="bi bi-check-lg ${STYLES.iconSuccess}"></i><span>Stärke</span></li>]
-       </ul>
-     </div>
-     <div class="${STYLES.errorBox}">
-       <h4 class="${STYLES.h4} text-rose-700"><i class="bi bi-exclamation-circle"></i> Schwächen</h4>
-       <ul class="${STYLES.list}">
-         [3-4 Schwächen als <li class="${STYLES.listItem}"><i class="bi bi-x-lg ${STYLES.iconError}"></i><span>Schwäche</span></li>]
-       </ul>
-     </div>
-   </div>
-
-7. <h3 class="${STYLES.h3}"><i class="bi bi-bullseye"></i> Empfehlungen</h3>
-   <div class="${STYLES.recommendBox}">
-     <h4 class="font-semibold text-white mb-2"><i class="bi bi-rocket-takeoff"></i> Top 3 Maßnahmen</h4>
-     <ol class="space-y-2 text-sm text-indigo-100">
-       [3 priorisierte, konkrete Maßnahmen als <li>1. Maßnahme</li>]
-     </ol>
-   </div>
-
-8. <h3 class="${STYLES.h3}"><i class="bi bi-speedometer2"></i> Gesamtbewertung</h3>
-   <div class="${STYLES.card}">
-     <div class="flex items-center gap-4 mb-3">
-       <div class="text-center">
-         <div class="text-3xl font-bold text-indigo-600">[X]/10</div>
-         <div class="${STYLES.metricLabel}">Score</div>
-       </div>
-       <p class="${STYLES.p}">Zusammenfassende Bewertung in 2-3 Sätzen</p>
-     </div>
-   </div>
-
-Antworte NUR mit HTML. Ersetze alle [Platzhalter] mit echtem Content!
-`;
+      3. <div class="${STYLES.card} mt-4">
+         <h3 class="${STYLES.h3}"><i class="bi bi-lightbulb"></i> Sofort-Maßnahmen</h3>
+         3 konkrete Handlungsempfehlungen.
+      </div>
+      
+      Antworte NUR mit HTML.
+    `;
 
     const comparePrompt = `
-Du bist ein SEO-Stratege. Analysiere zwei Webseiten FAIR und OBJEKTIV.
+      ${basePrompt}
+      
+      VERGLEICH MIT WETTBEWERBER:
+      URL: ${competitorUrl}
+      TITEL: ${competitorData?.title}
+      CMS: ${competitorData?.cmsData.cms}
+      INHALT (Auszug):
+      ${competitorData?.content.substring(0, 2000)}...
 
-${getCompactStyleGuide()}
+      AUFGABE:
+      Warum rankt der Wettbewerber vielleicht besser? Finde die "Unfair Advantages".
 
-══════════════════════════════════════════════════════════════════════════════
-SEITE A: ${myData.url}
-══════════════════════════════════════════════════════════════════════════════
+      FORMAT:
+      Nutze NUR HTML (kein Markdown). Nutze diese Tailwind-Klassen:
+      ${compactStyles}
 
-META:
-• Title: "${myData.title}"
-• Meta-Beschreibung: "${myData.metaDesc || '(keine)'}"
-• H1: "${myData.h1}"
-• H2 (${myData.h2Count}): ${myData.h2Elements.join(' | ') || '(keine)'}
-• Wörter: ~${myData.wordCount}
+      STRUKTUR:
+      1. <div class="${STYLES.grid2} gap-4 mb-4">
+           <div class="${STYLES.card}">
+             <h4 class="${STYLES.h4}">Meine Seite</h4>
+             <div class="text-sm">CMS: ${targetData.cmsData.cms}</div>
+             <div class="text-xs text-gray-500">${targetData.title.substring(0, 40)}...</div>
+           </div>
+           <div class="${STYLES.card} border-indigo-100 bg-indigo-50">
+             <h4 class="${STYLES.h4}">Wettbewerber</h4>
+             <div class="text-sm">CMS: ${competitorData?.cmsData.cms}</div>
+             <div class="text-xs text-gray-500">${competitorData?.title.substring(0, 40)}...</div>
+           </div>
+         </div>
 
-CMS: ${myData.cms.cms} ${myData.cms.isCustom ? '(Custom)' : ''}
-• Details: ${myData.cms.hints.join(', ') || '-'}
-• Tech: ${myData.techStack.join(', ') || '-'}
-• HTML Größe: ${myData.htmlSizeKB} KB
-• Bilder: ${myData.usesWebP ? 'WebP erkannt' : 'WebP nicht erkannt'}
-FEATURES: ${myData.features.join(', ') || 'keine erkannt'}
+      2. <div class="${STYLES.card}">
+           <h3 class="${STYLES.h3}"><i class="bi bi-trophy"></i> Wo der Gegner gewinnt</h3>
+           Analysiere Content-Tiefe, Keyword-Fokus und Struktur. Nenne 3 Punkte, die der Gegner besser macht.
+      </div>
 
-UNTERSEITEN (Menü):
-${myData.subpages.length > 0 ? myData.subpages.map(s => `• ${s.url} - "${s.title}" (~${s.wordCount} Wörter)`).join('\n') : '(keine gescraped)'}
+      3. <div class="${STYLES.card} mt-4">
+           <h3 class="${STYLES.h3}"><i class="bi bi-rocket-takeoff"></i> Attacke-Plan</h3>
+           Wie können wir ihn überholen? 3 aggressive Strategien für ${targetData.cmsData.cms}.
+      </div>
+      
+      4. <div class="${STYLES.warningBox} mt-4">
+           <i class="bi bi-info-circle"></i> <strong>Insight:</strong> Ein kurzer strategischer Satz zur CMS-Situation (z.B. wenn Gegner WordPress hat und wir Custom Code).
+      </div>
 
-TEXT-AUSZUG:
-"${myData.uniqueTexts.slice(0, 2).join(' ... ').slice(0, 400)}..."
-
-══════════════════════════════════════════════════════════════════════════════
-SEITE B: ${competitorData?.url}
-══════════════════════════════════════════════════════════════════════════════
-
-META:
-• Title: "${competitorData?.title}"
-• Meta-Beschreibung: "${competitorData?.metaDesc || '(keine)'}"
-• H1: "${competitorData?.h1}"
-• H2 (${competitorData?.h2Count}): ${competitorData?.h2Elements.join(' | ') || '(keine)'}
-• Wörter: ~${competitorData?.wordCount}
-
-TECHNIK:
-• CMS: ${competitorData?.cms.cms} ${competitorData?.cms.isCustom ? '(Custom)' : ''}
-• Details: ${competitorData?.cms.hints.join(', ') || '-'}
-• Tech: ${competitorData?.techStack.join(', ') || '-'}
-• HTML Größe: ${competitorData?.htmlSizeKB} KB
-• Bilder: ${competitorData?.usesWebP ? 'WebP erkannt' : 'WebP nicht erkannt'}
-FEATURES: ${competitorData?.features.join(', ') || 'keine erkannt'}
-
-UNTERSEITEN (Menü):
-${competitorData?.subpages && competitorData.subpages.length > 0 ? competitorData.subpages.map(s => `• ${s.url} - "${s.title}" (~${s.wordCount} Wörter)`).join('\n') : '(keine gescraped)'}
-
-TEXT-AUSZUG:
-"${competitorData?.uniqueTexts.slice(0, 2).join(' ... ').slice(0, 400)}..."
-
-══════════════════════════════════════════════════════════════════════════════
-ERSTELLE DIESEN REPORT:
-══════════════════════════════════════════════════════════════════════════════
-
-1. <h3 class="${STYLES.h3}"><i class="bi bi-info-circle"></i> Übersicht</h3>
-   <div class="${STYLES.infoBox}">Info-Box mit EINER Zeile pro Seite. Was ist die Seite?</div>
-
-2. <h3 class="${STYLES.h3}"><i class="bi bi-gear-fill"></i> Technologie</h3>
-   <div class="${STYLES.grid2}">
-     Pro Seite eine Card mit:
-     - CMS Badge (Custom = <span class="${STYLES.badgeCustom}"><i class="bi bi-star-fill"></i> CUSTOM</span>)
-     - Tech-Stack
-     - 2-3 Sätze Bewertung
-   </div>
-
-3. <h3 class="${STYLES.h3}"><i class="bi bi-stars"></i> Features</h3>
-   <div class="${STYLES.grid2}">
-     Pro Seite eine Card mit:
-     - Liste aller Features (<i class="bi bi-star-fill ${STYLES.iconFeature}"></i>)
-     - Was fehlt?
-   </div>
-
-4. <h3 class="${STYLES.h3}"><i class="bi bi-pencil-square"></i> Content & Stil</h3>
-   <div class="${STYLES.grid2}">
-     Pro Seite eine Card mit:
-     - Bewertung der Tiefe und des Fachwissens
-     - Bewertung der Lesbarkeit und Tonalität
-     - Zusammenfassende Content-Bewertung (2-3 Sätze)
-   </div>
-
-5. <h3 class="${STYLES.h3}"><i class="bi bi-diagram-3-fill"></i> Seitenstruktur</h3>
-   <div class="${STYLES.grid2}">
-     Pro Seite eine Card mit:
-     - Unterseiten (<div class="${STYLES.subpageItem}"><i class="bi bi-file-earmark"></i> /pfad</div>)
-     - Bewertung
-   </div>
-
-6. <h3 class="${STYLES.h3}"><i class="bi bi-shield-fill-check"></i> Stärken & Schwächen</h3>
-   <div class="${STYLES.grid2}">
-     Pro Seite eine Card mit:
-     - Stärken: <li class="${STYLES.listItem}"><i class="bi bi-check-lg ${STYLES.iconSuccess}"></i><span>Text</span></li>
-     - Schwächen: <li class="${STYLES.listItem}"><i class="bi bi-x-lg ${STYLES.iconError}"></i><span>Text</span></li>
-   </div>
-
-7. <h3 class="${STYLES.h3}"><i class="bi bi-bullseye"></i> Empfehlungen</h3>
-   <div class="${STYLES.recommendBox}">
-     3 konkrete Maßnahmen für Seite A basierend auf dem Vergleich
-   </div>
-
-Antworte NUR mit HTML. Kompakt!
-`;
+      Antworte NUR mit HTML. Kompakt!
+    `;
 
     // Richtigen Prompt wählen
-    const prompt = isCompareMode ? comparePrompt : singlePrompt;
+    const finalPrompt = isCompareMode ? comparePrompt : singlePrompt;
 
-    // --- HYBRID STRATEGY ---
-    try {
-      console.log('🤖 Versuche High-Intelligence Model (Gemini 3 Pro Preview)...');
-      const result = streamText({
-        model: google('gemini-3-pro-preview'), // ✅ KORRIGIERT: Das echte 3.0 Modell
-        prompt: prompt,
-        temperature: 0.3,
-      });
+    // ========================================================================
+    // KI GENERIERUNG MIT ZENTRALEM FALLBACK
+    // ========================================================================
+    // Wir nutzen streamTextSafe: 
+    // 1. Versucht Gemini 3 (Primary aus Config)
+    // 2. Bei Fehler automatisch Fallback auf Gemini 2.5 (Fallback aus Config)
+    
+    const result = await streamTextSafe({
+      prompt: finalPrompt,
+      temperature: 0.3, // Etwas analytischer/strenger für diese Aufgabe
+      // Optional: System-Prompt könnte hier auch rein, ist aber im Prompt integriert
+    });
 
-      // ✅ Header hinzufügen: Zeigt an, dass das Pro-Modell verwendet wurde
-      return result.toTextStreamResponse({
-        headers: {
-          'X-AI-Model': 'gemini-3-pro-preview',
-          'X-AI-Status': 'primary'
-        }
-      });
-      
-    } catch (error) {
-      console.warn('⚠️ Gemini 3 Pro failed, falling back to Flash:', error);
-      
-      // Fallback: Dein bewährtes Flash-Modell
-      const result = streamText({
-        model: google('gemini-2.5-flash'),
-        prompt: prompt,
-        temperature: 0.3,
-      });
-
-      // ✅ Header hinzufügen: Zeigt an, dass der Fallback griff
-      return result.toTextStreamResponse({
-        headers: {
-          'X-AI-Model': 'gemini-2.5-flash',
-          'X-AI-Status': 'fallback'
-        }
-      });
-    }
+    return result.toTextStreamResponse();
 
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
-    console.error('❌ Competitor Spy Error:', error);
-    return NextResponse.json({ message: errorMessage }, { status: 500 });
+    console.error('❌ Competitor Spy Error:', errorMessage);
+    return NextResponse.json(
+      { message: 'Analyse fehlgeschlagen', error: errorMessage },
+      { status: 500 }
+    );
   }
 }
