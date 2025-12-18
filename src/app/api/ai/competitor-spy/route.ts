@@ -82,16 +82,14 @@ function analyzeTech(html: string, $: cheerio.CheerioAPI, baseUrl: string): Tech
   const semanticTags = ['header', 'nav', 'main', 'article', 'section', 'aside', 'footer'];
   const foundTags = semanticTags.filter(tag => $(tag).length > 0);
   
-  // Berechnung Semantic Score: Basierend auf Vielfalt der Tags
-  // Wer nur <div> nutzt, kriegt 0. Wer header, main, footer nutzt, kriegt Punkte.
+  // Berechnung Semantic Score
   let semanticScore = Math.round((foundTags.length / semanticTags.length) * 100);
   
-  // Bonus für <h1-h6> Struktur (grob)
-  if ($('h1').length === 1) semanticScore += 10; // Genau eine H1 ist gut
+  if ($('h1').length === 1) semanticScore += 10; 
   if (semanticScore > 100) semanticScore = 100;
 
-  // DOM Tiefe schätzen (Code Bloat Indikator)
-  const domDepth = $('*').length; // Totale Anzahl Elemente
+  // DOM Tiefe
+  const domDepth = $('*').length;
 
   // 3. Schema
   const hasSchema = $('script[type="application/ld+json"]').length > 0;
@@ -191,18 +189,30 @@ async function scrapeContent(url: string) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const targetUrl = body.targetUrl || body.url;
-    const competitorUrl = body.competitorUrl;
     
-    if (!targetUrl) return NextResponse.json({ message: 'URL fehlt' }, { status: 400 });
-    let normalizedUrl = targetUrl.startsWith('http') ? targetUrl : `https://${targetUrl}`;
+    // FIX: Akzeptiere wieder alle möglichen Varianten, die vom Frontend kommen könnten
+    const targetUrl = body.targetUrl || body.myUrl || body.url || body.target || body.siteUrl || body.domain;
+    const competitorUrl = body.competitorUrl || body.competitor || body.compareUrl;
+    
+    // DEBUG LOG (optional, um zu sehen was ankommt)
+    // console.log('Received Body:', body);
+
+    if (!targetUrl) {
+      return NextResponse.json({ 
+        message: 'URL fehlt',
+        receivedKeys: Object.keys(body) // Hilft beim Debuggen im Frontend
+      }, { status: 400 });
+    }
+
+    let normalizedUrl = targetUrl.trim();
+    if (!normalizedUrl.startsWith('http')) normalizedUrl = 'https://' + normalizedUrl;
 
     const [targetData, competitorData] = await Promise.all([
       scrapeContent(normalizedUrl),
       competitorUrl ? scrapeContent(competitorUrl) : Promise.resolve(null)
     ]);
 
-    if (!targetData) return NextResponse.json({ message: 'Fehler' }, { status: 400 });
+    if (!targetData) return NextResponse.json({ message: 'Konnte Ziel-URL nicht analysieren' }, { status: 400 });
 
     const isCompareMode = !!(competitorUrl && competitorData);
     const compactStyles = getCompactStyleGuide();
