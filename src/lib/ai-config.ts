@@ -12,9 +12,9 @@ export const AI_CONFIG = {
   fallbackModel: 'gemini-2.5-flash',
   
   settings: {
-    strict: { temperature: 0.1 },  // Für JSON / Daten
-    balanced: { temperature: 0.7 }, // Für Chat / Evita (Standard)
-    creative: { temperature: 0.9 }, // Für Marketing-Ideen
+    strict: { temperature: 0.1 },  
+    balanced: { temperature: 0.7 }, 
+    creative: { temperature: 0.9 }, 
   }
 };
 
