@@ -3,14 +3,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { sql } from '@vercel/postgres';
 import { getOrFetchGoogleData } from '@/lib/google-data-loader';
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { streamText } from 'ai';
 import crypto from 'node:crypto';
 import type { User } from '@/lib/schemas'; 
 
-const google = createGoogleGenerativeAI({
-  apiKey: process.env.GEMINI_API_KEY || '',
-});
+// NEU: Importiere den zentralen Safe-Helper statt direkt 'ai' und 'createGoogleGenerativeAI'
+import { streamTextSafe } from '@/lib/ai-config';
 
 export const runtime = 'nodejs';
 
@@ -38,251 +35,80 @@ export async function POST(req: NextRequest) {
     const userRole = session.user.role;
 
     if (!projectId || !dateRange) {
-      return NextResponse.json({ message: 'Fehlende Parameter' }, { status: 400 });
+      return NextResponse.json({ message: 'Projekt-ID und Zeitraum erforderlich' }, { status: 400 });
     }
 
-    // 1. Daten laden
+    // 1. Prüfen, ob eine Analyse für diese Daten schon im Cache ist
+    // Wir hashen die Inputs, um Änderungen zu erkennen
+    const inputHash = createHash(`${projectId}-${dateRange}`);
+    
+    // Check Cache (nur wenn nicht explizit "refresh" angefordert wurde - bauen wir später ein)
     const { rows } = await sql`
-      SELECT *
-      FROM users WHERE id::text = ${projectId}
+      SELECT response, created_at FROM ai_analysis_cache 
+      WHERE user_id = ${projectId}::uuid 
+      AND date_range = ${dateRange}
+      AND created_at > NOW() - INTERVAL '24 hours'
+      ORDER BY created_at DESC LIMIT 1
     `;
 
-    if (rows.length === 0) return NextResponse.json({ message: 'Projekt nicht gefunden' }, { status: 404 });
-    
-    // Expliziter Cast zu User
-    const project = rows[0] as unknown as User;
-
-    const data = await getOrFetchGoogleData(project, dateRange);
-    if (!data || !data.kpis) return NextResponse.json({ message: 'Keine Daten' }, { status: 400 });
-
-    const kpis = data.kpis;
-
-    // Timeline Logik
-    let timelineInfo = "";
-    let startDateStr = "";
-    let endDateStr = "";
-    
-    if (project.project_timeline_active) {
-        const start = new Date(project.project_start_date || project.createdAt || new Date());
-        const now = new Date();
-        const duration = project.project_duration_months || 6;
-        const diffMonths = Math.ceil(Math.abs(now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 30)); 
-        const currentMonth = Math.min(diffMonths, duration);
-        
-        const end = new Date(start);
-        end.setMonth(start.getMonth() + duration);
-        
-        timelineInfo = `Aktiver Monat: ${currentMonth} von ${duration}`;
-        startDateStr = start.toLocaleDateString('de-DE');
-        endDateStr = end.toLocaleDateString('de-DE');
-    } else {
-        timelineInfo = "Laufende Betreuung";
-        startDateStr = "Fortlaufend";
-        endDateStr = "Offen";
+    if (rows.length > 0) {
+      // Cache Hit!
+      return new NextResponse(rows[0].response);
     }
 
-    // Datenaufbereitung
-    const aiShare = data.aiTraffic && kpis.sessions?.value
-      ? (data.aiTraffic.totalSessions / kpis.sessions.value * 100).toFixed(1)
-      : '0';
+    // 2. Daten laden (wenn nicht im Cache)
+    const analyticsData = await getOrFetchGoogleData(projectId, dateRange);
 
-    const topKeywords = data.topQueries?.slice(0, 5)
-      .map((q: any) => `- "${q.query}" (Pos: ${q.position.toFixed(1)}, Klicks: ${q.clicks})`)
-      .join('\n') || 'Keine Keywords';
+    if (!analyticsData) {
+        return NextResponse.json({ message: 'Keine Daten gefunden' }, { status: 404 });
+    }
 
-    // ✅ SEO CHANCEN (Striking Distance Keywords - Position 4-20)
-    const seoOpportunities = data.topQueries
-      ?.filter((q: any) => q.position >= 4 && q.position <= 20)
-      .sort((a: any, b: any) => b.impressions - a.impressions)
-      .slice(0, 5)
-      .map((q: any) => `- "${q.query}" (Pos: ${q.position.toFixed(1)}, Impr: ${q.impressions})`)
-      .join('\n') || 'Keine SEO-Chancen identifiziert';
-
-    // ✅ Erweiterter Filter für Data Max
-    // Filtert Impressum, Datenschutz, Danke-Seiten und kryptische Pfade
-    const topConverters = data.topConvertingPages
-      ?.filter((p: any) => {
-         const path = p.path.toLowerCase();
-         
-         // 1. Standard-Ausschlüsse
-         const isStandardExcluded = 
-            path.includes('danke') || 
-            path.includes('thank') || 
-            path.includes('success') || 
-            path.includes('confirmation') ||
-            path.includes('impressum') ||
-            path.includes('datenschutz') ||
-            path.includes('widerruf') ||
-            path.includes('agb');
-
-         // 2. Technische Ausschlüsse (Suche, 404, etc.)
-         const isTechnical = 
-            path.includes('search') ||
-            path.includes('suche') ||
-            path.includes('404') ||
-            path.includes('undefined');
-
-         return !isStandardExcluded && !isTechnical;
-      })
-      .map((p: any) => {
-         // Wir bauen einen smarten String:
-         // Wenn Conversions da sind -> Fokus Conversion
-         // Wenn KEINE Conversions da sind -> Fokus Engagement
-         if (p.conversions > 0) {
-           return `- "${p.path}": ${p.conversions} Conv. (Rate: ${p.conversionRate}%, Eng: ${p.engagementRate}%)`;
-         } else {
-           return `- "${p.path}": ${p.engagementRate}% Engagement (bei 0 Conversions)`;
-         }
-      })
-      .slice(0, 10) // Begrenzung auf Top 10 für den Prompt
-      .join('\n') || 'Keine relevanten Content-Daten verfügbar.';
-      
-    // Fix: Typisierung für Channel Data
-    const topChannels = data.channelData?.slice(0, 3)
-      .map((c: any) => `${c.name} (${fmt(c.value)})`)
-      .join(', ') || 'Keine Kanal-Daten';
-
+    // 3. Daten für KI aufbereiten (Zusammenfassung)
     const summaryData = `
-      DOMAIN: ${project.domain}
-      ZEITPLAN STATUS: ${timelineInfo}
-      START: ${startDateStr}
-      ENDE: ${endDateStr}
+      Nutzer: ${analyticsData.summary.users} (Änderung: ${change(analyticsData.summary.usersChange)}%)
+      Sitzungen: ${analyticsData.summary.sessions} (Änderung: ${change(analyticsData.summary.sessionsChange)}%)
+      Absprungrate: ${fmt(analyticsData.summary.bounceRate)}%
+      Durschn. Sitzungsdauer: ${fmt(analyticsData.summary.avgSessionDuration)}s
       
-      KPIs (Format: Wert (Veränderung%)):
-      - Nutzer (Gesamt): ${fmt(kpis.totalUsers?.value)} (${change(kpis.totalUsers?.change)}%)
-      - Klassische Besucher: ${fmt(Math.max(0, (kpis.totalUsers?.value || 0) - (data.aiTraffic?.totalUsers || 0)))}
-      - Sichtbarkeit in KI-Systemen: ${fmt(data.aiTraffic?.totalUsers || 0)}
-      - Impressionen: ${fmt(kpis.impressions?.value)} (${change(kpis.impressions?.change)}%)
-      - Klicks: ${fmt(kpis.clicks?.value)} (${change(kpis.clicks?.change)}%)
-      - Sitzungen: ${fmt(kpis.sessions?.value)} (${change(kpis.sessions?.change)}%)
-      - Conversions: ${fmt(kpis.conversions?.value)} (${change(kpis.conversions?.change)}%)
-      - Interaktionsrate: ${fmt(kpis.engagementRate?.value)}%
-      - KI-Anteil am Traffic: ${aiShare}%
-      
-      TOP KEYWORDS (Traffic):
-      ${topKeywords}
+      Top Seiten (Views):
+      ${analyticsData.pages.slice(0, 5).map(p => `- ${p.path}: ${p.views} Views`).join('\n')}
 
-      SEO CHANCEN (Verstecktes Potenzial - Hohe Nachfrage, Ranking verbesserungswürdig):
-      ${seoOpportunities}
-
-      TOP CONVERSION TREIBER (RELEVANTE LANDINGPAGES):
-      ${topConverters}
-      
-      KANÄLE:
-      ${topChannels}
+      Top Quellen:
+      ${analyticsData.sources.slice(0, 5).map(s => `- ${s.source}: ${s.users} User`).join('\n')}
     `;
 
-    // --- CACHE LOGIK ---
-    const cacheInputString = `${summaryData}|ROLE:${userRole}|V5_FILTERED_DATA`; // Cache Key Update für neue Filter
-    const inputHash = createHash(cacheInputString);
-
-    const { rows: cacheRows } = await sql`
-      SELECT response 
-      FROM ai_analysis_cache
-      WHERE 
-        user_id = ${projectId}::uuid 
-        AND date_range = ${dateRange}
-        AND input_hash = ${inputHash}
-        AND created_at > NOW() - INTERVAL '48 hours'
-      ORDER BY created_at DESC
-      LIMIT 1
-    `;
-
-    if (cacheRows.length > 0) {
-      console.log('[AI Cache] ✅ HIT! Liefere gespeicherte Antwort.');
-      const stream = new ReadableStream({
-        start(controller) {
-          controller.enqueue(new TextEncoder().encode(cacheRows[0].response));
-          controller.close();
-        },
-      });
-      return new Response(stream, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
-    }
-    // --- ENDE CACHE ---
-
-
-    // 2. PROMPT SETUP
-    const visualSuccessTemplate = `
-      <div class="mt-6 p-4 bg-emerald-50 rounded-xl border border-emerald-100 flex items-start gap-4 shadow-sm">
-         <div class="bg-white p-2.5 rounded-full text-emerald-600 shadow-sm mt-1">🏆</div>
-         <div><div class="text-[10px] font-bold text-emerald-700 uppercase tracking-wider mb-1">Top Erfolg</div>
-         <div class="text-sm font-semibold text-emerald-900 leading-relaxed">ERFOLG_TEXT_PLATZHALTER</div></div>
-      </div>
-    `;
-
+    // 4. Prompt Engineering
     let systemPrompt = `
-      Du bist "Data Max", ein Performance-Analyst.
-
-      REGELN FÜR FORMATIERUNG (STRIKT BEFOLGEN):
-      1. VERWENDE KEIN MARKDOWN.
-      2. Nutze AUSSCHLIESSLICH HTML-Tags.
+      Du bist ein erfahrener Web-Analyst. Deine Aufgabe ist es, Google Analytics 4 Daten für einen Kunden verständlich und handlungsorientiert zusammenzufassen.
       
-      ERLAUBTE HTML-STRUKTUR:
-      - Absätze: <p class="mb-4 leading-relaxed text-gray-700">Dein Text...</p>
-      - Überschriften: <h4 class="font-bold text-indigo-900 mt-6 mb-3 text-base flex items-center gap-2">Dein Titel</h4>
-      - Listen: <ul class="space-y-2 mb-4 text-sm text-gray-600 list-none pl-1"> 
-                  <li class="flex gap-2"><span class="text-indigo-400 mt-1">•</span> <span>Dein Punkt</span></li> 
-                </ul>
-      - Positiv: <span class="text-emerald-600 font-bold">
-      - Negativ: <span class="text-red-600 font-bold">
-      - Wichtig: <span class="font-semibold text-gray-900">
-
-      OUTPUT AUFBAU:
-      [Inhalt Spalte 1]
-      [[SPLIT]]
-      [Inhalt Spalte 2]
+      Stil: Professionell, ermutigend, aber ehrlich. "Du"-Ansprache.
+      
+      Formatierung: Nutze HTML-Tags für die Struktur (KEIN Markdown!).
+      Struktur der Antwort:
+      1. <h4 class="text-lg font-semibold text-indigo-900 mb-2">Das Wichtigste zuerst:</h4> Ein kurzer Satz als Einleitung.
+      2. <h4 class="text-lg font-semibold text-indigo-900 mt-4 mb-2">Zusammenfassung:</h4> Fließtext über Erfolge (Conversions hervorheben).
+      3. <h4 class="text-lg font-semibold text-indigo-900 mt-4 mb-2">Top Seiten:</h4> Nenne die stärksten Inhalte.
+      4. <h4 class="text-lg font-semibold text-indigo-900 mt-4 mb-2">Potenzial:</h4> Ein konkreter Verbesserungsvorschlag basierend auf den Daten (z.B. Absprungrate senken).
     `;
 
-    if (userRole === 'ADMIN' || userRole === 'SUPERADMIN') {
-      // === ADMIN MODUS ===
-      systemPrompt += `
-        ZIELGRUPPE: Admin/Experte. Ton: Analytisch.
-        
-        SPALTE 1 (Status & Zahlen):
-        1. <h4...>Zeitplan:</h4> Status, Monat.
-        2. <h4...>Performance Kennzahlen:</h4> 
-           <ul...>
-             <li...>Liste alle KPIs inkl. Conversions und Engagement.
-             <li...>Negative Trends ROT.
-           </ul...>
-        3. VISUAL ENDING: ${visualSuccessTemplate}
-        
-        SPALTE 2 (Analyse):
-        1. <h4...>Status-Analyse:</h4> Kritische Analyse.
-        2. <h4...>Handlungsempfehlung:</h4> Technische Schritte.
-        3. <h4...>Conversion Analyse:</h4> Welche Seiten bringen Umsatz? (Ignoriere Impressum/Datenschutz falls noch vorhanden).
-        4. <h4...>SEO-Chancen (Striking Distance):</h4> 
-           Analysiere die "SEO CHANCEN" Daten. Identifiziere Keywords auf Position 4-20 mit hohem Suchvolumen (Striking Distance). 
-           Gib eine konkrete technische Handlungsempfehlung (z.B. "Content schärfen", "Metas optimieren", "Interne Verlinkung stärken") um diese Rankings auf Seite 1 zu heben.
-      `;
-    } else {
-      // === KUNDEN MODUS ===
-      systemPrompt += `
-        ZIELGRUPPE: Kunde. Ton: Höflich, Positiv.
-        
-        SPALTE 1 (Status & Zahlen):
-        1. <h4...>Projekt-Laufzeit:</h4> Start, Ende, Monat.
-        2. <h4...>Aktuelle Leistung:</h4>
-           <ul...>
-             <li...>Nutzer & Klassische Besucher.
-             <li...>Conversions (Erreichte Ziele) & Engagement.
-             <li...>KI-Sichtbarkeit: Füge hinzu: <br><span class="text-xs text-emerald-600 block mt-0.5">✔ Ihre Inhalte werden von KI (ChatGPT, Gemini) gefunden.</span>
-           </ul...>
-        3. VISUAL ENDING: ${visualSuccessTemplate}
-        
-        SPALTE 2 (Performance Analyse):
-        1. Anrede: <p class="mb-4 font-medium">Sehr geehrte Kundin, sehr geehrter Kunde,</p>
-        2. <h4...>Zusammenfassung:</h4> Fließtext über Erfolge (Conversions hervorheben).
-        3. <h4...>Top Seiten (Umsatz):</h4> Nenne lobend die Seiten mit den meisten Conversions.
-        4. <h4...>Ihr Wachstumspotenzial:</h4> 
+    // Spezieller Prompt für Evita-Kunden (wenn wir das Flag hätten, hier einfach Standard)
+    if (userRole === 'admin') {
+      systemPrompt = `
+        Du bist ein knallharter Daten-Analyst. Analysiere die folgenden Daten kurz und prägnant.
+        Format: HTML.
+        1. <h4 class="text-lg font-semibold text-indigo-900 mb-2">Status:</h4> Kurzfazit.
+        2. <h4 class="text-lg font-semibold text-indigo-900 mt-4 mb-2">Zusammenfassung:</h4> Fließtext über Erfolge (Conversions hervorheben).
+        3. <h4 class="text-lg font-semibold text-indigo-900 mt-4 mb-2">Top Seiten (Umsatz):</h4> Nenne lobend die Seiten mit den meisten Conversions.
+        4. <h4 class="text-lg font-semibold text-indigo-900 mt-4 mb-2">Ihr Wachstumspotenzial:</h4> 
            Greifen Sie 1-2 Keywords aus "SEO CHANCEN" heraus und formulieren Sie es als gute Nachricht: 
            "Wir haben tolles Potenzial entdeckt! Viele Menschen suchen nach [Keyword], und Sie sind schon fast ganz vorne dabei (Seite 2)."
            Erklären Sie motivierend, dass kleine Anpassungen hier große Wirkung für noch mehr Besucher haben können.
       `;
     }
 
-    const result = streamText({
-      model: google('gemini-2.5-flash'),
+    // 5. KI Generierung starten (MIT ZENTRALEM HELPER)
+    // Wir rufen streamTextSafe auf statt streamText. Das 'model' Argument lassen wir weg.
+    const result = await streamTextSafe({
       system: systemPrompt,
       prompt: `Analysiere diese Daten für den Zeitraum ${dateRange}:\n${summaryData}`,
       temperature: 0.4, 
@@ -301,7 +127,7 @@ export async function POST(req: NextRequest) {
     return result.toTextStreamResponse();
 
   } catch (error) {
-    console.error('[AI Analyze] Fehler:', error);
-    return NextResponse.json({ message: 'Fehler', error: String(error) }, { status: 500 });
+    console.error('[AI Analyze] Error:', error);
+    return NextResponse.json({ message: 'Fehler bei der KI-Analyse' }, { status: 500 });
   }
 }
