@@ -1,18 +1,14 @@
 // src/app/api/ai/news-crawler/route.ts
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { streamText } from 'ai';
 import * as cheerio from 'cheerio';
 import { NextRequest, NextResponse } from 'next/server';
 import { getCompactStyleGuide, STYLES } from '@/lib/ai-styles';
+import { google, AI_CONFIG } from '@/lib/ai-config';
 
 // --- Environment Variablen (Für Google Custom Search API) ---
 const GOOGLE_SEARCH_API_KEY = process.env.GOOGLE_SEARCH_API_KEY;
 const GOOGLE_SEARCH_CX_ID = process.env.GOOGLE_SEARCH_CX_ID;
 // -----------------------------------------------------------
-
-const google = createGoogleGenerativeAI({
-  apiKey: process.env.GEMINI_API_KEY || '',
-});
 
 export const runtime = 'nodejs';
 export const maxDuration = 300; // Erhöht auf 5 Minuten für Vercel Pro
@@ -245,37 +241,37 @@ ERSTELLE DIESEN REPORT:
 Antworte NUR mit HTML.
   `;
 
-    // 4. Streamen des Ergebnisses mit Fallback
+    // 4. Streamen des Ergebnisses mit Fallback (ZENTRALE CONFIG)
     try {
-      console.log('🤖 Versuche News-Analyse mit Gemini 3 Pro Preview...');
+      console.log(`🤖 Versuche News-Analyse mit ${AI_CONFIG.primaryModel}...`);
       const result = streamText({
-        model: google('gemini-3-pro-preview'), // ✅ KORRIGIERT
+        model: google(AI_CONFIG.primaryModel),
         prompt: newsCrawlerPrompt,
         temperature: 0.3,
       });
 
-      // ✅ Header hinzufügen: Erfolgreich Gemini 3
+      // ✅ Header hinzufügen: Erfolgreich Primary
       return result.toTextStreamResponse({
         headers: {
-          'X-AI-Model': 'gemini-3-pro-preview',
+          'X-AI-Model': AI_CONFIG.primaryModel,
           'X-AI-Status': 'primary'
         }
       });
 
     } catch (e) {
-      console.warn('⚠️ Gemini 3 Pro failed for News Crawler, falling back to Flash:', e);
+      console.warn(`⚠️ ${AI_CONFIG.primaryModel} failed for News Crawler, falling back to ${AI_CONFIG.fallbackModel}:`, e);
       
-      // Fallback: Dein bisheriges Flash-Modell
+      // Fallback: Fallback-Modell aus Config
       const result = streamText({
-        model: google('gemini-2.5-flash'), // Dein ursprüngliches Modell
+        model: google(AI_CONFIG.fallbackModel),
         prompt: newsCrawlerPrompt,
         temperature: 0.3,
       });
 
-      // ✅ Header hinzufügen: Fallback auf Flash
+      // ✅ Header hinzufügen: Fallback
       return result.toTextStreamResponse({
         headers: {
-          'X-AI-Model': 'gemini-2.5-flash',
+          'X-AI-Model': AI_CONFIG.fallbackModel,
           'X-AI-Status': 'fallback'
         }
       });
