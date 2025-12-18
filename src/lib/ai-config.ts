@@ -8,9 +8,14 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 // Ändere hier die Modelle, um sie im GESAMTEN Projekt zu aktualisieren.
 // ============================================================================
 export const AI_CONFIG = {
-  primaryModel: 'gemini-3-flash-preview', // Dein neues Ziel-Modell
-  fallbackModel: 'gemini-2.5-flash',      // Dein Sicherheitsnetz
-  temperature: 0.7,
+  primaryModel: 'gemini-3-flash-preview',
+  fallbackModel: 'gemini-2.5-flash',
+  
+  settings: {
+    strict: { temperature: 0.1 },  // Für JSON / Daten
+    balanced: { temperature: 0.7 }, // Für Chat / Evita (Standard)
+    creative: { temperature: 0.9 }, // Für Marketing-Ideen
+  }
 };
 
 // Initialisiere den Vercel AI SDK Client einmal zentral (für route.ts Dateien)
