@@ -5,28 +5,26 @@ import { getOrFetchGoogleData } from '@/lib/google-data-loader';
 import type { User } from '@/lib/schemas'; 
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60; // Vercel Pro Limit (Free = 10s!)
+export const maxDuration = 60; // Vercel Pro Limit
 
-const BATCH_SIZE = 3; 
-const MAX_EXECUTION_TIME_MS = 8000; // ⚠️ WICHTIG: Vercel Free = 10s Limit!
+const MAX_EXECUTION_TIME_MS = 50000; // 50s Safety-Buffer
+const CACHE_REFRESH_THRESHOLD_HOURS = 20;
 
-// ✅ FIX: Nur die wichtigsten Ranges vorberechnen
-const RANGES_TO_PREFILL = ['30d']; // Bei Free Plan: NUR 30d, sonst Timeout
-
-// ✅ NEU: Cache-Alter für Refresh (in Stunden)
-const CACHE_REFRESH_THRESHOLD_HOURS = 20; // Cache älter als 20h wird refresht
-
-export async function POST(request: NextRequest) {
+// ✅ GET statt POST - Vercel Cron sendet GET-Requests!
+export async function GET(request: NextRequest) {
   const startTime = Date.now();
   
+  // Auth Check - Vercel sendet Authorization Header automatisch
   const authHeader = request.headers.get('Authorization');
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    console.warn('[CRON Cache] ❌ Unauthorized - Invalid or missing CRON_SECRET');
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
   }
 
+  console.log('[CRON Cache] ✅ Authentifizierung erfolgreich, starte Job...');
+
   try {
-    // ✅ STRATEGIE 1: Nur User mit "altem" Cache laden
-    // Findet User, deren Cache älter als CACHE_REFRESH_THRESHOLD_HOURS ist
+    // User mit altem/fehlendem Cache laden
     const { rows } = await sql`
       SELECT DISTINCT u.* 
       FROM users u
@@ -35,10 +33,10 @@ export async function POST(request: NextRequest) {
         AND u.role != 'SUPERADMIN'
         AND (
           c.last_fetched IS NULL 
-          OR c.last_fetched < NOW() - INTERVAL '${CACHE_REFRESH_THRESHOLD_HOURS} hours'
+          OR c.last_fetched < NOW() - INTERVAL '20 hours'
         )
-      ORDER BY COALESCE(c.last_fetched, '1970-01-01') ASC -- Älteste zuerst
-      LIMIT 50; -- Max 50 User pro Run (Free Plan Schutz)
+      ORDER BY COALESCE(c.last_fetched, '1970-01-01') ASC
+      LIMIT 50;
     `;
     
     const users = rows as unknown as User[];
@@ -60,7 +58,7 @@ export async function POST(request: NextRequest) {
     let failedRefreshes = 0;
     let timeoutReached = false;
 
-    // ✅ STRATEGIE 2: Sequenziell statt parallel (bei Free Plan stabiler)
+    // Sequenzielle Verarbeitung (stabiler bei Vercel)
     for (const user of users) {
       // Zeit-Check vor jedem User
       if (Date.now() - startTime > MAX_EXECUTION_TIME_MS) {
@@ -83,6 +81,8 @@ export async function POST(request: NextRequest) {
     }
 
     const duration = (Date.now() - startTime) / 1000;
+
+    console.log(`[CRON Cache] 🏁 Fertig in ${duration.toFixed(1)}s - Erfolg: ${successfulRefreshes}, Fehler: ${failedRefreshes}`);
 
     return NextResponse.json({
       success: true,
