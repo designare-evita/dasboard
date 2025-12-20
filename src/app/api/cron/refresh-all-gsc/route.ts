@@ -7,7 +7,7 @@ import type { User } from '@/types';
 
 // Konfiguration
 const BATCH_SIZE = 5;
-const MAX_EXECUTION_TIME_MS = 50 * 1000;
+const MAX_EXECUTION_TIME_MS = 50 * 1000; // 50s Safety-Buffer
 
 // === Hilfsfunktionen ===
 
@@ -35,7 +35,7 @@ function calculateDateRanges() {
   };
 }
 
-// ✅ NEU: Hilfsfunktion für sichere Rundung (null-safe)
+// Hilfsfunktion für sichere Rundung (null-safe)
 function safeRound(value: number | null | undefined): number {
   if (value === null || value === undefined || isNaN(value)) {
     return 0;
@@ -43,13 +43,11 @@ function safeRound(value: number | null | undefined): number {
   return Math.round(value);
 }
 
-// ✅ NEU: Für Position mit 1 Dezimalstelle (optional, falls du NUMERIC verwendest)
+// Für Position mit Rundung
 function roundPosition(value: number | null | undefined): number {
   if (value === null || value === undefined || isNaN(value)) {
     return 0;
   }
-  // Für INTEGER-Spalten: Math.round(value)
-  // Für NUMERIC-Spalten: Math.round(value * 10) / 10 (1 Dezimalstelle)
   return Math.round(value);
 }
 
@@ -93,7 +91,6 @@ async function processUser(
       for (const [url, data] of gscDataMap.entries()) {
         const landingpageId = pageIdMap.get(url);
         if (landingpageId) {
-          // ✅ FIX: Alle Werte runden vor dem DB-Insert
           await client.query(
             `UPDATE landingpages
              SET 
@@ -107,7 +104,7 @@ async function processUser(
               safeRound(data.clicks_change),
               safeRound(data.impressions),
               safeRound(data.impressions_change),
-              roundPosition(data.position),      // ← Das war der Fehler!
+              roundPosition(data.position),
               safeRound(data.position_change),
               landingpageId
             ]
@@ -134,45 +131,50 @@ async function processUser(
 
 // === MAIN ROUTE ===
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60; // Vercel Pro
 
-export async function POST(request: NextRequest) {
+// ✅ GET statt POST - Vercel Cron sendet GET-Requests!
+export async function GET(request: NextRequest) {
   const startTime = Date.now();
   
-  // 1. Auth Check
+  // Auth Check - Vercel sendet Authorization Header automatisch
   const authHeader = request.headers.get('Authorization');
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    console.warn('[CRON GSC] ❌ Unauthorized - Invalid or missing CRON_SECRET');
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
   }
+
+  console.log('[CRON GSC] ✅ Authentifizierung erfolgreich, starte Job...');
 
   const { currentRange, previousRange } = calculateDateRanges();
   const ranges = { currentRange, previousRange };
 
   try {
-    // 2. User laden
+    // User laden
     const { rows: users } = await sql<Pick<User, 'id' | 'email' | 'gsc_site_url'>>`
       SELECT id, email, gsc_site_url 
       FROM users 
       WHERE role = 'BENUTZER' AND gsc_site_url IS NOT NULL AND gsc_site_url != '';
     `;
 
-    console.log(`[CRON] Starte Batch-Verarbeitung für ${users.length} User.`);
+    console.log(`[CRON GSC] Starte Batch-Verarbeitung für ${users.length} User.`);
 
     let processedCount = 0;
     let totalUpdatedPages = 0;
     const errors: string[] = [];
 
-    // 3. Batch-Verarbeitung (Parallelisierung)
+    // Batch-Verarbeitung (Parallelisierung)
     for (let i = 0; i < users.length; i += BATCH_SIZE) {
       
       // Zeit-Check
       if (Date.now() - startTime > MAX_EXECUTION_TIME_MS) {
-        console.warn('[CRON] ⚠️ Zeitlimit fast erreicht. Stoppe vorzeitig.');
+        console.warn('[CRON GSC] ⚠️ Zeitlimit fast erreicht. Stoppe vorzeitig.');
         errors.push('Zeitlimit erreicht - Job unvollständig');
         break; 
       }
 
       const batch = users.slice(i, i + BATCH_SIZE);
-      console.log(`[CRON] Verarbeite Batch ${Math.floor(i / BATCH_SIZE) + 1} (${batch.length} User)...`);
+      console.log(`[CRON GSC] Verarbeite Batch ${Math.floor(i / BATCH_SIZE) + 1} (${batch.length} User)...`);
 
       const results = await Promise.allSettled(
         batch.map(user => processUser(user, ranges))
@@ -197,7 +199,7 @@ export async function POST(request: NextRequest) {
     }
 
     const duration = (Date.now() - startTime) / 1000;
-    console.log(`[CRON] ✅ Fertig in ${duration}s. Seiten: ${totalUpdatedPages}. Errors: ${errors.length}`);
+    console.log(`[CRON GSC] 🏁 Fertig in ${duration.toFixed(1)}s. Seiten: ${totalUpdatedPages}. Errors: ${errors.length}`);
 
     return NextResponse.json({
       success: true,
@@ -210,7 +212,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('[CRON] Fataler Fehler:', error);
+    console.error('[CRON GSC] Fataler Fehler:', error);
     return NextResponse.json({ message: error.message }, { status: 500 });
   }
 }
