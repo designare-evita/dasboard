@@ -36,6 +36,7 @@ interface LandingpageRequest {
   domain?: string;
   // ✅ Optionaler Kontext für Produkte/Fakten
   productContext?: string; 
+  customInstructions?: string; // ✅ NEU
   // NEU: Sektions-Auswahl (Landingpage: full/intro/benefits/trust/faq, Blog: full/intro/main/faq/conclusion)
   section?: 'full' | 'intro' | 'benefits' | 'trust' | 'faq' | 'main' | 'conclusion';
 }
@@ -264,6 +265,7 @@ export async function POST(req: NextRequest) {
         contextData, 
         domain,
         productContext, // ✅ NEU
+        customInstructions, // ✅ NEU
         section = 'full' // NEU: Sektions-Auswahl (default: full)
     } = body;
 
@@ -385,6 +387,14 @@ ${spyText}
 ═══════════════════════════════════════════════════════════════════════════════
 Integriere diese Informationen zwingend in den Text:
 "${productContext}"
+` : '';
+
+    // ✅ KONSTRUKTION DER ZUSÄTZLICHEN ANWEISUNGEN
+    const extraInstructions = customInstructions ? `
+═══════════════════════════════════════════════════════════════════════════════
+⚠️ SPEZIELLE NUTZER-ANWEISUNGEN (HÖCHSTE PRIORITÄT!)
+═══════════════════════════════════════════════════════════════════════════════
+"${customInstructions}"
 ` : '';
 
     // ========================================================================
@@ -736,6 +746,8 @@ ${intentGuidance}
 
 ${productFacts}
 
+${extraInstructions}
+
 ${contextSection ? `
 ═══════════════════════════════════════════════════════════════════════════════
 ZUSÄTZLICHER KONTEXT (aus Datenquellen)
@@ -834,6 +846,8 @@ ${toneInstructions}
 ${intentGuidance}
 
 ${productFacts}
+
+${extraInstructions}
 
 ${contextSection ? `
 ═══════════════════════════════════════════════════════════════════════════════
