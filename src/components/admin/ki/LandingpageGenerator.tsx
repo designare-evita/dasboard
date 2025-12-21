@@ -86,6 +86,7 @@ export default function LandingPageGenerator({
   const [targetAudience, setTargetAudience] = useState('');
   // ✅ Kontext für echte Fakten
   const [productContext, setProductContext] = useState(''); 
+  const [customInstructions, setCustomInstructions] = useState(''); // ✅ NEU
   const [tone, setTone] = useState<ToneOfVoice>('professional');
   const [contentType, setContentType] = useState<ContentType>('landingpage');
   const [generationMode, setGenerationMode] = useState('full'); // 'full', 'intro', 'benefits', 'trust', 'faq'
@@ -370,6 +371,7 @@ export default function LandingPageGenerator({
           targetAudience: targetAudience.trim() || undefined,
           // ✅ Product Context senden
           productContext: productContext.trim(),
+          customInstructions: customInstructions.trim(), // ✅ NEU: Senden an API
           toneOfVoice: tone,
           contextData,
           domain,
@@ -549,6 +551,22 @@ export default function LandingPageGenerator({
             />
             <p className="text-[10px] text-gray-400 mt-1">
               Je mehr Infos hier stehen, desto weniger muss die KI "erfinden".
+            </p>
+          </div>
+
+          {/* ✅ NEUES EINGABEFELD FÜR WEITERE ANWEISUNGEN */}
+          <div className="mt-4">
+            <label className="text-sm font-semibold text-gray-700 mb-2 block">
+              Zusätzliche Anweisungen (Eigener Prompt)
+            </label>
+            <textarea
+              value={customInstructions}
+              onChange={(e) => setCustomInstructions(e.target.value)}
+              placeholder="z.B. Schreibe besonders provokativ, verwende keine Ausrufezeichen, erwähne Firma XY als Partner..."
+              className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 outline-none h-20"
+            />
+            <p className="text-[10px] text-gray-400 mt-1">
+              Spezielle Wünsche an den Schreibstil oder Inhalt.
             </p>
           </div>
 
