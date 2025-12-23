@@ -1,8 +1,7 @@
 // src/app/api/ai/generate-landingpage/route.ts
-import { streamText } from 'ai';
 import { NextRequest, NextResponse } from 'next/server';
 import { STYLES } from '@/lib/ai-styles';
-import { google, AI_CONFIG } from '@/lib/ai-config';
+import { streamTextSafe, createAIStreamResponse } from '@/lib/ai-config';
 import { 
   analyzeKeywords, 
   generateKeywordPromptContext,
@@ -36,8 +35,8 @@ interface LandingpageRequest {
   domain?: string;
   // ✅ Optionaler Kontext für Produkte/Fakten
   productContext?: string; 
-  customInstructions?: string; // ✅ NEU
-  // NEU: Sektions-Auswahl (Landingpage: full/intro/benefits/trust/faq, Blog: full/intro/main/faq/conclusion)
+  customInstructions?: string;
+  // Sektions-Auswahl (Landingpage: full/intro/benefits/trust/faq, Blog: full/intro/main/faq/conclusion)
   section?: 'full' | 'intro' | 'benefits' | 'trust' | 'faq' | 'main' | 'conclusion';
 }
 
@@ -264,9 +263,9 @@ export async function POST(req: NextRequest) {
         contentType = 'landingpage', 
         contextData, 
         domain,
-        productContext, // ✅ NEU
-        customInstructions, // ✅ NEU
-        section = 'full' // NEU: Sektions-Auswahl (default: full)
+        productContext,
+        customInstructions,
+        section = 'full'
     } = body;
 
     // ========================================================================
@@ -292,30 +291,25 @@ export async function POST(req: NextRequest) {
     let intentGuidance = '';
     
     if (contextData?.gscKeywordsRaw && contextData.gscKeywordsRaw.length > 0) {
-      // ✅ ERWEITERT: Domain für Intent-Erkennung übergeben
       keywordAnalysis = analyzeKeywords(
         contextData.gscKeywordsRaw, 
         topic,
-        domain // ✅ NEU: Ermöglicht Brand-Keyword-Erkennung
+        domain
       );
       
       mainKeyword = keywordAnalysis.mainKeyword || keywords[0] || topic;
       
-      // ✅ Generiere erweiterten Keyword-Kontext (inkl. Intent-Infos)
       contextSection += generateKeywordPromptContext(keywordAnalysis);
       
-      // ✅ NEU: Intent-basierte Struktur-Guidance
       const mainIntent = keywordAnalysis.intentAnalysis.mainKeywordIntent;
       intentGuidance = generateIntentGuidance(
         mainIntent.primaryIntent, 
         mainIntent.confidence
       );
       
-      // Debug-Output (optional)
       console.log('🎯 Intent-Analyse:', generateIntentReport(mainIntent));
       
     } else if (contextData?.gscKeywords && contextData.gscKeywords.length > 0) {
-      // Fallback: Nur Keyword-Namen ohne Metriken
       contextSection += `
 ### GSC KEYWORDS (aus Google Search Console)
 Diese Keywords sind relevant für das Thema:
@@ -378,7 +372,7 @@ ${spyText}
       : '';
 
     // ========================================================================
-    // ✅ NEU: 3. FAKTEN-BLOCK KONSTRUIEREN
+    // 3. FAKTEN-BLOCK KONSTRUIEREN
     // ========================================================================
 
     const productFacts = productContext ? `
@@ -389,7 +383,6 @@ Integriere diese Informationen zwingend in den Text:
 "${productContext}"
 ` : '';
 
-    // ✅ KONSTRUKTION DER ZUSÄTZLICHEN ANWEISUNGEN
     const extraInstructions = customInstructions ? `
 ═══════════════════════════════════════════════════════════════════════════════
 ⚠️ SPEZIELLE NUTZER-ANWEISUNGEN (HÖCHSTE PRIORITÄT!)
@@ -398,7 +391,7 @@ Integriere diese Informationen zwingend in den Text:
 ` : '';
 
     // ========================================================================
-    // NEU: SEKTIONS-SPEZIFISCHE INSTRUKTION
+    // 4. SEKTIONS-SPEZIFISCHE INSTRUKTION
     // ========================================================================
 
     let sectionInstruction = "";
@@ -715,7 +708,7 @@ WICHTIG: STOPPE HIER! Generiere KEINE Einleitung, KEINEN Hauptteil, KEIN FAQ!
     }
 
     // ========================================================================
-    // 4. PROMPT GENERIERUNG
+    // 5. PROMPT GENERIERUNG
     // ========================================================================
 
     let prompt = '';
@@ -957,46 +950,24 @@ ${sectionStructure ? `⚠️ KRITISCH: Generiere NUR die oben angegebene Sektion
     }
 
     // ========================================================================
-    // 5. STREAMING MIT FALLBACK (ZENTRALE CONFIG)
+    // 6. STREAMING MIT AUTOMATISCHEM MULTI-FALLBACK
     // ========================================================================
     
-    try {
-      console.log(`🤖 Landingpage Generator: Versuche ${AI_CONFIG.primaryModel}...`);
-      
-      const result = streamText({
-        model: google(AI_CONFIG.primaryModel),
-        prompt: prompt,
-        temperature: 0.7,
-      });
+    console.log(`🚀 Landingpage Generator: Starte Generierung für "${topic}"...`);
+    
+    const response = await streamTextSafe({
+      prompt: prompt,
+      temperature: 0.7,
+      onModelSwitch: (from, to, error) => {
+        console.log(`🔄 Landingpage Generator: Wechsel von ${from} zu ${to}`);
+      }
+    });
 
-      return result.toTextStreamResponse({
-        headers: {
-          'X-AI-Model': AI_CONFIG.primaryModel,
-          'X-AI-Status': 'primary',
-          // ✅ NEU: Intent-Info im Header
-          'X-Intent-Detected': keywordAnalysis?.intentAnalysis.dominantIntent || 'unknown',
-          'X-Intent-Confidence': keywordAnalysis?.intentAnalysis.mainKeywordIntent.confidence || 'unknown'
-        },
-      });
-      
-    } catch (error) {
-      console.warn(`⚠️ ${AI_CONFIG.primaryModel} failed, falling back to ${AI_CONFIG.fallbackModel}:`, error);
-
-      const result = streamText({
-        model: google(AI_CONFIG.fallbackModel),
-        prompt: prompt,
-        temperature: 0.7,
-      });
-
-      return result.toTextStreamResponse({
-        headers: {
-          'X-AI-Model': AI_CONFIG.fallbackModel,
-          'X-AI-Status': 'fallback',
-          'X-Intent-Detected': keywordAnalysis?.intentAnalysis.dominantIntent || 'unknown',
-          'X-Intent-Confidence': keywordAnalysis?.intentAnalysis.mainKeywordIntent.confidence || 'unknown'
-        },
-      });
-    }
+    // Erstelle Response mit Intent-Headers
+    return createAIStreamResponse(response, {
+      'X-Intent-Detected': keywordAnalysis?.intentAnalysis.dominantIntent || 'unknown',
+      'X-Intent-Confidence': keywordAnalysis?.intentAnalysis.mainKeywordIntent.confidence || 'unknown'
+    });
 
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
