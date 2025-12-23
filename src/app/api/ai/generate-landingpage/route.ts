@@ -1,7 +1,7 @@
 // src/app/api/ai/generate-landingpage/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { STYLES } from '@/lib/ai-styles';
-import { streamTextSafe, createAIStreamResponse } from '@/lib/ai-config';
+import { streamTextSafe } from '@/lib/ai-config';
 import { 
   analyzeKeywords, 
   generateKeywordPromptContext,
@@ -955,18 +955,19 @@ ${sectionStructure ? `⚠️ KRITISCH: Generiere NUR die oben angegebene Sektion
     
     console.log(`🚀 Landingpage Generator: Starte Generierung für "${topic}"...`);
     
-    const response = await streamTextSafe({
+    const result = await streamTextSafe({
       prompt: prompt,
       temperature: 0.7,
-      onModelSwitch: (from, to, error) => {
-        console.log(`🔄 Landingpage Generator: Wechsel von ${from} zu ${to}`);
-      }
     });
 
-    // Erstelle Response mit Intent-Headers
-    return createAIStreamResponse(response, {
-      'X-Intent-Detected': keywordAnalysis?.intentAnalysis.dominantIntent || 'unknown',
-      'X-Intent-Confidence': keywordAnalysis?.intentAnalysis.mainKeywordIntent.confidence || 'unknown'
+    // Response mit Intent-Headers
+    return result.toTextStreamResponse({
+      headers: {
+        'X-AI-Model': result._modelName || 'unknown',
+        'X-AI-Status': result._status || 'unknown',
+        'X-Intent-Detected': keywordAnalysis?.intentAnalysis.dominantIntent || 'unknown',
+        'X-Intent-Confidence': keywordAnalysis?.intentAnalysis.mainKeywordIntent.confidence || 'unknown'
+      }
     });
 
   } catch (error: unknown) {
