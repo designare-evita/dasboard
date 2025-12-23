@@ -1,6 +1,6 @@
 // src/lib/ai-config.ts
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { streamText, StreamTextResult } from 'ai';
+import { streamText } from 'ai';
 
 // ============================================================================
 // ZENTRALE AI-KONFIGURATION
@@ -46,11 +46,14 @@ export { google };
 
 type ModelStatus = 'primary' | 'fallback' | 'lastResort';
 
-// Erweitertes Result-Objekt mit Metadata
-interface EnhancedStreamResult extends StreamTextResult<any> {
+// Metadata die wir zum Result hinzufügen
+interface AIMetadata {
   _modelName: string;
   _status: ModelStatus;
 }
+
+// Typ für das erweiterte Result (StreamTextResult + unsere Metadata)
+type EnhancedStreamResult = Awaited<ReturnType<typeof streamText>> & AIMetadata;
 
 // ============================================================================
 // HELPER: Rate-Limit-Erkennung
