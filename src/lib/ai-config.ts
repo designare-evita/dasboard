@@ -136,7 +136,8 @@ export async function streamTextSafe(
       }
       
       // Füge Metadata zum Result hinzu (für optionales Tracking)
-      const enhancedResult = result as EnhancedStreamResult;
+      // Cast über unknown nötig, da wir Properties zu einem bestehenden Objekt hinzufügen
+      const enhancedResult = result as unknown as EnhancedStreamResult;
       enhancedResult._modelName = modelName;
       enhancedResult._status = status;
       
