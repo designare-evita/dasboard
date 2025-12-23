@@ -1,75 +1,56 @@
 // src/lib/ai-config.ts
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { streamText } from 'ai';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { streamText, StreamTextResult } from 'ai';
 
-// ============================================================================
-// 1. ZENTRALE MODELL-DEFINITION
-// ============================================================================
 export const AI_CONFIG = {
   primaryModel: 'gemini-3-flash-preview',
   fallbackModel: 'gemini-2.5-flash',
-  
-  // Presets für verschiedene Aufgaben
   settings: {
-    strict: { temperature: 0.1 },  // Für JSON / Daten
-    balanced: { temperature: 0.7 }, // Für Data Max
-    creative: { temperature: 0.9 }, // Für Marketing-Ideen
+    strict: { temperature: 0.1 },
+    balanced: { temperature: 0.7 },
+    creative: { temperature: 0.9 },
   },
-  
-  // Default Temperature
   temperature: 0.7,
 };
 
-// Initialisiere den Vercel AI SDK Client einmal zentral
 const google = createGoogleGenerativeAI({
   apiKey: process.env.GEMINI_API_KEY || '',
 });
 
-// Exportiere den google Client für Routes die ihn direkt brauchen
 export { google };
 
-// ============================================================================
-// 2. HELFER FÜR NEXT.JS ROUTEN (@ai-sdk/google)
-// ============================================================================
 /**
- * Führt streamText automatisch mit dem Fallback-Mechanismus aus.
- * Übergib einfach alle Parameter außer 'model'.
+ * Rückgabetyp für den safe helper
  */
-export async function streamTextSafe(params: Omit<Parameters<typeof streamText>[0], 'model'>) {
+interface SafeStreamResponse {
+  result: StreamTextResult<any>;
+  modelName: string;
+  status: 'primary' | 'fallback';
+}
+
+/**
+ * Führt streamText mit automatischem Fallback aus.
+ */
+export async function streamTextSafe(
+  params: Omit<Parameters<typeof streamText>[0], 'model'>
+): Promise<SafeStreamResponse> {
   try {
-    // Versuch 1: Primäres Modell (Gemini 3)
-    return await streamText({
+    // Versuch 1: Primär
+    const result = await streamText({
       ...params,
       model: google(AI_CONFIG.primaryModel),
     } as any);
+
+    return { result, modelName: AI_CONFIG.primaryModel, status: 'primary' };
   } catch (error) {
-    console.warn(`⚠️ AI-Manager: Primary (${AI_CONFIG.primaryModel}) fehlgeschlagen. Starte Fallback auf ${AI_CONFIG.fallbackModel}.`, error);
+    console.warn(`⚠️ AI-Manager: Fallback auf ${AI_CONFIG.fallbackModel}`, error);
     
-    // Versuch 2: Fallback Modell (Gemini 2.5)
-    return await streamText({
+    // Versuch 2: Fallback
+    const result = await streamText({
       ...params,
       model: google(AI_CONFIG.fallbackModel),
     } as any);
-  }
-}
 
-// ============================================================================
-// 3. HELFER FÜR STANDARD SDK (ask-gemini.js)
-// ============================================================================
-/**
- * Gibt fertig konfigurierte Modell-Instanzen zurück.
- * Nutze dies in ask-gemini.js
- */
-export function getGeminiInstances(client: GoogleGenerativeAI) {
-    const config = { temperature: AI_CONFIG.temperature };
-    
-    return {
-        primary: client.getGenerativeModel({ model: AI_CONFIG.primaryModel, generationConfig: config }),
-        fallback: client.getGenerativeModel({ model: AI_CONFIG.fallbackModel, generationConfig: config }),
-        modelNames: {
-            primary: AI_CONFIG.primaryModel,
-            fallback: AI_CONFIG.fallbackModel
-        }
-    };
+    return { result, modelName: AI_CONFIG.fallbackModel, status: 'fallback' };
+  }
 }
