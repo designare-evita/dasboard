@@ -46,15 +46,10 @@ export { google };
 
 type ModelStatus = 'primary' | 'fallback' | 'lastResort';
 
-interface SafeStreamResponse {
-  result: StreamTextResult<any>;
-  modelName: string;
-  status: ModelStatus;
-}
-
-interface StreamTextSafeParams extends Omit<Parameters<typeof streamText>[0], 'model'> {
-  // Optionale Callback für Model-Wechsel (z.B. für Logging)
-  onModelSwitch?: (fromModel: string, toModel: string, error: Error) => void;
+// Erweitertes Result-Objekt mit Metadata
+interface EnhancedStreamResult extends StreamTextResult<any> {
+  _modelName: string;
+  _status: ModelStatus;
 }
 
 // ============================================================================
@@ -92,18 +87,20 @@ function getErrorType(error: unknown): 'rateLimit' | 'serverError' | 'unknown' {
  * Führt streamText mit automatischem Multi-Fallback aus.
  * Versucht alle Modelle in der Reihenfolge: Primary → Fallback → LastResort
  * 
+ * RÜCKWÄRTSKOMPATIBEL: Gibt direkt das StreamTextResult zurück,
+ * mit zusätzlichen Properties _modelName und _status.
+ * 
  * @example
- * const { result, modelName, status } = await streamTextSafe({
+ * const result = await streamTextSafe({
  *   prompt: 'Analysiere diese Daten...',
  *   temperature: 0.3,
  * });
- * return result.toTextStreamResponse();
+ * return result.toTextStreamResponse(); // Funktioniert direkt!
  */
 export async function streamTextSafe(
-  params: StreamTextSafeParams
-): Promise<SafeStreamResponse> {
+  params: Omit<Parameters<typeof streamText>[0], 'model'>
+): Promise<EnhancedStreamResult> {
   
-  const { onModelSwitch, ...streamParams } = params;
   const models = AI_CONFIG.models;
   const statusMap: Record<number, ModelStatus> = {
     0: 'primary',
@@ -112,7 +109,6 @@ export async function streamTextSafe(
   };
   
   let lastError: Error | null = null;
-  let previousModel: string | null = null;
 
   for (let i = 0; i < models.length; i++) {
     const modelName = models[i];
@@ -127,7 +123,7 @@ export async function streamTextSafe(
       }
       
       const result = await streamText({
-        ...streamParams,
+        ...params,
         model: google(modelName),
       } as any);
 
@@ -136,16 +132,16 @@ export async function streamTextSafe(
         console.log(`✅ AI-Manager: ${modelName} erfolgreich (nach ${i} Fallback${i > 1 ? 's' : ''})`);
       }
       
-      return { result, modelName, status };
+      // Füge Metadata zum Result hinzu (für optionales Tracking)
+      const enhancedResult = result as EnhancedStreamResult;
+      enhancedResult._modelName = modelName;
+      enhancedResult._status = status;
+      
+      return enhancedResult;
       
     } catch (error) {
       lastError = error as Error;
       const errorType = getErrorType(error);
-      
-      // Callback für Model-Wechsel
-      if (onModelSwitch && previousModel) {
-        onModelSwitch(previousModel, modelName, lastError);
-      }
       
       // Detailliertes Logging
       if (errorType === 'rateLimit') {
@@ -155,8 +151,6 @@ export async function streamTextSafe(
       } else {
         console.warn(`⚠️ AI-Manager: ${modelName} fehlgeschlagen:`, error);
       }
-      
-      previousModel = modelName;
     }
   }
 
@@ -171,24 +165,25 @@ export async function streamTextSafe(
 }
 
 // ============================================================================
-// CONVENIENCE WRAPPER: toTextStreamResponse mit Headers
+// CONVENIENCE: Response mit Headers erstellen
 // ============================================================================
 
 /**
  * Erstellt eine Text Stream Response mit AI-Status-Headers
+ * Optional - kann verwendet werden, um Model-Info im Response-Header zu haben
  * 
  * @example
- * const response = await streamTextSafe({ prompt: '...' });
- * return createAIStreamResponse(response);
+ * const result = await streamTextSafe({ prompt: '...' });
+ * return createAIStreamResponse(result);
  */
 export function createAIStreamResponse(
-  safeResponse: SafeStreamResponse,
+  result: EnhancedStreamResult,
   additionalHeaders?: Record<string, string>
 ): Response {
-  return safeResponse.result.toTextStreamResponse({
+  return result.toTextStreamResponse({
     headers: {
-      'X-AI-Model': safeResponse.modelName,
-      'X-AI-Status': safeResponse.status,
+      'X-AI-Model': result._modelName || 'unknown',
+      'X-AI-Status': result._status || 'unknown',
       ...additionalHeaders,
     },
   });
