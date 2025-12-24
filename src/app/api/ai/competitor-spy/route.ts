@@ -1,4 +1,5 @@
 // src/app/api/ai/competitor-spy/route.ts
+// OPTION C: Harte Fakten per Code + Qualitätsbewertung per KI
 import { streamTextSafe } from '@/lib/ai-config';
 import * as cheerio from 'cheerio';
 import { NextRequest, NextResponse } from 'next/server';
@@ -9,280 +10,334 @@ export const runtime = 'nodejs';
 export const maxDuration = 300;
 
 // ============================================================================
-// TYPEN & INTERFACES
+// INTERFACES - HARTE FAKTEN (vom Code extrahiert)
 // ============================================================================
 
-interface LinkInfo {
-  text: string;
-  href: string;
-  isInternal: boolean;
-}
-
-interface SeoBasics {
-  hasViewport: boolean;
-  hasCharset: boolean;
-  hasLanguage: boolean;
-  language: string | null;
-}
-
-interface IndexingSignals {
-  canonical: string | null;
-  canonicalMatchesUrl: boolean;
-  robotsMeta: string | null;
-  isIndexable: boolean;
-  hreflang: { lang: string; url: string }[];
-  pagination: { prev: string | null; next: string | null };
-}
-
-// ============================================================================
-// NEU: E-E-A-T VOLLSTÄNDIGES INTERFACE
-// ============================================================================
-
-interface EEATSignals {
-  // EXPERIENCE - Erfahrung
-  experience: {
-    hasFirstPersonNarrative: boolean;      // "Ich habe...", "In meiner Erfahrung..."
-    hasPersonalStories: boolean;           // Storytelling-Elemente
-    hasCaseStudies: boolean;               // Fallstudien, Beispiele aus der Praxis
-    hasTestimonials: boolean;              // Kundenstimmen, Erfahrungsberichte
-    hasPortfolio: boolean;                 // Referenzen, Arbeitsproben
-    experienceScore: number;               // 0-100
-  };
-  // EXPERTISE - Fachwissen
-  expertise: {
-    hasAuthorBio: boolean;                 // Autorenbeschreibung
-    hasCredentials: boolean;               // Qualifikationen, Zertifikate
-    hasDetailedExplanations: boolean;      // Tiefgehende Erklärungen
-    hasTechnicalTerms: boolean;            // Fachbegriffe (korrekt verwendet)
-    hasMethodology: boolean;               // Methodik erklärt
-    hasDataDrivenContent: boolean;         // Datenbasierte Aussagen
-    expertiseScore: number;                // 0-100
-  };
-  // AUTHORITATIVENESS - Autorität
-  authoritativeness: {
-    hasOrganizationSchema: boolean;        // Organization Schema
-    hasPersonSchema: boolean;              // Person Schema mit Details
-    hasSameAsLinks: boolean;               // Verknüpfung zu externen Profilen
-    sameAsLinks: string[];                 // Konkrete Links
-    hasExternalCitations: boolean;         // Zitiert externe Quellen
-    hasAwards: boolean;                    // Auszeichnungen, Zertifikate
-    hasMentions: boolean;                  // "Bekannt aus...", Medienerwähnungen
-    hasPartnerships: boolean;              // Partner-Logos, Kooperationen
-    authorityScore: number;                // 0-100
-  };
-  // TRUSTWORTHINESS - Vertrauenswürdigkeit
-  trustworthiness: {
-    hasImprint: boolean;                   // Impressum
-    hasPrivacyPolicy: boolean;             // Datenschutz
-    hasContact: boolean;                   // Kontaktmöglichkeit
-    hasAboutPage: boolean;                 // Über uns
-    hasTeamPage: boolean;                  // Team-Seite
-    hasPhysicalAddress: boolean;           // Physische Adresse
-    hasPhoneNumber: boolean;               // Telefonnummer
-    hasSecureConnection: boolean;          // HTTPS (angenommen)
-    hasTransparentPricing: boolean;        // Preise sichtbar
-    hasClearCTA: boolean;                  // Klare Handlungsaufforderungen
-    trustScore: number;                    // 0-100
-  };
-  // Dynamisch geladene Inhalte Warnung
-  hasDynamicFooter: boolean;
-  dynamicContentWarning: string | null;
-  // Gesamt E-E-A-T
-  overallScore: number;                    // 0-100
-  overallRating: 'Exzellent' | 'Gut' | 'Mittel' | 'Schwach' | 'Kritisch';
-}
-
-// ============================================================================
-// NEU: CONTENT-QUALITÄT & STORYTELLING INTERFACE
-// ============================================================================
-
-interface ContentQuality {
-  // Basis-Metriken
-  wordCount: number;
-  readingTimeMin: number;
-  paragraphCount: number;
-  avgWordsPerParagraph: number;
-  sentenceCount: number;
-  avgWordsPerSentence: number;
-  
-  // Content-Tiefe
-  thinContent: boolean;
-  hasTableOfContents: boolean;
-  contentDepthScore: number;
-  
-  // STORYTELLING & ENGAGEMENT
-  storytelling: {
-    hasNarrativeStructure: boolean;        // Einleitung-Hauptteil-Schluss
-    hasHook: boolean;                      // Aufmerksamkeitsfänger am Anfang
-    hasEmotionalLanguage: boolean;         // Emotionale Sprache
-    hasAnecdotes: boolean;                 // Anekdoten, persönliche Geschichten
-    hasConflictResolution: boolean;        // Problem-Lösung Struktur
-    hasCallToAction: boolean;              // CTA am Ende
-    storytellingScore: number;             // 0-100
-  };
-  
-  // LESBARKEIT & STRUKTUR
-  readability: {
-    hasShortParagraphs: boolean;           // Absätze < 150 Wörter
-    hasSubheadings: boolean;               // Regelmäßige Zwischenüberschriften
-    hasBulletPoints: boolean;              // Aufzählungen
-    hasNumberedLists: boolean;             // Nummerierte Listen
-    hasHighlightedText: boolean;           // Hervorgehobener Text (bold, etc.)
-    hasVisualBreaks: boolean;              // Bilder, Videos zwischen Text
-    readabilityScore: number;              // 0-100
-  };
-  
-  // UNIQUE VALUE
-  uniqueValue: {
-    hasOriginalResearch: boolean;          // Eigene Studien/Daten
-    hasUniqueInsights: boolean;            // Einzigartige Einsichten
-    hasActionableAdvice: boolean;          // Umsetzbare Tipps
-    hasExamples: boolean;                  // Konkrete Beispiele
-    hasComparisons: boolean;               // Vergleiche
-    hasTools: boolean;                     // Tools, Rechner, Downloads
-    uniqueValueScore: number;              // 0-100
-  };
-  
-  // Gesamt Content Score
-  overallContentScore: number;             // 0-100
-  contentRating: 'Exzellent' | 'Gut' | 'Mittel' | 'Schwach';
-}
-
-// ============================================================================
-// NEU: ERWEITERTE GEO SIGNALE
-// ============================================================================
-
-interface GeoSignals {
-  entityClarity: {
-    schemaTypes: string[];
-    hasOrganizationSchema: boolean;
-    hasPersonSchema: boolean;
-    hasArticleSchema: boolean;
-    hasFaqSchema: boolean;
-    hasHowToSchema: boolean;
-    hasBreadcrumbSchema: boolean;
-    hasProductSchema: boolean;
-    hasLocalBusinessSchema: boolean;
-    sameAsLinks: string[];
-    hasKnowsAbout: boolean;                // knowsAbout im Person Schema
-    hasJobTitle: boolean;                  // jobTitle definiert
-  };
-  
-  citability: {
-    hasDefinitions: boolean;
-    hasFaqStructure: boolean;
-    hasHowToStructure: boolean;
-    hasNumberedLists: boolean;
-    hasBulletLists: boolean;
-    hasDataTables: boolean;
-    hasStatistics: boolean;
-    hasCitations: boolean;
-    hasQuotes: boolean;
-    hasCodeBlocks: boolean;                // Code-Beispiele
-    citabilityScore: number;
-  };
-  
-  factualSignals: {
-    hasOriginalData: boolean;
-    hasExpertQuotes: boolean;
-    hasFirstPersonExpertise: boolean;
-    hasSourceReferences: boolean;
-    hasLastUpdated: boolean;
-    hasPublishDate: boolean;
-  };
-  
-  llmReadability: {
-    hasSummary: boolean;
-    hasKeyTakeaways: boolean;
-    hasClearTopicSentences: boolean;
-    hasInfographics: boolean;
-    questionCount: number;
-    answerPatternCount: number;
-    hasDirectAnswers: boolean;             // Direkte Antworten auf Fragen
-  };
-  
-  geoScore: number;
-  geoRating: 'Exzellent' | 'Gut' | 'Mittel' | 'Verbesserungswürdig';
-}
-
-interface SocialMeta {
-  og: {
-    title: string | null;
+interface ExtractedFacts {
+  // META & BASICS
+  meta: {
+    url: string;
+    title: string;
     description: string | null;
-    image: string | null;
-    type: string | null;
-    url: string | null;
+    author: string | null;
+    language: string | null;
+    canonical: string | null;
+    canonicalMatchesUrl: boolean;
+    robotsMeta: string | null;
+    isIndexable: boolean;
+    hasViewport: boolean;
+    hasCharset: boolean;
   };
-  twitter: {
-    card: string | null;
-    site: string | null;
-    title: string | null;
-    description: string | null;
-    image: string | null;
-  };
-  hasSocialProfiles: boolean;
-  socialProfileLinks: string[];
-}
 
-interface PerformanceMetrics {
-  ttfbMs: number;
-  rating: 'Schnell' | 'Mittel' | 'Langsam';
-  htmlSizeKb: number;
-  resourceHints: {
-    preconnect: number;
-    prefetch: number;
-    preload: number;
-    dnsPrefetch: number;
+  // PERFORMANCE
+  performance: {
+    ttfbMs: number;
+    ttfbRating: 'Exzellent' | 'Gut' | 'Mittel' | 'Langsam';
+    htmlSizeKb: number;
+    preloadCount: number;
+    preconnectCount: number;
+    renderBlockingScripts: number;
+    asyncScripts: number;
+    deferScripts: number;
+    moduleScripts: number;
+    totalScripts: number;
+    inlineStylesCount: number;
+    externalStylesCount: number;
   };
-  hasCriticalCss: boolean;
-  renderBlockingScripts: number;
-  asyncScripts: number;
-  deferScripts: number;
-}
 
-interface TechStats {
-  pageSizeKb: number;
-  performance: PerformanceMetrics;
-  hasSchema: boolean;
-  schemaDetails: {
+  // SCHEMA.ORG - VOLLSTÄNDIG EXTRAHIERT
+  schema: {
+    hasSchema: boolean;
+    schemaCount: number;
     types: string[];
-    hasMultipleSchemas: boolean;
-    rawSchemas: object[];
+    
+    // Person Schema Details
+    person: {
+      exists: boolean;
+      name: string | null;
+      jobTitle: string | null;
+      description: string | null;
+      image: string | null;
+      sameAs: string[];
+      knowsAbout: string[];
+      hasAddress: boolean;
+      addressLocality: string | null;
+    } | null;
+    
+    // Organization Schema Details
+    organization: {
+      exists: boolean;
+      name: string | null;
+      description: string | null;
+      logo: string | null;
+      sameAs: string[];
+      hasContactPoint: boolean;
+    } | null;
+    
+    // FAQ Schema Details
+    faq: {
+      exists: boolean;
+      questionCount: number;
+      questions: { question: string; answerPreview: string }[];
+    } | null;
+    
+    // Article Schema
+    article: {
+      exists: boolean;
+      headline: string | null;
+      datePublished: string | null;
+      dateModified: string | null;
+      author: string | null;
+    } | null;
+    
+    // Weitere Schema-Typen
+    hasBreadcrumb: boolean;
+    hasHowTo: boolean;
+    hasProduct: boolean;
+    hasLocalBusiness: boolean;
+    hasWebSite: boolean;
+    
+    // Raw für KI-Analyse
+    rawSchemaJson: string;
   };
+
+  // HTML STRUKTUR
   structure: {
-    headings: { h1: number; h2: number; h3: number; h4: number; h5: number; h6: number };
-    hasMainH1: boolean;
-    headingHierarchyValid: boolean;
-    h1Text: string[];
+    // Headings
+    headings: {
+      h1Count: number;
+      h1Texts: string[];
+      h2Count: number;
+      h2Texts: string[];
+      h3Count: number;
+      h3Texts: string[];
+      h4Count: number;
+      h5Count: number;
+      h6Count: number;
+      totalHeadings: number;
+      hierarchyValid: boolean;
+    };
+    
+    // Semantische Tags
+    semanticTags: {
+      hasHeader: boolean;
+      hasNav: boolean;
+      hasMain: boolean;
+      hasArticle: boolean;
+      hasSection: boolean;
+      hasAside: boolean;
+      hasFooter: boolean;
+      hasFigure: boolean;
+      hasDetails: boolean;
+      detailsCount: number;
+      foundTags: string[];
+      semanticScore: number;
+    };
+    
+    // Listen
+    lists: {
+      ulCount: number;
+      olCount: number;
+      totalListItems: number;
+      listsWithMoreThan3Items: number;
+    };
+    
+    // Tabellen
+    tables: {
+      count: number;
+      tablesWithHeaders: number;
+      totalRows: number;
+    };
+    
+    // Formulare
+    forms: {
+      count: number;
+      hasSearchForm: boolean;
+      hasContactForm: boolean;
+    };
+    
+    // Code-Blöcke
+    codeBlocks: {
+      preCount: number;
+      codeCount: number;
+      hasCodeExamples: boolean;
+    };
   };
-  imageAnalysis: {
+
+  // CONTENT EXTRAKTION
+  content: {
+    // Metriken
+    wordCount: number;
+    characterCount: number;
+    sentenceCount: number;
+    paragraphCount: number;
+    avgWordsPerSentence: number;
+    avgWordsPerParagraph: number;
+    readingTimeMinutes: number;
+    
+    // Content Samples für KI
+    samples: {
+      introText: string;           // Erste 500 Zeichen
+      mainContent: string;         // Hauptinhalt (bis 3000 Zeichen)
+      faqContent: string;          // FAQ Bereich extrahiert
+      aboutContent: string;        // Über-Bereich falls vorhanden
+      closingText: string;         // Letzte 300 Zeichen
+    };
+    
+    // Textuelle Elemente
+    hasBlockquotes: boolean;
+    blockquoteCount: number;
+    blockquoteTexts: string[];
+    
+    hasEmphasis: boolean;
+    strongCount: number;
+    emCount: number;
+    
+    // Spezielle Textmuster (nur Vorkommen zählen, KI bewertet)
+    questionMarksInText: number;
+    exclamationMarksInText: number;
+    
+    // Details/Summary (FAQ-artig)
+    detailsSummary: {
+      count: number;
+      items: { summary: string; contentPreview: string }[];
+    };
+  };
+
+  // BILDER
+  images: {
     total: number;
     withAlt: number;
     withEmptyAlt: number;
-    modernFormats: number;
+    withoutAlt: number;
+    withTitle: number;
     lazyLoaded: number;
-    score: number;
+    webpCount: number;
+    avifCount: number;
+    svgCount: number;
+    altTexts: string[];
+    imageScore: number;
   };
-  linkStructure: {
-    internal: LinkInfo[];
-    externalCount: number;
-    internalCount: number;
-    externalLinksSample: LinkInfo[];
-    brokenLinkCandidates: number;
-    nofollowCount: number;
+
+  // LINKS
+  links: {
+    // Intern
+    internal: {
+      count: number;
+      uniqueCount: number;
+      samples: { text: string; href: string }[];
+    };
+    
+    // Extern
+    external: {
+      count: number;
+      uniqueCount: number;
+      domainsLinked: string[];
+      samples: { text: string; href: string; domain: string }[];
+      nofollowCount: number;
+      newTabCount: number;
+    };
+    
+    // Spezielle Links
+    mailtoLinks: number;
+    telLinks: number;
+    anchorLinks: number;
+    downloadLinks: number;
+    socialLinks: { platform: string; url: string }[];
+    
+    // Potentielle Probleme
+    emptyLinks: number;
+    javascriptLinks: number;
   };
-  codeQuality: {
-    semanticScore: number;
-    semanticTagsFound: string[];
-    domDepth: number;
-    isBuilder: boolean;
+
+  // SOCIAL & OPEN GRAPH
+  social: {
+    openGraph: {
+      hasOg: boolean;
+      title: string | null;
+      description: string | null;
+      image: string | null;
+      type: string | null;
+      url: string | null;
+      siteName: string | null;
+      locale: string | null;
+      completeness: number; // 0-100
+    };
+    
+    twitter: {
+      hasTwitterCard: boolean;
+      card: string | null;
+      site: string | null;
+      creator: string | null;
+      title: string | null;
+      description: string | null;
+      image: string | null;
+      completeness: number;
+    };
+    
+    socialProfiles: {
+      found: boolean;
+      platforms: string[];
+      links: { platform: string; url: string }[];
+    };
   };
-  seoBasics: SeoBasics;
-  indexing: IndexingSignals;
-  contentQuality: ContentQuality;
-  socialMeta: SocialMeta;
-  eeat: EEATSignals;
-  geoSignals: GeoSignals;
+
+  // TRUST SIGNALE (nur Fakten, KI bewertet)
+  trustSignals: {
+    // Links zu rechtlichen Seiten
+    hasImprintLink: boolean;
+    imprintLinkText: string | null;
+    hasPrivacyLink: boolean;
+    privacyLinkText: string | null;
+    hasContactLink: boolean;
+    contactLinkText: string | null;
+    hasAboutLink: boolean;
+    aboutLinkText: string | null;
+    hasTermsLink: boolean;
+    
+    // Kontaktinformationen im Content
+    emailAddressesFound: string[];
+    phoneNumbersFound: string[];
+    physicalAddressFound: boolean;
+    
+    // Footer Analyse
+    hasFooter: boolean;
+    footerIsDynamic: boolean;
+    
+    // Sicherheit
+    hasHttps: boolean;
+  };
+
+  // CMS & TECHNOLOGIE
+  technology: {
+    detectedCms: string;
+    isPageBuilder: boolean;
+    detectedFrameworks: string[];
+    detectedLibraries: string[];
+    usesJquery: boolean;
+    usesReact: boolean;
+    usesVue: boolean;
+    usesAngular: boolean;
+    hasServiceWorker: boolean;
+    hasManifest: boolean;
+  };
+
+  // INTERNATIONALISIERUNG
+  i18n: {
+    declaredLanguage: string | null;
+    hreflangTags: { lang: string; url: string }[];
+    hasMultipleLanguages: boolean;
+  };
+
+  // DYNAMISCHER CONTENT WARNUNG
+  dynamicContent: {
+    hasDynamicFooter: boolean;
+    hasDynamicHeader: boolean;
+    hasDynamicNavigation: boolean;
+    hasPlaceholders: boolean;
+    placeholderIds: string[];
+    warning: string | null;
+  };
 }
 
 // ============================================================================
@@ -291,6 +346,12 @@ interface TechStats {
 
 function cleanText(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
+}
+
+function truncate(text: string, maxLength: number): string {
+  const cleaned = cleanText(text);
+  if (cleaned.length <= maxLength) return cleaned;
+  return cleaned.substring(0, maxLength) + '...';
 }
 
 function countWords(text: string): number {
@@ -302,119 +363,64 @@ function countWords(text: string): number {
 function countSentences(text: string): number {
   const cleaned = cleanText(text);
   if (!cleaned) return 0;
-  // Zähle Satzenden (. ! ?)
-  const sentences = cleaned.split(/[.!?]+/).filter(s => s.trim().length > 10);
-  return sentences.length;
+  return cleaned.split(/[.!?]+/).filter(s => s.trim().length > 5).length;
 }
 
-// ============================================================================
-// CMS DETECTION
-// ============================================================================
-
-function detectCMS(html: string, $: cheerio.CheerioAPI): { cms: string; isBuilder: boolean } {
-  const htmlLower = html.toLowerCase();
-  const builders = ['wix', 'squarespace', 'jimdo', 'shopify', 'weebly', 'webflow', 'elementor', 'divi', 'clickfunnels'];
-  
-  let detectedCms = 'Custom Code / Unbekannt';
-  
-  if (htmlLower.includes('wp-content')) detectedCms = 'WordPress';
-  else if (htmlLower.includes('wix.com') || htmlLower.includes('wix-')) detectedCms = 'Wix';
-  else if (htmlLower.includes('squarespace')) detectedCms = 'Squarespace';
-  else if (htmlLower.includes('jimdo')) detectedCms = 'Jimdo';
-  else if (htmlLower.includes('shopify')) detectedCms = 'Shopify';
-  else if (htmlLower.includes('typo3')) detectedCms = 'TYPO3';
-  else if (htmlLower.includes('joomla')) detectedCms = 'Joomla';
-  else if (htmlLower.includes('webflow')) detectedCms = 'Webflow';
-  else if (htmlLower.includes('next.js') || htmlLower.includes('__next')) detectedCms = 'Next.js (React)';
-  else if (htmlLower.includes('nuxt')) detectedCms = 'Nuxt.js (Vue)';
-  else if (htmlLower.includes('gatsby')) detectedCms = 'Gatsby';
-  else if (htmlLower.includes('drupal')) detectedCms = 'Drupal';
-  else if (htmlLower.includes('contao')) detectedCms = 'Contao';
-  else if (htmlLower.includes('craft')) detectedCms = 'Craft CMS';
-
-  const isBuilder = builders.some(b => detectedCms.toLowerCase().includes(b) || htmlLower.includes(b));
-  return { cms: detectedCms, isBuilder };
-}
-
-// ============================================================================
-// SEO BASICS
-// ============================================================================
-
-function analyzeSeoBasics($: cheerio.CheerioAPI): SeoBasics {
-  return {
-    hasViewport: $('meta[name="viewport"]').length > 0,
-    hasCharset: $('meta[charset]').length > 0 || $('meta[http-equiv="Content-Type"]').length > 0,
-    hasLanguage: !!$('html').attr('lang'),
-    language: $('html').attr('lang') || null
-  };
-}
-
-// ============================================================================
-// INDEXIERUNG
-// ============================================================================
-
-function analyzeIndexing($: cheerio.CheerioAPI, baseUrl: string): IndexingSignals {
-  const canonicalTag = $('link[rel="canonical"]').attr('href');
-  let canonicalMatchesUrl = false;
-  
-  if (canonicalTag) {
-    try {
-      const canonicalUrl = new URL(canonicalTag, baseUrl).href;
-      const normalizedBase = new URL(baseUrl).href;
-      canonicalMatchesUrl = canonicalUrl === normalizedBase;
-    } catch {}
+function extractDomain(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return '';
   }
-  
-  const robotsMeta = $('meta[name="robots"]').attr('content') || null;
-  const isIndexable = !robotsMeta || (!robotsMeta.includes('noindex') && !robotsMeta.includes('none'));
-  
-  const hreflang: { lang: string; url: string }[] = [];
-  $('link[rel="alternate"][hreflang]').each((_, el) => {
-    const lang = $(el).attr('hreflang');
-    const url = $(el).attr('href');
-    if (lang && url) hreflang.push({ lang, url });
-  });
-  
-  return {
-    canonical: canonicalTag || null,
-    canonicalMatchesUrl,
-    robotsMeta,
-    isIndexable,
-    hreflang,
-    pagination: {
-      prev: $('link[rel="prev"]').attr('href') || null,
-      next: $('link[rel="next"]').attr('href') || null
-    }
+}
+
+function identifySocialPlatform(url: string): string | null {
+  const platforms: Record<string, string[]> = {
+    'LinkedIn': ['linkedin.com'],
+    'GitHub': ['github.com'],
+    'Twitter/X': ['twitter.com', 'x.com'],
+    'Facebook': ['facebook.com', 'fb.com'],
+    'Instagram': ['instagram.com'],
+    'YouTube': ['youtube.com', 'youtu.be'],
+    'TikTok': ['tiktok.com'],
+    'Xing': ['xing.com'],
+    'Pinterest': ['pinterest.com'],
+    'Dribbble': ['dribbble.com'],
+    'Behance': ['behance.net'],
+    'Medium': ['medium.com'],
+    'Reddit': ['reddit.com'],
+    'Discord': ['discord.gg', 'discord.com'],
+    'Telegram': ['t.me', 'telegram.me'],
+    'WhatsApp': ['wa.me', 'whatsapp.com'],
   };
+  
+  const urlLower = url.toLowerCase();
+  for (const [platform, domains] of Object.entries(platforms)) {
+    if (domains.some(d => urlLower.includes(d))) {
+      return platform;
+    }
+  }
+  return null;
 }
 
 // ============================================================================
-// SCHEMA.ORG ANALYSE (GEFIXT: @graph Support)
+// SCHEMA EXTRAKTION (VOLLSTÄNDIG)
 // ============================================================================
 
-interface SchemaAnalysis {
-  types: string[];
-  hasMultipleSchemas: boolean;
-  rawSchemas: object[];
-  sameAsLinks: string[];
-  personData: {
-    name: string | null;
-    jobTitle: string | null;
-    hasKnowsAbout: boolean;
-    hasSameAs: boolean;
-  } | null;
-  organizationData: {
-    name: string | null;
-    hasSameAs: boolean;
-  } | null;
-}
-
-function analyzeSchemaDetails($: cheerio.CheerioAPI): SchemaAnalysis {
-  const schemas: object[] = [];
+function extractSchemaData($: cheerio.CheerioAPI): ExtractedFacts['schema'] {
+  const schemas: any[] = [];
   const types: string[] = [];
-  const sameAsLinks: string[] = [];
-  let personData: SchemaAnalysis['personData'] = null;
-  let organizationData: SchemaAnalysis['organizationData'] = null;
+  
+  let personData: ExtractedFacts['schema']['person'] = null;
+  let orgData: ExtractedFacts['schema']['organization'] = null;
+  let faqData: ExtractedFacts['schema']['faq'] = null;
+  let articleData: ExtractedFacts['schema']['article'] = null;
+  
+  let hasBreadcrumb = false;
+  let hasHowTo = false;
+  let hasProduct = false;
+  let hasLocalBusiness = false;
+  let hasWebSite = false;
   
   $('script[type="application/ld+json"]').each((_, el) => {
     try {
@@ -424,859 +430,858 @@ function analyzeSchemaDetails($: cheerio.CheerioAPI): SchemaAnalysis {
       const parsed = JSON.parse(content);
       schemas.push(parsed);
       
-      // Rekursive Extraktion für @graph Strukturen
-      const extractFromObject = (obj: any) => {
+      // Rekursive Extraktion
+      const processObject = (obj: any) => {
         if (!obj || typeof obj !== 'object') return;
         
-        // Typ extrahieren
-        if (obj['@type']) {
-          const objTypes = Array.isArray(obj['@type']) ? obj['@type'] : [obj['@type']];
-          types.push(...objTypes);
+        const objType = obj['@type'];
+        if (objType) {
+          const typeList = Array.isArray(objType) ? objType : [objType];
+          types.push(...typeList);
           
-          // Person Schema Daten
-          if (objTypes.some(t => t.toLowerCase() === 'person')) {
-            personData = {
-              name: obj.name || null,
-              jobTitle: obj.jobTitle || null,
-              hasKnowsAbout: !!obj.knowsAbout,
-              hasSameAs: !!obj.sameAs
-            };
-          }
-          
-          // Organization Schema Daten
-          if (objTypes.some(t => t.toLowerCase().includes('organization'))) {
-            organizationData = {
-              name: obj.name || null,
-              hasSameAs: !!obj.sameAs
-            };
-          }
-        }
-        
-        // sameAs extrahieren (GEFIXT!)
-        if (obj.sameAs) {
-          const links = Array.isArray(obj.sameAs) ? obj.sameAs : [obj.sameAs];
-          sameAsLinks.push(...links.filter((l: any) => typeof l === 'string'));
+          typeList.forEach(t => {
+            const typeLower = t.toLowerCase();
+            
+            // Person
+            if (typeLower === 'person') {
+              const knowsAboutItems: string[] = [];
+              if (obj.knowsAbout) {
+                const ka = Array.isArray(obj.knowsAbout) ? obj.knowsAbout : [obj.knowsAbout];
+                ka.forEach((item: any) => {
+                  if (typeof item === 'string') knowsAboutItems.push(item);
+                  else if (item.name) knowsAboutItems.push(item.name);
+                });
+              }
+              
+              personData = {
+                exists: true,
+                name: obj.name || null,
+                jobTitle: obj.jobTitle || null,
+                description: obj.description || null,
+                image: typeof obj.image === 'string' ? obj.image : obj.image?.url || null,
+                sameAs: Array.isArray(obj.sameAs) ? obj.sameAs : (obj.sameAs ? [obj.sameAs] : []),
+                knowsAbout: knowsAboutItems,
+                hasAddress: !!obj.address,
+                addressLocality: obj.address?.addressLocality || obj.homeLocation?.name || null,
+              };
+            }
+            
+            // Organization
+            if (typeLower.includes('organization') || typeLower === 'localbusiness') {
+              orgData = {
+                exists: true,
+                name: obj.name || null,
+                description: obj.description || null,
+                logo: typeof obj.logo === 'string' ? obj.logo : obj.logo?.url || null,
+                sameAs: Array.isArray(obj.sameAs) ? obj.sameAs : (obj.sameAs ? [obj.sameAs] : []),
+                hasContactPoint: !!obj.contactPoint,
+              };
+            }
+            
+            // FAQ
+            if (typeLower === 'faqpage') {
+              const questions: { question: string; answerPreview: string }[] = [];
+              const mainEntity = obj.mainEntity || [];
+              const qaList = Array.isArray(mainEntity) ? mainEntity : [mainEntity];
+              
+              qaList.forEach((qa: any) => {
+                if (qa['@type'] === 'Question' && qa.name && qa.acceptedAnswer) {
+                  questions.push({
+                    question: qa.name,
+                    answerPreview: truncate(qa.acceptedAnswer.text || '', 200),
+                  });
+                }
+              });
+              
+              faqData = {
+                exists: true,
+                questionCount: questions.length,
+                questions,
+              };
+            }
+            
+            // Article
+            if (typeLower.includes('article')) {
+              articleData = {
+                exists: true,
+                headline: obj.headline || null,
+                datePublished: obj.datePublished || null,
+                dateModified: obj.dateModified || null,
+                author: typeof obj.author === 'string' ? obj.author : obj.author?.name || null,
+              };
+            }
+            
+            // Andere Typen
+            if (typeLower.includes('breadcrumb')) hasBreadcrumb = true;
+            if (typeLower === 'howto') hasHowTo = true;
+            if (typeLower === 'product') hasProduct = true;
+            if (typeLower.includes('localbusiness')) hasLocalBusiness = true;
+            if (typeLower === 'website') hasWebSite = true;
+          });
         }
         
         // @graph durchsuchen
         if (obj['@graph'] && Array.isArray(obj['@graph'])) {
-          obj['@graph'].forEach(extractFromObject);
+          obj['@graph'].forEach(processObject);
         }
       };
       
-      extractFromObject(parsed);
+      processObject(parsed);
+    } catch (e) {
+      // JSON Parse Error ignorieren
+    }
+  });
+  
+  return {
+    hasSchema: schemas.length > 0,
+    schemaCount: schemas.length,
+    types: [...new Set(types)],
+    person: personData,
+    organization: orgData,
+    faq: faqData,
+    article: articleData,
+    hasBreadcrumb,
+    hasHowTo,
+    hasProduct,
+    hasLocalBusiness,
+    hasWebSite,
+    rawSchemaJson: JSON.stringify(schemas, null, 2).substring(0, 5000),
+  };
+}
+
+// ============================================================================
+// CONTENT EXTRAKTION
+// ============================================================================
+
+function extractContent($: cheerio.CheerioAPI): ExtractedFacts['content'] {
+  // Clone für Text-Extraktion
+  const $clone = cheerio.load($.html());
+  $clone('script, style, noscript, iframe, svg').remove();
+  
+  const bodyText = $clone('body').text();
+  const mainText = $clone('main').text() || $clone('article').text() || bodyText;
+  const cleanedMain = cleanText(mainText);
+  
+  const wordCount = countWords(cleanedMain);
+  const sentenceCount = countSentences(cleanedMain);
+  const paragraphs = $('p').filter((_, el) => $(el).text().trim().length > 30);
+  const paragraphCount = paragraphs.length;
+  
+  // Content Samples
+  const introText = truncate(cleanedMain, 500);
+  const mainContent = truncate(cleanedMain, 3000);
+  
+  // FAQ Content extrahieren
+  let faqContent = '';
+  $('details, [class*="faq"], [id*="faq"], .accordion').each((_, el) => {
+    faqContent += ' ' + $(el).text();
+  });
+  faqContent = truncate(faqContent, 1500);
+  
+  // About Content
+  let aboutContent = '';
+  $('[class*="about"], [id*="about"], [class*="über"], [id*="ueber"]').each((_, el) => {
+    aboutContent += ' ' + $(el).text();
+  });
+  aboutContent = truncate(aboutContent, 1000);
+  
+  // Closing Text
+  const closingText = cleanedMain.length > 300 
+    ? truncate(cleanedMain.slice(-500), 300) 
+    : '';
+  
+  // Blockquotes
+  const blockquoteTexts: string[] = [];
+  $('blockquote').each((_, el) => {
+    const text = truncate($(el).text(), 200);
+    if (text) blockquoteTexts.push(text);
+  });
+  
+  // Details/Summary
+  const detailsItems: { summary: string; contentPreview: string }[] = [];
+  $('details').each((_, el) => {
+    const summary = $(el).find('summary').first().text().trim();
+    const content = $(el).clone().find('summary').remove().end().text().trim();
+    if (summary) {
+      detailsItems.push({
+        summary,
+        contentPreview: truncate(content, 200),
+      });
+    }
+  });
+  
+  return {
+    wordCount,
+    characterCount: cleanedMain.length,
+    sentenceCount,
+    paragraphCount,
+    avgWordsPerSentence: sentenceCount > 0 ? Math.round(wordCount / sentenceCount) : 0,
+    avgWordsPerParagraph: paragraphCount > 0 ? Math.round(wordCount / paragraphCount) : 0,
+    readingTimeMinutes: Math.ceil(wordCount / 200),
+    samples: {
+      introText,
+      mainContent,
+      faqContent,
+      aboutContent,
+      closingText,
+    },
+    hasBlockquotes: blockquoteTexts.length > 0,
+    blockquoteCount: blockquoteTexts.length,
+    blockquoteTexts: blockquoteTexts.slice(0, 5),
+    hasEmphasis: $('strong, b, em, i, mark').length > 0,
+    strongCount: $('strong, b').length,
+    emCount: $('em, i').length,
+    questionMarksInText: (bodyText.match(/\?/g) || []).length,
+    exclamationMarksInText: (bodyText.match(/!/g) || []).length,
+    detailsSummary: {
+      count: detailsItems.length,
+      items: detailsItems.slice(0, 10),
+    },
+  };
+}
+
+// ============================================================================
+// STRUKTUR EXTRAKTION
+// ============================================================================
+
+function extractStructure($: cheerio.CheerioAPI): ExtractedFacts['structure'] {
+  // Headings
+  const h1Texts = $('h1').map((_, el) => truncate($(el).text(), 100)).get();
+  const h2Texts = $('h2').map((_, el) => truncate($(el).text(), 100)).get();
+  const h3Texts = $('h3').map((_, el) => truncate($(el).text(), 80)).get();
+  
+  const h1Count = h1Texts.length;
+  const h2Count = h2Texts.length;
+  const h3Count = h3Texts.length;
+  const h4Count = $('h4').length;
+  const h5Count = $('h5').length;
+  const h6Count = $('h6').length;
+  
+  let hierarchyValid = h1Count === 1;
+  if (h3Count > 0 && h2Count === 0) hierarchyValid = false;
+  if (h4Count > 0 && h3Count === 0) hierarchyValid = false;
+  
+  // Semantische Tags
+  const semanticTagsList = ['header', 'nav', 'main', 'article', 'section', 'aside', 'footer', 'figure', 'details'];
+  const foundTags = semanticTagsList.filter(tag => $(tag).length > 0);
+  const semanticScore = Math.round((foundTags.length / semanticTagsList.length) * 100);
+  
+  // Listen
+  const ulCount = $('ul').length;
+  const olCount = $('ol').length;
+  const totalListItems = $('li').length;
+  const listsWithMoreThan3Items = $('ul, ol').filter((_, el) => $(el).find('> li').length >= 3).length;
+  
+  // Tabellen
+  const tableCount = $('table').length;
+  const tablesWithHeaders = $('table').filter((_, el) => $(el).find('th').length > 0).length;
+  const totalRows = $('tr').length;
+  
+  // Forms
+  const formCount = $('form').length;
+  const hasSearchForm = $('form[role="search"], input[type="search"], [class*="search"]').length > 0;
+  const hasContactForm = $('form[class*="contact"], form[id*="contact"], form[action*="contact"]').length > 0;
+  
+  // Code
+  const preCount = $('pre').length;
+  const codeCount = $('code').length;
+  
+  return {
+    headings: {
+      h1Count,
+      h1Texts: h1Texts.slice(0, 3),
+      h2Count,
+      h2Texts: h2Texts.slice(0, 10),
+      h3Count,
+      h3Texts: h3Texts.slice(0, 10),
+      h4Count,
+      h5Count,
+      h6Count,
+      totalHeadings: h1Count + h2Count + h3Count + h4Count + h5Count + h6Count,
+      hierarchyValid,
+    },
+    semanticTags: {
+      hasHeader: $('header').length > 0,
+      hasNav: $('nav').length > 0,
+      hasMain: $('main').length > 0,
+      hasArticle: $('article').length > 0,
+      hasSection: $('section').length > 0,
+      hasAside: $('aside').length > 0,
+      hasFooter: $('footer').length > 0,
+      hasFigure: $('figure').length > 0,
+      hasDetails: $('details').length > 0,
+      detailsCount: $('details').length,
+      foundTags,
+      semanticScore,
+    },
+    lists: {
+      ulCount,
+      olCount,
+      totalListItems,
+      listsWithMoreThan3Items,
+    },
+    tables: {
+      count: tableCount,
+      tablesWithHeaders,
+      totalRows,
+    },
+    forms: {
+      count: formCount,
+      hasSearchForm,
+      hasContactForm,
+    },
+    codeBlocks: {
+      preCount,
+      codeCount,
+      hasCodeExamples: preCount > 0 || codeCount > 0,
+    },
+  };
+}
+
+// ============================================================================
+// LINKS EXTRAKTION
+// ============================================================================
+
+function extractLinks($: cheerio.CheerioAPI, baseUrl: string): ExtractedFacts['links'] {
+  let currentHost = '';
+  try {
+    currentHost = new URL(baseUrl).hostname.replace(/^www\./, '');
+  } catch {}
+  
+  const internalLinks: { text: string; href: string }[] = [];
+  const externalLinks: { text: string; href: string; domain: string }[] = [];
+  const domainsSet = new Set<string>();
+  const socialLinks: { platform: string; url: string }[] = [];
+  
+  let nofollowCount = 0;
+  let newTabCount = 0;
+  let mailtoLinks = 0;
+  let telLinks = 0;
+  let anchorLinks = 0;
+  let downloadLinks = 0;
+  let emptyLinks = 0;
+  let javascriptLinks = 0;
+  
+  $('a').each((_, el) => {
+    const href = $(el).attr('href') || '';
+    const text = truncate($(el).text(), 60);
+    const rel = $(el).attr('rel') || '';
+    const target = $(el).attr('target') || '';
+    const download = $(el).attr('download');
+    
+    // Spezielle Links
+    if (href.startsWith('mailto:')) {
+      mailtoLinks++;
+      return;
+    }
+    if (href.startsWith('tel:')) {
+      telLinks++;
+      return;
+    }
+    if (href.startsWith('#')) {
+      anchorLinks++;
+      return;
+    }
+    if (href.startsWith('javascript:')) {
+      javascriptLinks++;
+      return;
+    }
+    if (!href || !text) {
+      emptyLinks++;
+      return;
+    }
+    if (download !== undefined) {
+      downloadLinks++;
+    }
+    
+    // Rel und Target
+    if (rel.includes('nofollow')) nofollowCount++;
+    if (target === '_blank') newTabCount++;
+    
+    try {
+      const absoluteUrl = new URL(href, baseUrl);
+      const linkHost = absoluteUrl.hostname.replace(/^www\./, '');
+      
+      // Social Check
+      const platform = identifySocialPlatform(absoluteUrl.href);
+      if (platform && !socialLinks.some(s => s.platform === platform)) {
+        socialLinks.push({ platform, url: absoluteUrl.href });
+      }
+      
+      if (linkHost === currentHost) {
+        // Internal
+        if (!internalLinks.some(l => l.href === absoluteUrl.pathname)) {
+          internalLinks.push({ text, href: absoluteUrl.pathname });
+        }
+      } else {
+        // External
+        domainsSet.add(linkHost);
+        if (externalLinks.length < 20) {
+          externalLinks.push({ text, href: absoluteUrl.href, domain: linkHost });
+        }
+      }
     } catch {}
   });
   
   return {
-    types: [...new Set(types)],
-    hasMultipleSchemas: schemas.length > 1,
-    rawSchemas: schemas,
-    sameAsLinks: [...new Set(sameAsLinks)],
-    personData,
-    organizationData
+    internal: {
+      count: internalLinks.length,
+      uniqueCount: internalLinks.length,
+      samples: internalLinks.slice(0, 15),
+    },
+    external: {
+      count: externalLinks.length,
+      uniqueCount: domainsSet.size,
+      domainsLinked: [...domainsSet].slice(0, 20),
+      samples: externalLinks.slice(0, 10),
+      nofollowCount,
+      newTabCount,
+    },
+    mailtoLinks,
+    telLinks,
+    anchorLinks,
+    downloadLinks,
+    socialLinks: socialLinks.slice(0, 10),
+    emptyLinks,
+    javascriptLinks,
   };
 }
 
 // ============================================================================
-// E-E-A-T ANALYSE (NEU & VOLLSTÄNDIG)
+// IMAGES EXTRAKTION
 // ============================================================================
 
-function analyzeEEAT($: cheerio.CheerioAPI, html: string, schemaData: SchemaAnalysis): EEATSignals {
-  const bodyText = $('body').text();
-  const bodyTextLower = bodyText.toLowerCase();
-  const htmlLower = html.toLowerCase();
+function extractImages($: cheerio.CheerioAPI): ExtractedFacts['images'] {
+  const images = $('img');
+  let withAlt = 0;
+  let withEmptyAlt = 0;
+  let withoutAlt = 0;
+  let withTitle = 0;
+  let lazyLoaded = 0;
+  let webpCount = 0;
+  let avifCount = 0;
+  let svgCount = 0;
+  const altTexts: string[] = [];
   
-  // Dynamischer Content Check
-  const hasDynamicFooter = $('#footer-placeholder, [id*="footer-placeholder"], footer:empty').length > 0;
-  const hasDynamicHeader = $('#header-placeholder, [id*="header-placeholder"]').length > 0;
-  const dynamicContentWarning = (hasDynamicFooter || hasDynamicHeader) 
-    ? 'Teile der Seite werden dynamisch geladen (JS). Trust-Signale wie Impressum/Datenschutz könnten vorhanden sein, aber nicht im statischen HTML sichtbar.'
-    : null;
+  images.each((_, el) => {
+    const alt = $(el).attr('alt');
+    const title = $(el).attr('title');
+    const loading = $(el).attr('loading');
+    const src = $(el).attr('src') || $(el).attr('data-src') || '';
+    
+    if (alt === undefined) {
+      withoutAlt++;
+    } else if (alt.trim() === '') {
+      withEmptyAlt++;
+    } else {
+      withAlt++;
+      if (alt.length < 100) altTexts.push(alt);
+    }
+    
+    if (title) withTitle++;
+    if (loading === 'lazy' || $(el).attr('data-src')) lazyLoaded++;
+    
+    const srcLower = src.toLowerCase();
+    if (srcLower.includes('.webp')) webpCount++;
+    if (srcLower.includes('.avif')) avifCount++;
+    if (srcLower.includes('.svg') || srcLower.startsWith('data:image/svg')) svgCount++;
+  });
   
-  // === EXPERIENCE (Erfahrung) ===
-  const hasFirstPersonNarrative = 
-    /\b(ich habe|in meiner erfahrung|ich arbeite seit|ich bin seit|meine erfahrung|aus meiner sicht)\b/i.test(bodyText);
-  
-  const hasPersonalStories = 
-    /\b(eines tages|ich erinnere mich|vor einiger zeit|als ich|dabei ist mir aufgefallen|mein weg)\b/i.test(bodyText) ||
-    $('[class*="story"], [class*="testimonial"], [class*="case-study"]').length > 0;
-  
-  const hasCaseStudies = 
-    /\b(fallstudie|case study|praxisbeispiel|kundenbeispiel|erfolgsgeschichte|projekt:|referenz)\b/i.test(bodyText) ||
-    $('[class*="case"], [class*="portfolio"], [class*="project"]').length > 0;
-  
-  const hasTestimonials = 
-    $('[class*="testimonial"], [class*="review"], [class*="kundenstimme"], blockquote[class*="quote"]').length > 0 ||
-    /\b(kunde sagt|kundenmeinung|bewertung|rezension)\b/i.test(bodyTextLower);
-  
-  const hasPortfolio = 
-    $('[class*="portfolio"], [class*="referenz"], [class*="work"], [class*="projekt"]').length > 0 ||
-    /\b(portfolio|referenzen|unsere arbeit|projekte|arbeitsproben)\b/i.test(bodyTextLower);
-  
-  let experienceScore = 0;
-  if (hasFirstPersonNarrative) experienceScore += 25;
-  if (hasPersonalStories) experienceScore += 20;
-  if (hasCaseStudies) experienceScore += 25;
-  if (hasTestimonials) experienceScore += 15;
-  if (hasPortfolio) experienceScore += 15;
-  experienceScore = Math.min(experienceScore, 100);
-  
-  // === EXPERTISE (Fachwissen) ===
-  const hasAuthorBio = 
-    $('[class*="author-bio"], [class*="about-author"], [class*="verfasser"]').length > 0 ||
-    schemaData.personData?.jobTitle !== null ||
-    /\b(über den autor|über mich|zur person|vita|biografie)\b/i.test(bodyTextLower);
-  
-  const hasCredentials = 
-    /\b(zertifiziert|diplom|master|bachelor|dr\.|prof\.|certified|qualifikation|ausbildung)\b/i.test(bodyText) ||
-    schemaData.personData?.hasKnowsAbout === true;
-  
-  const hasDetailedExplanations = 
-    countWords(bodyText) > 800 &&
-    $('h2, h3').length >= 3;
-  
-  const hasTechnicalTerms = 
-    /\b(api|framework|algorithmus|datenbank|server|backend|frontend|seo|ux|ui|kpi|roi)\b/i.test(bodyText);
-  
-  const hasMethodology = 
-    /\b(methode|vorgehen|prozess|schritt für schritt|anleitung|workflow|so funktioniert)\b/i.test(bodyTextLower);
-  
-  const hasDataDrivenContent = 
-    /\d+\s*%|\d+\s*(prozent|euro|dollar|nutzer|kunden|projekte)/i.test(bodyText);
-  
-  let expertiseScore = 0;
-  if (hasAuthorBio) expertiseScore += 20;
-  if (hasCredentials) expertiseScore += 20;
-  if (hasDetailedExplanations) expertiseScore += 20;
-  if (hasTechnicalTerms) expertiseScore += 15;
-  if (hasMethodology) expertiseScore += 15;
-  if (hasDataDrivenContent) expertiseScore += 10;
-  expertiseScore = Math.min(expertiseScore, 100);
-  
-  // === AUTHORITATIVENESS (Autorität) ===
-  const hasOrganizationSchema = schemaData.types.some(t => t.toLowerCase().includes('organization'));
-  const hasPersonSchema = schemaData.types.some(t => t.toLowerCase() === 'person');
-  const hasSameAsLinks = schemaData.sameAsLinks.length > 0;
-  
-  const hasExternalCitations = 
-    $('a[href*="wikipedia"], a[href*="doi.org"], a[href*="scholar.google"], cite, [class*="source"]').length > 0 ||
-    /\b(quelle:|laut|gemäß|studie von|nach angaben)\b/i.test(bodyText);
-  
-  const hasAwards = 
-    /\b(auszeichnung|award|preis|gewinner|zertifikat|siegel|top \d+)\b/i.test(bodyTextLower) ||
-    $('[class*="award"], [class*="badge"], [class*="certificate"]').length > 0;
-  
-  const hasMentions = 
-    /\b(bekannt aus|featured in|erwähnt in|gesehen bei|presse|media)\b/i.test(bodyTextLower) ||
-    $('[class*="press"], [class*="media"], [class*="featured"]').length > 0;
-  
-  const hasPartnerships = 
-    /\b(partner|kooperation|zusammenarbeit|kunde von|arbeitet mit)\b/i.test(bodyTextLower) ||
-    $('[class*="partner"], [class*="client"], [class*="logo-wall"]').length > 0;
-  
-  let authorityScore = 0;
-  if (hasOrganizationSchema || hasPersonSchema) authorityScore += 20;
-  if (hasSameAsLinks) authorityScore += 25;
-  if (hasExternalCitations) authorityScore += 20;
-  if (hasAwards) authorityScore += 15;
-  if (hasMentions) authorityScore += 10;
-  if (hasPartnerships) authorityScore += 10;
-  authorityScore = Math.min(authorityScore, 100);
-  
-  // === TRUSTWORTHINESS (Vertrauen) ===
-  // GEFIXT: Berücksichtigt auch Schema und verschiedene Schreibweisen
-  const allLinkText = $('a').map((_, el) => $(el).text().toLowerCase()).get().join(' ');
-  const allLinkHrefs = $('a').map((_, el) => $(el).attr('href')?.toLowerCase() || '').get().join(' ');
-  
-  const hasImprint = 
-    /impressum|imprint|anbieterkennzeichnung|legal notice/.test(allLinkText) ||
-    /impressum|imprint|legal/.test(allLinkHrefs);
-  
-  const hasPrivacyPolicy = 
-    /datenschutz|privacy|dsgvo|gdpr/.test(allLinkText) ||
-    /datenschutz|privacy|dsgvo/.test(allLinkHrefs);
-  
-  const hasContact = 
-    /kontakt|contact|anfrage/.test(allLinkText) ||
-    /kontakt|contact/.test(allLinkHrefs) ||
-    $('a[href^="mailto:"], a[href^="tel:"]').length > 0;
-  
-  const hasAboutPage = 
-    /über uns|about|über mich|wir sind/.test(allLinkText) ||
-    /about|ueber/.test(allLinkHrefs);
-  
-  const hasTeamPage = 
-    /team|mitarbeiter|ansprechpartner/.test(allLinkText);
-  
-  const hasPhysicalAddress = 
-    /\b\d{4,5}\s+\w+|\bstraße|gasse|weg|platz|allee\b/i.test(bodyText) ||
-    schemaData.rawSchemas.some((s: any) => 
-      JSON.stringify(s).includes('PostalAddress') || 
-      JSON.stringify(s).includes('addressLocality')
-    );
-  
-  const hasPhoneNumber = 
-    /\+\d{2}|tel:|telefon|\d{3,4}[\s/-]\d+/i.test(bodyText) ||
-    $('a[href^="tel:"]').length > 0;
-  
-  const hasTransparentPricing = 
-    /\b(preis|€|\d+\s*euro|kostenlos|gratis|ab\s+\d+)\b/i.test(bodyText) ||
-    $('[class*="price"], [class*="preis"]').length > 0;
-  
-  const hasClearCTA = 
-    $('button, [class*="cta"], [class*="btn"], a[class*="button"]').length > 0;
-  
-  let trustScore = 0;
-  if (hasImprint) trustScore += 20;
-  if (hasPrivacyPolicy) trustScore += 15;
-  if (hasContact) trustScore += 15;
-  if (hasAboutPage) trustScore += 10;
-  if (hasTeamPage) trustScore += 5;
-  if (hasPhysicalAddress) trustScore += 15;
-  if (hasPhoneNumber) trustScore += 10;
-  if (hasTransparentPricing) trustScore += 5;
-  if (hasClearCTA) trustScore += 5;
-  
-  // Wenn dynamischer Footer, Score nicht zu hart bestrafen
-  if (hasDynamicFooter && trustScore < 50) {
-    trustScore = Math.max(trustScore, 30); // Mindestens 30 wegen Unsicherheit
-  }
-  trustScore = Math.min(trustScore, 100);
-  
-  // === GESAMT E-E-A-T SCORE ===
-  const overallScore = Math.round(
-    (experienceScore * 0.2) + 
-    (expertiseScore * 0.25) + 
-    (authorityScore * 0.25) + 
-    (trustScore * 0.3)
-  );
-  
-  let overallRating: EEATSignals['overallRating'] = 'Kritisch';
-  if (overallScore >= 80) overallRating = 'Exzellent';
-  else if (overallScore >= 60) overallRating = 'Gut';
-  else if (overallScore >= 40) overallRating = 'Mittel';
-  else if (overallScore >= 20) overallRating = 'Schwach';
+  const total = images.length;
+  const imageScore = total === 0 ? 100 : Math.round((withAlt / total) * 100);
   
   return {
-    experience: {
-      hasFirstPersonNarrative,
-      hasPersonalStories,
-      hasCaseStudies,
-      hasTestimonials,
-      hasPortfolio,
-      experienceScore
-    },
-    expertise: {
-      hasAuthorBio,
-      hasCredentials,
-      hasDetailedExplanations,
-      hasTechnicalTerms,
-      hasMethodology,
-      hasDataDrivenContent,
-      expertiseScore
-    },
-    authoritativeness: {
-      hasOrganizationSchema,
-      hasPersonSchema,
-      hasSameAsLinks,
-      sameAsLinks: schemaData.sameAsLinks,
-      hasExternalCitations,
-      hasAwards,
-      hasMentions,
-      hasPartnerships,
-      authorityScore
-    },
-    trustworthiness: {
-      hasImprint,
-      hasPrivacyPolicy,
-      hasContact,
-      hasAboutPage,
-      hasTeamPage,
-      hasPhysicalAddress,
-      hasPhoneNumber,
-      hasSecureConnection: true, // Annahme HTTPS
-      hasTransparentPricing,
-      hasClearCTA,
-      trustScore
-    },
-    hasDynamicFooter,
-    dynamicContentWarning,
-    overallScore,
-    overallRating
+    total,
+    withAlt,
+    withEmptyAlt,
+    withoutAlt,
+    withTitle,
+    lazyLoaded,
+    webpCount,
+    avifCount,
+    svgCount,
+    altTexts: altTexts.slice(0, 10),
+    imageScore,
   };
 }
 
 // ============================================================================
-// CONTENT QUALITÄT & STORYTELLING ANALYSE (NEU)
+// SOCIAL META EXTRAKTION
 // ============================================================================
 
-function analyzeContentQuality($: cheerio.CheerioAPI): ContentQuality {
-  // Clone für saubere Textextraktion
-  const $clone = cheerio.load($.html());
-  $clone('script, style, nav, footer, header, aside, iframe, svg, noscript').remove();
+function extractSocialMeta($: cheerio.CheerioAPI): ExtractedFacts['social'] {
+  // Open Graph
+  const ogTitle = $('meta[property="og:title"]').attr('content') || null;
+  const ogDesc = $('meta[property="og:description"]').attr('content') || null;
+  const ogImage = $('meta[property="og:image"]').attr('content') || null;
+  const ogType = $('meta[property="og:type"]').attr('content') || null;
+  const ogUrl = $('meta[property="og:url"]').attr('content') || null;
+  const ogSiteName = $('meta[property="og:site_name"]').attr('content') || null;
+  const ogLocale = $('meta[property="og:locale"]').attr('content') || null;
   
-  const mainContent = $clone('main').text() || $clone('article').text() || $clone('body').text();
-  const cleanedContent = cleanText(mainContent);
+  let ogCompleteness = 0;
+  if (ogTitle) ogCompleteness += 25;
+  if (ogDesc) ogCompleteness += 25;
+  if (ogImage) ogCompleteness += 30;
+  if (ogType) ogCompleteness += 10;
+  if (ogUrl) ogCompleteness += 10;
   
-  const wordCount = countWords(cleanedContent);
-  const sentenceCount = countSentences(cleanedContent);
-  const readingTimeMin = Math.ceil(wordCount / 200);
+  // Twitter
+  const twCard = $('meta[name="twitter:card"]').attr('content') || null;
+  const twSite = $('meta[name="twitter:site"]').attr('content') || null;
+  const twCreator = $('meta[name="twitter:creator"]').attr('content') || null;
+  const twTitle = $('meta[name="twitter:title"]').attr('content') || null;
+  const twDesc = $('meta[name="twitter:description"]').attr('content') || null;
+  const twImage = $('meta[name="twitter:image"]').attr('content') || null;
   
-  const paragraphs = $('p').filter((_, el) => $(el).text().trim().length > 50);
-  const paragraphCount = paragraphs.length;
-  const avgWordsPerParagraph = paragraphCount > 0 ? Math.round(wordCount / paragraphCount) : 0;
-  const avgWordsPerSentence = sentenceCount > 0 ? Math.round(wordCount / sentenceCount) : 0;
+  let twCompleteness = 0;
+  if (twCard) twCompleteness += 30;
+  if (twTitle) twCompleteness += 25;
+  if (twDesc) twCompleteness += 20;
+  if (twImage) twCompleteness += 25;
   
-  const thinContent = wordCount < 300;
-  const hasTableOfContents = 
-    $('[class*="toc"], [id*="toc"], [class*="table-of-contents"], nav[class*="content"]').length > 0 ||
-    $('a[href^="#"]').length >= 5;
-  
-  // Content Depth Score
-  let contentDepthScore = 0;
-  if (wordCount >= 300) contentDepthScore += 15;
-  if (wordCount >= 600) contentDepthScore += 15;
-  if (wordCount >= 1000) contentDepthScore += 15;
-  if (wordCount >= 1500) contentDepthScore += 10;
-  if (paragraphCount >= 5) contentDepthScore += 15;
-  if (hasTableOfContents) contentDepthScore += 15;
-  if ($('h2').length >= 3) contentDepthScore += 15;
-  contentDepthScore = Math.min(contentDepthScore, 100);
-  
-  // === STORYTELLING ===
-  const bodyText = $('body').text();
-  
-  const hasNarrativeStructure = 
-    $('h1').length > 0 && 
-    $('h2, h3').length >= 2 &&
-    $('p').length >= 3;
-  
-  const hasHook = 
-    /\b(stell dir vor|kennst du|hast du dich|wusstest du|achtung|spoiler|geheimnis)\b/i.test(bodyText.substring(0, 500));
-  
-  const hasEmotionalLanguage = 
-    /\b(erstaunlich|unglaublich|fantastisch|frustrierend|nervig|liebe|hasse|begeistert|enttäuscht)\b/i.test(bodyText);
-  
-  const hasAnecdotes = 
-    /\b(eines tages|kürzlich|vor kurzem|ich erinnere|lustigerweise|interessanterweise)\b/i.test(bodyText);
-  
-  const hasConflictResolution = 
-    /\b(problem|lösung|herausforderung|aber|jedoch|stattdessen|die antwort|so geht's)\b/i.test(bodyText);
-  
-  const hasCallToAction = 
-    $('[class*="cta"], button, [class*="btn"]').length > 0 ||
-    /\b(jetzt|hier klicken|mehr erfahren|kontakt|anfragen|starten)\b/i.test(bodyText);
-  
-  let storytellingScore = 0;
-  if (hasNarrativeStructure) storytellingScore += 20;
-  if (hasHook) storytellingScore += 20;
-  if (hasEmotionalLanguage) storytellingScore += 15;
-  if (hasAnecdotes) storytellingScore += 20;
-  if (hasConflictResolution) storytellingScore += 15;
-  if (hasCallToAction) storytellingScore += 10;
-  storytellingScore = Math.min(storytellingScore, 100);
-  
-  // === LESBARKEIT ===
-  const hasShortParagraphs = avgWordsPerParagraph < 150;
-  const hasSubheadings = $('h2, h3, h4').length >= 3;
-  
-  // GEFIXT: Listen-Detection
-  const hasBulletPoints = $('ul').filter((_, el) => $(el).find('li').length >= 2).length > 0;
-  const hasNumberedLists = $('ol').filter((_, el) => $(el).find('li').length >= 2).length > 0;
-  
-  const hasHighlightedText = 
-    $('strong, b, em, mark, [class*="highlight"]').length >= 3;
-  
-  const hasVisualBreaks = 
-    $('img, video, figure, [class*="image"], svg').length > 0;
-  
-  let readabilityScore = 0;
-  if (hasShortParagraphs) readabilityScore += 15;
-  if (hasSubheadings) readabilityScore += 20;
-  if (hasBulletPoints) readabilityScore += 20;
-  if (hasNumberedLists) readabilityScore += 15;
-  if (hasHighlightedText) readabilityScore += 15;
-  if (hasVisualBreaks) readabilityScore += 15;
-  readabilityScore = Math.min(readabilityScore, 100);
-  
-  // === UNIQUE VALUE ===
-  const hasOriginalResearch = 
-    /\b(unsere studie|wir haben getestet|unsere analyse|eigene daten|selbst entwickelt)\b/i.test(bodyText);
-  
-  const hasUniqueInsights = 
-    /\b(mein tipp|geheimtipp|insider|wenig bekannt|kaum jemand weiß)\b/i.test(bodyText);
-  
-  const hasActionableAdvice = 
-    /\b(so geht's|schritt|anleitung|tipp|trick|checklist|to-do)\b/i.test(bodyText) ||
-    $('ol li, [class*="step"]').length >= 3;
-  
-  const hasExamples = 
-    /\b(beispiel|zum beispiel|etwa|wie z\.?b\.?|konkret)\b/i.test(bodyText);
-  
-  const hasComparisons = 
-    /\b(vergleich|vs\.|versus|im gegensatz|anders als|besser als)\b/i.test(bodyText) ||
-    $('table').length > 0;
-  
-  const hasTools = 
-    $('[class*="calculator"], [class*="tool"], [class*="generator"], form, [class*="download"]').length > 0 ||
-    /\b(rechner|tool|generator|download|vorlage|template)\b/i.test(bodyText);
-  
-  let uniqueValueScore = 0;
-  if (hasOriginalResearch) uniqueValueScore += 25;
-  if (hasUniqueInsights) uniqueValueScore += 20;
-  if (hasActionableAdvice) uniqueValueScore += 20;
-  if (hasExamples) uniqueValueScore += 15;
-  if (hasComparisons) uniqueValueScore += 10;
-  if (hasTools) uniqueValueScore += 10;
-  uniqueValueScore = Math.min(uniqueValueScore, 100);
-  
-  // === GESAMT CONTENT SCORE ===
-  const overallContentScore = Math.round(
-    (contentDepthScore * 0.25) +
-    (storytellingScore * 0.25) +
-    (readabilityScore * 0.25) +
-    (uniqueValueScore * 0.25)
-  );
-  
-  let contentRating: ContentQuality['contentRating'] = 'Schwach';
-  if (overallContentScore >= 75) contentRating = 'Exzellent';
-  else if (overallContentScore >= 55) contentRating = 'Gut';
-  else if (overallContentScore >= 35) contentRating = 'Mittel';
-  
-  return {
-    wordCount,
-    readingTimeMin,
-    paragraphCount,
-    avgWordsPerParagraph,
-    sentenceCount,
-    avgWordsPerSentence,
-    thinContent,
-    hasTableOfContents,
-    contentDepthScore,
-    storytelling: {
-      hasNarrativeStructure,
-      hasHook,
-      hasEmotionalLanguage,
-      hasAnecdotes,
-      hasConflictResolution,
-      hasCallToAction,
-      storytellingScore
-    },
-    readability: {
-      hasShortParagraphs,
-      hasSubheadings,
-      hasBulletPoints,
-      hasNumberedLists,
-      hasHighlightedText,
-      hasVisualBreaks,
-      readabilityScore
-    },
-    uniqueValue: {
-      hasOriginalResearch,
-      hasUniqueInsights,
-      hasActionableAdvice,
-      hasExamples,
-      hasComparisons,
-      hasTools,
-      uniqueValueScore
-    },
-    overallContentScore,
-    contentRating
-  };
-}
-
-// ============================================================================
-// GEO SIGNALE (ERWEITERT & GEFIXT)
-// ============================================================================
-
-function analyzeGeoSignals($: cheerio.CheerioAPI, html: string, schemaData: SchemaAnalysis): GeoSignals {
-  const bodyText = $('body').text();
-  const bodyTextLower = bodyText.toLowerCase();
-  
-  // Entity Clarity (mit sameAs aus schemaData)
-  const entityClarity = {
-    schemaTypes: schemaData.types,
-    hasOrganizationSchema: schemaData.types.some(t => t.toLowerCase().includes('organization')),
-    hasPersonSchema: schemaData.types.some(t => t.toLowerCase() === 'person'),
-    hasArticleSchema: schemaData.types.some(t => t.toLowerCase().includes('article')),
-    hasFaqSchema: schemaData.types.some(t => t.toLowerCase() === 'faqpage'),
-    hasHowToSchema: schemaData.types.some(t => t.toLowerCase() === 'howto'),
-    hasBreadcrumbSchema: schemaData.types.some(t => t.toLowerCase().includes('breadcrumb')),
-    hasProductSchema: schemaData.types.some(t => t.toLowerCase() === 'product'),
-    hasLocalBusinessSchema: schemaData.types.some(t => t.toLowerCase().includes('localbusiness')),
-    sameAsLinks: schemaData.sameAsLinks,
-    hasKnowsAbout: schemaData.personData?.hasKnowsAbout || false,
-    hasJobTitle: schemaData.personData?.jobTitle !== null
-  };
-  
-  // Citability
-  const definitionPatterns = /(ist|sind|bezeichnet|bedeutet|definiert als|versteht man|nennt man)\s+[^.]{10,}\./gi;
-  const hasDefinitions = definitionPatterns.test(bodyText);
-  
-  const hasFaqStructure = 
-    entityClarity.hasFaqSchema ||
-    $('details summary, [class*="faq"], [id*="faq"], .accordion').length >= 3 ||
-    $('h2, h3, h4').filter((_, el) => /\?$/.test($(el).text().trim())).length >= 3;
-  
-  const hasHowToStructure = 
-    entityClarity.hasHowToSchema ||
-    $('[class*="step"], [class*="how-to"], ol li').length >= 3;
-  
-  // GEFIXT: Listen korrekt erkennen
-  const hasNumberedLists = $('ol').filter((_, el) => $(el).find('li').length >= 2).length > 0;
-  const hasBulletLists = $('ul').filter((_, el) => $(el).find('li').length >= 2).length > 0;
-  
-  const hasDataTables = $('table').filter((_, el) => $(el).find('tr').length >= 2).length > 0;
-  
-  const statisticPatterns = /\d+(\.\d+)?%|\d{1,3}([.,]\d{3})+|\d+\s*(prozent|euro|dollar|usd|eur|millionen|milliarden)/gi;
-  const hasStatistics = statisticPatterns.test(bodyText);
-  
-  const hasCitations = 
-    $('cite, blockquote[cite], [class*="source"], [class*="reference"], sup a').length > 0 ||
-    /quelle:|laut\s+\w+|gemäß|nach angaben|studie zeigt|research|study/i.test(bodyText);
-  
-  const hasQuotes = 
-    $('blockquote, q').length > 0 ||
-    /"[^"]{20,}"/.test(bodyText) ||
-    /„[^"]{20,}"/.test(bodyText);
-  
-  const hasCodeBlocks = $('pre, code, [class*="code"]').length > 0;
-  
-  let citabilityScore = 0;
-  if (hasDefinitions) citabilityScore += 15;
-  if (hasFaqStructure) citabilityScore += 20;
-  if (hasHowToStructure) citabilityScore += 15;
-  if (hasNumberedLists || hasBulletLists) citabilityScore += 10;
-  if (hasDataTables) citabilityScore += 15;
-  if (hasStatistics) citabilityScore += 10;
-  if (hasCitations) citabilityScore += 10;
-  if (hasQuotes) citabilityScore += 5;
-  citabilityScore = Math.min(citabilityScore, 100);
-  
-  // Factual Signals
-  const hasOriginalData = 
-    /unsere (studie|analyse|daten|umfrage|erhebung)/i.test(bodyText) ||
-    /wir haben (untersucht|analysiert|getestet|gemessen)/i.test(bodyText);
-  
-  const hasExpertQuotes = 
-    /sagt|erklärt|betont|meint|so\s+\w+\s*:/i.test(bodyText) && $('blockquote').length > 0;
-  
-  const hasFirstPersonExpertise = 
-    /in meiner (erfahrung|praxis|arbeit)|seit \d+ jahren|als (experte|spezialist|fachmann|berater)/i.test(bodyText);
-  
-  const hasSourceReferences = 
-    $('a[href*="doi.org"], a[href*="pubmed"], a[href*="scholar.google"], [class*="footnote"]').length > 0 ||
-    /\[\d+\]|\(et al\.\)|\(vgl\.|siehe auch/i.test(bodyText);
-  
-  const hasLastUpdated = 
-    $('[class*="updated"], [class*="modified"], time[datetime]').length > 0 ||
-    /aktualisiert|zuletzt geändert|stand:/i.test(bodyTextLower);
-  
-  const hasPublishDate = 
-    $('meta[property="article:published_time"], time[datetime], [class*="date"]').length > 0;
-  
-  // LLM Readability
-  const hasSummary = 
-    $('[class*="summary"], [class*="tldr"], [class*="fazit"], [class*="zusammenfassung"]').length > 0 ||
-    /zusammenfassung|fazit|im überblick|key takeaways|das wichtigste|tl;dr/i.test(bodyTextLower);
-  
-  const hasKeyTakeaways = 
-    $('[class*="takeaway"], [class*="highlight"], [class*="key-point"]').length > 0 ||
-    /wichtigste punkte|kernaussagen|merke dir/i.test(bodyTextLower);
-  
-  const hasClearTopicSentences = $('p strong:first-child, p b:first-child').length >= 3;
-  
-  const hasInfographics = $('figure, [class*="infographic"], svg, canvas').length > 0;
-  
-  const questionHeadings = $('h1, h2, h3, h4').filter((_, el) => /\?/.test($(el).text())).length;
-  const questionCount = Math.min(questionHeadings + (bodyText.match(/\?/g) || []).length, 50);
-  
-  const answerPatterns = /die antwort|kurz gesagt|einfach erklärt|das bedeutet|konkret heißt das/gi;
-  const answerPatternCount = (bodyText.match(answerPatterns) || []).length;
-  
-  const hasDirectAnswers = 
-    /^(ja|nein|das ist|es ist|man kann|du kannst)/im.test(bodyText);
-  
-  // GEO Score
-  let geoScore = 0;
-  
-  // Entity (max 30)
-  if (schemaData.types.length > 0) geoScore += 10;
-  if (entityClarity.hasOrganizationSchema || entityClarity.hasPersonSchema) geoScore += 10;
-  if (schemaData.sameAsLinks.length > 0) geoScore += 10;
-  
-  // Citability (max 35)
-  geoScore += Math.round(citabilityScore * 0.35);
-  
-  // Factual (max 20)
-  if (hasOriginalData) geoScore += 5;
-  if (hasExpertQuotes) geoScore += 5;
-  if (hasFirstPersonExpertise) geoScore += 5;
-  if (hasSourceReferences) geoScore += 5;
-  
-  // LLM Readability (max 15)
-  if (hasSummary) geoScore += 5;
-  if (hasKeyTakeaways) geoScore += 5;
-  if (questionCount >= 3 && answerPatternCount >= 1) geoScore += 5;
-  
-  geoScore = Math.min(geoScore, 100);
-  
-  let geoRating: GeoSignals['geoRating'] = 'Verbesserungswürdig';
-  if (geoScore >= 75) geoRating = 'Exzellent';
-  else if (geoScore >= 50) geoRating = 'Gut';
-  else if (geoScore >= 30) geoRating = 'Mittel';
-  
-  return {
-    entityClarity,
-    citability: {
-      hasDefinitions,
-      hasFaqStructure,
-      hasHowToStructure,
-      hasNumberedLists,
-      hasBulletLists,
-      hasDataTables,
-      hasStatistics,
-      hasCitations,
-      hasQuotes,
-      hasCodeBlocks,
-      citabilityScore
-    },
-    factualSignals: {
-      hasOriginalData,
-      hasExpertQuotes,
-      hasFirstPersonExpertise,
-      hasSourceReferences,
-      hasLastUpdated,
-      hasPublishDate
-    },
-    llmReadability: {
-      hasSummary,
-      hasKeyTakeaways,
-      hasClearTopicSentences,
-      hasInfographics,
-      questionCount,
-      answerPatternCount,
-      hasDirectAnswers
-    },
-    geoScore,
-    geoRating
-  };
-}
-
-// ============================================================================
-// SOCIAL META
-// ============================================================================
-
-function analyzeSocialMeta($: cheerio.CheerioAPI): SocialMeta {
-  const og = {
-    title: $('meta[property="og:title"]').attr('content') || null,
-    description: $('meta[property="og:description"]').attr('content') || null,
-    image: $('meta[property="og:image"]').attr('content') || null,
-    type: $('meta[property="og:type"]').attr('content') || null,
-    url: $('meta[property="og:url"]').attr('content') || null
-  };
-  
-  const twitter = {
-    card: $('meta[name="twitter:card"]').attr('content') || null,
-    site: $('meta[name="twitter:site"]').attr('content') || null,
-    title: $('meta[name="twitter:title"]').attr('content') || null,
-    description: $('meta[name="twitter:description"]').attr('content') || null,
-    image: $('meta[name="twitter:image"]').attr('content') || null
-  };
-  
-  const socialDomains = ['facebook.com', 'twitter.com', 'x.com', 'linkedin.com', 'instagram.com', 'youtube.com', 'tiktok.com', 'xing.com', 'pinterest.com', 'github.com'];
-  const socialProfileLinks: string[] = [];
+  // Social Profile Links
+  const socialDomains = ['linkedin.com', 'github.com', 'twitter.com', 'x.com', 'facebook.com', 'instagram.com', 'youtube.com', 'tiktok.com', 'xing.com'];
+  const socialProfileLinks: { platform: string; url: string }[] = [];
   
   $('a[href]').each((_, el) => {
     const href = $(el).attr('href') || '';
-    if (socialDomains.some(domain => href.includes(domain)) && !socialProfileLinks.includes(href)) {
-      socialProfileLinks.push(href);
+    const platform = identifySocialPlatform(href);
+    if (platform && !socialProfileLinks.some(s => s.platform === platform)) {
+      socialProfileLinks.push({ platform, url: href });
     }
   });
   
   return {
-    og,
-    twitter,
-    hasSocialProfiles: socialProfileLinks.length > 0,
-    socialProfileLinks: socialProfileLinks.slice(0, 10)
+    openGraph: {
+      hasOg: !!(ogTitle || ogImage),
+      title: ogTitle,
+      description: ogDesc,
+      image: ogImage,
+      type: ogType,
+      url: ogUrl,
+      siteName: ogSiteName,
+      locale: ogLocale,
+      completeness: ogCompleteness,
+    },
+    twitter: {
+      hasTwitterCard: !!twCard,
+      card: twCard,
+      site: twSite,
+      creator: twCreator,
+      title: twTitle,
+      description: twDesc,
+      image: twImage,
+      completeness: twCompleteness,
+    },
+    socialProfiles: {
+      found: socialProfileLinks.length > 0,
+      platforms: socialProfileLinks.map(s => s.platform),
+      links: socialProfileLinks,
+    },
   };
 }
 
 // ============================================================================
-// HAUPTANALYSE
+// TRUST SIGNALE EXTRAKTION
 // ============================================================================
 
-function analyzeTech(html: string, $: cheerio.CheerioAPI, baseUrl: string, ttfbMs: number): TechStats {
-  const pageSizeKb = Math.round((Buffer.byteLength(html, 'utf8') / 1024) * 100) / 100;
+function extractTrustSignals($: cheerio.CheerioAPI, baseUrl: string): ExtractedFacts['trustSignals'] {
+  const allLinkTexts = $('a').map((_, el) => $(el).text().toLowerCase()).get();
+  const allLinkHrefs = $('a').map((_, el) => $(el).attr('href')?.toLowerCase() || '').get();
+  const bodyText = $('body').text();
   
-  // Performance
-  let perfRating: 'Schnell' | 'Mittel' | 'Langsam' = 'Mittel';
-  if (ttfbMs < 300) perfRating = 'Schnell';
-  else if (ttfbMs > 800) perfRating = 'Langsam';
-  
-  const resourceHints = {
-    preconnect: $('link[rel="preconnect"]').length,
-    prefetch: $('link[rel="prefetch"]').length,
-    preload: $('link[rel="preload"]').length,
-    dnsPrefetch: $('link[rel="dns-prefetch"]').length
+  // Rechtliche Links suchen
+  const findLinkText = (patterns: RegExp[]): string | null => {
+    for (const pattern of patterns) {
+      const found = allLinkTexts.find(t => pattern.test(t));
+      if (found) return found;
+    }
+    return null;
   };
   
-  const hasCriticalCss = $('style').filter((_, el) => {
-    const content = $(el).html() || '';
-    return content.length > 100 && content.length < 50000;
-  }).length > 0;
+  const hasImprintLink = allLinkTexts.some(t => /impressum|imprint|legal notice/.test(t)) ||
+                         allLinkHrefs.some(h => /impressum|imprint|legal/.test(h));
+  const imprintLinkText = findLinkText([/impressum|imprint|legal notice/]);
   
-  const allScripts = $('script[src]');
-  let renderBlockingScripts = 0, asyncScripts = 0, deferScripts = 0;
+  const hasPrivacyLink = allLinkTexts.some(t => /datenschutz|privacy|dsgvo|gdpr/.test(t)) ||
+                         allLinkHrefs.some(h => /datenschutz|privacy|dsgvo/.test(h));
+  const privacyLinkText = findLinkText([/datenschutz|privacy|dsgvo|gdpr/]);
   
-  allScripts.each((_, el) => {
+  const hasContactLink = allLinkTexts.some(t => /kontakt|contact/.test(t)) ||
+                         allLinkHrefs.some(h => /kontakt|contact/.test(h)) ||
+                         $('a[href^="mailto:"]').length > 0;
+  const contactLinkText = findLinkText([/kontakt|contact/]);
+  
+  const hasAboutLink = allLinkTexts.some(t => /über uns|about|über mich|wir sind/.test(t)) ||
+                       allLinkHrefs.some(h => /about|ueber/.test(h));
+  const aboutLinkText = findLinkText([/über uns|about|über mich/]);
+  
+  const hasTermsLink = allLinkTexts.some(t => /agb|terms|nutzungsbedingungen|conditions/.test(t));
+  
+  // Email & Telefon im Content
+  const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+  const phoneRegex = /(\+\d{1,3}[\s.-]?)?\(?\d{2,4}\)?[\s.-]?\d{3,4}[\s.-]?\d{3,4}/g;
+  
+  const emailsFound = [...new Set(bodyText.match(emailRegex) || [])];
+  const phonesFound = [...new Set(bodyText.match(phoneRegex) || [])].filter(p => p.replace(/\D/g, '').length >= 8);
+  
+  // Physische Adresse
+  const hasAddress = /\b\d{4,5}\s+\w+|\bstraße|gasse|weg|platz|allee|avenue|street|road\b/i.test(bodyText);
+  
+  // Footer Check
+  const hasFooter = $('footer').length > 0;
+  const footerIsDynamic = $('#footer-placeholder, [id*="footer-placeholder"], footer:empty').length > 0;
+  
+  return {
+    hasImprintLink,
+    imprintLinkText,
+    hasPrivacyLink,
+    privacyLinkText,
+    hasContactLink,
+    contactLinkText,
+    hasAboutLink,
+    aboutLinkText,
+    hasTermsLink,
+    emailAddressesFound: emailsFound.slice(0, 5),
+    phoneNumbersFound: phonesFound.slice(0, 3),
+    physicalAddressFound: hasAddress,
+    hasFooter,
+    footerIsDynamic,
+    hasHttps: baseUrl.startsWith('https'),
+  };
+}
+
+// ============================================================================
+// TECHNOLOGIE DETECTION
+// ============================================================================
+
+function detectTechnology(html: string, $: cheerio.CheerioAPI): ExtractedFacts['technology'] {
+  const htmlLower = html.toLowerCase();
+  
+  // CMS Detection
+  let detectedCms = 'Nicht erkannt';
+  const builders = ['wix', 'squarespace', 'jimdo', 'shopify', 'weebly', 'webflow', 'elementor', 'divi'];
+  
+  if (htmlLower.includes('wp-content') || htmlLower.includes('wordpress')) detectedCms = 'WordPress';
+  else if (htmlLower.includes('wix.com') || htmlLower.includes('wix-')) detectedCms = 'Wix';
+  else if (htmlLower.includes('squarespace')) detectedCms = 'Squarespace';
+  else if (htmlLower.includes('jimdo')) detectedCms = 'Jimdo';
+  else if (htmlLower.includes('shopify')) detectedCms = 'Shopify';
+  else if (htmlLower.includes('typo3')) detectedCms = 'TYPO3';
+  else if (htmlLower.includes('joomla')) detectedCms = 'Joomla';
+  else if (htmlLower.includes('webflow')) detectedCms = 'Webflow';
+  else if (htmlLower.includes('drupal')) detectedCms = 'Drupal';
+  else if (htmlLower.includes('ghost')) detectedCms = 'Ghost';
+  else if (htmlLower.includes('contentful')) detectedCms = 'Contentful';
+  else if (htmlLower.includes('strapi')) detectedCms = 'Strapi';
+  
+  const isPageBuilder = builders.some(b => htmlLower.includes(b)) ||
+                        htmlLower.includes('elementor') ||
+                        htmlLower.includes('divi') ||
+                        htmlLower.includes('beaver-builder');
+  
+  // Frameworks
+  const frameworks: string[] = [];
+  const libraries: string[] = [];
+  
+  if (htmlLower.includes('__next') || htmlLower.includes('next.js') || htmlLower.includes('_next')) frameworks.push('Next.js');
+  if (htmlLower.includes('nuxt') || htmlLower.includes('__nuxt')) frameworks.push('Nuxt.js');
+  if (htmlLower.includes('gatsby')) frameworks.push('Gatsby');
+  if (htmlLower.includes('angular')) frameworks.push('Angular');
+  if (htmlLower.includes('svelte')) frameworks.push('Svelte');
+  if (htmlLower.includes('remix')) frameworks.push('Remix');
+  if (htmlLower.includes('astro')) frameworks.push('Astro');
+  
+  // Libraries
+  const usesJquery = htmlLower.includes('jquery');
+  const usesReact = htmlLower.includes('react') || htmlLower.includes('__react');
+  const usesVue = htmlLower.includes('vue') || $('[v-if], [v-for], [v-model]').length > 0;
+  const usesAngular = htmlLower.includes('ng-') || $('[ng-app], [ng-controller]').length > 0;
+  
+  if (usesJquery) libraries.push('jQuery');
+  if (htmlLower.includes('bootstrap')) libraries.push('Bootstrap');
+  if (htmlLower.includes('tailwind')) libraries.push('Tailwind CSS');
+  if (htmlLower.includes('fontawesome') || htmlLower.includes('font-awesome')) libraries.push('Font Awesome');
+  if (htmlLower.includes('gsap')) libraries.push('GSAP');
+  if (htmlLower.includes('particles')) libraries.push('Particles.js');
+  
+  // PWA
+  const hasServiceWorker = htmlLower.includes('serviceworker') || htmlLower.includes('service-worker');
+  const hasManifest = $('link[rel="manifest"]').length > 0;
+  
+  return {
+    detectedCms,
+    isPageBuilder,
+    detectedFrameworks: frameworks,
+    detectedLibraries: libraries,
+    usesJquery,
+    usesReact,
+    usesVue,
+    usesAngular,
+    hasServiceWorker,
+    hasManifest,
+  };
+}
+
+// ============================================================================
+// DYNAMIC CONTENT CHECK
+// ============================================================================
+
+function checkDynamicContent($: cheerio.CheerioAPI): ExtractedFacts['dynamicContent'] {
+  const placeholderIds: string[] = [];
+  
+  $('[id*="placeholder"], [id*="-placeholder"]').each((_, el) => {
+    const id = $(el).attr('id');
+    if (id) placeholderIds.push(id);
+  });
+  
+  const hasDynamicFooter = $('#footer-placeholder, [id*="footer-placeholder"], footer:empty').length > 0;
+  const hasDynamicHeader = $('#header-placeholder, [id*="header-placeholder"], header:empty').length > 0;
+  const hasDynamicNavigation = $('#nav-placeholder, [id*="nav-placeholder"], #menu-placeholder').length > 0;
+  const hasPlaceholders = placeholderIds.length > 0;
+  
+  let warning: string | null = null;
+  if (hasDynamicFooter || hasDynamicHeader || hasPlaceholders) {
+    const parts: string[] = [];
+    if (hasDynamicFooter) parts.push('Footer');
+    if (hasDynamicHeader) parts.push('Header');
+    if (hasDynamicNavigation) parts.push('Navigation');
+    warning = `Teile der Seite werden dynamisch per JavaScript geladen (${parts.join(', ')}). Einige Elemente wie Impressum, Datenschutz oder Navigation könnten im statischen HTML nicht sichtbar sein.`;
+  }
+  
+  return {
+    hasDynamicFooter,
+    hasDynamicHeader,
+    hasDynamicNavigation,
+    hasPlaceholders,
+    placeholderIds,
+    warning,
+  };
+}
+
+// ============================================================================
+// PERFORMANCE EXTRAKTION
+// ============================================================================
+
+function extractPerformance($: cheerio.CheerioAPI, html: string, ttfbMs: number): ExtractedFacts['performance'] {
+  const htmlSizeKb = Math.round((Buffer.byteLength(html, 'utf8') / 1024) * 100) / 100;
+  
+  let ttfbRating: ExtractedFacts['performance']['ttfbRating'] = 'Mittel';
+  if (ttfbMs < 200) ttfbRating = 'Exzellent';
+  else if (ttfbMs < 400) ttfbRating = 'Gut';
+  else if (ttfbMs > 800) ttfbRating = 'Langsam';
+  
+  const preloadCount = $('link[rel="preload"]').length;
+  const preconnectCount = $('link[rel="preconnect"]').length;
+  
+  const scripts = $('script[src]');
+  let renderBlockingScripts = 0;
+  let asyncScripts = 0;
+  let deferScripts = 0;
+  let moduleScripts = 0;
+  
+  scripts.each((_, el) => {
     const hasAsync = $(el).attr('async') !== undefined;
     const hasDefer = $(el).attr('defer') !== undefined;
     const isModule = $(el).attr('type') === 'module';
-    if (hasAsync || isModule) asyncScripts++;
+    
+    if (isModule) moduleScripts++;
+    else if (hasAsync) asyncScripts++;
     else if (hasDefer) deferScripts++;
     else renderBlockingScripts++;
   });
   
-  // Structure
-  const semanticTags = ['header', 'nav', 'main', 'article', 'section', 'aside', 'footer'];
-  const foundTags = semanticTags.filter(tag => $(tag).length > 0);
-  
-  const headings = {
-    h1: $('h1').length,
-    h2: $('h2').length,
-    h3: $('h3').length,
-    h4: $('h4').length,
-    h5: $('h5').length,
-    h6: $('h6').length
-  };
-  
-  const h1Texts = $('h1').map((_, el) => $(el).text().trim()).get();
-  let headingHierarchyValid = headings.h1 === 1 && !(headings.h3 > 0 && headings.h2 === 0);
-  
-  let semanticScore = Math.round((foundTags.length / semanticTags.length) * 100);
-  if (headings.h1 === 1) semanticScore += 10;
-  semanticScore = Math.min(semanticScore, 100);
-  
-  // Schema
-  const schemaData = analyzeSchemaDetails($);
-  const hasSchema = schemaData.types.length > 0;
-  
-  // Images
-  const images = $('img');
-  let withAlt = 0, withEmptyAlt = 0, modernFormats = 0, lazyLoaded = 0;
-  
-  images.each((_, el) => {
-    const src = $(el).attr('src') || $(el).attr('data-src') || '';
-    const alt = $(el).attr('alt');
-    const loading = $(el).attr('loading');
-    
-    if (alt !== undefined) {
-      if (alt.trim().length > 0) withAlt++;
-      else withEmptyAlt++;
-    }
-    if (src.toLowerCase().match(/\.(webp|avif)(\?.*)?$/)) modernFormats++;
-    if (loading === 'lazy' || $(el).attr('data-src')) lazyLoaded++;
-  });
-  
-  const imgScore = images.length === 0 ? 100 : Math.round(((withAlt + modernFormats) / (images.length * 2)) * 100);
-  
-  // Links
-  let currentHost = '';
-  try { currentHost = new URL(baseUrl).hostname.replace(/^www\./, ''); } catch {}
-  
-  const internalLinks: LinkInfo[] = [];
-  const externalLinksSample: LinkInfo[] = [];
-  let externalCount = 0, nofollowCount = 0, brokenLinkCandidates = 0;
-  
-  $('a').each((_, el) => {
-    const rawHref = $(el).attr('href');
-    const text = $(el).text().trim().replace(/\s+/g, ' ');
-    const rel = $(el).attr('rel') || '';
-    
-    if (rel.includes('nofollow')) nofollowCount++;
-    if (!rawHref || rawHref.startsWith('#') || rawHref.startsWith('mailto:') || rawHref.startsWith('tel:') || rawHref.startsWith('javascript:') || text.length < 2) return;
-    
-    try {
-      const absoluteUrl = new URL(rawHref, baseUrl);
-      const linkHost = absoluteUrl.hostname.replace(/^www\./, '');
-      const isInternal = linkHost === currentHost;
-      const linkObj = { text: text.substring(0, 60), href: absoluteUrl.href, isInternal };
-      
-      if (isInternal) {
-        if (!internalLinks.some(l => l.href === absoluteUrl.href)) internalLinks.push(linkObj);
-      } else {
-        externalCount++;
-        if (externalLinksSample.length < 5 && !externalLinksSample.some(l => l.href === absoluteUrl.href)) {
-          externalLinksSample.push(linkObj);
-        }
-      }
-    } catch { brokenLinkCandidates++; }
-  });
-  
-  const cmsInfo = detectCMS(html, $);
-  
-  // Alle Analysen
-  const seoBasics = analyzeSeoBasics($);
-  const indexing = analyzeIndexing($, baseUrl);
-  const contentQuality = analyzeContentQuality($);
-  const socialMeta = analyzeSocialMeta($);
-  const eeat = analyzeEEAT($, html, schemaData);
-  const geoSignals = analyzeGeoSignals($, html, schemaData);
+  const inlineStylesCount = $('style').length;
+  const externalStylesCount = $('link[rel="stylesheet"]').length;
   
   return {
-    pageSizeKb,
-    performance: {
-      ttfbMs,
-      rating: perfRating,
-      htmlSizeKb: pageSizeKb,
-      resourceHints,
-      hasCriticalCss,
-      renderBlockingScripts,
-      asyncScripts,
-      deferScripts
-    },
-    hasSchema,
-    schemaDetails: {
-      types: schemaData.types,
-      hasMultipleSchemas: schemaData.hasMultipleSchemas,
-      rawSchemas: schemaData.rawSchemas
-    },
-    structure: {
-      headings,
-      hasMainH1: headings.h1 > 0,
-      headingHierarchyValid,
-      h1Text: h1Texts
-    },
-    imageAnalysis: {
-      total: images.length,
-      withAlt,
-      withEmptyAlt,
-      modernFormats,
-      lazyLoaded,
-      score: imgScore
-    },
-    linkStructure: {
-      internal: internalLinks.slice(0, 25),
-      internalCount: internalLinks.length,
-      externalCount,
-      externalLinksSample,
-      brokenLinkCandidates,
-      nofollowCount
-    },
-    codeQuality: {
-      semanticScore,
-      semanticTagsFound: foundTags,
-      domDepth: $('*').length,
-      isBuilder: cmsInfo.isBuilder
-    },
-    seoBasics,
-    indexing,
-    contentQuality,
-    socialMeta,
-    eeat,
-    geoSignals
+    ttfbMs,
+    ttfbRating,
+    htmlSizeKb,
+    preloadCount,
+    preconnectCount,
+    renderBlockingScripts,
+    asyncScripts,
+    deferScripts,
+    moduleScripts,
+    totalScripts: scripts.length,
+    inlineStylesCount,
+    externalStylesCount,
+  };
+}
+
+// ============================================================================
+// META EXTRAKTION
+// ============================================================================
+
+function extractMeta($: cheerio.CheerioAPI, url: string): ExtractedFacts['meta'] {
+  const canonical = $('link[rel="canonical"]').attr('href') || null;
+  let canonicalMatchesUrl = false;
+  
+  if (canonical) {
+    try {
+      const canonicalUrl = new URL(canonical, url).href.replace(/\/$/, '');
+      const normalizedUrl = new URL(url).href.replace(/\/$/, '');
+      canonicalMatchesUrl = canonicalUrl === normalizedUrl;
+    } catch {}
+  }
+  
+  return {
+    url,
+    title: $('title').text().trim(),
+    description: $('meta[name="description"]').attr('content') || null,
+    author: $('meta[name="author"]').attr('content') || null,
+    language: $('html').attr('lang') || null,
+    canonical,
+    canonicalMatchesUrl,
+    robotsMeta: $('meta[name="robots"]').attr('content') || null,
+    isIndexable: !($('meta[name="robots"]').attr('content') || '').includes('noindex'),
+    hasViewport: $('meta[name="viewport"]').length > 0,
+    hasCharset: $('meta[charset]').length > 0,
+  };
+}
+
+// ============================================================================
+// I18N EXTRAKTION
+// ============================================================================
+
+function extractI18n($: cheerio.CheerioAPI): ExtractedFacts['i18n'] {
+  const hreflangTags: { lang: string; url: string }[] = [];
+  
+  $('link[rel="alternate"][hreflang]').each((_, el) => {
+    const lang = $(el).attr('hreflang');
+    const url = $(el).attr('href');
+    if (lang && url) {
+      hreflangTags.push({ lang, url });
+    }
+  });
+  
+  return {
+    declaredLanguage: $('html').attr('lang') || null,
+    hreflangTags,
+    hasMultipleLanguages: hreflangTags.length > 1,
+  };
+}
+
+// ============================================================================
+// HAUPTEXTRAKTION - ALLE FAKTEN SAMMELN
+// ============================================================================
+
+function extractAllFacts(html: string, $: cheerio.CheerioAPI, url: string, ttfbMs: number): ExtractedFacts {
+  return {
+    meta: extractMeta($, url),
+    performance: extractPerformance($, html, ttfbMs),
+    schema: extractSchemaData($),
+    structure: extractStructure($),
+    content: extractContent($),
+    images: extractImages($),
+    links: extractLinks($, url),
+    social: extractSocialMeta($),
+    trustSignals: extractTrustSignals($, url),
+    technology: detectTechnology(html, $),
+    i18n: extractI18n($),
+    dynamicContent: checkDynamicContent($),
   };
 }
 
@@ -1284,35 +1289,372 @@ function analyzeTech(html: string, $: cheerio.CheerioAPI, baseUrl: string, ttfbM
 // SCRAPER
 // ============================================================================
 
-async function scrapeContent(url: string) {
+async function scrapeAndExtract(url: string): Promise<{ facts: ExtractedFacts; rawHtml: string } | null> {
   try {
     const startTime = Date.now();
+    
     const response = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SEOBot/1.0; +https://example.com/bot)' },
+      headers: { 
+        'User-Agent': 'Mozilla/5.0 (compatible; SEOAnalyzer/1.0)',
+        'Accept': 'text/html,application/xhtml+xml',
+        'Accept-Language': 'de,en;q=0.9',
+      },
       next: { revalidate: 3600 }
     });
     
     const ttfb = Date.now() - startTime;
-    if (!response.ok) return null;
+    
+    if (!response.ok) {
+      console.error(`HTTP ${response.status} für ${url}`);
+      return null;
+    }
     
     const html = await response.text();
     const $ = cheerio.load(html);
-    const cmsData = detectCMS(html, $);
-    const techStats = analyzeTech(html, $, url, ttfb);
     
-    $('script, style, nav, footer, iframe, svg, noscript').remove();
+    const facts = extractAllFacts(html, $, url, ttfb);
     
-    const title = $('title').text().trim();
-    const description = $('meta[name="description"]').attr('content') || '';
-    const h1 = $('h1').map((_, el) => $(el).text().trim()).get().join(' | ');
-    let content = $('main').text().trim() || $('article').text().trim() || $('body').text().trim();
-    content = content.replace(/\s+/g, ' ').substring(0, 8000);
-    
-    return { title, description, h1, content, cmsData, techStats };
+    return { facts, rawHtml: html };
   } catch (error) {
-    console.error(`Fehler bei ${url}:`, error);
+    console.error(`Scrape-Fehler für ${url}:`, error);
     return null;
   }
+}
+
+// ============================================================================
+// PROMPT BUILDER - FAKTEN FÜR KI AUFBEREITEN
+// ============================================================================
+
+function buildFactsForPrompt(facts: ExtractedFacts): string {
+  const f = facts;
+  
+  return `
+════════════════════════════════════════════════════════════════════════════════
+EXTRAHIERTE FAKTEN (100% verifiziert durch Code-Analyse)
+════════════════════════════════════════════════════════════════════════════════
+
+URL: ${f.meta.url}
+TITEL: ${f.meta.title}
+META-DESCRIPTION: ${f.meta.description || '❌ NICHT GESETZT'}
+META-AUTHOR: ${f.meta.author || '❌ NICHT GESETZT'}
+SPRACHE: ${f.meta.language || '❌ NICHT GESETZT'}
+
+${f.dynamicContent.warning ? `⚠️ WARNUNG: ${f.dynamicContent.warning}\n` : ''}
+────────────────────────────────────────────────────────────────────────────────
+SCHEMA.ORG STRUKTURIERTE DATEN
+────────────────────────────────────────────────────────────────────────────────
+
+Schema vorhanden: ${f.schema.hasSchema ? '✅ JA' : '❌ NEIN'}
+Anzahl Schema-Blöcke: ${f.schema.schemaCount}
+Schema-Typen: ${f.schema.types.length > 0 ? f.schema.types.join(', ') : 'KEINE'}
+
+${f.schema.person ? `
+PERSON SCHEMA:
+- Name: ${f.schema.person.name || 'nicht gesetzt'}
+- Job Title: ${f.schema.person.jobTitle || 'nicht gesetzt'}
+- Beschreibung: ${f.schema.person.description ? 'vorhanden' : 'nicht gesetzt'}
+- Bild: ${f.schema.person.image ? 'vorhanden' : 'nicht gesetzt'}
+- sameAs Links: ${f.schema.person.sameAs.length > 0 ? f.schema.person.sameAs.join(', ') : '❌ KEINE'}
+- knowsAbout: ${f.schema.person.knowsAbout.length > 0 ? f.schema.person.knowsAbout.join(', ') : 'nicht gesetzt'}
+- Adresse: ${f.schema.person.hasAddress ? `✅ ${f.schema.person.addressLocality}` : 'nicht gesetzt'}
+` : 'PERSON SCHEMA: ❌ Nicht vorhanden'}
+
+${f.schema.organization ? `
+ORGANIZATION SCHEMA:
+- Name: ${f.schema.organization.name || 'nicht gesetzt'}
+- Logo: ${f.schema.organization.logo ? 'vorhanden' : 'nicht gesetzt'}
+- sameAs: ${f.schema.organization.sameAs.length > 0 ? f.schema.organization.sameAs.join(', ') : 'KEINE'}
+- ContactPoint: ${f.schema.organization.hasContactPoint ? 'vorhanden' : 'nicht gesetzt'}
+` : 'ORGANIZATION SCHEMA: ❌ Nicht vorhanden'}
+
+${f.schema.faq ? `
+FAQ SCHEMA:
+- Anzahl Fragen: ${f.schema.faq.questionCount}
+- Fragen:
+${f.schema.faq.questions.map((q, i) => `  ${i + 1}. "${q.question}"`).join('\n')}
+` : 'FAQ SCHEMA: ❌ Nicht vorhanden'}
+
+${f.schema.article ? `
+ARTICLE SCHEMA:
+- Headline: ${f.schema.article.headline || 'nicht gesetzt'}
+- Veröffentlicht: ${f.schema.article.datePublished || 'nicht gesetzt'}
+- Aktualisiert: ${f.schema.article.dateModified || 'nicht gesetzt'}
+- Autor: ${f.schema.article.author || 'nicht gesetzt'}
+` : ''}
+
+Weitere Schema-Typen:
+- WebSite: ${f.schema.hasWebSite ? '✅' : '❌'}
+- Breadcrumb: ${f.schema.hasBreadcrumb ? '✅' : '❌'}
+- HowTo: ${f.schema.hasHowTo ? '✅' : '❌'}
+- Product: ${f.schema.hasProduct ? '✅' : '❌'}
+- LocalBusiness: ${f.schema.hasLocalBusiness ? '✅' : '❌'}
+
+────────────────────────────────────────────────────────────────────────────────
+CONTENT METRIKEN
+────────────────────────────────────────────────────────────────────────────────
+
+Wortanzahl: ${f.content.wordCount}
+Zeichen: ${f.content.characterCount}
+Sätze: ${f.content.sentenceCount}
+Absätze: ${f.content.paragraphCount}
+Durchschn. Wörter/Satz: ${f.content.avgWordsPerSentence}
+Durchschn. Wörter/Absatz: ${f.content.avgWordsPerParagraph}
+Lesezeit: ~${f.content.readingTimeMinutes} Minuten
+
+Blockquotes: ${f.content.blockquoteCount}
+Hervorhebungen (strong/em): ${f.content.strongCount}/${f.content.emCount}
+Fragezeichen im Text: ${f.content.questionMarksInText}
+Ausrufezeichen im Text: ${f.content.exclamationMarksInText}
+
+Details/Summary Elemente (FAQ-artig): ${f.content.detailsSummary.count}
+${f.content.detailsSummary.items.length > 0 ? `Fragen in Details/Summary:
+${f.content.detailsSummary.items.map((d, i) => `  ${i + 1}. "${d.summary}"`).join('\n')}` : ''}
+
+────────────────────────────────────────────────────────────────────────────────
+HTML STRUKTUR
+────────────────────────────────────────────────────────────────────────────────
+
+ÜBERSCHRIFTEN:
+- H1: ${f.structure.headings.h1Count}x ${f.structure.headings.h1Texts.length > 0 ? `("${f.structure.headings.h1Texts.join('", "')}")` : ''}
+- H2: ${f.structure.headings.h2Count}x ${f.structure.headings.h2Texts.length > 0 ? `("${f.structure.headings.h2Texts.slice(0, 5).join('", "')}")` : ''}
+- H3: ${f.structure.headings.h3Count}x
+- H4-H6: ${f.structure.headings.h4Count}/${f.structure.headings.h5Count}/${f.structure.headings.h6Count}
+- Hierarchie valide: ${f.structure.headings.hierarchyValid ? '✅' : '❌'}
+
+SEMANTISCHE TAGS:
+- header: ${f.structure.semanticTags.hasHeader ? '✅' : '❌'}
+- nav: ${f.structure.semanticTags.hasNav ? '✅' : '❌'}
+- main: ${f.structure.semanticTags.hasMain ? '✅' : '❌'}
+- article: ${f.structure.semanticTags.hasArticle ? '✅' : '❌'}
+- section: ${f.structure.semanticTags.hasSection ? '✅' : '❌'}
+- aside: ${f.structure.semanticTags.hasAside ? '✅' : '❌'}
+- footer: ${f.structure.semanticTags.hasFooter ? '✅' : '❌'}
+- figure: ${f.structure.semanticTags.hasFigure ? '✅' : '❌'}
+- details: ${f.structure.semanticTags.hasDetails ? `✅ (${f.structure.semanticTags.detailsCount}x)` : '❌'}
+- Semantik-Score: ${f.structure.semanticTags.semanticScore}/100
+
+LISTEN:
+- Ungeordnete Listen (ul): ${f.structure.lists.ulCount}
+- Geordnete Listen (ol): ${f.structure.lists.olCount}
+- Listen-Elemente gesamt: ${f.structure.lists.totalListItems}
+- Listen mit 3+ Items: ${f.structure.lists.listsWithMoreThan3Items}
+
+TABELLEN: ${f.structure.tables.count} (${f.structure.tables.tablesWithHeaders} mit Headers)
+FORMULARE: ${f.structure.forms.count} (Suche: ${f.structure.forms.hasSearchForm ? '✅' : '❌'}, Kontakt: ${f.structure.forms.hasContactForm ? '✅' : '❌'})
+CODE-BLÖCKE: ${f.structure.codeBlocks.preCount} pre, ${f.structure.codeBlocks.codeCount} code
+
+────────────────────────────────────────────────────────────────────────────────
+LINKS
+────────────────────────────────────────────────────────────────────────────────
+
+INTERNE LINKS: ${f.links.internal.count}
+${f.links.internal.samples.length > 0 ? `Beispiele: ${f.links.internal.samples.slice(0, 8).map(l => `"${l.text}" → ${l.href}`).join(', ')}` : ''}
+
+EXTERNE LINKS: ${f.links.external.count}
+- Verlinkte Domains: ${f.links.external.domainsLinked.slice(0, 10).join(', ') || 'KEINE'}
+- Nofollow: ${f.links.external.nofollowCount}
+- target="_blank": ${f.links.external.newTabCount}
+
+SPEZIELLE LINKS:
+- E-Mail (mailto): ${f.links.mailtoLinks}
+- Telefon (tel): ${f.links.telLinks}
+- Anker (#): ${f.links.anchorLinks}
+- Downloads: ${f.links.downloadLinks}
+- Leere/kaputte Links: ${f.links.emptyLinks}
+- JavaScript Links: ${f.links.javascriptLinks}
+
+SOCIAL MEDIA LINKS: ${f.links.socialLinks.length > 0 ? f.links.socialLinks.map(s => `${s.platform}`).join(', ') : 'KEINE im Content'}
+
+────────────────────────────────────────────────────────────────────────────────
+BILDER
+────────────────────────────────────────────────────────────────────────────────
+
+Gesamt: ${f.images.total}
+Mit Alt-Text: ${f.images.withAlt}
+Ohne Alt-Text: ${f.images.withoutAlt}
+Leerer Alt-Text: ${f.images.withEmptyAlt}
+Mit Title: ${f.images.withTitle}
+Lazy Loading: ${f.images.lazyLoaded}
+WebP: ${f.images.webpCount}
+AVIF: ${f.images.avifCount}
+SVG: ${f.images.svgCount}
+Bild-Score: ${f.images.imageScore}/100
+
+${f.images.altTexts.length > 0 ? `Alt-Texte Beispiele: "${f.images.altTexts.slice(0, 5).join('", "')}"` : ''}
+
+────────────────────────────────────────────────────────────────────────────────
+SOCIAL & OPEN GRAPH
+────────────────────────────────────────────────────────────────────────────────
+
+OPEN GRAPH:
+- og:title: ${f.social.openGraph.title || '❌ FEHLT'}
+- og:description: ${f.social.openGraph.description ? '✅ vorhanden' : '❌ FEHLT'}
+- og:image: ${f.social.openGraph.image || '❌ FEHLT'}
+- og:type: ${f.social.openGraph.type || '❌ FEHLT'}
+- Vollständigkeit: ${f.social.openGraph.completeness}%
+
+TWITTER CARD:
+- twitter:card: ${f.social.twitter.card || '❌ FEHLT'}
+- twitter:title: ${f.social.twitter.title ? '✅' : '❌'}
+- twitter:image: ${f.social.twitter.image ? '✅' : '❌'}
+- Vollständigkeit: ${f.social.twitter.completeness}%
+
+SOCIAL PROFILE LINKS: ${f.social.socialProfiles.found ? f.social.socialProfiles.platforms.join(', ') : 'KEINE gefunden'}
+
+────────────────────────────────────────────────────────────────────────────────
+TRUST SIGNALE
+────────────────────────────────────────────────────────────────────────────────
+
+RECHTLICHE SEITEN:
+- Impressum Link: ${f.trustSignals.hasImprintLink ? `✅ ("${f.trustSignals.imprintLinkText}")` : '❌ NICHT GEFUNDEN'}
+- Datenschutz Link: ${f.trustSignals.hasPrivacyLink ? `✅ ("${f.trustSignals.privacyLinkText}")` : '❌ NICHT GEFUNDEN'}
+- Kontakt Link: ${f.trustSignals.hasContactLink ? `✅ ("${f.trustSignals.contactLinkText}")` : '❌ NICHT GEFUNDEN'}
+- Über uns Link: ${f.trustSignals.hasAboutLink ? `✅ ("${f.trustSignals.aboutLinkText}")` : '❌ NICHT GEFUNDEN'}
+- AGB Link: ${f.trustSignals.hasTermsLink ? '✅' : '❌'}
+
+KONTAKT IM CONTENT:
+- E-Mail Adressen: ${f.trustSignals.emailAddressesFound.length > 0 ? f.trustSignals.emailAddressesFound.join(', ') : 'KEINE'}
+- Telefonnummern: ${f.trustSignals.phoneNumbersFound.length > 0 ? f.trustSignals.phoneNumbersFound.join(', ') : 'KEINE'}
+- Physische Adresse: ${f.trustSignals.physicalAddressFound ? '✅ erkannt' : '❌ nicht erkannt'}
+
+FOOTER: ${f.trustSignals.hasFooter ? (f.trustSignals.footerIsDynamic ? '⚠️ dynamisch geladen' : '✅ vorhanden') : '❌ nicht vorhanden'}
+HTTPS: ${f.trustSignals.hasHttps ? '✅' : '❌'}
+
+────────────────────────────────────────────────────────────────────────────────
+PERFORMANCE
+────────────────────────────────────────────────────────────────────────────────
+
+TTFB: ${f.performance.ttfbMs}ms (${f.performance.ttfbRating})
+HTML Größe: ${f.performance.htmlSizeKb} KB
+Preload: ${f.performance.preloadCount}
+Preconnect: ${f.performance.preconnectCount}
+
+SCRIPTS (${f.performance.totalScripts} gesamt):
+- Render-Blocking: ${f.performance.renderBlockingScripts}
+- Async: ${f.performance.asyncScripts}
+- Defer: ${f.performance.deferScripts}
+- Module: ${f.performance.moduleScripts}
+
+STYLES:
+- Inline: ${f.performance.inlineStylesCount}
+- Extern: ${f.performance.externalStylesCount}
+
+────────────────────────────────────────────────────────────────────────────────
+TECHNOLOGIE
+────────────────────────────────────────────────────────────────────────────────
+
+CMS: ${f.technology.detectedCms}
+Page Builder: ${f.technology.isPageBuilder ? '⚠️ JA' : '✅ NEIN'}
+Frameworks: ${f.technology.detectedFrameworks.length > 0 ? f.technology.detectedFrameworks.join(', ') : 'Keine erkannt'}
+Libraries: ${f.technology.detectedLibraries.length > 0 ? f.technology.detectedLibraries.join(', ') : 'Keine erkannt'}
+PWA: Service Worker: ${f.technology.hasServiceWorker ? '✅' : '❌'}, Manifest: ${f.technology.hasManifest ? '✅' : '❌'}
+
+────────────────────────────────────────────────────────────────────────────────
+CONTENT SAMPLES (für qualitative Bewertung)
+────────────────────────────────────────────────────────────────────────────────
+
+INTRO (erste 500 Zeichen):
+"${f.content.samples.introText}"
+
+${f.content.samples.faqContent ? `FAQ-BEREICH:
+"${f.content.samples.faqContent}"` : ''}
+
+${f.content.samples.aboutContent ? `ÜBER-BEREICH:
+"${f.content.samples.aboutContent}"` : ''}
+
+${f.content.blockquoteTexts.length > 0 ? `ZITATE/BLOCKQUOTES:
+${f.content.blockquoteTexts.map(q => `"${q}"`).join('\n')}` : ''}
+`;
+}
+
+// ============================================================================
+// KI BEWERTUNGS-PROMPT
+// ============================================================================
+
+function buildEvaluationPrompt(facts: ExtractedFacts, compactStyles: string): string {
+  const factsText = buildFactsForPrompt(facts);
+  
+  return `
+Du bist ein erfahrener SEO-Auditor, E-E-A-T-Experte und GEO-Spezialist (Generative Engine Optimization).
+
+DEINE AUFGABE:
+Bewerte die Webseite basierend auf den extrahierten FAKTEN. Die Fakten wurden durch Code-Analyse ermittelt und sind 100% korrekt. Deine Aufgabe ist die QUALITATIVE BEWERTUNG.
+
+${factsText}
+
+════════════════════════════════════════════════════════════════════════════════
+BEWERTUNGSAUFTRAG
+════════════════════════════════════════════════════════════════════════════════
+
+Erstelle einen professionellen Audit-Report mit folgenden Bewertungen:
+
+1. E-E-A-T BEWERTUNG (jeweils 0-100 Score + Begründung)
+
+   EXPERIENCE (Erfahrung):
+   - Zeigt der Content echte, praktische Erfahrung?
+   - Gibt es First-Person Narrative ("Ich habe...", "In meiner Arbeit...")?
+   - Werden eigene Projekte/Tools/Arbeiten präsentiert?
+   - Gibt es Fallbeispiele oder Problem-Lösung-Strukturen?
+   
+   EXPERTISE (Fachwissen):
+   - Wird Fachwissen demonstriert (Fachbegriffe, tiefe Erklärungen)?
+   - Gibt es eine klare Methodik/Arbeitsweise?
+   - Werden technische Konzepte korrekt erklärt?
+   - Sind Credentials/Qualifikationen erkennbar?
+   
+   AUTHORITATIVENESS (Autorität):
+   - Ist die Person/Marke verifizierbar (sameAs Links)?
+   - Gibt es Schema-Markup für die Entität?
+   - Gibt es externe Validierung (Zitate, Erwähnungen)?
+   - Sind Social Profile verknüpft?
+   
+   TRUSTWORTHINESS (Vertrauen):
+   - Sind rechtliche Seiten vorhanden (Impressum, Datenschutz)?
+   - Gibt es Kontaktmöglichkeiten?
+   - Ist die Identität transparent?
+   - Gibt es Trust-Signale?
+
+2. CONTENT-QUALITÄT BEWERTUNG (0-100 Score + Begründung)
+   
+   - Storytelling & Narrative: Ist der Content fesselnd? Gibt es einen roten Faden?
+   - Persönlichkeit & Ton: Ist der Text persönlich oder generisch?
+   - Struktur & Lesbarkeit: Ist der Content gut gegliedert?
+   - Unique Value: Bietet der Content einzigartigen Mehrwert?
+   - Problem-Lösung: Werden Probleme angesprochen und gelöst?
+
+3. GEO-READINESS BEWERTUNG (0-100 Score + Begründung)
+   
+   - Entitäts-Klarheit: Kann ein LLM die Entität (Person/Firma) klar identifizieren?
+   - Zitierbarkeit: Gibt es klare Fakten, Definitionen, Listen die zitiert werden können?
+   - FAQ-Struktur: Sind Fragen und Antworten vorhanden?
+   - Direkte Antworten: Gibt es klare Statements die ein LLM extrahieren kann?
+
+4. TECHNISCHES SEO (0-100 Score)
+   - Basierend auf den harten Fakten (Schema, Struktur, Performance, etc.)
+
+5. PRIORISIERTER MASSNAHMENPLAN
+   
+   🔴 KRITISCH (sofort umsetzen):
+   - Was fehlt und ist essentiell?
+   
+   🟡 WICHTIG (zeitnah umsetzen):
+   - Was würde signifikant verbessern?
+   
+   🟢 NICE-TO-HAVE (bei Gelegenheit):
+   - Optimierungen für Perfektion
+
+WICHTIGE REGELN:
+- Sei STRENG aber GERECHT - bewerte was DA IST, nicht was fehlen könnte
+- Wenn die FAQs eine klare Problem-Lösung-Struktur haben, erkenne das an
+- Wenn technische Methodik erklärt wird (RAG, Vektordatenbank, API), zählt das als Expertise
+- Wenn eigene Tools/Projekte präsentiert werden, zählt das als Experience & Portfolio
+- Beachte die Warnung zu dynamisch geladenen Inhalten bei Trust-Signalen
+- Verwende die CONTENT SAMPLES um Tonalität und Qualität zu bewerten
+
+STYLE GUIDE: ${compactStyles}
+
+Antworte NUR mit HTML. Keine Einleitung, kein Markdown außerhalb von HTML.
+`;
 }
 
 // ============================================================================
@@ -1325,193 +1667,32 @@ export async function POST(req: NextRequest) {
     
     const targetUrl = body.targetUrl || body.myUrl || body.url || body.target || body.siteUrl || body.domain;
     const competitorUrl = body.competitorUrl || body.competitor || body.compareUrl;
-    const keywords = body.keywords || body.keyword || '';
     
-    if (!targetUrl) return NextResponse.json({ message: 'URL fehlt' }, { status: 400 });
+    if (!targetUrl) {
+      return NextResponse.json({ message: 'URL fehlt' }, { status: 400 });
+    }
     
     let normalizedUrl = targetUrl.trim();
-    if (!normalizedUrl.startsWith('http')) normalizedUrl = 'https://' + normalizedUrl;
+    if (!normalizedUrl.startsWith('http')) {
+      normalizedUrl = 'https://' + normalizedUrl;
+    }
     
-    const [targetData, competitorData] = await Promise.all([
-      scrapeContent(normalizedUrl),
-      competitorUrl ? scrapeContent(competitorUrl) : Promise.resolve(null)
+    // Parallel scrapen
+    const [targetResult, competitorResult] = await Promise.all([
+      scrapeAndExtract(normalizedUrl),
+      competitorUrl ? scrapeAndExtract(competitorUrl) : Promise.resolve(null),
     ]);
     
-    if (!targetData) return NextResponse.json({ message: 'Analyse fehlgeschlagen' }, { status: 400 });
+    if (!targetResult) {
+      return NextResponse.json({ message: 'Analyse fehlgeschlagen - Seite nicht erreichbar' }, { status: 400 });
+    }
     
     const compactStyles = getCompactStyleGuide();
-    const ts = targetData.techStats;
+    const prompt = buildEvaluationPrompt(targetResult.facts, compactStyles);
     
-    // Dynamischer Footer Hinweis
-    const dynamicWarning = ts.eeat.dynamicContentWarning 
-      ? `\n⚠️ HINWEIS: ${ts.eeat.dynamicContentWarning}` 
-      : '';
-
-    const formatData = () => `
-═══════════════════════════════════════════════════════════════
-URL: ${normalizedUrl}
-TITEL: ${targetData.title}
-META-DESCRIPTION: ${targetData.description || 'FEHLT'}
-${dynamicWarning}
-
-═══════════════════════════════════════════════════════════════
-E-E-A-T ANALYSE (Experience, Expertise, Authority, Trust)
-═══════════════════════════════════════════════════════════════
-
-GESAMT E-E-A-T: ${ts.eeat.overallScore}/100 (${ts.eeat.overallRating})
-
-EXPERIENCE (Erfahrung) - Score: ${ts.eeat.experience.experienceScore}/100
-- First-Person Narrative: ${ts.eeat.experience.hasFirstPersonNarrative ? '✅' : '❌'}
-- Persönliche Geschichten: ${ts.eeat.experience.hasPersonalStories ? '✅' : '❌'}
-- Fallstudien/Case Studies: ${ts.eeat.experience.hasCaseStudies ? '✅' : '❌'}
-- Testimonials/Kundenstimmen: ${ts.eeat.experience.hasTestimonials ? '✅' : '❌'}
-- Portfolio/Referenzen: ${ts.eeat.experience.hasPortfolio ? '✅' : '❌'}
-
-EXPERTISE (Fachwissen) - Score: ${ts.eeat.expertise.expertiseScore}/100
-- Autor-Bio vorhanden: ${ts.eeat.expertise.hasAuthorBio ? '✅' : '❌'}
-- Credentials/Qualifikationen: ${ts.eeat.expertise.hasCredentials ? '✅' : '❌'}
-- Tiefgehende Erklärungen: ${ts.eeat.expertise.hasDetailedExplanations ? '✅' : '❌'}
-- Fachbegriffe korrekt: ${ts.eeat.expertise.hasTechnicalTerms ? '✅' : '❌'}
-- Methodik erklärt: ${ts.eeat.expertise.hasMethodology ? '✅' : '❌'}
-- Datenbasierter Content: ${ts.eeat.expertise.hasDataDrivenContent ? '✅' : '❌'}
-
-AUTHORITY (Autorität) - Score: ${ts.eeat.authoritativeness.authorityScore}/100
-- Organization Schema: ${ts.eeat.authoritativeness.hasOrganizationSchema ? '✅' : '❌'}
-- Person Schema: ${ts.eeat.authoritativeness.hasPersonSchema ? '✅' : '❌'}
-- sameAs Links: ${ts.eeat.authoritativeness.hasSameAsLinks ? '✅ ' + ts.eeat.authoritativeness.sameAsLinks.slice(0, 2).join(', ') : '❌ FEHLT'}
-- Externe Zitierungen: ${ts.eeat.authoritativeness.hasExternalCitations ? '✅' : '❌'}
-- Awards/Auszeichnungen: ${ts.eeat.authoritativeness.hasAwards ? '✅' : '❌'}
-- Medienerwähnungen: ${ts.eeat.authoritativeness.hasMentions ? '✅' : '❌'}
-- Partnerschaften: ${ts.eeat.authoritativeness.hasPartnerships ? '✅' : '❌'}
-
-TRUST (Vertrauen) - Score: ${ts.eeat.trustworthiness.trustScore}/100
-- Impressum: ${ts.eeat.trustworthiness.hasImprint ? '✅' : '❌'}
-- Datenschutz: ${ts.eeat.trustworthiness.hasPrivacyPolicy ? '✅' : '❌'}
-- Kontakt: ${ts.eeat.trustworthiness.hasContact ? '✅' : '❌'}
-- Über-uns Seite: ${ts.eeat.trustworthiness.hasAboutPage ? '✅' : '❌'}
-- Team-Seite: ${ts.eeat.trustworthiness.hasTeamPage ? '✅' : '❌'}
-- Physische Adresse: ${ts.eeat.trustworthiness.hasPhysicalAddress ? '✅' : '❌'}
-- Telefonnummer: ${ts.eeat.trustworthiness.hasPhoneNumber ? '✅' : '❌'}
-
-═══════════════════════════════════════════════════════════════
-CONTENT-QUALITÄT & STORYTELLING
-═══════════════════════════════════════════════════════════════
-
-GESAMT CONTENT: ${ts.contentQuality.overallContentScore}/100 (${ts.contentQuality.contentRating})
-
-BASIS-METRIKEN:
-- Wortanzahl: ${ts.contentQuality.wordCount}
-- Lesezeit: ~${ts.contentQuality.readingTimeMin} Min.
-- Absätze: ${ts.contentQuality.paragraphCount}
-- Thin Content: ${ts.contentQuality.thinContent ? '⚠️ JA (<300 Wörter)' : '✅ NEIN'}
-
-STORYTELLING - Score: ${ts.contentQuality.storytelling.storytellingScore}/100
-- Narrative Struktur: ${ts.contentQuality.storytelling.hasNarrativeStructure ? '✅' : '❌'}
-- Hook/Aufmerksamkeitsfänger: ${ts.contentQuality.storytelling.hasHook ? '✅' : '❌'}
-- Emotionale Sprache: ${ts.contentQuality.storytelling.hasEmotionalLanguage ? '✅' : '❌'}
-- Anekdoten: ${ts.contentQuality.storytelling.hasAnecdotes ? '✅' : '❌'}
-- Problem-Lösung Struktur: ${ts.contentQuality.storytelling.hasConflictResolution ? '✅' : '❌'}
-- Call-to-Action: ${ts.contentQuality.storytelling.hasCallToAction ? '✅' : '❌'}
-
-LESBARKEIT - Score: ${ts.contentQuality.readability.readabilityScore}/100
-- Kurze Absätze: ${ts.contentQuality.readability.hasShortParagraphs ? '✅' : '❌'}
-- Zwischenüberschriften: ${ts.contentQuality.readability.hasSubheadings ? '✅' : '❌'}
-- Aufzählungen: ${ts.contentQuality.readability.hasBulletPoints ? '✅' : '❌'}
-- Nummerierte Listen: ${ts.contentQuality.readability.hasNumberedLists ? '✅' : '❌'}
-- Hervorgehobener Text: ${ts.contentQuality.readability.hasHighlightedText ? '✅' : '❌'}
-- Visuelle Breaks: ${ts.contentQuality.readability.hasVisualBreaks ? '✅' : '❌'}
-
-UNIQUE VALUE - Score: ${ts.contentQuality.uniqueValue.uniqueValueScore}/100
-- Eigene Forschung/Daten: ${ts.contentQuality.uniqueValue.hasOriginalResearch ? '✅' : '❌'}
-- Einzigartige Insights: ${ts.contentQuality.uniqueValue.hasUniqueInsights ? '✅' : '❌'}
-- Umsetzbare Tipps: ${ts.contentQuality.uniqueValue.hasActionableAdvice ? '✅' : '❌'}
-- Konkrete Beispiele: ${ts.contentQuality.uniqueValue.hasExamples ? '✅' : '❌'}
-- Vergleiche: ${ts.contentQuality.uniqueValue.hasComparisons ? '✅' : '❌'}
-- Tools/Downloads: ${ts.contentQuality.uniqueValue.hasTools ? '✅' : '❌'}
-
-═══════════════════════════════════════════════════════════════
-GEO-ANALYSE (Generative Engine Optimization)
-═══════════════════════════════════════════════════════════════
-
-GESAMT GEO-SCORE: ${ts.geoSignals.geoScore}/100 (${ts.geoSignals.geoRating})
-
-ENTITÄTS-KLARHEIT:
-- Schema-Typen: ${ts.geoSignals.entityClarity.schemaTypes.join(', ') || 'KEINE'}
-- sameAs Links: ${ts.geoSignals.entityClarity.sameAsLinks.length > 0 ? '✅ ' + ts.geoSignals.entityClarity.sameAsLinks.join(', ') : '❌ KEINE'}
-- knowsAbout: ${ts.geoSignals.entityClarity.hasKnowsAbout ? '✅' : '❌'}
-- jobTitle: ${ts.geoSignals.entityClarity.hasJobTitle ? '✅' : '❌'}
-
-ZITIERBARKEIT (Score: ${ts.geoSignals.citability.citabilityScore}/100):
-- Definitionen: ${ts.geoSignals.citability.hasDefinitions ? '✅' : '❌'}
-- FAQ-Struktur: ${ts.geoSignals.citability.hasFaqStructure ? '✅' : '❌'}
-- Listen (Bullet/Numbered): ${ts.geoSignals.citability.hasBulletLists || ts.geoSignals.citability.hasNumberedLists ? '✅' : '❌'}
-- Datentabellen: ${ts.geoSignals.citability.hasDataTables ? '✅' : '❌'}
-- Statistiken: ${ts.geoSignals.citability.hasStatistics ? '✅' : '❌'}
-- Quellenangaben: ${ts.geoSignals.citability.hasCitations ? '✅' : '❌'}
-
-LLM-READABILITY:
-- Zusammenfassung: ${ts.geoSignals.llmReadability.hasSummary ? '✅' : '❌'}
-- Key Takeaways: ${ts.geoSignals.llmReadability.hasKeyTakeaways ? '✅' : '❌'}
-- Fragen im Content: ${ts.geoSignals.llmReadability.questionCount}
-- Direkte Antworten: ${ts.geoSignals.llmReadability.hasDirectAnswers ? '✅' : '❌'}
-
-═══════════════════════════════════════════════════════════════
-TECHNISCHES SEO
-═══════════════════════════════════════════════════════════════
-
-PERFORMANCE:
-- TTFB: ${ts.performance.ttfbMs}ms (${ts.performance.rating})
-- HTML-Größe: ${ts.performance.htmlSizeKb} KB
-- Render-Blocking: ${ts.performance.renderBlockingScripts} Scripts
-- Async/Defer: ${ts.performance.asyncScripts}/${ts.performance.deferScripts}
-
-STRUKTUR:
-- H1: ${ts.structure.headings.h1}x | H2: ${ts.structure.headings.h2}x | H3: ${ts.structure.headings.h3}x
-- Semantik-Score: ${ts.codeQuality.semanticScore}/100
-- Canonical: ${ts.indexing.canonical ? (ts.indexing.canonicalMatchesUrl ? '✅ Self-ref' : '⚠️ Andere URL') : '❌ FEHLT'}
-
-BILDER:
-- Gesamt: ${ts.imageAnalysis.total}
-- Mit Alt: ${ts.imageAnalysis.withAlt}
-- WebP/AVIF: ${ts.imageAnalysis.modernFormats}
-- Lazy Load: ${ts.imageAnalysis.lazyLoaded}
-
-LINKS:
-- Intern: ${ts.linkStructure.internalCount}
-- Extern: ${ts.linkStructure.externalCount}
-
-SOCIAL:
-- OG vollständig: ${ts.socialMeta.og.title && ts.socialMeta.og.image ? '✅' : '❌'}
-- Twitter Card: ${ts.socialMeta.twitter.card || '❌ FEHLT'}
-`;
-
-    const prompt = `
-Du bist ein erfahrener SEO-, E-E-A-T- und GEO-Experte. Analysiere die Daten und erstelle einen professionellen Audit-Report.
-
-WICHTIG:
-- Bewerte alle 4 E-E-A-T Dimensionen einzeln
-- Gib konkrete, umsetzbare Empfehlungen
-- Priorisiere nach Impact
-- Sei präzise und direkt
-
-DATEN:
-${formatData()}
-
-STYLE: ${compactStyles}
-
-Erstelle den Report als HTML mit dieser Struktur:
-
-1. HEADER mit Scores (E-E-A-T, Content, GEO, Tech)
-2. E-E-A-T Detailanalyse (alle 4 Dimensionen)
-3. Content & Storytelling Bewertung
-4. GEO-Readiness
-5. Technisches SEO
-6. Priorisierter Maßnahmenplan (Hoch/Mittel/Nice-to-have)
-
-Antworte NUR mit HTML. Keine Einleitung.
-`;
-
+    // KI-Bewertung streamen
     const result = await streamTextSafe({ prompt });
+    
     return result.toTextStreamResponse();
     
   } catch (error) {
