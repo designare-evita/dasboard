@@ -1301,15 +1301,11 @@ export async function POST(req: NextRequest) {
     `;
 
     // Stream zurückgeben (wie im Original)
-    const stream = await streamTextSafe(singlePrompt);
-    
-    return new Response(stream, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-      },
+    const result = await streamTextSafe({
+      prompt: singlePrompt,
     });
+    
+    return result.toTextStreamResponse();
 
   } catch (error) {
     console.error('API Error:', error);
