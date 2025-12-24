@@ -31,11 +31,14 @@ interface TechStats {
     hasImprint: boolean;
     hasPrivacy: boolean;
     hasContact: boolean;
+    hasAuthor: boolean; // NEU: Für E-E-A-T
+    hasDate: boolean;   // NEU: Für Aktualität
   };
   linkStructure: {
     internal: LinkInfo[];
     externalCount: number;
     internalCount: number;
+    externalLinksSample: LinkInfo[]; // NEU: Um zu sehen, wohin verlinkt wird
   };
   codeQuality: {
     semanticScore: number; // 0-100
@@ -53,7 +56,7 @@ function detectCMS(html: string, $: cheerio.CheerioAPI): { cms: string; isBuilde
   const htmlLower = html.toLowerCase();
   
   // CMS Definitionen
-  const builders = ['wix', 'squarespace', 'jimdo', 'shopify', 'weebly', 'webflow'];
+  const builders = ['wix', 'squarespace', 'jimdo', 'shopify', 'weebly', 'webflow', 'elementor', 'divi'];
   
   let detectedCms = 'Custom Code / Unbekannt';
   
@@ -69,7 +72,7 @@ function detectCMS(html: string, $: cheerio.CheerioAPI): { cms: string; isBuilde
   else if (htmlLower.includes('next.js') || htmlLower.includes('__next')) detectedCms = 'Next.js (React)';
 
   // Ist es ein Baukasten?
-  const isBuilder = builders.some(b => detectedCms.toLowerCase().includes(b));
+  const isBuilder = builders.some(b => detectedCms.toLowerCase().includes(b) || htmlLower.includes(b));
 
   return { cms: detectedCms, isBuilder };
 }
@@ -88,8 +91,10 @@ function analyzeTech(html: string, $: cheerio.CheerioAPI, baseUrl: string): Tech
 
   const domDepth = $('*').length;
 
-  // 3. Schema
+  // 3. Schema & Meta-Daten (E-E-A-T relevant)
   const hasSchema = $('script[type="application/ld+json"]').length > 0;
+  const hasAuthor = $('meta[name="author"]').length > 0 || $('meta[property="article:author"]').length > 0;
+  const hasDate = $('meta[property="article:published_time"]').length > 0 || $('time').length > 0;
 
   // 4. Bilder
   const images = $('img');
@@ -103,29 +108,55 @@ function analyzeTech(html: string, $: cheerio.CheerioAPI, baseUrl: string): Tech
   });
   const imgScore = images.length === 0 ? 100 : Math.round(((withAlt + modernFormats) / (images.length * 2)) * 100);
 
-  // 5. Link Struktur & Trust
+  // 5. Link Struktur & Trust (Verbesserte Logik mit URL-Klasse)
   const allLinkText = $('a').map((_, el) => $(el).text().toLowerCase()).get().join(' ');
   const hasImprint = /impressum|imprint|anbieterkennzeichnung/.test(allLinkText);
   const hasPrivacy = /datenschutz|privacy/.test(allLinkText);
   const hasContact = /kontakt|contact/.test(allLinkText);
 
   const internalLinks: LinkInfo[] = [];
+  const externalLinksSample: LinkInfo[] = [];
   let externalCount = 0;
-  let baseDomain = '';
-  try { baseDomain = new URL(baseUrl).hostname; } catch (e) {}
+  
+  // Hostname normalisieren (ohne www)
+  let currentHost = '';
+  try {
+    currentHost = new URL(baseUrl).hostname.replace(/^www\./, '');
+  } catch (e) {
+    // Fallback falls baseUrl invalide ist (sollte nicht passieren)
+    console.error('Base URL Invalid:', baseUrl);
+  }
 
   $('a').each((_, el) => {
-    const href = $(el).attr('href');
+    const rawHref = $(el).attr('href');
     const text = $(el).text().trim().replace(/\s+/g, ' ');
-    if (!href || href.startsWith('#') || href.startsWith('mailto:') || text.length < 2) return;
 
-    let isInternal = false;
-    if (href.startsWith('/') || href.includes(baseDomain)) isInternal = true;
+    // Filter für nutzlose Links
+    if (!rawHref || rawHref.startsWith('#') || rawHref.startsWith('mailto:') || rawHref.startsWith('tel:') || rawHref.startsWith('javascript:') || text.length < 2) return;
 
-    if (isInternal) {
-      if (!internalLinks.some(l => l.href === href)) internalLinks.push({ text, href, isInternal: true });
-    } else {
-      externalCount++;
+    try {
+      // URL Auflösung: Macht aus relativen Pfaden absolute URLs
+      const absoluteUrl = new URL(rawHref, baseUrl);
+      const linkHost = absoluteUrl.hostname.replace(/^www\./, '');
+      
+      const isInternal = linkHost === currentHost;
+
+      const linkObj = { text: text.substring(0, 60), href: absoluteUrl.href, isInternal };
+
+      if (isInternal) {
+        // Duplikate vermeiden
+        if (!internalLinks.some(l => l.href === absoluteUrl.href)) {
+          internalLinks.push(linkObj);
+        }
+      } else {
+        externalCount++;
+        // Sammle ein paar externe Links für die Analyse (E-E-A-T: zitiert er Quellen?)
+        if (externalLinksSample.length < 5 && !externalLinksSample.some(l => l.href === absoluteUrl.href)) {
+          externalLinksSample.push(linkObj);
+        }
+      }
+    } catch (e) {
+      // Ignoriere invalide URLs
     }
   });
 
@@ -135,11 +166,12 @@ function analyzeTech(html: string, $: cheerio.CheerioAPI, baseUrl: string): Tech
     pageSizeKb,
     hasSchema,
     imageAnalysis: { total: images.length, withAlt, modernFormats, score: imgScore },
-    trustSignals: { hasImprint, hasPrivacy, hasContact },
+    trustSignals: { hasImprint, hasPrivacy, hasContact, hasAuthor, hasDate },
     linkStructure: {
-      internal: internalLinks.slice(0, 15), // Limit für Prompt
+      internal: internalLinks.slice(0, 20), // Mehr Links für Analyse übergeben
       internalCount: internalLinks.length,
-      externalCount
+      externalCount,
+      externalLinksSample
     },
     codeQuality: {
       semanticScore,
@@ -211,34 +243,37 @@ export async function POST(req: NextRequest) {
     const compactStyles = getCompactStyleGuide();
 
     // ------------------------------------------------------------------
-    // PROMPT CONSTRUCTION - Die "Master" Version
+    // PROMPT CONSTRUCTION - Optimiert für E-E-A-T & Interne Links
     // ------------------------------------------------------------------
 
     const formatData = (data: any) => `
       TITEL: ${data.title} (Länge: ${data.title.length})
       H1: ${data.h1 || 'KEINE H1 GEFUNDEN'}
-      CMS: ${data.cmsData.cms} (${data.cmsData.isBuilder ? 'Baukasten' : 'Profi-Stack'})
+      CMS: ${data.cmsData.cms}
       
       TECH-FAKTEN:
-      - HTML-Größe: ${data.techStats.pageSizeKb} KB
-      - Semantik-Score: ${data.techStats.codeQuality.semanticScore}/100 (Tags: ${data.techStats.codeQuality.semanticTagsFound.join(',')})
+      - Semantik-Score: ${data.techStats.codeQuality.semanticScore}/100
       - Schema.org: ${data.techStats.hasSchema ? 'Ja' : 'Nein'}
-      - Bilder: ${data.techStats.imageAnalysis.modernFormats} modern / ${data.techStats.imageAnalysis.total} total
+      
+      E-E-A-T SIGNALE (Technisch):
+      - Autoren-Tag: ${data.techStats.trustSignals.hasAuthor ? 'Vorhanden' : 'Fehlt'}
+      - Datum: ${data.techStats.trustSignals.hasDate ? 'Vorhanden' : 'Fehlt'}
+      - Impressum/Kontakt Links im Text erkannt: ${data.techStats.trustSignals.hasImprint ? 'Ja' : 'Nein'}
       
       STRUKTUR:
-      - Interne Links: ${data.techStats.linkStructure.internalCount}
-      - Link-Beispiele: ${data.techStats.linkStructure.internal.map((l:any) => l.text).slice(0,3).join(', ')}
+      - Interne Links (Total): ${data.techStats.linkStructure.internalCount}
+      - Interne Link-Beispiele: ${data.techStats.linkStructure.internal.map((l:any) => l.text).slice(0,5).join(', ')}
+      - Externe Links (Total): ${data.techStats.linkStructure.externalCount}
+      - Externe Link-Beispiele (Quellen?): ${data.techStats.linkStructure.externalLinksSample.map((l:any) => l.text).join(', ')}
 
       CONTENT (Auszug):
-      ${data.content.substring(0, 2000)}...
+      ${data.content.substring(0, 2500)}...
     `;
 
     const basePrompt = `
-      Du bist ein Elite-SEO-Analyst und Senior Developer. Du analysierst Webseiten auf:
-      1. SEO & Content (Keywords, E-E-A-T, Schwachstellen)
-      2. Technische Qualität (Code-Sauberkeit, Ladezeit-Indikatoren, Semantik)
+      Du bist ein Senior SEO-Auditor mit Spezialisierung auf Google Quality Rater Guidelines (E-E-A-T).
       
-      ZIEL-KEYWORDS: ${keywords || 'Keine angegeben (Analysiere das Hauptthema)'}
+      ZIEL-KEYWORDS: ${keywords || 'Keine angegeben (Analysiere Hauptthema)'}
 
       DATEN ZIEL-SEITE:
       ${formatData(targetData)}
@@ -248,11 +283,13 @@ export async function POST(req: NextRequest) {
       ${basePrompt}
       
       AUFGABE:
-      Erstelle einen umfassenden Audit-Report. Sei kritisch aber konstruktiv.
+      Erstelle einen tiefgehenden Audit-Report als HTML.
+      Prüfe kritisch, ob interne Links (Siloing) und E-E-A-T (Trust) ausreichend sind.
 
-      FORMAT: NUR HTML. Style: ${compactStyles}
+      STYLE GUIDE: ${compactStyles}
       
-      STRUKTUR:
+      STRUKTUR & INHALT:
+      
       1. <div class="${STYLES.card}">
          <h3 class="${STYLES.h3}"><i class="bi bi-speedometer2"></i> Quick Check</h3>
          <div class="grid grid-cols-2 gap-4 text-sm">
@@ -262,50 +299,54 @@ export async function POST(req: NextRequest) {
            </div>
            <div>
              <strong>System:</strong><br>
-             ${targetData.cmsData.cms} ${targetData.cmsData.isBuilder ? '(Baukasten)' : '(Custom/Pro)'}
+             ${targetData.cmsData.cms}
            </div>
            <div>
-             <strong>Trust:</strong><br>
-             ${targetData.techStats.trustSignals.hasImprint ? '✅ Impressum' : '⚠️ Impressum prüfen'}
+             <strong>Verlinkung:</strong><br>
+             ${targetData.techStats.linkStructure.internalCount > 5 ? '✅ Gute Struktur' : '⚠️ Zu wenig interne Links'} (${targetData.techStats.linkStructure.internalCount} Links)
            </div>
            <div>
              <strong>Keywords:</strong><br>
-             ${keywords ? (targetData.content.toLowerCase().includes(keywords.split(' ')[0].toLowerCase()) ? '✅ Im Text gefunden' : '⚠️ Nicht im Top-Content') : '⚪ Auto-Detect'}
+             ${keywords ? (targetData.content.toLowerCase().includes(keywords.split(' ')[0].toLowerCase()) ? '✅ Gefunden' : '⚠️ Fehlt im Top-Bereich') : '⚪ Auto-Detect'}
            </div>
          </div>
       </div>
 
       2. <div class="${STYLES.card} mt-4">
-         <h3 class="${STYLES.h3}"><i class="bi bi-code-slash"></i> Code-Qualität & Technik</h3>
-         <p class="text-xs text-gray-500 mb-2">Wie sauber ist die technische Basis programmiert?</p>
-         <div class="grid grid-cols-2 gap-2 text-sm">
-            <div class="${targetData.techStats.codeQuality.semanticScore > 50 ? 'text-green-700' : 'text-red-600'}">
-              <strong>Semantik:</strong> ${targetData.techStats.codeQuality.semanticScore > 50 ? '✅ Modernes HTML5' : '❌ Veraltete Div-Suppe'}
+         <h3 class="${STYLES.h3}"><i class="bi bi-shield-check"></i> E-E-A-T & Trust Analyse</h3>
+         <p class="text-xs text-gray-500 mb-3">Bewertung nach Google Quality Rater Guidelines (Experience, Expertise, Authoritativeness, Trust).</p>
+         
+         <div class="space-y-3 text-sm">
+            <div class="p-2 bg-slate-50 rounded border border-slate-100">
+                <strong><i class="bi bi-person-badge"></i> Expertise & Autor (E-E):</strong>
+                <br>
+                ${targetData.techStats.trustSignals.hasAuthor ? '✅ Technisches Autoren-Tag gefunden.' : '⚠️ Kein Autoren-Meta-Tag.'}
+                Gibt es klare Autoren-Boxen oder "Über uns" Referenzen im Text? Wirkt der Inhalt von einem echten Experten geschrieben?
+                <br>
+                <em>Urteil: [Dein kritisches Urteil hier]</em>
             </div>
-            <div>
-              <strong>HTML-Größe:</strong> ${targetData.techStats.pageSizeKb} KB ${targetData.techStats.pageSizeKb > 100 ? '(⚠️ schwer)' : '(✅ leicht)'}
-            </div>
-            <div>
-               <strong>Bilder:</strong> ${targetData.techStats.imageAnalysis.modernFormats > 0 ? '✅ WebP/AVIF' : '⚠️ Alte Formate'}
-            </div>
-            <div>
-               <strong>Schema:</strong> ${targetData.techStats.hasSchema ? '✅ Vorhanden' : '❌ Fehlt'}
+            
+            <div class="p-2 bg-slate-50 rounded border border-slate-100">
+                <strong><i class="bi bi-patch-check"></i> Autorität & Trust (A-T):</strong>
+                <br>
+                Sind Impressum/Datenschutz/Kontakt leicht findbar?
+                Werden externe Quellen zitiert (Outbound Links: ${targetData.techStats.linkStructure.externalCount})?
             </div>
          </div>
       </div>
 
       3. <div class="${STYLES.card} mt-4">
-         <h3 class="${STYLES.h3}"><i class="bi bi-file-text"></i> Content & SEO Analyse</h3>
+         <h3 class="${STYLES.h3}"><i class="bi bi-file-text"></i> Content & Siloing</h3>
          <ul class="${STYLES.list}">
-           <li><strong>E-E-A-T Eindruck:</strong> Wirkt der Text expertig oder generisch? [Kurze Einschätzung]</li>
-           <li><strong>Struktur:</strong> Interne Links gefunden: ${targetData.techStats.linkStructure.internalCount}. [Bewertung: Ist das genug für SEO?]</li>
-           <li><strong>Schwachstellen:</strong> Nenne 2 konkrete Content-Fehler (z.B. Thin Content, keine Call-to-Action).</li>
+           <li><strong>Inhaltstiefe:</strong> Deckt der Text das Thema umfassend ab?</li>
+           <li><strong>Interne Verlinkung:</strong> Es wurden ${targetData.techStats.linkStructure.internalCount} interne Links im Content-Bereich gefunden. Bewertung: Reicht das für eine gute SEO-Struktur?</li>
+           <li><strong>Conversion:</strong> Gibt es klare Call-to-Actions?</li>
          </ul>
       </div>
 
       4. <div class="${STYLES.card} mt-4">
          <h3 class="${STYLES.h3}"><i class="bi bi-lightbulb"></i> Maßnahmen-Plan</h3>
-         3 Prioritäten (Mix aus Technik-Fixes und Content-Optimierung).
+         3 konkrete Schritte zur Verbesserung von E-E-A-T und Rankings.
       </div>
       
       Antworte NUR mit HTML.
@@ -318,7 +359,7 @@ export async function POST(req: NextRequest) {
       ${competitorData ? formatData(competitorData) : 'Keine Daten'}
       
       AUFGABE:
-      Warum rankt der Wettbewerber vielleicht besser? Vergleiche Technik UND Content.
+      Führe einen direkten Vergleich durch. Warum rankt der Wettbewerber ggf. besser? Fokus auf E-E-A-T und Content-Tiefe.
 
       FORMAT: NUR HTML. Style: ${compactStyles}
 
@@ -328,33 +369,41 @@ export async function POST(req: NextRequest) {
              <h4 class="${STYLES.h4}">Meine Seite</h4>
              <div class="text-sm">
                <div>System: ${targetData.cmsData.cms}</div>
-               <div>Code: ${targetData.techStats.codeQuality.semanticScore > 50 ? '✅ Semantisch' : '❌ Div-Suppe'}</div>
-               <div>Links: ${targetData.techStats.linkStructure.internalCount}</div>
+               <div>Interne Links: ${targetData.techStats.linkStructure.internalCount}</div>
+               <div>E-E-A-T Tech: ${targetData.techStats.trustSignals.hasAuthor ? '✅ Autor-Tag' : '❌ Kein Autor-Tag'}</div>
              </div>
            </div>
            <div class="${STYLES.card} bg-indigo-50 border-indigo-100">
              <h4 class="${STYLES.h4}">Wettbewerber</h4>
              <div class="text-sm">
                <div>System: ${competitorData?.cmsData.cms}</div>
-               <div>Code: ${competitorData?.techStats.codeQuality.semanticScore! > 50 ? '✅ Semantisch' : '❌ Div-Suppe'}</div>
-               <div>Links: ${competitorData?.techStats.linkStructure.internalCount}</div>
+               <div>Interne Links: ${competitorData?.techStats.linkStructure.internalCount}</div>
+               <div>E-E-A-T Tech: ${competitorData?.techStats.trustSignals.hasAuthor ? '✅ Autor-Tag' : '❌ Kein Autor-Tag'}</div>
              </div>
            </div>
          </div>
 
       2. <div class="${STYLES.card}">
-           <h3 class="${STYLES.h3}"><i class="bi bi-trophy"></i> Der entscheidende Unterschied</h3>
-           <p>Analysiere die Lücke (Gap Analysis):</p>
-           <ul class="${STYLES.list} mt-2">
-             <li><strong>Technik-Gap:</strong> Wer hat die schnellere/sauberere Basis? (Vergleich HTML-Größe & Semantik)</li>
-             <li><strong>Content-Gap:</strong> Wer deckt das Thema "${keywords}" besser ab?</li>
-             <li><strong>Struktur:</strong> Hat der Gegner mehr Unterseiten/Links?</li>
+           <h3 class="${STYLES.h3}"><i class="bi bi-trophy"></i> E-E-A-T Battle</h3>
+           <p class="mb-2 text-sm text-gray-600">Wer wirkt vertrauenswürdiger?</p>
+           <ul class="${STYLES.list}">
+             <li><strong>Expertise-Eindruck:</strong> Wirkt der Text des Wettbewerbers professioneller/tiefgehender?</li>
+             <li><strong>Trust-Signale:</strong> Hat der Wettbewerber mehr/bessere Quellenangaben oder Autoren-Informationen?</li>
+             <li><strong>Aktualität:</strong> Wirken die Inhalte frischer?</li>
            </ul>
       </div>
 
       3. <div class="${STYLES.card} mt-4">
+           <h3 class="${STYLES.h3}"><i class="bi bi-diagram-3"></i> Struktur & Technik Gap</h3>
+           <div class="text-sm">
+             <p><strong>Verlinkung:</strong> Meine Seite (${targetData.techStats.linkStructure.internalCount}) vs. Wettbewerber (${competitorData?.techStats.linkStructure.internalCount}).</p>
+             <p><strong>Analyse:</strong> Nutzt der Wettbewerber interne Links aggressiver für SEO-Siloing?</p>
+           </div>
+      </div>
+
+      4. <div class="${STYLES.card} mt-4">
            <h3 class="${STYLES.h3}"><i class="bi bi-rocket-takeoff"></i> Attacke-Plan</h3>
-           Wie schlagen wir ihn? 3 aggressive Schritte (Technik verbessern oder Content erweitern).
+           Wie schlagen wir ihn? 3 aggressive Schritte (z.B. Autoren-Profile ergänzen, Content vertiefen, interne Links ausbauen).
       </div>
 
       Antworte NUR mit HTML.
