@@ -3,7 +3,7 @@
 import { streamTextSafe } from '@/lib/ai-config';
 import * as cheerio from 'cheerio';
 import { NextRequest, NextResponse } from 'next/server';
-import { STYLES, getCompactStyleGuide } from '@/lib/ai-styles';
+import { getCompactStyleGuide } from '@/lib/ai-styles';
 import { URL } from 'url';
 
 export const runtime = 'nodejs';
@@ -364,14 +364,6 @@ function countSentences(text: string): number {
   const cleaned = cleanText(text);
   if (!cleaned) return 0;
   return cleaned.split(/[.!?]+/).filter(s => s.trim().length > 5).length;
-}
-
-function extractDomain(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, '');
-  } catch {
-    return '';
-  }
 }
 
 function identifySocialPlatform(url: string): string | null {
@@ -844,6 +836,7 @@ function extractLinks($: cheerio.CheerioAPI, baseUrl: string): ExtractedFacts['l
     socialLinks: socialLinks.slice(0, 10),
     emptyLinks,
     javascriptLinks,
+    
   };
 }
 
@@ -1563,236 +1556,86 @@ ${f.content.samples.aboutContent ? `ÜBER-BEREICH:
 "${f.content.samples.aboutContent}"` : ''}
 
 ${f.content.blockquoteTexts.length > 0 ? `ZITATE/BLOCKQUOTES:
-${f.content.blockquoteTexts.map(q => `"${q}"`).join('\n')}` : ''}
+"${f.content.blockquoteTexts.map(q => cleanText(q)).join('", "')}"` : ''}
 `;
 }
 
 // ============================================================================
-// KI BEWERTUNGS-PROMPT
+// KI BEWERTUNGS-PROMPT (OPTIMIERTES LAYOUT)
 // ============================================================================
 
 function buildEvaluationPrompt(facts: ExtractedFacts, compactStyles: string): string {
   const factsText = buildFactsForPrompt(facts);
   
   return `
-Du bist ein erfahrener SEO-Auditor, E-E-A-T-Experte und GEO-Spezialist (Generative Engine Optimization).
+Du bist ein erfahrener SEO-Auditor, E-E-A-T-Experte und GEO-Spezialist.
 
 DEINE AUFGABE:
-Bewerte die Webseite basierend auf den extrahierten FAKTEN. Die Fakten wurden durch Code-Analyse ermittelt und sind 100% korrekt. Deine Aufgabe ist die QUALITATIVE BEWERTUNG.
+Bewerte die Webseite basierend auf den extrahierten FAKTEN.
+Erstelle einen HTML-Report mit MODERNEM, SAUBEREM LAYOUT.
 
 ${factsText}
 
 ════════════════════════════════════════════════════════════════════════════════
-BEWERTUNGSAUFTRAG
+LAYOUT & DESIGN ANWEISUNGEN (STRIKT BEFOLGEN)
 ════════════════════════════════════════════════════════════════════════════════
 
-Erstelle einen professionellen Audit-Report mit folgenden Bewertungen:
+1. KEINE JAHRESZAHL im Titel. Nutze nur "SEO & GEO AUDIT REPORT".
+2. PADDING: Jede Card, jede Section und jeder Container MUSS mindestens 24px Padding haben (padding: 1.5rem). Der Text darf NICHT am Rand kleben.
+3. WHITESPACE: Nutze "gap" und "margin-bottom", um Inhalte atmen zu lassen.
+4. SCHRIFT: Nutze eine saubere Sans-Serif Schriftart.
+5. FARBEN: Nutze dezente Hintergründe für Sections, keine harten Kontraste.
 
-1. E-E-A-T BEWERTUNG (jeweils 0-100 Score + Begründung)
+════════════════════════════════════════════════════════════════════════════════
+STRUKTUR DES REPORTS (GENAU DIESE REIHENFOLGE)
+════════════════════════════════════════════════════════════════════════════════
 
-   EXPERIENCE (Erfahrung):
-   - Zeigt der Content echte, praktische Erfahrung?
-   - Gibt es First-Person Narrative ("Ich habe...", "In meiner Arbeit...")?
-   - Werden eigene Projekte/Tools/Arbeiten präsentiert?
-   - Gibt es Fallbeispiele oder Problem-Lösung-Strukturen?
-   
-   EXPERTISE (Fachwissen):
-   - Wird Fachwissen demonstriert (Fachbegriffe, tiefe Erklärungen)?
-   - Gibt es eine klare Methodik/Arbeitsweise?
-   - Werden technische Konzepte korrekt erklärt?
-   - Sind Credentials/Qualifikationen erkennbar?
-   
-   AUTHORITATIVENESS (Autorität):
-   - Ist die Person/Marke verifizierbar (sameAs Links)?
-   - Gibt es Schema-Markup für die Entität?
-   - Gibt es externe Validierung (Zitate, Erwähnungen)?
-   - Sind Social Profile verknüpft?
-   
-   TRUSTWORTHINESS (Vertrauen):
-   - Sind rechtliche Seiten vorhanden (Impressum, Datenschutz)?
-   - Gibt es Kontaktmöglichkeiten?
-   - Ist die Identität transparent?
-   - Gibt es Trust-Signale?
+1. EXECUTIVE SUMMARY (Kurz & Prägnant)
+   - Gesamteindruck (2 Sätze)
+   - Top 3 Stärken
+   - Top 3 Schwächen
 
-2. CONTENT-QUALITÄT BEWERTUNG (0-100 Score + Begründung)
+2. TECHNISCHES SEO (PRIORITÄT #1) - Detaillierte Analyse
+   Bewerte den technischen Zustand. Nutze KEINE Zahlen-Scores, sondern Labels:
+   [Exzellent | Gut | Ausbaufähig | Kritisch]
    
-   - Storytelling & Narrative: Ist der Content fesselnd? Gibt es einen roten Faden?
-   - Persönlichkeit & Ton: Ist der Text persönlich oder generisch?
-   - Struktur & Lesbarkeit: Ist der Content gut gegliedert?
-   - Unique Value: Bietet der Content einzigartigen Mehrwert?
-   - Problem-Lösung: Werden Probleme angesprochen und gelöst?
+   A) META & INDEXIERUNG (Title, Desc, Canonical, Robots, Hreflang)
+   B) STRUKTURIERTE DATEN (Schema.org Vollständigkeit)
+   C) HTML & SEMANTIK (H1-H6 Hierarchie, Semantische Tags)
+   D) PERFORMANCE (Core Web Vitals Indikatoren, Scripts, TTFB)
+   E) BILDER (Alt-Texte, Formate)
+   F) LINKS (Interne/Externe Verlinkung, Status Codes)
+   G) TRUST & SICHERHEIT (HTTPS, Rechtliche Seiten)
 
-3. GEO-READINESS BEWERTUNG (0-100 Score + Begründung)
-   
-   - Entitäts-Klarheit: Kann ein LLM die Entität (Person/Firma) klar identifizieren?
-   - Zitierbarkeit: Gibt es klare Fakten, Definitionen, Listen die zitiert werden können?
-   - FAQ-Struktur: Sind Fragen und Antworten vorhanden?
-   - Direkte Antworten: Gibt es klare Statements die ein LLM extrahieren kann?
+3. E-E-A-T QUALITÄT
+   Bewerte Experience, Expertise, Authoritativeness, Trustworthiness.
+   Verwende qualitative Einschätzungen statt Zahlen.
 
-4. TECHNISCHES SEO BEWERTUNG (mit Detail-Scores)
-
-   Erstelle eine vollständige technische SEO-Analyse mit folgenden Kategorien:
-
-   A) META & INDEXIERUNG (0-100 Score + Details)
-      - Title Tag: Vorhanden? Länge optimal (50-60 Zeichen)?
-      - Meta Description: Vorhanden? Länge optimal (150-160 Zeichen)?
-      - Canonical Tag: Vorhanden? Self-referencing?
-      - Robots Meta: Indexierbar?
-      - Hreflang: Vorhanden bei Mehrsprachigkeit?
-      - Viewport: Mobile-optimiert?
-      - Charset: UTF-8 deklariert?
-      - Author Meta: Vorhanden?
-   
-   B) STRUKTURIERTE DATEN / SCHEMA.ORG (0-100 Score + Details)
-      - Schema vorhanden: Ja/Nein
-      - Schema-Typen: Welche sind implementiert?
-      - Person Schema: Vollständigkeit prüfen (name, jobTitle, sameAs, knowsAbout, image, address)
-      - Organization Schema: Vorhanden? Vollständig?
-      - FAQ Schema: Vorhanden? Anzahl Fragen?
-      - Article Schema: Vorhanden? Mit Datum?
-      - WebSite Schema: Vorhanden?
-      - Breadcrumb Schema: Vorhanden?
-      - Fehlende empfohlene Schemas auflisten
-   
-   C) HTML STRUKTUR & SEMANTIK (0-100 Score + Details)
-      - H1: Genau eine H1? Text sinnvoll?
-      - Heading-Hierarchie: H1 → H2 → H3 korrekt?
-      - Semantische Tags: header, nav, main, article, section, aside, footer
-      - Semantik-Score bewerten
-      - Listen-Nutzung: ul/ol für Aufzählungen?
-      - Details/Summary: Für FAQ/Akkordeon?
-      - Tabellen: Mit Headers?
-   
-   D) PERFORMANCE (0-100 Score + Details)
-      - TTFB: Zeit + Bewertung (< 200ms = Exzellent, < 400ms = Gut, > 800ms = Schlecht)
-      - HTML Größe: In KB
-      - Render-Blocking Scripts: Anzahl + Empfehlung
-      - Async/Defer Scripts: Werden sie genutzt?
-      - Module Scripts: Modern?
-      - Preload/Preconnect: Werden Resource Hints genutzt?
-      - Inline vs. External Styles: Verhältnis
-      - Konkrete Optimierungsempfehlungen für Scripts
-   
-   E) BILDER (0-100 Score + Details)
-      - Gesamt-Anzahl
-      - Alt-Text Quote: X von Y haben Alt-Text
-      - Leere Alt-Texte: Anzahl (für dekorative Bilder OK)
-      - Moderne Formate: WebP/AVIF Nutzung?
-      - Lazy Loading: Implementiert?
-      - Bild-Score berechnen
-      - Fehlende Alt-Texte als Problem benennen
-   
-   F) LINK-STRUKTUR (0-100 Score + Details)
-      - Interne Links: Anzahl + Bewertung (zu wenig/gut/zu viele)
-      - Externe Links: Anzahl + Domains
-      - Nofollow Links: Anzahl
-      - Anchor Links: Für Navigation?
-      - Social Links: Welche Plattformen?
-      - Broken Link Kandidaten: Leere/JavaScript Links
-      - Interne Verlinkungsstrategie bewerten
-   
-   G) OPEN GRAPH & SOCIAL (0-100 Score + Details)
-      - OG Title: Vorhanden?
-      - OG Description: Vorhanden?
-      - OG Image: Vorhanden? (KRITISCH für Social Sharing!)
-      - OG Type: Vorhanden?
-      - Twitter Card: Vorhanden? Welcher Typ?
-      - Vollständigkeit in Prozent
-      - Fehlende Tags auflisten
-   
-   H) TRUST & RECHTLICHES (0-100 Score + Details)
-      - Impressum Link: Im statischen HTML gefunden?
-      - Datenschutz Link: Im statischen HTML gefunden?
-      - Kontakt Link: Vorhanden?
-      - Über uns Link: Vorhanden?
-      - AGB Link: Vorhanden?
-      - E-Mail im Content: Gefunden?
-      - Telefon im Content: Gefunden?
-      - Physische Adresse: Erkannt?
-      - HTTPS: Ja/Nein
-      - Bei dynamischem Footer: Warnung ausgeben aber nicht zu hart bestrafen
-   
-   I) TECHNOLOGIE & CMS (Info-Sektion)
-      - Erkanntes CMS
-      - Page Builder: Ja/Nein (Warnung wenn Ja)
-      - Frameworks
-      - Libraries
-      - PWA-Features: Service Worker, Manifest
-
-   TECHNISCHES SEO GESAMT-SCORE: Gewichteter Durchschnitt aller Kategorien
+4. CONTENT & GEO-READINESS
+   - Wie gut ist der Content für KI/LLMs lesbar?
+   - Struktur, Listen, direkte Antworten?
 
 5. PRIORISIERTER MASSNAHMENPLAN
-   
-   Erstelle einen konkreten, umsetzbaren Maßnahmenplan:
+   - 🔴 KRITISCH (Sofort handeln)
+   - 🟡 WICHTIG (Zeitnah umsetzen)
+   - 🟢 OPTIMIERUNG (Perspektivisch)
 
-   🔴 KRITISCH (sofort umsetzen - blockiert Rankings/Trust):
-   - Was fehlt und ist absolut essentiell?
-   - Rechtliche Probleme?
-   - Schwere technische Fehler?
-   - Für jede Maßnahme: WAS genau tun + WARUM wichtig
-   
-   🟡 WICHTIG (innerhalb 2 Wochen - signifikanter Impact):
-   - Was würde SEO/GEO signifikant verbessern?
-   - Schema-Erweiterungen?
-   - Performance-Optimierungen?
-   - Content-Ergänzungen?
-   - Für jede Maßnahme: WAS genau tun + erwarteter IMPACT
-   
-   🟢 NICE-TO-HAVE (bei Gelegenheit - Feintuning):
-   - Optimierungen für Perfektion
-   - Zusätzliche Schema-Typen
-   - UX-Verbesserungen
-   - Für jede Maßnahme: WAS genau tun
-
-6. EXECUTIVE SUMMARY / FAZIT
-   
-   - Gesamteindruck in 2-3 Sätzen
-   - Stärken der Seite (Top 3)
-   - Schwächen der Seite (Top 3)
-   - Priorität #1 für sofortige Umsetzung
-   - Prognose: Was passiert wenn Empfehlungen umgesetzt werden?
-
-WICHTIGE REGELN FÜR DIE BEWERTUNG:
-
-ALLGEMEIN:
-- Sei STRENG aber GERECHT - bewerte was DA IST, nicht was fehlen könnte
-- Jeder Score muss begründet werden mit konkreten Fakten aus den extrahierten Daten
-- Nutze die exakten Zahlen und Daten aus der Extraktion
-
-E-E-A-T SPEZIFISCH:
-- Wenn die FAQs eine klare Problem-Lösung-Struktur haben, erkenne das als Experience an
-- Wenn technische Methodik erklärt wird (RAG, Vektordatenbank, API, Serverless), zählt das als Expertise
-- Wenn eigene Tools/Projekte präsentiert werden (DataPeak, Silas, etc.), zählt das als Experience & Portfolio
-- sameAs Links zu GitHub/LinkedIn SIND Autoritäts-Signale - erkenne sie an!
-- knowsAbout im Schema zeigt Expertise-Bereiche
-
-TRUST SPEZIFISCH:
-- Beachte die Warnung zu dynamisch geladenen Inhalten (Footer/Header Placeholder)
-- Wenn Footer dynamisch ist, können Impressum/Datenschutz trotzdem vorhanden sein
-- Bewerte Trust nicht zu hart wenn dynamische Inhalte erkannt wurden, aber weise auf das Crawler-Problem hin
-
-TECHNISCHES SEO SPEZIFISCH:
-- Render-blocking Scripts sind ein echtes Problem - benenne sie konkret
-- Fehlende OG:Image ist kritisch für Social Sharing
-- Schema-Vollständigkeit prüfen: Hat Person-Schema alle empfohlenen Felder?
-- Semantik-Score über 80 ist gut, unter 60 ist problematisch
-
-CONTENT SPEZIFISCH:
-- Verwende die CONTENT SAMPLES um Tonalität und Persönlichkeit zu bewerten
-- Details/Summary Elemente SIND FAQ-artige Strukturen - erkenne sie an
-- Geringe Wortanzahl ist OK wenn Informationsdichte hoch ist
+WICHTIGE INHALTLICHE REGELN:
+- Sei streng aber fair.
+- Benenne technische Fehler konkret (z.B. "Render-Blocking Scripts", "Fehlende H1").
+- Wenn Schema fehlt, erkläre warum es wichtig ist.
+- Nutze die Fakten aus dem Input (z.B. TTFB: ${facts.performance.ttfbMs}ms).
 
 OUTPUT FORMAT:
-- Antworte NUR mit HTML
-- Verwende saubere HTML-Struktur mit Sections
-- Nutze Tabellen für Score-Übersichten
-- Nutze Listen für Maßnahmen
-- Keine Markdown-Syntax außerhalb von HTML
-- Keine Einleitung oder Erklärung vor dem HTML
+- Antworte NUR mit HTML.
+- Füge dem HTML ein <style> Block hinzu, der das Layout regelt:
+  - .card { padding: 24px; border-radius: 8px; border: 1px solid #e5e7eb; margin-bottom: 24px; }
+  - .section-title { margin-bottom: 16px; font-weight: bold; }
+  - body { font-family: system-ui, -apple-system, sans-serif; line-height: 1.6; }
+- Keine Markdown-Syntax.
+- Keine Einleitung.
 
-STYLE GUIDE: ${compactStyles}
-
-Antworte NUR mit HTML. Keine Einleitung, kein Markdown außerhalb von HTML.
+STYLE GUIDE BASIS: ${compactStyles}
 `;
 }
 
