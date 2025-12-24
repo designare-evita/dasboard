@@ -1629,27 +1629,166 @@ Erstelle einen professionellen Audit-Report mit folgenden Bewertungen:
    - FAQ-Struktur: Sind Fragen und Antworten vorhanden?
    - Direkte Antworten: Gibt es klare Statements die ein LLM extrahieren kann?
 
-4. TECHNISCHES SEO (0-100 Score)
-   - Basierend auf den harten Fakten (Schema, Struktur, Performance, etc.)
+4. TECHNISCHES SEO BEWERTUNG (mit Detail-Scores)
+
+   Erstelle eine vollständige technische SEO-Analyse mit folgenden Kategorien:
+
+   A) META & INDEXIERUNG (0-100 Score + Details)
+      - Title Tag: Vorhanden? Länge optimal (50-60 Zeichen)?
+      - Meta Description: Vorhanden? Länge optimal (150-160 Zeichen)?
+      - Canonical Tag: Vorhanden? Self-referencing?
+      - Robots Meta: Indexierbar?
+      - Hreflang: Vorhanden bei Mehrsprachigkeit?
+      - Viewport: Mobile-optimiert?
+      - Charset: UTF-8 deklariert?
+      - Author Meta: Vorhanden?
+   
+   B) STRUKTURIERTE DATEN / SCHEMA.ORG (0-100 Score + Details)
+      - Schema vorhanden: Ja/Nein
+      - Schema-Typen: Welche sind implementiert?
+      - Person Schema: Vollständigkeit prüfen (name, jobTitle, sameAs, knowsAbout, image, address)
+      - Organization Schema: Vorhanden? Vollständig?
+      - FAQ Schema: Vorhanden? Anzahl Fragen?
+      - Article Schema: Vorhanden? Mit Datum?
+      - WebSite Schema: Vorhanden?
+      - Breadcrumb Schema: Vorhanden?
+      - Fehlende empfohlene Schemas auflisten
+   
+   C) HTML STRUKTUR & SEMANTIK (0-100 Score + Details)
+      - H1: Genau eine H1? Text sinnvoll?
+      - Heading-Hierarchie: H1 → H2 → H3 korrekt?
+      - Semantische Tags: header, nav, main, article, section, aside, footer
+      - Semantik-Score bewerten
+      - Listen-Nutzung: ul/ol für Aufzählungen?
+      - Details/Summary: Für FAQ/Akkordeon?
+      - Tabellen: Mit Headers?
+   
+   D) PERFORMANCE (0-100 Score + Details)
+      - TTFB: Zeit + Bewertung (< 200ms = Exzellent, < 400ms = Gut, > 800ms = Schlecht)
+      - HTML Größe: In KB
+      - Render-Blocking Scripts: Anzahl + Empfehlung
+      - Async/Defer Scripts: Werden sie genutzt?
+      - Module Scripts: Modern?
+      - Preload/Preconnect: Werden Resource Hints genutzt?
+      - Inline vs. External Styles: Verhältnis
+      - Konkrete Optimierungsempfehlungen für Scripts
+   
+   E) BILDER (0-100 Score + Details)
+      - Gesamt-Anzahl
+      - Alt-Text Quote: X von Y haben Alt-Text
+      - Leere Alt-Texte: Anzahl (für dekorative Bilder OK)
+      - Moderne Formate: WebP/AVIF Nutzung?
+      - Lazy Loading: Implementiert?
+      - Bild-Score berechnen
+      - Fehlende Alt-Texte als Problem benennen
+   
+   F) LINK-STRUKTUR (0-100 Score + Details)
+      - Interne Links: Anzahl + Bewertung (zu wenig/gut/zu viele)
+      - Externe Links: Anzahl + Domains
+      - Nofollow Links: Anzahl
+      - Anchor Links: Für Navigation?
+      - Social Links: Welche Plattformen?
+      - Broken Link Kandidaten: Leere/JavaScript Links
+      - Interne Verlinkungsstrategie bewerten
+   
+   G) OPEN GRAPH & SOCIAL (0-100 Score + Details)
+      - OG Title: Vorhanden?
+      - OG Description: Vorhanden?
+      - OG Image: Vorhanden? (KRITISCH für Social Sharing!)
+      - OG Type: Vorhanden?
+      - Twitter Card: Vorhanden? Welcher Typ?
+      - Vollständigkeit in Prozent
+      - Fehlende Tags auflisten
+   
+   H) TRUST & RECHTLICHES (0-100 Score + Details)
+      - Impressum Link: Im statischen HTML gefunden?
+      - Datenschutz Link: Im statischen HTML gefunden?
+      - Kontakt Link: Vorhanden?
+      - Über uns Link: Vorhanden?
+      - AGB Link: Vorhanden?
+      - E-Mail im Content: Gefunden?
+      - Telefon im Content: Gefunden?
+      - Physische Adresse: Erkannt?
+      - HTTPS: Ja/Nein
+      - Bei dynamischem Footer: Warnung ausgeben aber nicht zu hart bestrafen
+   
+   I) TECHNOLOGIE & CMS (Info-Sektion)
+      - Erkanntes CMS
+      - Page Builder: Ja/Nein (Warnung wenn Ja)
+      - Frameworks
+      - Libraries
+      - PWA-Features: Service Worker, Manifest
+
+   TECHNISCHES SEO GESAMT-SCORE: Gewichteter Durchschnitt aller Kategorien
 
 5. PRIORISIERTER MASSNAHMENPLAN
    
-   🔴 KRITISCH (sofort umsetzen):
-   - Was fehlt und ist essentiell?
-   
-   🟡 WICHTIG (zeitnah umsetzen):
-   - Was würde signifikant verbessern?
-   
-   🟢 NICE-TO-HAVE (bei Gelegenheit):
-   - Optimierungen für Perfektion
+   Erstelle einen konkreten, umsetzbaren Maßnahmenplan:
 
-WICHTIGE REGELN:
+   🔴 KRITISCH (sofort umsetzen - blockiert Rankings/Trust):
+   - Was fehlt und ist absolut essentiell?
+   - Rechtliche Probleme?
+   - Schwere technische Fehler?
+   - Für jede Maßnahme: WAS genau tun + WARUM wichtig
+   
+   🟡 WICHTIG (innerhalb 2 Wochen - signifikanter Impact):
+   - Was würde SEO/GEO signifikant verbessern?
+   - Schema-Erweiterungen?
+   - Performance-Optimierungen?
+   - Content-Ergänzungen?
+   - Für jede Maßnahme: WAS genau tun + erwarteter IMPACT
+   
+   🟢 NICE-TO-HAVE (bei Gelegenheit - Feintuning):
+   - Optimierungen für Perfektion
+   - Zusätzliche Schema-Typen
+   - UX-Verbesserungen
+   - Für jede Maßnahme: WAS genau tun
+
+6. EXECUTIVE SUMMARY / FAZIT
+   
+   - Gesamteindruck in 2-3 Sätzen
+   - Stärken der Seite (Top 3)
+   - Schwächen der Seite (Top 3)
+   - Priorität #1 für sofortige Umsetzung
+   - Prognose: Was passiert wenn Empfehlungen umgesetzt werden?
+
+WICHTIGE REGELN FÜR DIE BEWERTUNG:
+
+ALLGEMEIN:
 - Sei STRENG aber GERECHT - bewerte was DA IST, nicht was fehlen könnte
-- Wenn die FAQs eine klare Problem-Lösung-Struktur haben, erkenne das an
-- Wenn technische Methodik erklärt wird (RAG, Vektordatenbank, API), zählt das als Expertise
-- Wenn eigene Tools/Projekte präsentiert werden, zählt das als Experience & Portfolio
-- Beachte die Warnung zu dynamisch geladenen Inhalten bei Trust-Signalen
-- Verwende die CONTENT SAMPLES um Tonalität und Qualität zu bewerten
+- Jeder Score muss begründet werden mit konkreten Fakten aus den extrahierten Daten
+- Nutze die exakten Zahlen und Daten aus der Extraktion
+
+E-E-A-T SPEZIFISCH:
+- Wenn die FAQs eine klare Problem-Lösung-Struktur haben, erkenne das als Experience an
+- Wenn technische Methodik erklärt wird (RAG, Vektordatenbank, API, Serverless), zählt das als Expertise
+- Wenn eigene Tools/Projekte präsentiert werden (DataPeak, Silas, etc.), zählt das als Experience & Portfolio
+- sameAs Links zu GitHub/LinkedIn SIND Autoritäts-Signale - erkenne sie an!
+- knowsAbout im Schema zeigt Expertise-Bereiche
+
+TRUST SPEZIFISCH:
+- Beachte die Warnung zu dynamisch geladenen Inhalten (Footer/Header Placeholder)
+- Wenn Footer dynamisch ist, können Impressum/Datenschutz trotzdem vorhanden sein
+- Bewerte Trust nicht zu hart wenn dynamische Inhalte erkannt wurden, aber weise auf das Crawler-Problem hin
+
+TECHNISCHES SEO SPEZIFISCH:
+- Render-blocking Scripts sind ein echtes Problem - benenne sie konkret
+- Fehlende OG:Image ist kritisch für Social Sharing
+- Schema-Vollständigkeit prüfen: Hat Person-Schema alle empfohlenen Felder?
+- Semantik-Score über 80 ist gut, unter 60 ist problematisch
+
+CONTENT SPEZIFISCH:
+- Verwende die CONTENT SAMPLES um Tonalität und Persönlichkeit zu bewerten
+- Details/Summary Elemente SIND FAQ-artige Strukturen - erkenne sie an
+- Geringe Wortanzahl ist OK wenn Informationsdichte hoch ist
+
+OUTPUT FORMAT:
+- Antworte NUR mit HTML
+- Verwende saubere HTML-Struktur mit Sections
+- Nutze Tabellen für Score-Übersichten
+- Nutze Listen für Maßnahmen
+- Keine Markdown-Syntax außerhalb von HTML
+- Keine Einleitung oder Erklärung vor dem HTML
 
 STYLE GUIDE: ${compactStyles}
 
