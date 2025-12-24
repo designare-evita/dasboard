@@ -1561,7 +1561,7 @@ ${f.content.blockquoteTexts.length > 0 ? `ZITATE/BLOCKQUOTES:
 }
 
 // ============================================================================
-// KI BEWERTUNGS-PROMPT (OPTIMIERTES LAYOUT)
+// KI BEWERTUNGS-PROMPT (OPTIMIERT + TECH + STORYTELLING)
 // ============================================================================
 
 function buildEvaluationPrompt(facts: ExtractedFacts, compactStyles: string): string {
@@ -1590,8 +1590,10 @@ LAYOUT & DESIGN ANWEISUNGEN (STRIKT BEFOLGEN)
 STRUKTUR DES REPORTS (GENAU DIESE REIHENFOLGE)
 ════════════════════════════════════════════════════════════════════════════════
 
-1. EXECUTIVE SUMMARY (Kurz & Prägnant)
+1. EXECUTIVE SUMMARY & TECH-CHECK
    - Gesamteindruck (2 Sätze)
+   - TECH STACK CHECK: Beantworte explizit die Frage: "Wurde die Seite selbst gecodet oder mit einem Baukasten (Wix, Jimdo) bzw. CMS (WordPress) erstellt?"
+     (Nutze die Fakten unter "TECHNOLOGIE" für diese Aussage. Wenn ${facts.technology.detectedCms} != 'Nicht erkannt', dann ist es ein CMS. Wenn Frameworks wie Next.js gefunden wurden, ist es Custom Code.)
    - Top 3 Stärken
    - Top 3 Schwächen
 
@@ -1607,24 +1609,34 @@ STRUKTUR DES REPORTS (GENAU DIESE REIHENFOLGE)
    F) LINKS (Interne/Externe Verlinkung, Status Codes)
    G) TRUST & SICHERHEIT (HTTPS, Rechtliche Seiten)
 
-3. E-E-A-T QUALITÄT
-   Bewerte Experience, Expertise, Authoritativeness, Trustworthiness.
-   Verwende qualitative Einschätzungen statt Zahlen.
+3. STORYTELLING & CONTENT-FLOW (VOM TITLE ABWÄRTS)
+   Analysiere den Inhalt strikt "von oben nach unten":
+   
+   A) TITLE-TAG vs. INHALT:
+      - Verspricht der Title etwas, das die H1 und der Content nicht halten?
+      - Gibt es einen Bruch zwischen Suchergebnis (Title) und Seite (H1)?
+   
+   B) INTRO & HOOK:
+      - Holt der erste Absatz (Intro Text) den Nutzer ab?
+      - Wird das Problem/Thema sofort klar adressiert?
+   
+   C) STORYTELLING & ROTER FADEN:
+      - Gibt es eine narrative Struktur?
+      - Führt der Text logisch durch das Thema oder sind es nur aneinandergereihte Fakten?
+      - Wie ist die Tonalität? (Persönlich vs. Generisch)
 
-4. CONTENT & GEO-READINESS
+4. E-E-A-T & CONTENT QUALITÄT
+   Bewerte Experience, Expertise, Authoritativeness, Trustworthiness.
+   Verwende qualitative Einschätzungen.
+
+5. GEO-READINESS
    - Wie gut ist der Content für KI/LLMs lesbar?
    - Struktur, Listen, direkte Antworten?
 
-5. PRIORISIERTER MASSNAHMENPLAN
+6. PRIORISIERTER MASSNAHMENPLAN
    - 🔴 KRITISCH (Sofort handeln)
    - 🟡 WICHTIG (Zeitnah umsetzen)
    - 🟢 OPTIMIERUNG (Perspektivisch)
-
-WICHTIGE INHALTLICHE REGELN:
-- Sei streng aber fair.
-- Benenne technische Fehler konkret (z.B. "Render-Blocking Scripts", "Fehlende H1").
-- Wenn Schema fehlt, erkläre warum es wichtig ist.
-- Nutze die Fakten aus dem Input (z.B. TTFB: ${facts.performance.ttfbMs}ms).
 
 OUTPUT FORMAT:
 - Antworte NUR mit HTML.
