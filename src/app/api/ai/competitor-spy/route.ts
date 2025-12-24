@@ -292,43 +292,45 @@ export async function POST(req: NextRequest) {
     const isCompareMode = !!(competitorUrl && competitorData);
     const compactStyles = getCompactStyleGuide();
 
-    // ------------------------------------------------------------------
-    // PROMPT CONSTRUCTION
+   // ------------------------------------------------------------------
+    // PROMPT CONSTRUCTION (Optimiert & Erweitert)
     // ------------------------------------------------------------------
 
     const formatData = (data: any) => `
-      TITEL: ${data.title} (Länge: ${data.title.length})
+      ZIEL-URL: ${normalizedUrl}
+      TITEL: ${data.title}
       
-      TECH & PERFORMANCE:
-      - CMS/System: ${data.cmsData.cms}
-      - Server Speed (TTFB): ${data.techStats.performance.ttfbMs}ms (${data.techStats.performance.rating})
-      - Schema.org: ${data.techStats.hasSchema ? 'Ja' : 'Nein'}
+      TECHNISCHE FAKTEN (Harte Daten):
+      - HTTP Status: 200 OK
+      - Ladezeit (TTFB): ${data.techStats.performance.ttfbMs}ms (${data.techStats.performance.rating})
+      - CMS / Framework: ${data.cmsData.cms}
+      - Schema.org (JSON-LD): ${data.techStats.hasSchema ? '✅ VORHANDEN' : '❌ FEHLT (Kritisch)'}
+      - Viewport Meta: ${data.techStats.seoBasics?.hasViewport ? 'Ja' : 'Nein'}
       
-      STRUKTUR (HTML):
-      - H1: ${data.techStats.structure.headings.h1} (Titel)
-      - H2: ${data.techStats.structure.headings.h2} (Hauptkapitel)
-      - H3: ${data.techStats.structure.headings.h3} (Unterkapitel)
-      - Semantik-Score: ${data.techStats.codeQuality.semanticScore}/100
+      HTML STRUKTUR:
+      - H1: ${data.techStats.structure.headings.h1}x vorhanden
+      - H2: ${data.techStats.structure.headings.h2}x vorhanden
+      - H3: ${data.techStats.structure.headings.h3}x vorhanden
       
-      E-E-A-T SIGNALE:
-      - Autor-Signal: ${data.techStats.trustSignals.hasAuthor ? '✅ Gefunden' : '❌ Fehlt'}
-      - Datum-Signal: ${data.techStats.trustSignals.hasDate ? '✅ Gefunden' : '⚠️ Fehlt'}
-      - Impressum/Kontakt: ${data.techStats.trustSignals.hasImprint ? 'Ja' : 'Nein'}
+      E-E-A-T SIGNALE (Technisch erkannt):
+      - Autor-Tag (Meta/Rel): ${data.techStats.trustSignals.hasAuthor ? '✅ JA' : '❌ NEIN'}
+      - Impressum/Kontakt im Text: ${data.techStats.trustSignals.hasImprint ? 'Ja' : 'Nein'}
       
       LINKS:
-      - Intern: ${data.techStats.linkStructure.internalCount} (Beispiele: ${data.techStats.linkStructure.internal.map((l:any) => l.text).slice(0,3).join(', ')})
+      - Intern: ${data.techStats.linkStructure.internalCount}
       - Extern: ${data.techStats.linkStructure.externalCount}
 
-      CONTENT (Auszug):
-      ${data.content.substring(0, 2500)}...
+      CONTENT PREVIEW:
+      ${data.content.substring(0, 2000)}...
     `;
 
     const basePrompt = `
-      Du bist ein Senior SEO-Auditor mit Spezialisierung auf Google Quality Rater Guidelines (E-E-A-T).
+      Du bist ein gnadenloser Senior SEO-Auditor (Google Quality Rater Guidelines 2024).
+      Analysiere die folgenden Daten der Webseite.
       
-      ZIEL-KEYWORDS: ${keywords || 'Keine angegeben (Analysiere Hauptthema)'}
+      WICHTIG: Erwähne IMMER den Status von Schema.org und dem Autor-Tag, egal ob positiv oder negativ.
 
-      DATEN ZIEL-SEITE:
+      DATEN:
       ${formatData(targetData)}
     `;
 
@@ -336,146 +338,100 @@ export async function POST(req: NextRequest) {
       ${basePrompt}
       
       AUFGABE:
-      Erstelle einen tiefgehenden Audit-Report als HTML.
-      Prüfe kritisch, ob Technik (Speed/Struktur), interne Links und E-E-A-T ausreichend sind.
-
+      Erstelle einen professionellen Audit-Report als HTML.
+      
       STYLE GUIDE: ${compactStyles}
       
-      STRUKTUR & INHALT:
+      STRUKTUR DER ANTWORT (Halte dich exakt an dieses HTML-Gerüst):
       
-      1. <div class="${STYLES.card}">
-         <h3 class="${STYLES.h3}"><i class="bi bi-speedometer2"></i> Quick Check</h3>
-         <div class="grid grid-cols-2 gap-4 text-sm">
-           <div>
-             <strong>Speed (TTFB):</strong><br>
-             ${targetData.techStats.performance.ttfbMs}ms 
-             ${targetData.techStats.performance.rating === 'Schnell' ? '✅ Top' : targetData.techStats.performance.rating === 'Mittel' ? '⚠️ Okay' : '❌ Langsam'}
-           </div>
-           <div>
-             <strong>Struktur:</strong><br>
-             H1: ${targetData.techStats.structure.headings.h1} | H2: ${targetData.techStats.structure.headings.h2}
-             ${targetData.techStats.structure.headings.h1 !== 1 ? '<br><span class="text-red-600">⚠️ H1 prüfen!</span>' : ''}
-           </div>
-           <div>
-             <strong>Verlinkung:</strong><br>
-             ${targetData.techStats.linkStructure.internalCount > 5 ? '✅ Gute Struktur' : '⚠️ Zu wenig Links'} (${targetData.techStats.linkStructure.internalCount})
-           </div>
-           <div>
-             <strong>E-E-A-T Basis:</strong><br>
-             ${targetData.techStats.trustSignals.hasAuthor ? '✅ Autor da' : '⚠️ Autor fehlt'} / ${targetData.techStats.trustSignals.hasDate ? 'Datum da' : 'Datum fehlt'}
-           </div>
+      <div class="${STYLES.card} mb-6">
+         <div class="flex justify-between items-center mb-4 border-b pb-2">
+            <h3 class="${STYLES.h3} m-0">🕵️ Audit Zusammenfassung</h3>
+            <span class="text-xs font-mono bg-gray-100 px-2 py-1 rounded">TTFB: ${targetData.techStats.performance.ttfbMs}ms</span>
          </div>
-      </div>
-
-      2. <div class="${STYLES.card} mt-4">
-         <h3 class="${STYLES.h3}"><i class="bi bi-shield-check"></i> E-E-A-T & Trust Analyse</h3>
-         <p class="text-xs text-gray-500 mb-3">Bewertung nach Google Quality Rater Guidelines.</p>
          
-         <div class="space-y-3 text-sm">
-            <div class="p-2 bg-slate-50 rounded border border-slate-100">
-                <strong><i class="bi bi-person-badge"></i> Expertise & Autor (E-E):</strong>
-                <br>
-                Wirkt der Inhalt von einem echten Experten geschrieben?
-                ${!targetData.techStats.trustSignals.hasAuthor ? 'Technisch konnte kein Autor ermittelt werden. Ist er im Text sichtbar?' : 'Technisches Autor-Signal ist vorhanden.'}
-                <br>
-                <em>Urteil: [Dein kritisches Urteil hier]</em>
+         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+            <div class="p-3 rounded bg-slate-50 border border-slate-200">
+               <div class="text-xs text-gray-500 uppercase">Schema.org</div>
+               <div class="font-bold ${targetData.techStats.hasSchema ? 'text-green-600' : 'text-red-600'}">
+                  ${targetData.techStats.hasSchema ? '✅ Aktiv' : '❌ Fehlt'}
+               </div>
             </div>
-            
-            <div class="p-2 bg-slate-50 rounded border border-slate-100">
-                <strong><i class="bi bi-patch-check"></i> Autorität & Trust (A-T):</strong>
-                <br>
-                Werden externe Quellen zitiert? (${targetData.techStats.linkStructure.externalCount > 0 ? '✅ Ja' : '❌ Nein'})
-                Wie vertrauenswürdig wirkt das Seitenumfeld (Impressum, Kontakt)?
+            <div class="p-3 rounded bg-slate-50 border border-slate-200">
+               <div class="text-xs text-gray-500 uppercase">Autor-Signal</div>
+               <div class="font-bold ${targetData.techStats.trustSignals.hasAuthor ? 'text-green-600' : 'text-red-600'}">
+                 ${targetData.techStats.trustSignals.hasAuthor ? '✅ Erkannt' : '❌ Fehlt'}
+               </div>
+            </div>
+            <div class="p-3 rounded bg-slate-50 border border-slate-200">
+               <div class="text-xs text-gray-500 uppercase">Struktur</div>
+               <div class="font-bold text-gray-800">
+                  H1: ${targetData.techStats.structure.headings.h1} | H2: ${targetData.techStats.structure.headings.h2}
+               </div>
+            </div>
+            <div class="p-3 rounded bg-slate-50 border border-slate-200">
+               <div class="text-xs text-gray-500 uppercase">Tech-Stack</div>
+               <div class="font-bold text-blue-600 truncate">
+                  ${targetData.cmsData.cms}
+               </div>
             </div>
          </div>
       </div>
 
-      3. <div class="${STYLES.card} mt-4">
-         <h3 class="${STYLES.h3}"><i class="bi bi-file-text"></i> Content & Struktur</h3>
-         <ul class="${STYLES.list}">
-           <li><strong>Hierarchie:</strong> Ist die Überschriften-Struktur (H1-H6) logisch aufgebaut?</li>
-           <li><strong>Inhaltstiefe:</strong> Deckt der Text das Thema umfassend ab?</li>
-           <li><strong>Interne Verlinkung:</strong> Es wurden ${targetData.techStats.linkStructure.internalCount} interne Links gefunden. Reicht das für eine gute SEO-Struktur?</li>
-         </ul>
+      <div class="grid md:grid-cols-2 gap-6">
+      
+          <div class="${STYLES.card}">
+             <h3 class="${STYLES.h3} text-indigo-700"><i class="bi bi-shield-check"></i> E-E-A-T Analyse</h3>
+             <ul class="${STYLES.list} space-y-3">
+                <li>
+                    <strong>Strukturierte Daten:</strong> 
+                    ${targetData.techStats.hasSchema 
+                      ? '<span>✅ JSON-LD Schema wurde gefunden. Das hilft Google, die Entitäten zu verstehen.</span>' 
+                      : '<span class="text-red-600">❌ Kein Schema-Markup gefunden. Dringend nachrüsten für "Person" oder "Organization"!</span>'}
+                </li>
+                <li>
+                    <strong>Autor & Identität:</strong>
+                    ${targetData.techStats.trustSignals.hasAuthor 
+                      ? '✅ Ein technisches Autoren-Signal (Meta/Rel) ist vorhanden.' 
+                      : '⚠️ Der Bot sieht keinen Autoren-Tag im Code, obwohl der Text vielleicht "Ich" sagt.'}
+                </li>
+                <li>
+                    <strong>Rechtliche Signale:</strong>
+                    ${targetData.techStats.trustSignals.hasImprint 
+                      ? '✅ Impressum/Kontakt Keywords gefunden.' 
+                      : '❌ Vorsicht: Impressum/Kontakt Links scheinen im Footer/Menü nicht lesbar zu sein.'}
+                </li>
+             </ul>
+          </div>
+
+          <div class="${STYLES.card}">
+             <h3 class="${STYLES.h3} text-emerald-700"><i class="bi bi-code-slash"></i> Tech & Content</h3>
+             <ul class="${STYLES.list} space-y-3">
+                <li>
+                    <strong>Überschriften-Hierarchie:</strong>
+                    ${targetData.techStats.structure.headings.h1 === 1 
+                      ? '✅ Perfekt: Genau eine H1.' 
+                      : '⚠️ <strong>Achtung:</strong> ' + targetData.techStats.structure.headings.h1 + ' H1-Tags gefunden.'}
+                    <br> <span class="text-xs text-gray-500">Tiefe: ${targetData.techStats.structure.headings.h2}x H2, ${targetData.techStats.structure.headings.h3}x H3.</span>
+                </li>
+                <li>
+                    <strong>Verlinkung:</strong>
+                    ${targetData.techStats.linkStructure.internalCount} interne Links gefunden.
+                    ${targetData.techStats.linkStructure.internalCount < 5 ? '⚠️ Das ist sehr wenig für SEO-Siloing.' : '✅ Solide interne Vernetzung.'}
+                </li>
+             </ul>
+          </div>
       </div>
 
-      4. <div class="${STYLES.card} mt-4">
-         <h3 class="${STYLES.h3}"><i class="bi bi-lightbulb"></i> Maßnahmen-Plan</h3>
-         3 konkrete Schritte zur Verbesserung (Technik, Content, E-E-A-T).
+      <div class="${STYLES.card} mt-6 bg-gradient-to-r from-gray-50 to-white">
+         <h3 class="${STYLES.h3}"><i class="bi bi-list-check"></i> Konkreter Maßnahmen-Plan</h3>
+         <p class="mb-3 text-sm">Basierend auf den Daten, tue jetzt folgendes:</p>
+         <ol class="list-decimal pl-5 space-y-2 text-sm marker:font-bold marker:text-indigo-600">
+            ${!targetData.techStats.hasSchema ? '<li><strong>Schema.org einbauen:</strong> Implementiere JSON-LD für "WebSite" und "Person".</li>' : ''}
+            ${!targetData.techStats.trustSignals.hasAuthor ? '<li><strong>Meta-Author Tag:</strong> Füge <code>&lt;meta name="author" content="Name"&gt;</code> in den Head ein.</li>' : ''}
+            <li><strong>Content-Check:</strong> Prüfe, ob die H2-Struktur (aktuell ${targetData.techStats.structure.headings.h2} Stück) deine Keywords abdeckt.</li>
+         </ol>
       </div>
       
-      Antworte NUR mit HTML.
+      Antworte NUR mit HTML. Keine Einleitung, kein Markdown.
     `;
-
-    const comparePrompt = `
-      ${basePrompt}
-      
-      VERGLEICH MIT WETTBEWERBER (${competitorUrl}):
-      ${competitorData ? formatData(competitorData) : 'Keine Daten'}
-      
-      AUFGABE:
-      Führe einen direkten Vergleich durch. Wer ist schneller? Wer hat die bessere Struktur? Wer hat mehr Trust?
-
-      FORMAT: NUR HTML. Style: ${compactStyles}
-
-      STRUKTUR:
-      1. <div class="${STYLES.grid2} gap-4 mb-4">
-           <div class="${STYLES.card}">
-             <h4 class="${STYLES.h4}">Meine Seite</h4>
-             <div class="text-sm space-y-1">
-               <div><strong>Speed:</strong> ${targetData.techStats.performance.ttfbMs}ms (${targetData.techStats.performance.rating})</div>
-               <div><strong>Struktur:</strong> H1: ${targetData.techStats.structure.headings.h1} | H2: ${targetData.techStats.structure.headings.h2}</div>
-               <div><strong>Interne Links:</strong> ${targetData.techStats.linkStructure.internalCount}</div>
-               <div><strong>Autor-Signal:</strong> ${targetData.techStats.trustSignals.hasAuthor ? '✅ Ja' : '❌ Nein'}</div>
-             </div>
-           </div>
-           <div class="${STYLES.card} bg-indigo-50 border-indigo-100">
-             <h4 class="${STYLES.h4}">Wettbewerber</h4>
-             <div class="text-sm space-y-1">
-               <div><strong>Speed:</strong> ${competitorData?.techStats.performance.ttfbMs}ms (${competitorData?.techStats.performance.rating})</div>
-               <div><strong>Struktur:</strong> H1: ${competitorData?.techStats.structure.headings.h1} | H2: ${competitorData?.techStats.structure.headings.h2}</div>
-               <div><strong>Interne Links:</strong> ${competitorData?.techStats.linkStructure.internalCount}</div>
-               <div><strong>Autor-Signal:</strong> ${competitorData?.techStats.trustSignals.hasAuthor ? '✅ Ja' : '❌ Nein'}</div>
-             </div>
-           </div>
-         </div>
-
-      2. <div class="${STYLES.card}">
-           <h3 class="${STYLES.h3}"><i class="bi bi-trophy"></i> E-E-A-T & Tech Battle</h3>
-           <p class="mb-2 text-sm text-gray-600">Direkter Vergleich der Qualitätssignale.</p>
-           <ul class="${STYLES.list}">
-             <li><strong>Performance:</strong> Wer liefert die Inhalte schneller aus?</li>
-             <li><strong>Struktur-Hygiene:</strong> Wer nutzt Überschriften (H1-H3) logischer?</li>
-             <li><strong>Expertise-Eindruck:</strong> Wirkt der Text des Wettbewerbers professioneller/tiefgehender?</li>
-             <li><strong>Trust-Signale:</strong> Hat der Wettbewerber mehr/bessere Quellenangaben?</li>
-           </ul>
-      </div>
-
-      3. <div class="${STYLES.card} mt-4">
-           <h3 class="${STYLES.h3}"><i class="bi bi-diagram-3"></i> Content Gap</h3>
-           <div class="text-sm">
-             <p>Nutzt der Wettbewerber interne Links aggressiver für SEO-Siloing?</p>
-             <p>Deckt er Themen ab, die bei mir fehlen?</p>
-           </div>
-      </div>
-
-      4. <div class="${STYLES.card} mt-4">
-           <h3 class="${STYLES.h3}"><i class="bi bi-rocket-takeoff"></i> Attacke-Plan</h3>
-           3 aggressive Schritte um am Wettbewerber vorbeizuziehen (Technik fixen, Content ausbauen, Trust erhöhen).
-      </div>
-
-      Antworte NUR mit HTML.
-    `;
-
-    const result = await streamTextSafe({
-      prompt: isCompareMode ? comparePrompt : singlePrompt,
-      temperature: 0.3,
-    });
-
-    return result.toTextStreamResponse();
-
-  } catch (error: unknown) {
-    console.error('Competitor Spy Error:', error);
-    return NextResponse.json({ message: 'Error', error: String(error) }, { status: 500 });
-  }
-}
