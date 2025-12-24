@@ -504,7 +504,7 @@ function analyzeGeoSignals($: cheerio.CheerioAPI, html: string, schemaTypes: str
   // Zitate & Quellenangaben
   const hasCitations = 
     $('cite, blockquote[cite], [class*="source"], [class*="reference"], [class*="citation"], sup a').length > 0 ||
-    /\(Quelle:|laut|gemäß|nach Angaben|Studie zeigt)/i.test(bodyText);
+    /Quelle:|laut\s+\w+|gemäß|nach Angaben|Studie zeigt/i.test(bodyText);
   
   // Direkte Zitate
   const hasQuotes = 
