@@ -18,7 +18,6 @@ interface LinkInfo {
   isInternal: boolean;
 }
 
-// NEU: SEO Basics Interface
 interface SeoBasics {
   hasViewport: boolean;
   hasCharset: boolean;
@@ -26,7 +25,6 @@ interface SeoBasics {
   language: string | null;
 }
 
-// NEU: Canonical & Indexierungs-Interface
 interface IndexingSignals {
   canonical: string | null;
   canonicalMatchesUrl: boolean;
@@ -36,18 +34,177 @@ interface IndexingSignals {
   pagination: { prev: string | null; next: string | null };
 }
 
-// NEU: Content-Metriken Interface
-interface ContentMetrics {
+// ============================================================================
+// NEU: E-E-A-T VOLLSTÄNDIGES INTERFACE
+// ============================================================================
+
+interface EEATSignals {
+  // EXPERIENCE - Erfahrung
+  experience: {
+    hasFirstPersonNarrative: boolean;      // "Ich habe...", "In meiner Erfahrung..."
+    hasPersonalStories: boolean;           // Storytelling-Elemente
+    hasCaseStudies: boolean;               // Fallstudien, Beispiele aus der Praxis
+    hasTestimonials: boolean;              // Kundenstimmen, Erfahrungsberichte
+    hasPortfolio: boolean;                 // Referenzen, Arbeitsproben
+    experienceScore: number;               // 0-100
+  };
+  // EXPERTISE - Fachwissen
+  expertise: {
+    hasAuthorBio: boolean;                 // Autorenbeschreibung
+    hasCredentials: boolean;               // Qualifikationen, Zertifikate
+    hasDetailedExplanations: boolean;      // Tiefgehende Erklärungen
+    hasTechnicalTerms: boolean;            // Fachbegriffe (korrekt verwendet)
+    hasMethodology: boolean;               // Methodik erklärt
+    hasDataDrivenContent: boolean;         // Datenbasierte Aussagen
+    expertiseScore: number;                // 0-100
+  };
+  // AUTHORITATIVENESS - Autorität
+  authoritativeness: {
+    hasOrganizationSchema: boolean;        // Organization Schema
+    hasPersonSchema: boolean;              // Person Schema mit Details
+    hasSameAsLinks: boolean;               // Verknüpfung zu externen Profilen
+    sameAsLinks: string[];                 // Konkrete Links
+    hasExternalCitations: boolean;         // Zitiert externe Quellen
+    hasAwards: boolean;                    // Auszeichnungen, Zertifikate
+    hasMentions: boolean;                  // "Bekannt aus...", Medienerwähnungen
+    hasPartnerships: boolean;              // Partner-Logos, Kooperationen
+    authorityScore: number;                // 0-100
+  };
+  // TRUSTWORTHINESS - Vertrauenswürdigkeit
+  trustworthiness: {
+    hasImprint: boolean;                   // Impressum
+    hasPrivacyPolicy: boolean;             // Datenschutz
+    hasContact: boolean;                   // Kontaktmöglichkeit
+    hasAboutPage: boolean;                 // Über uns
+    hasTeamPage: boolean;                  // Team-Seite
+    hasPhysicalAddress: boolean;           // Physische Adresse
+    hasPhoneNumber: boolean;               // Telefonnummer
+    hasSecureConnection: boolean;          // HTTPS (angenommen)
+    hasTransparentPricing: boolean;        // Preise sichtbar
+    hasClearCTA: boolean;                  // Klare Handlungsaufforderungen
+    trustScore: number;                    // 0-100
+  };
+  // Dynamisch geladene Inhalte Warnung
+  hasDynamicFooter: boolean;
+  dynamicContentWarning: string | null;
+  // Gesamt E-E-A-T
+  overallScore: number;                    // 0-100
+  overallRating: 'Exzellent' | 'Gut' | 'Mittel' | 'Schwach' | 'Kritisch';
+}
+
+// ============================================================================
+// NEU: CONTENT-QUALITÄT & STORYTELLING INTERFACE
+// ============================================================================
+
+interface ContentQuality {
+  // Basis-Metriken
   wordCount: number;
   readingTimeMin: number;
   paragraphCount: number;
   avgWordsPerParagraph: number;
+  sentenceCount: number;
+  avgWordsPerSentence: number;
+  
+  // Content-Tiefe
   thinContent: boolean;
   hasTableOfContents: boolean;
-  contentDepthScore: number; // 0-100
+  contentDepthScore: number;
+  
+  // STORYTELLING & ENGAGEMENT
+  storytelling: {
+    hasNarrativeStructure: boolean;        // Einleitung-Hauptteil-Schluss
+    hasHook: boolean;                      // Aufmerksamkeitsfänger am Anfang
+    hasEmotionalLanguage: boolean;         // Emotionale Sprache
+    hasAnecdotes: boolean;                 // Anekdoten, persönliche Geschichten
+    hasConflictResolution: boolean;        // Problem-Lösung Struktur
+    hasCallToAction: boolean;              // CTA am Ende
+    storytellingScore: number;             // 0-100
+  };
+  
+  // LESBARKEIT & STRUKTUR
+  readability: {
+    hasShortParagraphs: boolean;           // Absätze < 150 Wörter
+    hasSubheadings: boolean;               // Regelmäßige Zwischenüberschriften
+    hasBulletPoints: boolean;              // Aufzählungen
+    hasNumberedLists: boolean;             // Nummerierte Listen
+    hasHighlightedText: boolean;           // Hervorgehobener Text (bold, etc.)
+    hasVisualBreaks: boolean;              // Bilder, Videos zwischen Text
+    readabilityScore: number;              // 0-100
+  };
+  
+  // UNIQUE VALUE
+  uniqueValue: {
+    hasOriginalResearch: boolean;          // Eigene Studien/Daten
+    hasUniqueInsights: boolean;            // Einzigartige Einsichten
+    hasActionableAdvice: boolean;          // Umsetzbare Tipps
+    hasExamples: boolean;                  // Konkrete Beispiele
+    hasComparisons: boolean;               // Vergleiche
+    hasTools: boolean;                     // Tools, Rechner, Downloads
+    uniqueValueScore: number;              // 0-100
+  };
+  
+  // Gesamt Content Score
+  overallContentScore: number;             // 0-100
+  contentRating: 'Exzellent' | 'Gut' | 'Mittel' | 'Schwach';
 }
 
-// NEU: Open Graph & Social Interface
+// ============================================================================
+// NEU: ERWEITERTE GEO SIGNALE
+// ============================================================================
+
+interface GeoSignals {
+  entityClarity: {
+    schemaTypes: string[];
+    hasOrganizationSchema: boolean;
+    hasPersonSchema: boolean;
+    hasArticleSchema: boolean;
+    hasFaqSchema: boolean;
+    hasHowToSchema: boolean;
+    hasBreadcrumbSchema: boolean;
+    hasProductSchema: boolean;
+    hasLocalBusinessSchema: boolean;
+    sameAsLinks: string[];
+    hasKnowsAbout: boolean;                // knowsAbout im Person Schema
+    hasJobTitle: boolean;                  // jobTitle definiert
+  };
+  
+  citability: {
+    hasDefinitions: boolean;
+    hasFaqStructure: boolean;
+    hasHowToStructure: boolean;
+    hasNumberedLists: boolean;
+    hasBulletLists: boolean;
+    hasDataTables: boolean;
+    hasStatistics: boolean;
+    hasCitations: boolean;
+    hasQuotes: boolean;
+    hasCodeBlocks: boolean;                // Code-Beispiele
+    citabilityScore: number;
+  };
+  
+  factualSignals: {
+    hasOriginalData: boolean;
+    hasExpertQuotes: boolean;
+    hasFirstPersonExpertise: boolean;
+    hasSourceReferences: boolean;
+    hasLastUpdated: boolean;
+    hasPublishDate: boolean;
+  };
+  
+  llmReadability: {
+    hasSummary: boolean;
+    hasKeyTakeaways: boolean;
+    hasClearTopicSentences: boolean;
+    hasInfographics: boolean;
+    questionCount: number;
+    answerPatternCount: number;
+    hasDirectAnswers: boolean;             // Direkte Antworten auf Fragen
+  };
+  
+  geoScore: number;
+  geoRating: 'Exzellent' | 'Gut' | 'Mittel' | 'Verbesserungswürdig';
+}
+
 interface SocialMeta {
   og: {
     title: string | null;
@@ -67,57 +224,6 @@ interface SocialMeta {
   socialProfileLinks: string[];
 }
 
-// NEU: GEO (Generative Engine Optimization) Interface
-interface GeoSignals {
-  // Entitäts-Klarheit
-  entityClarity: {
-    schemaTypes: string[];
-    hasOrganizationSchema: boolean;
-    hasPersonSchema: boolean;
-    hasArticleSchema: boolean;
-    hasFaqSchema: boolean;
-    hasHowToSchema: boolean;
-    hasBreadcrumbSchema: boolean;
-    hasProductSchema: boolean;
-    hasLocalBusinessSchema: boolean;
-    sameAsLinks: string[];
-  };
-  // Zitierbarkeit für LLMs
-  citability: {
-    hasDefinitions: boolean;
-    hasFaqStructure: boolean;
-    hasHowToStructure: boolean;
-    hasNumberedLists: boolean;
-    hasBulletLists: boolean;
-    hasDataTables: boolean;
-    hasStatistics: boolean;
-    hasCitations: boolean;
-    hasQuotes: boolean;
-    citabilityScore: number; // 0-100
-  };
-  // Fakten & Expertise
-  factualSignals: {
-    hasOriginalData: boolean;
-    hasExpertQuotes: boolean;
-    hasFirstPersonExpertise: boolean;
-    hasSourceReferences: boolean;
-    hasLastUpdated: boolean;
-  };
-  // Content-Struktur für LLM-Extraktion
-  llmReadability: {
-    hasSummary: boolean;
-    hasKeyTakeaways: boolean;
-    hasClearTopicSentences: boolean;
-    hasInfographics: boolean;
-    questionCount: number;
-    answerPatternCount: number;
-  };
-  // Gesamt GEO Score
-  geoScore: number; // 0-100
-  geoRating: 'Exzellent' | 'Gut' | 'Mittel' | 'Verbesserungswürdig';
-}
-
-// NEU: Performance-Erweiterung
 interface PerformanceMetrics {
   ttfbMs: number;
   rating: 'Schnell' | 'Mittel' | 'Langsam';
@@ -136,16 +242,13 @@ interface PerformanceMetrics {
 
 interface TechStats {
   pageSizeKb: number;
-  // ERWEITERT: Performance Metrik
   performance: PerformanceMetrics;
   hasSchema: boolean;
-  // NEU: Schema Details
   schemaDetails: {
     types: string[];
     hasMultipleSchemas: boolean;
     rawSchemas: object[];
   };
-  // Struktur Metriken (unverändert)
   structure: {
     headings: { h1: number; h2: number; h3: number; h4: number; h5: number; h6: number };
     hasMainH1: boolean;
@@ -159,18 +262,6 @@ interface TechStats {
     modernFormats: number;
     lazyLoaded: number;
     score: number;
-  };
-  trustSignals: {
-    hasImprint: boolean;
-    hasPrivacy: boolean;
-    hasContact: boolean;
-    hasAuthor: boolean;
-    hasDate: boolean;
-    hasAboutPage: boolean;
-    hasTeamPage: boolean;
-    authorName: string | null;
-    publishDate: string | null;
-    modifiedDate: string | null;
   };
   linkStructure: {
     internal: LinkInfo[];
@@ -186,11 +277,11 @@ interface TechStats {
     domDepth: number;
     isBuilder: boolean;
   };
-  // NEU: Zusätzliche Analysen
   seoBasics: SeoBasics;
   indexing: IndexingSignals;
-  contentMetrics: ContentMetrics;
+  contentQuality: ContentQuality;
   socialMeta: SocialMeta;
+  eeat: EEATSignals;
   geoSignals: GeoSignals;
 }
 
@@ -198,35 +289,34 @@ interface TechStats {
 // HILFSFUNKTIONEN
 // ============================================================================
 
-/**
- * Extrahiert sauberen Text ohne HTML-Tags
- */
 function cleanText(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
 }
 
-/**
- * Zählt Wörter in einem Text
- */
 function countWords(text: string): number {
   const cleaned = cleanText(text);
   if (!cleaned) return 0;
   return cleaned.split(/\s+/).filter(word => word.length > 0).length;
 }
 
+function countSentences(text: string): number {
+  const cleaned = cleanText(text);
+  if (!cleaned) return 0;
+  // Zähle Satzenden (. ! ?)
+  const sentences = cleaned.split(/[.!?]+/).filter(s => s.trim().length > 10);
+  return sentences.length;
+}
+
 // ============================================================================
-// FUNKTIONEN (Scraping & Detection)
+// CMS DETECTION
 // ============================================================================
 
 function detectCMS(html: string, $: cheerio.CheerioAPI): { cms: string; isBuilder: boolean } {
   const htmlLower = html.toLowerCase();
-  
-  // CMS Definitionen
   const builders = ['wix', 'squarespace', 'jimdo', 'shopify', 'weebly', 'webflow', 'elementor', 'divi', 'clickfunnels'];
   
   let detectedCms = 'Custom Code / Unbekannt';
   
-  // Checks
   if (htmlLower.includes('wp-content')) detectedCms = 'WordPress';
   else if (htmlLower.includes('wix.com') || htmlLower.includes('wix-')) detectedCms = 'Wix';
   else if (htmlLower.includes('squarespace')) detectedCms = 'Squarespace';
@@ -242,36 +332,31 @@ function detectCMS(html: string, $: cheerio.CheerioAPI): { cms: string; isBuilde
   else if (htmlLower.includes('contao')) detectedCms = 'Contao';
   else if (htmlLower.includes('craft')) detectedCms = 'Craft CMS';
 
-  // Ist es ein Baukasten?
   const isBuilder = builders.some(b => detectedCms.toLowerCase().includes(b) || htmlLower.includes(b));
-
   return { cms: detectedCms, isBuilder };
 }
 
-/**
- * NEU: Analysiert SEO-Grundlagen
- */
+// ============================================================================
+// SEO BASICS
+// ============================================================================
+
 function analyzeSeoBasics($: cheerio.CheerioAPI): SeoBasics {
-  const hasViewport = $('meta[name="viewport"]').length > 0;
-  const hasCharset = $('meta[charset]').length > 0 || $('meta[http-equiv="Content-Type"]').length > 0;
-  const htmlLang = $('html').attr('lang');
-  const hasLanguage = !!htmlLang;
-  
   return {
-    hasViewport,
-    hasCharset,
-    hasLanguage,
-    language: htmlLang || null
+    hasViewport: $('meta[name="viewport"]').length > 0,
+    hasCharset: $('meta[charset]').length > 0 || $('meta[http-equiv="Content-Type"]').length > 0,
+    hasLanguage: !!$('html').attr('lang'),
+    language: $('html').attr('lang') || null
   };
 }
 
-/**
- * NEU: Analysiert Indexierungs-Signale
- */
+// ============================================================================
+// INDEXIERUNG
+// ============================================================================
+
 function analyzeIndexing($: cheerio.CheerioAPI, baseUrl: string): IndexingSignals {
-  // Canonical
   const canonicalTag = $('link[rel="canonical"]').attr('href');
   let canonicalMatchesUrl = false;
+  
   if (canonicalTag) {
     try {
       const canonicalUrl = new URL(canonicalTag, baseUrl).href;
@@ -280,23 +365,15 @@ function analyzeIndexing($: cheerio.CheerioAPI, baseUrl: string): IndexingSignal
     } catch {}
   }
   
-  // Robots Meta
   const robotsMeta = $('meta[name="robots"]').attr('content') || null;
   const isIndexable = !robotsMeta || (!robotsMeta.includes('noindex') && !robotsMeta.includes('none'));
   
-  // Hreflang
   const hreflang: { lang: string; url: string }[] = [];
   $('link[rel="alternate"][hreflang]').each((_, el) => {
     const lang = $(el).attr('hreflang');
     const url = $(el).attr('href');
-    if (lang && url) {
-      hreflang.push({ lang, url });
-    }
+    if (lang && url) hreflang.push({ lang, url });
   });
-  
-  // Pagination
-  const prev = $('link[rel="prev"]').attr('href') || null;
-  const next = $('link[rel="next"]').attr('href') || null;
   
   return {
     canonical: canonicalTag || null,
@@ -304,14 +381,337 @@ function analyzeIndexing($: cheerio.CheerioAPI, baseUrl: string): IndexingSignal
     robotsMeta,
     isIndexable,
     hreflang,
-    pagination: { prev, next }
+    pagination: {
+      prev: $('link[rel="prev"]').attr('href') || null,
+      next: $('link[rel="next"]').attr('href') || null
+    }
   };
 }
 
-/**
- * NEU: Analysiert Content-Metriken
- */
-function analyzeContentMetrics($: cheerio.CheerioAPI): ContentMetrics {
+// ============================================================================
+// SCHEMA.ORG ANALYSE (GEFIXT: @graph Support)
+// ============================================================================
+
+interface SchemaAnalysis {
+  types: string[];
+  hasMultipleSchemas: boolean;
+  rawSchemas: object[];
+  sameAsLinks: string[];
+  personData: {
+    name: string | null;
+    jobTitle: string | null;
+    hasKnowsAbout: boolean;
+    hasSameAs: boolean;
+  } | null;
+  organizationData: {
+    name: string | null;
+    hasSameAs: boolean;
+  } | null;
+}
+
+function analyzeSchemaDetails($: cheerio.CheerioAPI): SchemaAnalysis {
+  const schemas: object[] = [];
+  const types: string[] = [];
+  const sameAsLinks: string[] = [];
+  let personData: SchemaAnalysis['personData'] = null;
+  let organizationData: SchemaAnalysis['organizationData'] = null;
+  
+  $('script[type="application/ld+json"]').each((_, el) => {
+    try {
+      const content = $(el).html();
+      if (!content) return;
+      
+      const parsed = JSON.parse(content);
+      schemas.push(parsed);
+      
+      // Rekursive Extraktion für @graph Strukturen
+      const extractFromObject = (obj: any) => {
+        if (!obj || typeof obj !== 'object') return;
+        
+        // Typ extrahieren
+        if (obj['@type']) {
+          const objTypes = Array.isArray(obj['@type']) ? obj['@type'] : [obj['@type']];
+          types.push(...objTypes);
+          
+          // Person Schema Daten
+          if (objTypes.some(t => t.toLowerCase() === 'person')) {
+            personData = {
+              name: obj.name || null,
+              jobTitle: obj.jobTitle || null,
+              hasKnowsAbout: !!obj.knowsAbout,
+              hasSameAs: !!obj.sameAs
+            };
+          }
+          
+          // Organization Schema Daten
+          if (objTypes.some(t => t.toLowerCase().includes('organization'))) {
+            organizationData = {
+              name: obj.name || null,
+              hasSameAs: !!obj.sameAs
+            };
+          }
+        }
+        
+        // sameAs extrahieren (GEFIXT!)
+        if (obj.sameAs) {
+          const links = Array.isArray(obj.sameAs) ? obj.sameAs : [obj.sameAs];
+          sameAsLinks.push(...links.filter((l: any) => typeof l === 'string'));
+        }
+        
+        // @graph durchsuchen
+        if (obj['@graph'] && Array.isArray(obj['@graph'])) {
+          obj['@graph'].forEach(extractFromObject);
+        }
+      };
+      
+      extractFromObject(parsed);
+    } catch {}
+  });
+  
+  return {
+    types: [...new Set(types)],
+    hasMultipleSchemas: schemas.length > 1,
+    rawSchemas: schemas,
+    sameAsLinks: [...new Set(sameAsLinks)],
+    personData,
+    organizationData
+  };
+}
+
+// ============================================================================
+// E-E-A-T ANALYSE (NEU & VOLLSTÄNDIG)
+// ============================================================================
+
+function analyzeEEAT($: cheerio.CheerioAPI, html: string, schemaData: SchemaAnalysis): EEATSignals {
+  const bodyText = $('body').text();
+  const bodyTextLower = bodyText.toLowerCase();
+  const htmlLower = html.toLowerCase();
+  
+  // Dynamischer Content Check
+  const hasDynamicFooter = $('#footer-placeholder, [id*="footer-placeholder"], footer:empty').length > 0;
+  const hasDynamicHeader = $('#header-placeholder, [id*="header-placeholder"]').length > 0;
+  const dynamicContentWarning = (hasDynamicFooter || hasDynamicHeader) 
+    ? 'Teile der Seite werden dynamisch geladen (JS). Trust-Signale wie Impressum/Datenschutz könnten vorhanden sein, aber nicht im statischen HTML sichtbar.'
+    : null;
+  
+  // === EXPERIENCE (Erfahrung) ===
+  const hasFirstPersonNarrative = 
+    /\b(ich habe|in meiner erfahrung|ich arbeite seit|ich bin seit|meine erfahrung|aus meiner sicht)\b/i.test(bodyText);
+  
+  const hasPersonalStories = 
+    /\b(eines tages|ich erinnere mich|vor einiger zeit|als ich|dabei ist mir aufgefallen|mein weg)\b/i.test(bodyText) ||
+    $('[class*="story"], [class*="testimonial"], [class*="case-study"]').length > 0;
+  
+  const hasCaseStudies = 
+    /\b(fallstudie|case study|praxisbeispiel|kundenbeispiel|erfolgsgeschichte|projekt:|referenz)\b/i.test(bodyText) ||
+    $('[class*="case"], [class*="portfolio"], [class*="project"]').length > 0;
+  
+  const hasTestimonials = 
+    $('[class*="testimonial"], [class*="review"], [class*="kundenstimme"], blockquote[class*="quote"]').length > 0 ||
+    /\b(kunde sagt|kundenmeinung|bewertung|rezension)\b/i.test(bodyTextLower);
+  
+  const hasPortfolio = 
+    $('[class*="portfolio"], [class*="referenz"], [class*="work"], [class*="projekt"]').length > 0 ||
+    /\b(portfolio|referenzen|unsere arbeit|projekte|arbeitsproben)\b/i.test(bodyTextLower);
+  
+  let experienceScore = 0;
+  if (hasFirstPersonNarrative) experienceScore += 25;
+  if (hasPersonalStories) experienceScore += 20;
+  if (hasCaseStudies) experienceScore += 25;
+  if (hasTestimonials) experienceScore += 15;
+  if (hasPortfolio) experienceScore += 15;
+  experienceScore = Math.min(experienceScore, 100);
+  
+  // === EXPERTISE (Fachwissen) ===
+  const hasAuthorBio = 
+    $('[class*="author-bio"], [class*="about-author"], [class*="verfasser"]').length > 0 ||
+    schemaData.personData?.jobTitle !== null ||
+    /\b(über den autor|über mich|zur person|vita|biografie)\b/i.test(bodyTextLower);
+  
+  const hasCredentials = 
+    /\b(zertifiziert|diplom|master|bachelor|dr\.|prof\.|certified|qualifikation|ausbildung)\b/i.test(bodyText) ||
+    schemaData.personData?.hasKnowsAbout === true;
+  
+  const hasDetailedExplanations = 
+    countWords(bodyText) > 800 &&
+    $('h2, h3').length >= 3;
+  
+  const hasTechnicalTerms = 
+    /\b(api|framework|algorithmus|datenbank|server|backend|frontend|seo|ux|ui|kpi|roi)\b/i.test(bodyText);
+  
+  const hasMethodology = 
+    /\b(methode|vorgehen|prozess|schritt für schritt|anleitung|workflow|so funktioniert)\b/i.test(bodyTextLower);
+  
+  const hasDataDrivenContent = 
+    /\d+\s*%|\d+\s*(prozent|euro|dollar|nutzer|kunden|projekte)/i.test(bodyText);
+  
+  let expertiseScore = 0;
+  if (hasAuthorBio) expertiseScore += 20;
+  if (hasCredentials) expertiseScore += 20;
+  if (hasDetailedExplanations) expertiseScore += 20;
+  if (hasTechnicalTerms) expertiseScore += 15;
+  if (hasMethodology) expertiseScore += 15;
+  if (hasDataDrivenContent) expertiseScore += 10;
+  expertiseScore = Math.min(expertiseScore, 100);
+  
+  // === AUTHORITATIVENESS (Autorität) ===
+  const hasOrganizationSchema = schemaData.types.some(t => t.toLowerCase().includes('organization'));
+  const hasPersonSchema = schemaData.types.some(t => t.toLowerCase() === 'person');
+  const hasSameAsLinks = schemaData.sameAsLinks.length > 0;
+  
+  const hasExternalCitations = 
+    $('a[href*="wikipedia"], a[href*="doi.org"], a[href*="scholar.google"], cite, [class*="source"]').length > 0 ||
+    /\b(quelle:|laut|gemäß|studie von|nach angaben)\b/i.test(bodyText);
+  
+  const hasAwards = 
+    /\b(auszeichnung|award|preis|gewinner|zertifikat|siegel|top \d+)\b/i.test(bodyTextLower) ||
+    $('[class*="award"], [class*="badge"], [class*="certificate"]').length > 0;
+  
+  const hasMentions = 
+    /\b(bekannt aus|featured in|erwähnt in|gesehen bei|presse|media)\b/i.test(bodyTextLower) ||
+    $('[class*="press"], [class*="media"], [class*="featured"]').length > 0;
+  
+  const hasPartnerships = 
+    /\b(partner|kooperation|zusammenarbeit|kunde von|arbeitet mit)\b/i.test(bodyTextLower) ||
+    $('[class*="partner"], [class*="client"], [class*="logo-wall"]').length > 0;
+  
+  let authorityScore = 0;
+  if (hasOrganizationSchema || hasPersonSchema) authorityScore += 20;
+  if (hasSameAsLinks) authorityScore += 25;
+  if (hasExternalCitations) authorityScore += 20;
+  if (hasAwards) authorityScore += 15;
+  if (hasMentions) authorityScore += 10;
+  if (hasPartnerships) authorityScore += 10;
+  authorityScore = Math.min(authorityScore, 100);
+  
+  // === TRUSTWORTHINESS (Vertrauen) ===
+  // GEFIXT: Berücksichtigt auch Schema und verschiedene Schreibweisen
+  const allLinkText = $('a').map((_, el) => $(el).text().toLowerCase()).get().join(' ');
+  const allLinkHrefs = $('a').map((_, el) => $(el).attr('href')?.toLowerCase() || '').get().join(' ');
+  
+  const hasImprint = 
+    /impressum|imprint|anbieterkennzeichnung|legal notice/.test(allLinkText) ||
+    /impressum|imprint|legal/.test(allLinkHrefs);
+  
+  const hasPrivacyPolicy = 
+    /datenschutz|privacy|dsgvo|gdpr/.test(allLinkText) ||
+    /datenschutz|privacy|dsgvo/.test(allLinkHrefs);
+  
+  const hasContact = 
+    /kontakt|contact|anfrage/.test(allLinkText) ||
+    /kontakt|contact/.test(allLinkHrefs) ||
+    $('a[href^="mailto:"], a[href^="tel:"]').length > 0;
+  
+  const hasAboutPage = 
+    /über uns|about|über mich|wir sind/.test(allLinkText) ||
+    /about|ueber/.test(allLinkHrefs);
+  
+  const hasTeamPage = 
+    /team|mitarbeiter|ansprechpartner/.test(allLinkText);
+  
+  const hasPhysicalAddress = 
+    /\b\d{4,5}\s+\w+|\bstraße|gasse|weg|platz|allee\b/i.test(bodyText) ||
+    schemaData.rawSchemas.some((s: any) => 
+      JSON.stringify(s).includes('PostalAddress') || 
+      JSON.stringify(s).includes('addressLocality')
+    );
+  
+  const hasPhoneNumber = 
+    /\+\d{2}|tel:|telefon|\d{3,4}[\s/-]\d+/i.test(bodyText) ||
+    $('a[href^="tel:"]').length > 0;
+  
+  const hasTransparentPricing = 
+    /\b(preis|€|\d+\s*euro|kostenlos|gratis|ab\s+\d+)\b/i.test(bodyText) ||
+    $('[class*="price"], [class*="preis"]').length > 0;
+  
+  const hasClearCTA = 
+    $('button, [class*="cta"], [class*="btn"], a[class*="button"]').length > 0;
+  
+  let trustScore = 0;
+  if (hasImprint) trustScore += 20;
+  if (hasPrivacyPolicy) trustScore += 15;
+  if (hasContact) trustScore += 15;
+  if (hasAboutPage) trustScore += 10;
+  if (hasTeamPage) trustScore += 5;
+  if (hasPhysicalAddress) trustScore += 15;
+  if (hasPhoneNumber) trustScore += 10;
+  if (hasTransparentPricing) trustScore += 5;
+  if (hasClearCTA) trustScore += 5;
+  
+  // Wenn dynamischer Footer, Score nicht zu hart bestrafen
+  if (hasDynamicFooter && trustScore < 50) {
+    trustScore = Math.max(trustScore, 30); // Mindestens 30 wegen Unsicherheit
+  }
+  trustScore = Math.min(trustScore, 100);
+  
+  // === GESAMT E-E-A-T SCORE ===
+  const overallScore = Math.round(
+    (experienceScore * 0.2) + 
+    (expertiseScore * 0.25) + 
+    (authorityScore * 0.25) + 
+    (trustScore * 0.3)
+  );
+  
+  let overallRating: EEATSignals['overallRating'] = 'Kritisch';
+  if (overallScore >= 80) overallRating = 'Exzellent';
+  else if (overallScore >= 60) overallRating = 'Gut';
+  else if (overallScore >= 40) overallRating = 'Mittel';
+  else if (overallScore >= 20) overallRating = 'Schwach';
+  
+  return {
+    experience: {
+      hasFirstPersonNarrative,
+      hasPersonalStories,
+      hasCaseStudies,
+      hasTestimonials,
+      hasPortfolio,
+      experienceScore
+    },
+    expertise: {
+      hasAuthorBio,
+      hasCredentials,
+      hasDetailedExplanations,
+      hasTechnicalTerms,
+      hasMethodology,
+      hasDataDrivenContent,
+      expertiseScore
+    },
+    authoritativeness: {
+      hasOrganizationSchema,
+      hasPersonSchema,
+      hasSameAsLinks,
+      sameAsLinks: schemaData.sameAsLinks,
+      hasExternalCitations,
+      hasAwards,
+      hasMentions,
+      hasPartnerships,
+      authorityScore
+    },
+    trustworthiness: {
+      hasImprint,
+      hasPrivacyPolicy,
+      hasContact,
+      hasAboutPage,
+      hasTeamPage,
+      hasPhysicalAddress,
+      hasPhoneNumber,
+      hasSecureConnection: true, // Annahme HTTPS
+      hasTransparentPricing,
+      hasClearCTA,
+      trustScore
+    },
+    hasDynamicFooter,
+    dynamicContentWarning,
+    overallScore,
+    overallRating
+  };
+}
+
+// ============================================================================
+// CONTENT QUALITÄT & STORYTELLING ANALYSE (NEU)
+// ============================================================================
+
+function analyzeContentQuality($: cheerio.CheerioAPI): ContentQuality {
   // Clone für saubere Textextraktion
   const $clone = cheerio.load($.html());
   $clone('script, style, nav, footer, header, aside, iframe, svg, noscript').remove();
@@ -320,199 +720,229 @@ function analyzeContentMetrics($: cheerio.CheerioAPI): ContentMetrics {
   const cleanedContent = cleanText(mainContent);
   
   const wordCount = countWords(cleanedContent);
-  const readingTimeMin = Math.ceil(wordCount / 200); // ~200 WPM durchschnittlich
+  const sentenceCount = countSentences(cleanedContent);
+  const readingTimeMin = Math.ceil(wordCount / 200);
   
-  // Paragraphen zählen
-  const paragraphs = $('p').filter((_, el) => {
-    const text = $(el).text().trim();
-    return text.length > 50; // Mindestens 50 Zeichen
-  });
+  const paragraphs = $('p').filter((_, el) => $(el).text().trim().length > 50);
   const paragraphCount = paragraphs.length;
   const avgWordsPerParagraph = paragraphCount > 0 ? Math.round(wordCount / paragraphCount) : 0;
+  const avgWordsPerSentence = sentenceCount > 0 ? Math.round(wordCount / sentenceCount) : 0;
   
-  // Thin Content Check
   const thinContent = wordCount < 300;
-  
-  // Table of Contents Detection
   const hasTableOfContents = 
     $('[class*="toc"], [id*="toc"], [class*="table-of-contents"], nav[class*="content"]').length > 0 ||
-    $('a[href^="#"]').length >= 5; // Mindestens 5 Anker-Links
+    $('a[href^="#"]').length >= 5;
   
   // Content Depth Score
   let contentDepthScore = 0;
-  if (wordCount >= 300) contentDepthScore += 20;
-  if (wordCount >= 800) contentDepthScore += 20;
-  if (wordCount >= 1500) contentDepthScore += 20;
+  if (wordCount >= 300) contentDepthScore += 15;
+  if (wordCount >= 600) contentDepthScore += 15;
+  if (wordCount >= 1000) contentDepthScore += 15;
+  if (wordCount >= 1500) contentDepthScore += 10;
   if (paragraphCount >= 5) contentDepthScore += 15;
   if (hasTableOfContents) contentDepthScore += 15;
-  if ($('h2').length >= 3) contentDepthScore += 10;
+  if ($('h2').length >= 3) contentDepthScore += 15;
   contentDepthScore = Math.min(contentDepthScore, 100);
+  
+  // === STORYTELLING ===
+  const bodyText = $('body').text();
+  
+  const hasNarrativeStructure = 
+    $('h1').length > 0 && 
+    $('h2, h3').length >= 2 &&
+    $('p').length >= 3;
+  
+  const hasHook = 
+    /\b(stell dir vor|kennst du|hast du dich|wusstest du|achtung|spoiler|geheimnis)\b/i.test(bodyText.substring(0, 500));
+  
+  const hasEmotionalLanguage = 
+    /\b(erstaunlich|unglaublich|fantastisch|frustrierend|nervig|liebe|hasse|begeistert|enttäuscht)\b/i.test(bodyText);
+  
+  const hasAnecdotes = 
+    /\b(eines tages|kürzlich|vor kurzem|ich erinnere|lustigerweise|interessanterweise)\b/i.test(bodyText);
+  
+  const hasConflictResolution = 
+    /\b(problem|lösung|herausforderung|aber|jedoch|stattdessen|die antwort|so geht's)\b/i.test(bodyText);
+  
+  const hasCallToAction = 
+    $('[class*="cta"], button, [class*="btn"]').length > 0 ||
+    /\b(jetzt|hier klicken|mehr erfahren|kontakt|anfragen|starten)\b/i.test(bodyText);
+  
+  let storytellingScore = 0;
+  if (hasNarrativeStructure) storytellingScore += 20;
+  if (hasHook) storytellingScore += 20;
+  if (hasEmotionalLanguage) storytellingScore += 15;
+  if (hasAnecdotes) storytellingScore += 20;
+  if (hasConflictResolution) storytellingScore += 15;
+  if (hasCallToAction) storytellingScore += 10;
+  storytellingScore = Math.min(storytellingScore, 100);
+  
+  // === LESBARKEIT ===
+  const hasShortParagraphs = avgWordsPerParagraph < 150;
+  const hasSubheadings = $('h2, h3, h4').length >= 3;
+  
+  // GEFIXT: Listen-Detection
+  const hasBulletPoints = $('ul').filter((_, el) => $(el).find('li').length >= 2).length > 0;
+  const hasNumberedLists = $('ol').filter((_, el) => $(el).find('li').length >= 2).length > 0;
+  
+  const hasHighlightedText = 
+    $('strong, b, em, mark, [class*="highlight"]').length >= 3;
+  
+  const hasVisualBreaks = 
+    $('img, video, figure, [class*="image"], svg').length > 0;
+  
+  let readabilityScore = 0;
+  if (hasShortParagraphs) readabilityScore += 15;
+  if (hasSubheadings) readabilityScore += 20;
+  if (hasBulletPoints) readabilityScore += 20;
+  if (hasNumberedLists) readabilityScore += 15;
+  if (hasHighlightedText) readabilityScore += 15;
+  if (hasVisualBreaks) readabilityScore += 15;
+  readabilityScore = Math.min(readabilityScore, 100);
+  
+  // === UNIQUE VALUE ===
+  const hasOriginalResearch = 
+    /\b(unsere studie|wir haben getestet|unsere analyse|eigene daten|selbst entwickelt)\b/i.test(bodyText);
+  
+  const hasUniqueInsights = 
+    /\b(mein tipp|geheimtipp|insider|wenig bekannt|kaum jemand weiß)\b/i.test(bodyText);
+  
+  const hasActionableAdvice = 
+    /\b(so geht's|schritt|anleitung|tipp|trick|checklist|to-do)\b/i.test(bodyText) ||
+    $('ol li, [class*="step"]').length >= 3;
+  
+  const hasExamples = 
+    /\b(beispiel|zum beispiel|etwa|wie z\.?b\.?|konkret)\b/i.test(bodyText);
+  
+  const hasComparisons = 
+    /\b(vergleich|vs\.|versus|im gegensatz|anders als|besser als)\b/i.test(bodyText) ||
+    $('table').length > 0;
+  
+  const hasTools = 
+    $('[class*="calculator"], [class*="tool"], [class*="generator"], form, [class*="download"]').length > 0 ||
+    /\b(rechner|tool|generator|download|vorlage|template)\b/i.test(bodyText);
+  
+  let uniqueValueScore = 0;
+  if (hasOriginalResearch) uniqueValueScore += 25;
+  if (hasUniqueInsights) uniqueValueScore += 20;
+  if (hasActionableAdvice) uniqueValueScore += 20;
+  if (hasExamples) uniqueValueScore += 15;
+  if (hasComparisons) uniqueValueScore += 10;
+  if (hasTools) uniqueValueScore += 10;
+  uniqueValueScore = Math.min(uniqueValueScore, 100);
+  
+  // === GESAMT CONTENT SCORE ===
+  const overallContentScore = Math.round(
+    (contentDepthScore * 0.25) +
+    (storytellingScore * 0.25) +
+    (readabilityScore * 0.25) +
+    (uniqueValueScore * 0.25)
+  );
+  
+  let contentRating: ContentQuality['contentRating'] = 'Schwach';
+  if (overallContentScore >= 75) contentRating = 'Exzellent';
+  else if (overallContentScore >= 55) contentRating = 'Gut';
+  else if (overallContentScore >= 35) contentRating = 'Mittel';
   
   return {
     wordCount,
     readingTimeMin,
     paragraphCount,
     avgWordsPerParagraph,
+    sentenceCount,
+    avgWordsPerSentence,
     thinContent,
     hasTableOfContents,
-    contentDepthScore
+    contentDepthScore,
+    storytelling: {
+      hasNarrativeStructure,
+      hasHook,
+      hasEmotionalLanguage,
+      hasAnecdotes,
+      hasConflictResolution,
+      hasCallToAction,
+      storytellingScore
+    },
+    readability: {
+      hasShortParagraphs,
+      hasSubheadings,
+      hasBulletPoints,
+      hasNumberedLists,
+      hasHighlightedText,
+      hasVisualBreaks,
+      readabilityScore
+    },
+    uniqueValue: {
+      hasOriginalResearch,
+      hasUniqueInsights,
+      hasActionableAdvice,
+      hasExamples,
+      hasComparisons,
+      hasTools,
+      uniqueValueScore
+    },
+    overallContentScore,
+    contentRating
   };
 }
 
-/**
- * NEU: Analysiert Social Meta Tags
- */
-function analyzeSocialMeta($: cheerio.CheerioAPI): SocialMeta {
-  // Open Graph
-  const og = {
-    title: $('meta[property="og:title"]').attr('content') || null,
-    description: $('meta[property="og:description"]').attr('content') || null,
-    image: $('meta[property="og:image"]').attr('content') || null,
-    type: $('meta[property="og:type"]').attr('content') || null,
-    url: $('meta[property="og:url"]').attr('content') || null
-  };
-  
-  // Twitter Cards
-  const twitter = {
-    card: $('meta[name="twitter:card"]').attr('content') || null,
-    site: $('meta[name="twitter:site"]').attr('content') || null,
-    title: $('meta[name="twitter:title"]').attr('content') || null,
-    description: $('meta[name="twitter:description"]').attr('content') || null,
-    image: $('meta[name="twitter:image"]').attr('content') || null
-  };
-  
-  // Social Profile Links
-  const socialDomains = ['facebook.com', 'twitter.com', 'x.com', 'linkedin.com', 'instagram.com', 'youtube.com', 'tiktok.com', 'xing.com', 'pinterest.com'];
-  const socialProfileLinks: string[] = [];
-  
-  $('a[href]').each((_, el) => {
-    const href = $(el).attr('href') || '';
-    if (socialDomains.some(domain => href.includes(domain))) {
-      if (!socialProfileLinks.includes(href)) {
-        socialProfileLinks.push(href);
-      }
-    }
-  });
-  
-  return {
-    og,
-    twitter,
-    hasSocialProfiles: socialProfileLinks.length > 0,
-    socialProfileLinks: socialProfileLinks.slice(0, 10)
-  };
-}
+// ============================================================================
+// GEO SIGNALE (ERWEITERT & GEFIXT)
+// ============================================================================
 
-/**
- * NEU: Analysiert Schema.org Daten im Detail
- */
-function analyzeSchemaDetails($: cheerio.CheerioAPI): { types: string[]; hasMultipleSchemas: boolean; rawSchemas: object[] } {
-  const schemas: object[] = [];
-  const types: string[] = [];
-  
-  $('script[type="application/ld+json"]').each((_, el) => {
-    try {
-      const content = $(el).html();
-      if (content) {
-        const parsed = JSON.parse(content);
-        schemas.push(parsed);
-        
-        // Typen extrahieren (auch aus @graph)
-        const extractTypes = (obj: any) => {
-          if (obj['@type']) {
-            const objTypes = Array.isArray(obj['@type']) ? obj['@type'] : [obj['@type']];
-            types.push(...objTypes);
-          }
-          if (obj['@graph'] && Array.isArray(obj['@graph'])) {
-            obj['@graph'].forEach(extractTypes);
-          }
-        };
-        extractTypes(parsed);
-      }
-    } catch {}
-  });
-  
-  return {
-    types: [...new Set(types)],
-    hasMultipleSchemas: schemas.length > 1,
-    rawSchemas: schemas
-  };
-}
-
-/**
- * NEU: Analysiert GEO (Generative Engine Optimization) Signale
- */
-function analyzeGeoSignals($: cheerio.CheerioAPI, html: string, schemaTypes: string[]): GeoSignals {
+function analyzeGeoSignals($: cheerio.CheerioAPI, html: string, schemaData: SchemaAnalysis): GeoSignals {
   const bodyText = $('body').text();
   const bodyTextLower = bodyText.toLowerCase();
   
-  // === ENTITÄTS-KLARHEIT ===
-  const sameAsLinks: string[] = [];
-  $('script[type="application/ld+json"]').each((_, el) => {
-    try {
-      const content = $(el).html();
-      if (content) {
-        const parsed = JSON.parse(content);
-        if (parsed.sameAs) {
-          const links = Array.isArray(parsed.sameAs) ? parsed.sameAs : [parsed.sameAs];
-          sameAsLinks.push(...links);
-        }
-      }
-    } catch {}
-  });
-  
+  // Entity Clarity (mit sameAs aus schemaData)
   const entityClarity = {
-    schemaTypes,
-    hasOrganizationSchema: schemaTypes.some(t => t.toLowerCase().includes('organization')),
-    hasPersonSchema: schemaTypes.some(t => t.toLowerCase() === 'person'),
-    hasArticleSchema: schemaTypes.some(t => t.toLowerCase().includes('article')),
-    hasFaqSchema: schemaTypes.some(t => t.toLowerCase() === 'faqpage'),
-    hasHowToSchema: schemaTypes.some(t => t.toLowerCase() === 'howto'),
-    hasBreadcrumbSchema: schemaTypes.some(t => t.toLowerCase().includes('breadcrumb')),
-    hasProductSchema: schemaTypes.some(t => t.toLowerCase() === 'product'),
-    hasLocalBusinessSchema: schemaTypes.some(t => t.toLowerCase().includes('localbusiness')),
-    sameAsLinks
+    schemaTypes: schemaData.types,
+    hasOrganizationSchema: schemaData.types.some(t => t.toLowerCase().includes('organization')),
+    hasPersonSchema: schemaData.types.some(t => t.toLowerCase() === 'person'),
+    hasArticleSchema: schemaData.types.some(t => t.toLowerCase().includes('article')),
+    hasFaqSchema: schemaData.types.some(t => t.toLowerCase() === 'faqpage'),
+    hasHowToSchema: schemaData.types.some(t => t.toLowerCase() === 'howto'),
+    hasBreadcrumbSchema: schemaData.types.some(t => t.toLowerCase().includes('breadcrumb')),
+    hasProductSchema: schemaData.types.some(t => t.toLowerCase() === 'product'),
+    hasLocalBusinessSchema: schemaData.types.some(t => t.toLowerCase().includes('localbusiness')),
+    sameAsLinks: schemaData.sameAsLinks,
+    hasKnowsAbout: schemaData.personData?.hasKnowsAbout || false,
+    hasJobTitle: schemaData.personData?.jobTitle !== null
   };
   
-  // === ZITIERBARKEIT FÜR LLMs ===
-  // Definitionen erkennen ("X ist...", "X bezeichnet...", "X bedeutet...")
+  // Citability
   const definitionPatterns = /(ist|sind|bezeichnet|bedeutet|definiert als|versteht man|nennt man)\s+[^.]{10,}\./gi;
   const hasDefinitions = definitionPatterns.test(bodyText);
   
-  // FAQ-Struktur
   const hasFaqStructure = 
     entityClarity.hasFaqSchema ||
-    $('[itemtype*="FAQPage"], .faq, #faq, [class*="faq"]').length > 0 ||
-    $('details, summary').length >= 3 ||
+    $('details summary, [class*="faq"], [id*="faq"], .accordion').length >= 3 ||
     $('h2, h3, h4').filter((_, el) => /\?$/.test($(el).text().trim())).length >= 3;
   
-  // HowTo-Struktur
   const hasHowToStructure = 
     entityClarity.hasHowToSchema ||
     $('[class*="step"], [class*="how-to"], ol li').length >= 3;
   
-  // Listen
-  const hasNumberedLists = $('ol').length > 0;
-  const hasBulletLists = $('ul').filter((_, el) => $(el).find('li').length >= 3).length > 0;
+  // GEFIXT: Listen korrekt erkennen
+  const hasNumberedLists = $('ol').filter((_, el) => $(el).find('li').length >= 2).length > 0;
+  const hasBulletLists = $('ul').filter((_, el) => $(el).find('li').length >= 2).length > 0;
   
-  // Datentabellen
-  const hasDataTables = $('table').filter((_, el) => $(el).find('tr').length >= 3).length > 0;
+  const hasDataTables = $('table').filter((_, el) => $(el).find('tr').length >= 2).length > 0;
   
-  // Statistiken & Zahlen
-  const statisticPatterns = /\d+(\.\d+)?%|\d{1,3}([.,]\d{3})+|\d+\s*(Prozent|Euro|Dollar|USD|EUR|Millionen|Milliarden)/gi;
+  const statisticPatterns = /\d+(\.\d+)?%|\d{1,3}([.,]\d{3})+|\d+\s*(prozent|euro|dollar|usd|eur|millionen|milliarden)/gi;
   const hasStatistics = statisticPatterns.test(bodyText);
   
-  // Zitate & Quellenangaben
   const hasCitations = 
-    $('cite, blockquote[cite], [class*="source"], [class*="reference"], [class*="citation"], sup a').length > 0 ||
-    /Quelle:|laut\s+\w+|gemäß|nach Angaben|Studie zeigt/i.test(bodyText);
+    $('cite, blockquote[cite], [class*="source"], [class*="reference"], sup a').length > 0 ||
+    /quelle:|laut\s+\w+|gemäß|nach angaben|studie zeigt|research|study/i.test(bodyText);
   
-  // Direkte Zitate
   const hasQuotes = 
     $('blockquote, q').length > 0 ||
     /"[^"]{20,}"/.test(bodyText) ||
     /„[^"]{20,}"/.test(bodyText);
   
-  // Zitierbarkeits-Score
+  const hasCodeBlocks = $('pre, code, [class*="code"]').length > 0;
+  
   let citabilityScore = 0;
   if (hasDefinitions) citabilityScore += 15;
   if (hasFaqStructure) citabilityScore += 20;
@@ -524,30 +954,16 @@ function analyzeGeoSignals($: cheerio.CheerioAPI, html: string, schemaTypes: str
   if (hasQuotes) citabilityScore += 5;
   citabilityScore = Math.min(citabilityScore, 100);
   
-  const citability = {
-    hasDefinitions,
-    hasFaqStructure,
-    hasHowToStructure,
-    hasNumberedLists,
-    hasBulletLists,
-    hasDataTables,
-    hasStatistics,
-    hasCitations,
-    hasQuotes,
-    citabilityScore
-  };
-  
-  // === FAKTEN & EXPERTISE ===
+  // Factual Signals
   const hasOriginalData = 
-    /unsere (Studie|Analyse|Daten|Umfrage|Erhebung)/i.test(bodyText) ||
+    /unsere (studie|analyse|daten|umfrage|erhebung)/i.test(bodyText) ||
     /wir haben (untersucht|analysiert|getestet|gemessen)/i.test(bodyText);
   
   const hasExpertQuotes = 
-    /sagt|erklärt|betont|meint|so\s+\w+\s*:/i.test(bodyText) &&
-    $('blockquote').length > 0;
+    /sagt|erklärt|betont|meint|so\s+\w+\s*:/i.test(bodyText) && $('blockquote').length > 0;
   
   const hasFirstPersonExpertise = 
-    /in meiner (Erfahrung|Praxis|Arbeit)|seit \d+ Jahren|als (Experte|Spezialist|Fachmann|Berater)/i.test(bodyText);
+    /in meiner (erfahrung|praxis|arbeit)|seit \d+ jahren|als (experte|spezialist|fachmann|berater)/i.test(bodyText);
   
   const hasSourceReferences = 
     $('a[href*="doi.org"], a[href*="pubmed"], a[href*="scholar.google"], [class*="footnote"]').length > 0 ||
@@ -557,18 +973,13 @@ function analyzeGeoSignals($: cheerio.CheerioAPI, html: string, schemaTypes: str
     $('[class*="updated"], [class*="modified"], time[datetime]').length > 0 ||
     /aktualisiert|zuletzt geändert|stand:/i.test(bodyTextLower);
   
-  const factualSignals = {
-    hasOriginalData,
-    hasExpertQuotes,
-    hasFirstPersonExpertise,
-    hasSourceReferences,
-    hasLastUpdated
-  };
+  const hasPublishDate = 
+    $('meta[property="article:published_time"], time[datetime], [class*="date"]').length > 0;
   
-  // === LLM-LESBARKEIT ===
+  // LLM Readability
   const hasSummary = 
     $('[class*="summary"], [class*="tldr"], [class*="fazit"], [class*="zusammenfassung"]').length > 0 ||
-    /zusammenfassung|fazit|im überblick|key takeaways|das wichtigste/i.test(bodyTextLower);
+    /zusammenfassung|fazit|im überblick|key takeaways|das wichtigste|tl;dr/i.test(bodyTextLower);
   
   const hasKeyTakeaways = 
     $('[class*="takeaway"], [class*="highlight"], [class*="key-point"]').length > 0 ||
@@ -576,80 +987,134 @@ function analyzeGeoSignals($: cheerio.CheerioAPI, html: string, schemaTypes: str
   
   const hasClearTopicSentences = $('p strong:first-child, p b:first-child').length >= 3;
   
-  const hasInfographics = 
-    $('figure, [class*="infographic"], svg[class*="chart"], canvas').length > 0;
+  const hasInfographics = $('figure, [class*="infographic"], svg, canvas').length > 0;
   
-  // Fragen im Content
   const questionHeadings = $('h1, h2, h3, h4').filter((_, el) => /\?/.test($(el).text())).length;
-  const questionCount = questionHeadings + (bodyText.match(/\?/g) || []).length;
+  const questionCount = Math.min(questionHeadings + (bodyText.match(/\?/g) || []).length, 50);
   
-  // Antwort-Muster ("Die Antwort ist...", "Kurz gesagt...")
   const answerPatterns = /die antwort|kurz gesagt|einfach erklärt|das bedeutet|konkret heißt das/gi;
   const answerPatternCount = (bodyText.match(answerPatterns) || []).length;
   
-  const llmReadability = {
-    hasSummary,
-    hasKeyTakeaways,
-    hasClearTopicSentences,
-    hasInfographics,
-    questionCount: Math.min(questionCount, 50),
-    answerPatternCount
-  };
+  const hasDirectAnswers = 
+    /^(ja|nein|das ist|es ist|man kann|du kannst)/im.test(bodyText);
   
-  // === GESAMT GEO SCORE ===
+  // GEO Score
   let geoScore = 0;
   
-  // Entitäts-Klarheit (max 25)
-  if (schemaTypes.length > 0) geoScore += 10;
-  if (entityClarity.hasOrganizationSchema || entityClarity.hasPersonSchema) geoScore += 8;
-  if (entityClarity.hasFaqSchema || entityClarity.hasHowToSchema) geoScore += 7;
+  // Entity (max 30)
+  if (schemaData.types.length > 0) geoScore += 10;
+  if (entityClarity.hasOrganizationSchema || entityClarity.hasPersonSchema) geoScore += 10;
+  if (schemaData.sameAsLinks.length > 0) geoScore += 10;
   
-  // Zitierbarkeit (max 35)
+  // Citability (max 35)
   geoScore += Math.round(citabilityScore * 0.35);
   
-  // Fakten & Expertise (max 20)
-  if (factualSignals.hasOriginalData) geoScore += 5;
-  if (factualSignals.hasExpertQuotes) geoScore += 5;
-  if (factualSignals.hasFirstPersonExpertise) geoScore += 5;
-  if (factualSignals.hasSourceReferences) geoScore += 5;
+  // Factual (max 20)
+  if (hasOriginalData) geoScore += 5;
+  if (hasExpertQuotes) geoScore += 5;
+  if (hasFirstPersonExpertise) geoScore += 5;
+  if (hasSourceReferences) geoScore += 5;
   
-  // LLM-Lesbarkeit (max 20)
-  if (llmReadability.hasSummary) geoScore += 5;
-  if (llmReadability.hasKeyTakeaways) geoScore += 5;
-  if (llmReadability.questionCount >= 3) geoScore += 5;
-  if (llmReadability.answerPatternCount >= 2) geoScore += 5;
+  // LLM Readability (max 15)
+  if (hasSummary) geoScore += 5;
+  if (hasKeyTakeaways) geoScore += 5;
+  if (questionCount >= 3 && answerPatternCount >= 1) geoScore += 5;
   
   geoScore = Math.min(geoScore, 100);
   
-  // Rating
-  let geoRating: 'Exzellent' | 'Gut' | 'Mittel' | 'Verbesserungswürdig' = 'Verbesserungswürdig';
+  let geoRating: GeoSignals['geoRating'] = 'Verbesserungswürdig';
   if (geoScore >= 75) geoRating = 'Exzellent';
   else if (geoScore >= 50) geoRating = 'Gut';
   else if (geoScore >= 30) geoRating = 'Mittel';
   
   return {
     entityClarity,
-    citability,
-    factualSignals,
-    llmReadability,
+    citability: {
+      hasDefinitions,
+      hasFaqStructure,
+      hasHowToStructure,
+      hasNumberedLists,
+      hasBulletLists,
+      hasDataTables,
+      hasStatistics,
+      hasCitations,
+      hasQuotes,
+      hasCodeBlocks,
+      citabilityScore
+    },
+    factualSignals: {
+      hasOriginalData,
+      hasExpertQuotes,
+      hasFirstPersonExpertise,
+      hasSourceReferences,
+      hasLastUpdated,
+      hasPublishDate
+    },
+    llmReadability: {
+      hasSummary,
+      hasKeyTakeaways,
+      hasClearTopicSentences,
+      hasInfographics,
+      questionCount,
+      answerPatternCount,
+      hasDirectAnswers
+    },
     geoScore,
     geoRating
   };
 }
 
-/**
- * ERWEITERTE Hauptanalyse-Funktion
- */
-function analyzeTech(html: string, $: cheerio.CheerioAPI, baseUrl: string, ttfbMs: number): TechStats {
-  // 1. Seitengröße
-  const pageSizeKb = Math.round((Buffer.byteLength(html, 'utf8') / 1024) * 100) / 100;
+// ============================================================================
+// SOCIAL META
+// ============================================================================
 
-  // 1b. ERWEITERTE Performance Bewertung
+function analyzeSocialMeta($: cheerio.CheerioAPI): SocialMeta {
+  const og = {
+    title: $('meta[property="og:title"]').attr('content') || null,
+    description: $('meta[property="og:description"]').attr('content') || null,
+    image: $('meta[property="og:image"]').attr('content') || null,
+    type: $('meta[property="og:type"]').attr('content') || null,
+    url: $('meta[property="og:url"]').attr('content') || null
+  };
+  
+  const twitter = {
+    card: $('meta[name="twitter:card"]').attr('content') || null,
+    site: $('meta[name="twitter:site"]').attr('content') || null,
+    title: $('meta[name="twitter:title"]').attr('content') || null,
+    description: $('meta[name="twitter:description"]').attr('content') || null,
+    image: $('meta[name="twitter:image"]').attr('content') || null
+  };
+  
+  const socialDomains = ['facebook.com', 'twitter.com', 'x.com', 'linkedin.com', 'instagram.com', 'youtube.com', 'tiktok.com', 'xing.com', 'pinterest.com', 'github.com'];
+  const socialProfileLinks: string[] = [];
+  
+  $('a[href]').each((_, el) => {
+    const href = $(el).attr('href') || '';
+    if (socialDomains.some(domain => href.includes(domain)) && !socialProfileLinks.includes(href)) {
+      socialProfileLinks.push(href);
+    }
+  });
+  
+  return {
+    og,
+    twitter,
+    hasSocialProfiles: socialProfileLinks.length > 0,
+    socialProfileLinks: socialProfileLinks.slice(0, 10)
+  };
+}
+
+// ============================================================================
+// HAUPTANALYSE
+// ============================================================================
+
+function analyzeTech(html: string, $: cheerio.CheerioAPI, baseUrl: string, ttfbMs: number): TechStats {
+  const pageSizeKb = Math.round((Buffer.byteLength(html, 'utf8') / 1024) * 100) / 100;
+  
+  // Performance
   let perfRating: 'Schnell' | 'Mittel' | 'Langsam' = 'Mittel';
   if (ttfbMs < 300) perfRating = 'Schnell';
   else if (ttfbMs > 800) perfRating = 'Langsam';
   
-  // Resource Hints
   const resourceHints = {
     preconnect: $('link[rel="preconnect"]').length,
     prefetch: $('link[rel="prefetch"]').length,
@@ -657,42 +1122,27 @@ function analyzeTech(html: string, $: cheerio.CheerioAPI, baseUrl: string, ttfbM
     dnsPrefetch: $('link[rel="dns-prefetch"]').length
   };
   
-  // Critical CSS Detection
   const hasCriticalCss = $('style').filter((_, el) => {
     const content = $(el).html() || '';
     return content.length > 100 && content.length < 50000;
   }).length > 0;
   
-  // Script Analysis
   const allScripts = $('script[src]');
-  let renderBlockingScripts = 0;
-  let asyncScripts = 0;
-  let deferScripts = 0;
+  let renderBlockingScripts = 0, asyncScripts = 0, deferScripts = 0;
   
   allScripts.each((_, el) => {
     const hasAsync = $(el).attr('async') !== undefined;
     const hasDefer = $(el).attr('defer') !== undefined;
-    if (hasAsync) asyncScripts++;
+    const isModule = $(el).attr('type') === 'module';
+    if (hasAsync || isModule) asyncScripts++;
     else if (hasDefer) deferScripts++;
     else renderBlockingScripts++;
   });
   
-  const performance: PerformanceMetrics = {
-    ttfbMs,
-    rating: perfRating,
-    htmlSizeKb: pageSizeKb,
-    resourceHints,
-    hasCriticalCss,
-    renderBlockingScripts,
-    asyncScripts,
-    deferScripts
-  };
-
-  // 2. Semantisches HTML & Code Qualität
+  // Structure
   const semanticTags = ['header', 'nav', 'main', 'article', 'section', 'aside', 'footer'];
   const foundTags = semanticTags.filter(tag => $(tag).length > 0);
   
-  // ERWEITERTE Heading-Analyse
   const headings = {
     h1: $('h1').length,
     h2: $('h2').length,
@@ -703,70 +1153,19 @@ function analyzeTech(html: string, $: cheerio.CheerioAPI, baseUrl: string, ttfbM
   };
   
   const h1Texts = $('h1').map((_, el) => $(el).text().trim()).get();
+  let headingHierarchyValid = headings.h1 === 1 && !(headings.h3 > 0 && headings.h2 === 0);
   
-  // Heading Hierarchie Check
-  let headingHierarchyValid = true;
-  if (headings.h1 !== 1) headingHierarchyValid = false;
-  if (headings.h3 > 0 && headings.h2 === 0) headingHierarchyValid = false;
-
   let semanticScore = Math.round((foundTags.length / semanticTags.length) * 100);
-  if (headings.h1 === 1) semanticScore += 10; 
-  if (semanticScore > 100) semanticScore = 100;
-
-  const domDepth = $('*').length;
-
-  // 3. Schema & Meta-Daten
-  const hasSchema = $('script[type="application/ld+json"]').length > 0;
-  const schemaDetails = analyzeSchemaDetails($);
-
-  // 3a. ERWEITERTE Autor-Erkennung
-  const hasAuthor = 
-    $('meta[name="author"]').length > 0 || 
-    $('meta[property="article:author"]').length > 0 ||
-    $('link[rel~="author"]').length > 0 ||
-    $('a[rel~="author"]').length > 0 ||
-    $('[itemprop="author"]').length > 0 ||
-    $('.author-name, .post-author, .author, .byline').length > 0;
+  if (headings.h1 === 1) semanticScore += 10;
+  semanticScore = Math.min(semanticScore, 100);
   
-  // Autor-Name extrahieren
-  let authorName: string | null = null;
-  const authorMeta = $('meta[name="author"]').attr('content');
-  if (authorMeta) {
-    authorName = authorMeta;
-  } else {
-    const authorEl = $('[itemprop="author"], .author-name, .author, .byline').first().text().trim();
-    if (authorEl && authorEl.length < 100) authorName = authorEl;
-  }
-
-  // 3b. ERWEITERTE Datums-Erkennung
-  const hasDate = 
-    $('meta[property="article:published_time"]').length > 0 || 
-    $('meta[property="og:updated_time"]').length > 0 ||
-    $('meta[name="date"]').length > 0 ||
-    $('time').length > 0 ||
-    $('[itemprop="datePublished"]').length > 0 ||
-    $('[itemprop="dateModified"]').length > 0 ||
-    $('.date, .published, .entry-date, .post-date, .meta-date').length > 0;
+  // Schema
+  const schemaData = analyzeSchemaDetails($);
+  const hasSchema = schemaData.types.length > 0;
   
-  // Datum extrahieren
-  const publishDate = $('meta[property="article:published_time"]').attr('content') ||
-    $('time[datetime]').first().attr('datetime') ||
-    $('[itemprop="datePublished"]').attr('content') || null;
-  
-  const modifiedDate = $('meta[property="article:modified_time"]').attr('content') ||
-    $('[itemprop="dateModified"]').attr('content') || null;
-  
-  // About/Team Page Detection
-  const allLinkHrefs = $('a').map((_, el) => $(el).attr('href')?.toLowerCase() || '').get().join(' ');
-  const hasAboutPage = /über-uns|about|ueber-uns|wir-sind/.test(allLinkHrefs);
-  const hasTeamPage = /team|mitarbeiter|ansprechpartner/.test(allLinkHrefs);
-
-  // 4. ERWEITERTE Bilder-Analyse
+  // Images
   const images = $('img');
-  let withAlt = 0;
-  let withEmptyAlt = 0;
-  let modernFormats = 0;
-  let lazyLoaded = 0;
+  let withAlt = 0, withEmptyAlt = 0, modernFormats = 0, lazyLoaded = 0;
   
   images.each((_, el) => {
     const src = $(el).attr('src') || $(el).attr('data-src') || '';
@@ -782,71 +1181,68 @@ function analyzeTech(html: string, $: cheerio.CheerioAPI, baseUrl: string, ttfbM
   });
   
   const imgScore = images.length === 0 ? 100 : Math.round(((withAlt + modernFormats) / (images.length * 2)) * 100);
-
-  // 5. ERWEITERTE Link Struktur & Trust
-  const allLinkText = $('a').map((_, el) => $(el).text().toLowerCase()).get().join(' ');
-  const hasImprint = /impressum|imprint|anbieterkennzeichnung/.test(allLinkText);
-  const hasPrivacy = /datenschutz|privacy|dsgvo/.test(allLinkText);
-  const hasContact = /kontakt|contact/.test(allLinkText);
-
+  
+  // Links
+  let currentHost = '';
+  try { currentHost = new URL(baseUrl).hostname.replace(/^www\./, ''); } catch {}
+  
   const internalLinks: LinkInfo[] = [];
   const externalLinksSample: LinkInfo[] = [];
-  let externalCount = 0;
-  let nofollowCount = 0;
-  let brokenLinkCandidates = 0;
+  let externalCount = 0, nofollowCount = 0, brokenLinkCandidates = 0;
   
-  let currentHost = '';
-  try {
-    currentHost = new URL(baseUrl).hostname.replace(/^www\./, '');
-  } catch (e) {
-    console.error('Base URL Invalid:', baseUrl);
-  }
-
   $('a').each((_, el) => {
     const rawHref = $(el).attr('href');
     const text = $(el).text().trim().replace(/\s+/g, ' ');
     const rel = $(el).attr('rel') || '';
-
-    if (rel.includes('nofollow')) nofollowCount++;
     
+    if (rel.includes('nofollow')) nofollowCount++;
     if (!rawHref || rawHref.startsWith('#') || rawHref.startsWith('mailto:') || rawHref.startsWith('tel:') || rawHref.startsWith('javascript:') || text.length < 2) return;
-
+    
     try {
       const absoluteUrl = new URL(rawHref, baseUrl);
       const linkHost = absoluteUrl.hostname.replace(/^www\./, '');
-      
       const isInternal = linkHost === currentHost;
       const linkObj = { text: text.substring(0, 60), href: absoluteUrl.href, isInternal };
-
+      
       if (isInternal) {
-        if (!internalLinks.some(l => l.href === absoluteUrl.href)) {
-          internalLinks.push(linkObj);
-        }
+        if (!internalLinks.some(l => l.href === absoluteUrl.href)) internalLinks.push(linkObj);
       } else {
         externalCount++;
         if (externalLinksSample.length < 5 && !externalLinksSample.some(l => l.href === absoluteUrl.href)) {
           externalLinksSample.push(linkObj);
         }
       }
-    } catch (e) {
-      brokenLinkCandidates++;
-    }
+    } catch { brokenLinkCandidates++; }
   });
-
+  
   const cmsInfo = detectCMS(html, $);
   
-  // NEU: Zusätzliche Analysen
+  // Alle Analysen
   const seoBasics = analyzeSeoBasics($);
   const indexing = analyzeIndexing($, baseUrl);
-  const contentMetrics = analyzeContentMetrics($);
+  const contentQuality = analyzeContentQuality($);
   const socialMeta = analyzeSocialMeta($);
-  const geoSignals = analyzeGeoSignals($, html, schemaDetails.types);
-
+  const eeat = analyzeEEAT($, html, schemaData);
+  const geoSignals = analyzeGeoSignals($, html, schemaData);
+  
   return {
     pageSizeKb,
-    performance,
+    performance: {
+      ttfbMs,
+      rating: perfRating,
+      htmlSizeKb: pageSizeKb,
+      resourceHints,
+      hasCriticalCss,
+      renderBlockingScripts,
+      asyncScripts,
+      deferScripts
+    },
     hasSchema,
-    schemaDetails,
+    schemaDetails: {
+      types: schemaData.types,
+      hasMultipleSchemas: schemaData.hasMultipleSchemas,
+      rawSchemas: schemaData.rawSchemas
+    },
     structure: {
       headings,
       hasMainH1: headings.h1 > 0,
@@ -861,18 +1257,6 @@ function analyzeTech(html: string, $: cheerio.CheerioAPI, baseUrl: string, ttfbM
       lazyLoaded,
       score: imgScore
     },
-    trustSignals: {
-      hasImprint,
-      hasPrivacy,
-      hasContact,
-      hasAuthor,
-      hasDate,
-      hasAboutPage,
-      hasTeamPage,
-      authorName,
-      publishDate,
-      modifiedDate
-    },
     linkStructure: {
       internal: internalLinks.slice(0, 25),
       internalCount: internalLinks.length,
@@ -884,45 +1268,46 @@ function analyzeTech(html: string, $: cheerio.CheerioAPI, baseUrl: string, ttfbM
     codeQuality: {
       semanticScore,
       semanticTagsFound: foundTags,
-      domDepth,
+      domDepth: $('*').length,
       isBuilder: cmsInfo.isBuilder
     },
     seoBasics,
     indexing,
-    contentMetrics,
+    contentQuality,
     socialMeta,
+    eeat,
     geoSignals
   };
 }
 
+// ============================================================================
+// SCRAPER
+// ============================================================================
+
 async function scrapeContent(url: string) {
   try {
     const startTime = Date.now();
-
     const response = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)' },
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SEOBot/1.0; +https://example.com/bot)' },
       next: { revalidate: 3600 }
     });
-
+    
     const ttfb = Date.now() - startTime;
-
     if (!response.ok) return null;
+    
     const html = await response.text();
     const $ = cheerio.load(html);
-
     const cmsData = detectCMS(html, $);
     const techStats = analyzeTech(html, $, url, ttfb);
-
-    // Aufräumen für Text-Content
+    
     $('script, style, nav, footer, iframe, svg, noscript').remove();
-
+    
     const title = $('title').text().trim();
     const description = $('meta[name="description"]').attr('content') || '';
     const h1 = $('h1').map((_, el) => $(el).text().trim()).get().join(' | ');
-    
     let content = $('main').text().trim() || $('article').text().trim() || $('body').text().trim();
     content = content.replace(/\s+/g, ' ').substring(0, 8000);
-
+    
     return { title, description, h1, content, cmsData, techStats };
   } catch (error) {
     console.error(`Fehler bei ${url}:`, error);
@@ -941,372 +1326,194 @@ export async function POST(req: NextRequest) {
     const targetUrl = body.targetUrl || body.myUrl || body.url || body.target || body.siteUrl || body.domain;
     const competitorUrl = body.competitorUrl || body.competitor || body.compareUrl;
     const keywords = body.keywords || body.keyword || '';
-
+    
     if (!targetUrl) return NextResponse.json({ message: 'URL fehlt' }, { status: 400 });
-
+    
     let normalizedUrl = targetUrl.trim();
     if (!normalizedUrl.startsWith('http')) normalizedUrl = 'https://' + normalizedUrl;
-
+    
     const [targetData, competitorData] = await Promise.all([
       scrapeContent(normalizedUrl),
       competitorUrl ? scrapeContent(competitorUrl) : Promise.resolve(null)
     ]);
-
-    if (!targetData) return NextResponse.json({ message: 'Analyse fehlgeschlagen' }, { status: 400 });
-
-    const isCompareMode = !!(competitorUrl && competitorData);
-    const compactStyles = getCompactStyleGuide();
-
-    // ------------------------------------------------------------------
-    // PROMPT CONSTRUCTION (ERWEITERT mit SEO & GEO)
-    // ------------------------------------------------------------------
-
-    const formatData = (data: any, url: string) => `
-      ZIEL-URL: ${url}
-      TITEL: ${data.title}
-      META-DESCRIPTION: ${data.description || 'FEHLT'}
-      
-      ═══════════════════════════════════════════════════════════════
-      TECHNISCHE SEO-FAKTEN
-      ═══════════════════════════════════════════════════════════════
-      
-      PERFORMANCE:
-      - HTTP Status: 200 OK
-      - Ladezeit (TTFB): ${data.techStats.performance.ttfbMs}ms (${data.techStats.performance.rating})
-      - HTML-Größe: ${data.techStats.performance.htmlSizeKb} KB
-      - Resource Hints: ${data.techStats.performance.resourceHints.preload} Preload, ${data.techStats.performance.resourceHints.preconnect} Preconnect
-      - Render-Blocking Scripts: ${data.techStats.performance.renderBlockingScripts}
-      - Async/Defer Scripts: ${data.techStats.performance.asyncScripts}/${data.techStats.performance.deferScripts}
-      
-      SEO BASICS:
-      - Viewport Meta: ${data.techStats.seoBasics.hasViewport ? '✅' : '❌'}
-      - Charset: ${data.techStats.seoBasics.hasCharset ? '✅' : '❌'}
-      - Sprache: ${data.techStats.seoBasics.language || 'NICHT GESETZT'}
-      - CMS/Framework: ${data.cmsData.cms}
-      
-      INDEXIERUNG:
-      - Canonical: ${data.techStats.indexing.canonical || 'FEHLT'}
-      - Canonical = URL: ${data.techStats.indexing.canonicalMatchesUrl ? '✅' : '❌'}
-      - Robots Meta: ${data.techStats.indexing.robotsMeta || 'nicht gesetzt'}
-      - Indexierbar: ${data.techStats.indexing.isIndexable ? '✅ JA' : '❌ NEIN'}
-      - Hreflang Tags: ${data.techStats.indexing.hreflang.length} Sprachen
-      
-      HTML STRUKTUR:
-      - H1: ${data.techStats.structure.headings.h1}x ("${data.techStats.structure.h1Text.join('", "')}")
-      - H2: ${data.techStats.structure.headings.h2}x
-      - H3: ${data.techStats.structure.headings.h3}x
-      - Hierarchie valide: ${data.techStats.structure.headingHierarchyValid ? '✅' : '❌'}
-      - Semantische Tags: ${data.techStats.codeQuality.semanticTagsFound.join(', ')}
-      - Semantik-Score: ${data.techStats.codeQuality.semanticScore}/100
-      
-      SCHEMA.ORG (STRUKTURIERTE DATEN):
-      - JSON-LD vorhanden: ${data.techStats.hasSchema ? '✅ JA' : '❌ NEIN'}
-      - Schema-Typen: ${data.techStats.schemaDetails.types.length > 0 ? data.techStats.schemaDetails.types.join(', ') : 'KEINE'}
-      - Organization Schema: ${data.techStats.geoSignals.entityClarity.hasOrganizationSchema ? '✅' : '❌'}
-      - Person Schema: ${data.techStats.geoSignals.entityClarity.hasPersonSchema ? '✅' : '❌'}
-      - Article Schema: ${data.techStats.geoSignals.entityClarity.hasArticleSchema ? '✅' : '❌'}
-      - FAQ Schema: ${data.techStats.geoSignals.entityClarity.hasFaqSchema ? '✅' : '❌'}
-      - HowTo Schema: ${data.techStats.geoSignals.entityClarity.hasHowToSchema ? '✅' : '❌'}
-      - Breadcrumb Schema: ${data.techStats.geoSignals.entityClarity.hasBreadcrumbSchema ? '✅' : '❌'}
-      
-      ═══════════════════════════════════════════════════════════════
-      E-E-A-T SIGNALE
-      ═══════════════════════════════════════════════════════════════
-      
-      EXPERTISE & AUTORITÄT:
-      - Autor erkannt: ${data.techStats.trustSignals.hasAuthor ? '✅' : '❌'}
-      - Autor-Name: ${data.techStats.trustSignals.authorName || 'NICHT GEFUNDEN'}
-      - Veröffentlichungsdatum: ${data.techStats.trustSignals.publishDate || 'FEHLT'}
-      - Aktualisierungsdatum: ${data.techStats.trustSignals.modifiedDate || 'FEHLT'}
-      - About-Seite verlinkt: ${data.techStats.trustSignals.hasAboutPage ? '✅' : '❌'}
-      - Team-Seite verlinkt: ${data.techStats.trustSignals.hasTeamPage ? '✅' : '❌'}
-      
-      VERTRAUENS-SIGNALE:
-      - Impressum: ${data.techStats.trustSignals.hasImprint ? '✅' : '❌'}
-      - Datenschutz: ${data.techStats.trustSignals.hasPrivacy ? '✅' : '❌'}
-      - Kontakt: ${data.techStats.trustSignals.hasContact ? '✅' : '❌'}
-      
-      SOCIAL MEDIA:
-      - Social Profiles verlinkt: ${data.techStats.socialMeta.hasSocialProfiles ? '✅' : '❌'}
-      - Profile: ${data.techStats.socialMeta.socialProfileLinks.slice(0, 3).join(', ') || 'KEINE'}
-      - Open Graph vollständig: ${data.techStats.socialMeta.og.title && data.techStats.socialMeta.og.image ? '✅' : '❌'}
-      - Twitter Card: ${data.techStats.socialMeta.twitter.card || 'FEHLT'}
-      
-      ═══════════════════════════════════════════════════════════════
-      CONTENT-ANALYSE
-      ═══════════════════════════════════════════════════════════════
-      
-      - Wortanzahl: ${data.techStats.contentMetrics.wordCount}
-      - Lesezeit: ~${data.techStats.contentMetrics.readingTimeMin} Min.
-      - Absätze: ${data.techStats.contentMetrics.paragraphCount}
-      - Thin Content: ${data.techStats.contentMetrics.thinContent ? '⚠️ JA (<300 Wörter)' : '✅ NEIN'}
-      - Inhaltsverzeichnis: ${data.techStats.contentMetrics.hasTableOfContents ? '✅' : '❌'}
-      - Content-Tiefe Score: ${data.techStats.contentMetrics.contentDepthScore}/100
-      
-      BILDER:
-      - Gesamt: ${data.techStats.imageAnalysis.total}
-      - Mit Alt-Text: ${data.techStats.imageAnalysis.withAlt}
-      - Leere Alt-Tags: ${data.techStats.imageAnalysis.withEmptyAlt}
-      - WebP/AVIF: ${data.techStats.imageAnalysis.modernFormats}
-      - Lazy Loading: ${data.techStats.imageAnalysis.lazyLoaded}
-      - Bild-Score: ${data.techStats.imageAnalysis.score}/100
-      
-      LINKS:
-      - Interne Links: ${data.techStats.linkStructure.internalCount}
-      - Externe Links: ${data.techStats.linkStructure.externalCount}
-      - Nofollow Links: ${data.techStats.linkStructure.nofollowCount}
-      - Potentiell defekte Links: ${data.techStats.linkStructure.brokenLinkCandidates}
-      
-      ═══════════════════════════════════════════════════════════════
-      GEO-ANALYSE (Generative Engine Optimization)
-      ═══════════════════════════════════════════════════════════════
-      
-      GESAMT GEO-SCORE: ${data.techStats.geoSignals.geoScore}/100 (${data.techStats.geoSignals.geoRating})
-      
-      ENTITÄTS-KLARHEIT (für LLMs):
-      - Schema-Typen definiert: ${data.techStats.geoSignals.entityClarity.schemaTypes.length > 0 ? '✅' : '❌'}
-      - sameAs Verlinkungen: ${data.techStats.geoSignals.entityClarity.sameAsLinks.length > 0 ? data.techStats.geoSignals.entityClarity.sameAsLinks.slice(0, 2).join(', ') : 'KEINE'}
-      
-      ZITIERBARKEIT FÜR KI (Score: ${data.techStats.geoSignals.citability.citabilityScore}/100):
-      - Definitionen im Text: ${data.techStats.geoSignals.citability.hasDefinitions ? '✅' : '❌'}
-      - FAQ-Struktur: ${data.techStats.geoSignals.citability.hasFaqStructure ? '✅' : '❌'}
-      - HowTo/Anleitungen: ${data.techStats.geoSignals.citability.hasHowToStructure ? '✅' : '❌'}
-      - Nummerierte Listen: ${data.techStats.geoSignals.citability.hasNumberedLists ? '✅' : '❌'}
-      - Datentabellen: ${data.techStats.geoSignals.citability.hasDataTables ? '✅' : '❌'}
-      - Statistiken/Zahlen: ${data.techStats.geoSignals.citability.hasStatistics ? '✅' : '❌'}
-      - Quellenangaben: ${data.techStats.geoSignals.citability.hasCitations ? '✅' : '❌'}
-      - Zitate: ${data.techStats.geoSignals.citability.hasQuotes ? '✅' : '❌'}
-      
-      FAKTEN & EXPERTISE:
-      - Originaldaten: ${data.techStats.geoSignals.factualSignals.hasOriginalData ? '✅' : '❌'}
-      - Expertenzitate: ${data.techStats.geoSignals.factualSignals.hasExpertQuotes ? '✅' : '❌'}
-      - First-Person Expertise: ${data.techStats.geoSignals.factualSignals.hasFirstPersonExpertise ? '✅' : '❌'}
-      - Quellenreferenzen: ${data.techStats.geoSignals.factualSignals.hasSourceReferences ? '✅' : '❌'}
-      - Aktualisierungshinweis: ${data.techStats.geoSignals.factualSignals.hasLastUpdated ? '✅' : '❌'}
-      
-      LLM-LESBARKEIT:
-      - Zusammenfassung/Fazit: ${data.techStats.geoSignals.llmReadability.hasSummary ? '✅' : '❌'}
-      - Key Takeaways: ${data.techStats.geoSignals.llmReadability.hasKeyTakeaways ? '✅' : '❌'}
-      - Fragen im Content: ${data.techStats.geoSignals.llmReadability.questionCount}
-      - Antwort-Patterns: ${data.techStats.geoSignals.llmReadability.answerPatternCount}
-      - Infografiken: ${data.techStats.geoSignals.llmReadability.hasInfographics ? '✅' : '❌'}
-      
-      ═══════════════════════════════════════════════════════════════
-      CONTENT PREVIEW (erste 2000 Zeichen)
-      ═══════════════════════════════════════════════════════════════
-      ${data.content.substring(0, 2000)}...
-    `;
-
-    const basePrompt = `
-      Du bist ein erfahrener SEO- und GEO-Auditor (Google Quality Rater Guidelines 2024 + AI Search Optimization).
-      
-      Analysiere die folgenden Daten der Webseite. 
-      
-      WICHTIG:
-      - Bewerte SOWOHL klassische SEO-Faktoren ALS AUCH GEO (Generative Engine Optimization)
-      - Erwähne IMMER den Status von Schema.org, Autor-Signalen und GEO-Score
-      - Gib konkrete, umsetzbare Empfehlungen
-      - Priorisiere nach Impact (Hoch/Mittel/Niedrig)
-
-      DATEN:
-      ${formatData(targetData, normalizedUrl)}
-    `;
-
-    const singlePrompt = `
-      ${basePrompt}
-      
-      AUFGABE:
-      Erstelle einen professionellen SEO & GEO Audit-Report als HTML.
-      
-      STYLE GUIDE: ${compactStyles}
-      
-      STRUKTUR DER ANTWORT (Halte dich exakt an dieses HTML-Gerüst):
-      
-      <div class="${STYLES.card} mb-6">
-         <div class="flex justify-between items-center mb-4 border-b pb-2">
-            <h3 class="${STYLES.h3} m-0">🔍 SEO & GEO Audit</h3>
-            <div class="flex gap-2">
-               <span class="text-xs font-mono bg-gray-100 px-2 py-1 rounded">TTFB: ${targetData.techStats.performance.ttfbMs}ms</span>
-               <span class="text-xs font-mono px-2 py-1 rounded ${targetData.techStats.geoSignals.geoScore >= 50 ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}">GEO: ${targetData.techStats.geoSignals.geoScore}/100</span>
-            </div>
-         </div>
-         
-         <div class="grid grid-cols-2 md:grid-cols-5 gap-3 text-center">
-            <div class="p-3 rounded bg-slate-50 border border-slate-200">
-               <div class="text-xs text-gray-500 uppercase">Schema.org</div>
-               <div class="font-bold ${targetData.techStats.hasSchema ? 'text-green-600' : 'text-red-600'}">
-                  ${targetData.techStats.hasSchema ? '✅ ' + targetData.techStats.schemaDetails.types.length + ' Typen' : '❌ Fehlt'}
-               </div>
-            </div>
-            <div class="p-3 rounded bg-slate-50 border border-slate-200">
-               <div class="text-xs text-gray-500 uppercase">Autor</div>
-               <div class="font-bold ${targetData.techStats.trustSignals.hasAuthor ? 'text-green-600' : 'text-red-600'}">
-                 ${targetData.techStats.trustSignals.hasAuthor ? '✅ Erkannt' : '❌ Fehlt'}
-               </div>
-            </div>
-            <div class="p-3 rounded bg-slate-50 border border-slate-200">
-               <div class="text-xs text-gray-500 uppercase">Indexierbar</div>
-               <div class="font-bold ${targetData.techStats.indexing.isIndexable ? 'text-green-600' : 'text-red-600'}">
-                  ${targetData.techStats.indexing.isIndexable ? '✅ Ja' : '❌ Nein'}
-               </div>
-            </div>
-            <div class="p-3 rounded bg-slate-50 border border-slate-200">
-               <div class="text-xs text-gray-500 uppercase">Content</div>
-               <div class="font-bold ${targetData.techStats.contentMetrics.thinContent ? 'text-red-600' : 'text-green-600'}">
-                  ${targetData.techStats.contentMetrics.wordCount} Wörter
-               </div>
-            </div>
-            <div class="p-3 rounded bg-slate-50 border border-slate-200">
-               <div class="text-xs text-gray-500 uppercase">Zitierbarkeit</div>
-               <div class="font-bold ${targetData.techStats.geoSignals.citability.citabilityScore >= 50 ? 'text-green-600' : 'text-yellow-600'}">
-                  ${targetData.techStats.geoSignals.citability.citabilityScore}/100
-               </div>
-            </div>
-         </div>
-      </div>
-
-      <div class="grid md:grid-cols-2 gap-6">
-      
-          <div class="${STYLES.card}">
-             <h3 class="${STYLES.h3} text-indigo-700"><i class="bi bi-shield-check"></i> E-E-A-T Analyse</h3>
-             <ul class="${STYLES.list} space-y-3">
-                <li>
-                    <strong>Strukturierte Daten:</strong> 
-                    ${targetData.techStats.hasSchema 
-                      ? '<span>✅ ' + targetData.techStats.schemaDetails.types.join(', ') + '</span>' 
-                      : '<span class="text-red-600">❌ Kein Schema-Markup. Implementiere mindestens Organization + Article/WebPage!</span>'}
-                </li>
-                <li>
-                    <strong>Autor & Identität:</strong>
-                    ${targetData.techStats.trustSignals.hasAuthor 
-                      ? '✅ Autor erkannt' + (targetData.techStats.trustSignals.authorName ? ': ' + targetData.techStats.trustSignals.authorName : '')
-                      : '⚠️ Kein Autoren-Signal im Code gefunden.'}
-                </li>
-                <li>
-                    <strong>Aktualität:</strong>
-                    ${targetData.techStats.trustSignals.publishDate 
-                      ? '✅ Veröffentlicht: ' + targetData.techStats.trustSignals.publishDate 
-                      : '❌ Kein Veröffentlichungsdatum erkennbar'}
-                </li>
-                <li>
-                    <strong>Trust-Signale:</strong>
-                    Impressum: ${targetData.techStats.trustSignals.hasImprint ? '✅' : '❌'} | 
-                    Datenschutz: ${targetData.techStats.trustSignals.hasPrivacy ? '✅' : '❌'} | 
-                    Kontakt: ${targetData.techStats.trustSignals.hasContact ? '✅' : '❌'}
-                </li>
-             </ul>
-          </div>
-
-          <div class="${STYLES.card}">
-             <h3 class="${STYLES.h3} text-purple-700"><i class="bi bi-robot"></i> GEO-Analyse (KI-Optimierung)</h3>
-             <div class="mb-3 p-2 rounded ${targetData.techStats.geoSignals.geoRating === 'Exzellent' ? 'bg-green-50' : targetData.techStats.geoSignals.geoRating === 'Gut' ? 'bg-blue-50' : 'bg-yellow-50'}">
-                <span class="font-bold">GEO-Score: ${targetData.techStats.geoSignals.geoScore}/100</span> - ${targetData.techStats.geoSignals.geoRating}
-             </div>
-             <ul class="${STYLES.list} space-y-2 text-sm">
-                <li>FAQ-Schema/Struktur: ${targetData.techStats.geoSignals.citability.hasFaqStructure ? '✅' : '❌'}</li>
-                <li>Definitionen im Text: ${targetData.techStats.geoSignals.citability.hasDefinitions ? '✅' : '❌'}</li>
-                <li>Statistiken & Fakten: ${targetData.techStats.geoSignals.citability.hasStatistics ? '✅' : '❌'}</li>
-                <li>Quellenangaben: ${targetData.techStats.geoSignals.citability.hasCitations ? '✅' : '❌'}</li>
-                <li>Zusammenfassung/Fazit: ${targetData.techStats.geoSignals.llmReadability.hasSummary ? '✅' : '❌'}</li>
-             </ul>
-          </div>
-      </div>
-
-      <div class="grid md:grid-cols-2 gap-6 mt-6">
-          <div class="${STYLES.card}">
-             <h3 class="${STYLES.h3} text-emerald-700"><i class="bi bi-code-slash"></i> Technisches SEO</h3>
-             <ul class="${STYLES.list} space-y-3">
-                <li>
-                    <strong>Überschriften:</strong>
-                    ${targetData.techStats.structure.headings.h1 === 1 
-                      ? '✅ Genau eine H1' 
-                      : '⚠️ ' + targetData.techStats.structure.headings.h1 + ' H1-Tags'}
-                    (H2: ${targetData.techStats.structure.headings.h2}, H3: ${targetData.techStats.structure.headings.h3})
-                </li>
-                <li>
-                    <strong>Canonical:</strong>
-                    ${targetData.techStats.indexing.canonical 
-                      ? (targetData.techStats.indexing.canonicalMatchesUrl ? '✅ Self-referencing' : '⚠️ Zeigt auf andere URL') 
-                      : '❌ Fehlt'}
-                </li>
-                <li>
-                    <strong>Performance:</strong>
-                    TTFB ${targetData.techStats.performance.rating} (${targetData.techStats.performance.ttfbMs}ms),
-                    ${targetData.techStats.performance.renderBlockingScripts} blocking Scripts
-                </li>
-                <li>
-                    <strong>Bilder:</strong>
-                    ${targetData.techStats.imageAnalysis.withAlt}/${targetData.techStats.imageAnalysis.total} mit Alt-Text,
-                    ${targetData.techStats.imageAnalysis.modernFormats} WebP/AVIF
-                </li>
-             </ul>
-          </div>
-
-          <div class="${STYLES.card}">
-             <h3 class="${STYLES.h3} text-orange-700"><i class="bi bi-share"></i> Social & Links</h3>
-             <ul class="${STYLES.list} space-y-3">
-                <li>
-                    <strong>Open Graph:</strong>
-                    ${targetData.techStats.socialMeta.og.title && targetData.techStats.socialMeta.og.image 
-                      ? '✅ Vollständig' 
-                      : '⚠️ Unvollständig'}
-                </li>
-                <li>
-                    <strong>Twitter Card:</strong>
-                    ${targetData.techStats.socialMeta.twitter.card || '❌ Fehlt'}
-                </li>
-                <li>
-                    <strong>Interne Links:</strong>
-                    ${targetData.techStats.linkStructure.internalCount}
-                    ${targetData.techStats.linkStructure.internalCount < 5 ? '⚠️ Wenig' : '✅'}
-                </li>
-                <li>
-                    <strong>Externe Links:</strong>
-                    ${targetData.techStats.linkStructure.externalCount}
-                    (${targetData.techStats.linkStructure.nofollowCount} nofollow)
-                </li>
-             </ul>
-          </div>
-      </div>
-
-      <div class="${STYLES.card} mt-6 bg-gradient-to-r from-indigo-50 to-purple-50">
-         <h3 class="${STYLES.h3}"><i class="bi bi-list-check"></i> Priorisierter Maßnahmen-Plan</h3>
-         <p class="mb-3 text-sm text-gray-600">Sortiert nach Impact für SEO & GEO:</p>
-         
-         <div class="space-y-4">
-            <div>
-               <h4 class="font-bold text-red-600 text-sm mb-2">🔴 HOHE PRIORITÄT</h4>
-               <ol class="list-decimal pl-5 space-y-1 text-sm">
-                  ${!targetData.techStats.hasSchema ? '<li><strong>Schema.org implementieren:</strong> Mindestens Organization + Article/WebPage Schema als JSON-LD einbauen.</li>' : ''}
-                  ${!targetData.techStats.trustSignals.hasAuthor ? '<li><strong>Autor-Signal hinzufügen:</strong> Meta-Author Tag + Author Schema mit Credentials.</li>' : ''}
-                  ${!targetData.techStats.indexing.canonical ? '<li><strong>Canonical Tag setzen:</strong> Self-referencing Canonical auf jeder Seite.</li>' : ''}
-                  ${targetData.techStats.contentMetrics.thinContent ? '<li><strong>Content erweitern:</strong> Aktuell nur ' + targetData.techStats.contentMetrics.wordCount + ' Wörter. Mindestens 800+ anstreben.</li>' : ''}
-                  ${!targetData.techStats.geoSignals.citability.hasFaqStructure ? '<li><strong>FAQ-Bereich ergänzen:</strong> 3-5 häufige Fragen mit Schema-Markup für KI-Sichtbarkeit.</li>' : ''}
-               </ol>
-            </div>
-            
-            <div>
-               <h4 class="font-bold text-yellow-600 text-sm mb-2">🟡 MITTLERE PRIORITÄT</h4>
-               <ol class="list-decimal pl-5 space-y-1 text-sm">
-                  ${!targetData.techStats.geoSignals.citability.hasDefinitions ? '<li><strong>Definitionen einbauen:</strong> Wichtige Begriffe klar definieren ("X ist..." Sätze).</li>' : ''}
-                  ${!targetData.techStats.geoSignals.llmReadability.hasSummary ? '<li><strong>Zusammenfassung ergänzen:</strong> TL;DR oder Fazit-Box am Anfang/Ende.</li>' : ''}
-                  ${!targetData.techStats.socialMeta.og.image ? '<li><strong>OG-Image setzen:</strong> Ansprechendes Vorschaubild für Social Shares.</li>' : ''}
-                  ${targetData.techStats.imageAnalysis.total > 0 && targetData.techStats.imageAnalysis.withAlt < targetData.techStats.imageAnalysis.total ? '<li><strong>Alt-Texte vervollständigen:</strong> ' + (targetData.techStats.imageAnalysis.total - targetData.techStats.imageAnalysis.withAlt) + ' Bilder ohne Alt-Text.</li>' : ''}
-               </ol>
-            </div>
-         </div>
-      </div>
-      
-      Antworte NUR mit HTML. Keine Einleitung, kein Markdown.
-    `;
-
-    // Stream zurückgeben (wie im Original)
-    const result = await streamTextSafe({
-      prompt: singlePrompt,
-    });
     
-    return result.toTextStreamResponse();
+    if (!targetData) return NextResponse.json({ message: 'Analyse fehlgeschlagen' }, { status: 400 });
+    
+    const compactStyles = getCompactStyleGuide();
+    const ts = targetData.techStats;
+    
+    // Dynamischer Footer Hinweis
+    const dynamicWarning = ts.eeat.dynamicContentWarning 
+      ? `\n⚠️ HINWEIS: ${ts.eeat.dynamicContentWarning}` 
+      : '';
 
+    const formatData = () => `
+═══════════════════════════════════════════════════════════════
+URL: ${normalizedUrl}
+TITEL: ${targetData.title}
+META-DESCRIPTION: ${targetData.description || 'FEHLT'}
+${dynamicWarning}
+
+═══════════════════════════════════════════════════════════════
+E-E-A-T ANALYSE (Experience, Expertise, Authority, Trust)
+═══════════════════════════════════════════════════════════════
+
+GESAMT E-E-A-T: ${ts.eeat.overallScore}/100 (${ts.eeat.overallRating})
+
+EXPERIENCE (Erfahrung) - Score: ${ts.eeat.experience.experienceScore}/100
+- First-Person Narrative: ${ts.eeat.experience.hasFirstPersonNarrative ? '✅' : '❌'}
+- Persönliche Geschichten: ${ts.eeat.experience.hasPersonalStories ? '✅' : '❌'}
+- Fallstudien/Case Studies: ${ts.eeat.experience.hasCaseStudies ? '✅' : '❌'}
+- Testimonials/Kundenstimmen: ${ts.eeat.experience.hasTestimonials ? '✅' : '❌'}
+- Portfolio/Referenzen: ${ts.eeat.experience.hasPortfolio ? '✅' : '❌'}
+
+EXPERTISE (Fachwissen) - Score: ${ts.eeat.expertise.expertiseScore}/100
+- Autor-Bio vorhanden: ${ts.eeat.expertise.hasAuthorBio ? '✅' : '❌'}
+- Credentials/Qualifikationen: ${ts.eeat.expertise.hasCredentials ? '✅' : '❌'}
+- Tiefgehende Erklärungen: ${ts.eeat.expertise.hasDetailedExplanations ? '✅' : '❌'}
+- Fachbegriffe korrekt: ${ts.eeat.expertise.hasTechnicalTerms ? '✅' : '❌'}
+- Methodik erklärt: ${ts.eeat.expertise.hasMethodology ? '✅' : '❌'}
+- Datenbasierter Content: ${ts.eeat.expertise.hasDataDrivenContent ? '✅' : '❌'}
+
+AUTHORITY (Autorität) - Score: ${ts.eeat.authoritativeness.authorityScore}/100
+- Organization Schema: ${ts.eeat.authoritativeness.hasOrganizationSchema ? '✅' : '❌'}
+- Person Schema: ${ts.eeat.authoritativeness.hasPersonSchema ? '✅' : '❌'}
+- sameAs Links: ${ts.eeat.authoritativeness.hasSameAsLinks ? '✅ ' + ts.eeat.authoritativeness.sameAsLinks.slice(0, 2).join(', ') : '❌ FEHLT'}
+- Externe Zitierungen: ${ts.eeat.authoritativeness.hasExternalCitations ? '✅' : '❌'}
+- Awards/Auszeichnungen: ${ts.eeat.authoritativeness.hasAwards ? '✅' : '❌'}
+- Medienerwähnungen: ${ts.eeat.authoritativeness.hasMentions ? '✅' : '❌'}
+- Partnerschaften: ${ts.eeat.authoritativeness.hasPartnerships ? '✅' : '❌'}
+
+TRUST (Vertrauen) - Score: ${ts.eeat.trustworthiness.trustScore}/100
+- Impressum: ${ts.eeat.trustworthiness.hasImprint ? '✅' : '❌'}
+- Datenschutz: ${ts.eeat.trustworthiness.hasPrivacyPolicy ? '✅' : '❌'}
+- Kontakt: ${ts.eeat.trustworthiness.hasContact ? '✅' : '❌'}
+- Über-uns Seite: ${ts.eeat.trustworthiness.hasAboutPage ? '✅' : '❌'}
+- Team-Seite: ${ts.eeat.trustworthiness.hasTeamPage ? '✅' : '❌'}
+- Physische Adresse: ${ts.eeat.trustworthiness.hasPhysicalAddress ? '✅' : '❌'}
+- Telefonnummer: ${ts.eeat.trustworthiness.hasPhoneNumber ? '✅' : '❌'}
+
+═══════════════════════════════════════════════════════════════
+CONTENT-QUALITÄT & STORYTELLING
+═══════════════════════════════════════════════════════════════
+
+GESAMT CONTENT: ${ts.contentQuality.overallContentScore}/100 (${ts.contentQuality.contentRating})
+
+BASIS-METRIKEN:
+- Wortanzahl: ${ts.contentQuality.wordCount}
+- Lesezeit: ~${ts.contentQuality.readingTimeMin} Min.
+- Absätze: ${ts.contentQuality.paragraphCount}
+- Thin Content: ${ts.contentQuality.thinContent ? '⚠️ JA (<300 Wörter)' : '✅ NEIN'}
+
+STORYTELLING - Score: ${ts.contentQuality.storytelling.storytellingScore}/100
+- Narrative Struktur: ${ts.contentQuality.storytelling.hasNarrativeStructure ? '✅' : '❌'}
+- Hook/Aufmerksamkeitsfänger: ${ts.contentQuality.storytelling.hasHook ? '✅' : '❌'}
+- Emotionale Sprache: ${ts.contentQuality.storytelling.hasEmotionalLanguage ? '✅' : '❌'}
+- Anekdoten: ${ts.contentQuality.storytelling.hasAnecdotes ? '✅' : '❌'}
+- Problem-Lösung Struktur: ${ts.contentQuality.storytelling.hasConflictResolution ? '✅' : '❌'}
+- Call-to-Action: ${ts.contentQuality.storytelling.hasCallToAction ? '✅' : '❌'}
+
+LESBARKEIT - Score: ${ts.contentQuality.readability.readabilityScore}/100
+- Kurze Absätze: ${ts.contentQuality.readability.hasShortParagraphs ? '✅' : '❌'}
+- Zwischenüberschriften: ${ts.contentQuality.readability.hasSubheadings ? '✅' : '❌'}
+- Aufzählungen: ${ts.contentQuality.readability.hasBulletPoints ? '✅' : '❌'}
+- Nummerierte Listen: ${ts.contentQuality.readability.hasNumberedLists ? '✅' : '❌'}
+- Hervorgehobener Text: ${ts.contentQuality.readability.hasHighlightedText ? '✅' : '❌'}
+- Visuelle Breaks: ${ts.contentQuality.readability.hasVisualBreaks ? '✅' : '❌'}
+
+UNIQUE VALUE - Score: ${ts.contentQuality.uniqueValue.uniqueValueScore}/100
+- Eigene Forschung/Daten: ${ts.contentQuality.uniqueValue.hasOriginalResearch ? '✅' : '❌'}
+- Einzigartige Insights: ${ts.contentQuality.uniqueValue.hasUniqueInsights ? '✅' : '❌'}
+- Umsetzbare Tipps: ${ts.contentQuality.uniqueValue.hasActionableAdvice ? '✅' : '❌'}
+- Konkrete Beispiele: ${ts.contentQuality.uniqueValue.hasExamples ? '✅' : '❌'}
+- Vergleiche: ${ts.contentQuality.uniqueValue.hasComparisons ? '✅' : '❌'}
+- Tools/Downloads: ${ts.contentQuality.uniqueValue.hasTools ? '✅' : '❌'}
+
+═══════════════════════════════════════════════════════════════
+GEO-ANALYSE (Generative Engine Optimization)
+═══════════════════════════════════════════════════════════════
+
+GESAMT GEO-SCORE: ${ts.geoSignals.geoScore}/100 (${ts.geoSignals.geoRating})
+
+ENTITÄTS-KLARHEIT:
+- Schema-Typen: ${ts.geoSignals.entityClarity.schemaTypes.join(', ') || 'KEINE'}
+- sameAs Links: ${ts.geoSignals.entityClarity.sameAsLinks.length > 0 ? '✅ ' + ts.geoSignals.entityClarity.sameAsLinks.join(', ') : '❌ KEINE'}
+- knowsAbout: ${ts.geoSignals.entityClarity.hasKnowsAbout ? '✅' : '❌'}
+- jobTitle: ${ts.geoSignals.entityClarity.hasJobTitle ? '✅' : '❌'}
+
+ZITIERBARKEIT (Score: ${ts.geoSignals.citability.citabilityScore}/100):
+- Definitionen: ${ts.geoSignals.citability.hasDefinitions ? '✅' : '❌'}
+- FAQ-Struktur: ${ts.geoSignals.citability.hasFaqStructure ? '✅' : '❌'}
+- Listen (Bullet/Numbered): ${ts.geoSignals.citability.hasBulletLists || ts.geoSignals.citability.hasNumberedLists ? '✅' : '❌'}
+- Datentabellen: ${ts.geoSignals.citability.hasDataTables ? '✅' : '❌'}
+- Statistiken: ${ts.geoSignals.citability.hasStatistics ? '✅' : '❌'}
+- Quellenangaben: ${ts.geoSignals.citability.hasCitations ? '✅' : '❌'}
+
+LLM-READABILITY:
+- Zusammenfassung: ${ts.geoSignals.llmReadability.hasSummary ? '✅' : '❌'}
+- Key Takeaways: ${ts.geoSignals.llmReadability.hasKeyTakeaways ? '✅' : '❌'}
+- Fragen im Content: ${ts.geoSignals.llmReadability.questionCount}
+- Direkte Antworten: ${ts.geoSignals.llmReadability.hasDirectAnswers ? '✅' : '❌'}
+
+═══════════════════════════════════════════════════════════════
+TECHNISCHES SEO
+═══════════════════════════════════════════════════════════════
+
+PERFORMANCE:
+- TTFB: ${ts.performance.ttfbMs}ms (${ts.performance.rating})
+- HTML-Größe: ${ts.performance.htmlSizeKb} KB
+- Render-Blocking: ${ts.performance.renderBlockingScripts} Scripts
+- Async/Defer: ${ts.performance.asyncScripts}/${ts.performance.deferScripts}
+
+STRUKTUR:
+- H1: ${ts.structure.headings.h1}x | H2: ${ts.structure.headings.h2}x | H3: ${ts.structure.headings.h3}x
+- Semantik-Score: ${ts.codeQuality.semanticScore}/100
+- Canonical: ${ts.indexing.canonical ? (ts.indexing.canonicalMatchesUrl ? '✅ Self-ref' : '⚠️ Andere URL') : '❌ FEHLT'}
+
+BILDER:
+- Gesamt: ${ts.imageAnalysis.total}
+- Mit Alt: ${ts.imageAnalysis.withAlt}
+- WebP/AVIF: ${ts.imageAnalysis.modernFormats}
+- Lazy Load: ${ts.imageAnalysis.lazyLoaded}
+
+LINKS:
+- Intern: ${ts.linkStructure.internalCount}
+- Extern: ${ts.linkStructure.externalCount}
+
+SOCIAL:
+- OG vollständig: ${ts.socialMeta.og.title && ts.socialMeta.og.image ? '✅' : '❌'}
+- Twitter Card: ${ts.socialMeta.twitter.card || '❌ FEHLT'}
+`;
+
+    const prompt = `
+Du bist ein erfahrener SEO-, E-E-A-T- und GEO-Experte. Analysiere die Daten und erstelle einen professionellen Audit-Report.
+
+WICHTIG:
+- Bewerte alle 4 E-E-A-T Dimensionen einzeln
+- Gib konkrete, umsetzbare Empfehlungen
+- Priorisiere nach Impact
+- Sei präzise und direkt
+
+DATEN:
+${formatData()}
+
+STYLE: ${compactStyles}
+
+Erstelle den Report als HTML mit dieser Struktur:
+
+1. HEADER mit Scores (E-E-A-T, Content, GEO, Tech)
+2. E-E-A-T Detailanalyse (alle 4 Dimensionen)
+3. Content & Storytelling Bewertung
+4. GEO-Readiness
+5. Technisches SEO
+6. Priorisierter Maßnahmenplan (Hoch/Mittel/Nice-to-have)
+
+Antworte NUR mit HTML. Keine Einleitung.
+`;
+
+    const result = await streamTextSafe({ prompt });
+    return result.toTextStreamResponse();
+    
   } catch (error) {
     console.error('API Error:', error);
     return NextResponse.json({ message: 'Interner Serverfehler' }, { status: 500 });
