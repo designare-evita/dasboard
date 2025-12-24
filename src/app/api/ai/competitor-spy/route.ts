@@ -366,6 +366,14 @@ function countSentences(text: string): number {
   return cleaned.split(/[.!?]+/).filter(s => s.trim().length > 5).length;
 }
 
+function extractDomain(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return '';
+  }
+}
+
 function identifySocialPlatform(url: string): string | null {
   const platforms: Record<string, string[]> = {
     'LinkedIn': ['linkedin.com'],
@@ -836,7 +844,6 @@ function extractLinks($: cheerio.CheerioAPI, baseUrl: string): ExtractedFacts['l
     socialLinks: socialLinks.slice(0, 10),
     emptyLinks,
     javascriptLinks,
-    
   };
 }
 
@@ -1046,62 +1053,62 @@ function extractTrustSignals($: cheerio.CheerioAPI, baseUrl: string): ExtractedF
 }
 
 // ============================================================================
-// TECHNOLOGIE DETECTION
+// TECHNOLOGIE DETECTION (NEU: STRIKTE CODE-ANALYSE)
 // ============================================================================
 
 function detectTechnology(html: string, $: cheerio.CheerioAPI): ExtractedFacts['technology'] {
   const htmlLower = html.toLowerCase();
   
-  // CMS Detection
-  let detectedCms = 'Nicht erkannt';
-  const builders = ['wix', 'squarespace', 'jimdo', 'shopify', 'weebly', 'webflow', 'elementor', 'divi'];
+  // 1. CMS Detection (STRIKT NACH CODE-INDIKATOREN)
+  let detectedCms = 'Custom HTML / Hand-coded'; // Default, wenn keine eindeutigen Spuren gefunden werden
   
-  if (htmlLower.includes('wp-content') || htmlLower.includes('wordpress')) detectedCms = 'WordPress';
-  else if (htmlLower.includes('wix.com') || htmlLower.includes('wix-')) detectedCms = 'Wix';
-  else if (htmlLower.includes('squarespace')) detectedCms = 'Squarespace';
-  else if (htmlLower.includes('jimdo')) detectedCms = 'Jimdo';
-  else if (htmlLower.includes('shopify')) detectedCms = 'Shopify';
-  else if (htmlLower.includes('typo3')) detectedCms = 'TYPO3';
-  else if (htmlLower.includes('joomla')) detectedCms = 'Joomla';
-  else if (htmlLower.includes('webflow')) detectedCms = 'Webflow';
-  else if (htmlLower.includes('drupal')) detectedCms = 'Drupal';
-  else if (htmlLower.includes('ghost')) detectedCms = 'Ghost';
-  else if (htmlLower.includes('contentful')) detectedCms = 'Contentful';
-  else if (htmlLower.includes('strapi')) detectedCms = 'Strapi';
+  // WordPress Indikatoren (MÜSSEN im Code sein)
+  const hasWpContent = htmlLower.includes('/wp-content/') || htmlLower.includes('/wp-includes/');
+  const hasWpGenerator = $('meta[name="generator"][content*="WordPress"]').length > 0;
+  const hasWpJsonLink = $('link[rel="https://api.w.org/"]').length > 0;
+  const hasWpClasses = $('body').attr('class')?.includes('page-template') || false;
+
+  // Wix Indikatoren
+  const hasWix = htmlLower.includes('wix.com') || htmlLower.includes('wix-');
   
-  const isPageBuilder = builders.some(b => htmlLower.includes(b)) ||
-                        htmlLower.includes('elementor') ||
-                        htmlLower.includes('divi') ||
-                        htmlLower.includes('beaver-builder');
+  // Shopify Indikatoren
+  const hasShopify = htmlLower.includes('cdn.shopify.com') || htmlLower.includes('shopify.shop');
   
-  // Frameworks
+  // Squarespace
+  const hasSquarespace = htmlLower.includes('squarespace');
+
+  // Logic Tree
+  if (hasWpContent || hasWpGenerator || hasWpJsonLink || hasWpClasses) {
+    detectedCms = 'WordPress';
+  } else if (hasWix) {
+    detectedCms = 'Wix';
+  } else if (hasShopify) {
+    detectedCms = 'Shopify';
+  } else if (hasSquarespace) {
+    detectedCms = 'Squarespace';
+  }
+  
+  // 2. Page Builder Detection (Code-Signaturen)
+  const builderSignatures = ['elementor', 'divi', 'beaver-builder', 'wp-bakery', 'vc_row', 'fusion-builder'];
+  const isPageBuilder = builderSignatures.some(sig => htmlLower.includes(sig));
+  
+  // 3. Frameworks
   const frameworks: string[] = [];
-  const libraries: string[] = [];
-  
-  if (htmlLower.includes('__next') || htmlLower.includes('next.js') || htmlLower.includes('_next')) frameworks.push('Next.js');
-  if (htmlLower.includes('nuxt') || htmlLower.includes('__nuxt')) frameworks.push('Nuxt.js');
+  if (htmlLower.includes('__next') || htmlLower.includes('next.js')) frameworks.push('Next.js');
+  if (htmlLower.includes('nuxt')) frameworks.push('Nuxt.js');
   if (htmlLower.includes('gatsby')) frameworks.push('Gatsby');
-  if (htmlLower.includes('angular')) frameworks.push('Angular');
-  if (htmlLower.includes('svelte')) frameworks.push('Svelte');
-  if (htmlLower.includes('remix')) frameworks.push('Remix');
   if (htmlLower.includes('astro')) frameworks.push('Astro');
-  
+  if (htmlLower.includes('react') || htmlLower.includes('__react')) frameworks.push('React');
+  if (htmlLower.includes('vue')) frameworks.push('Vue.js');
+  if (htmlLower.includes('tailwind')) frameworks.push('Tailwind CSS');
+  if (htmlLower.includes('bootstrap')) frameworks.push('Bootstrap');
+
   // Libraries
+  const libraries: string[] = [];
   const usesJquery = htmlLower.includes('jquery');
-  const usesReact = htmlLower.includes('react') || htmlLower.includes('__react');
-  const usesVue = htmlLower.includes('vue') || $('[v-if], [v-for], [v-model]').length > 0;
-  const usesAngular = htmlLower.includes('ng-') || $('[ng-app], [ng-controller]').length > 0;
-  
   if (usesJquery) libraries.push('jQuery');
-  if (htmlLower.includes('bootstrap')) libraries.push('Bootstrap');
-  if (htmlLower.includes('tailwind')) libraries.push('Tailwind CSS');
   if (htmlLower.includes('fontawesome') || htmlLower.includes('font-awesome')) libraries.push('Font Awesome');
   if (htmlLower.includes('gsap')) libraries.push('GSAP');
-  if (htmlLower.includes('particles')) libraries.push('Particles.js');
-  
-  // PWA
-  const hasServiceWorker = htmlLower.includes('serviceworker') || htmlLower.includes('service-worker');
-  const hasManifest = $('link[rel="manifest"]').length > 0;
   
   return {
     detectedCms,
@@ -1109,11 +1116,11 @@ function detectTechnology(html: string, $: cheerio.CheerioAPI): ExtractedFacts['
     detectedFrameworks: frameworks,
     detectedLibraries: libraries,
     usesJquery,
-    usesReact,
-    usesVue,
-    usesAngular,
-    hasServiceWorker,
-    hasManifest,
+    usesReact: frameworks.includes('React'),
+    usesVue: frameworks.includes('Vue.js'),
+    usesAngular: htmlLower.includes('ng-'),
+    hasServiceWorker: htmlLower.includes('serviceworker') || htmlLower.includes('service-worker'),
+    hasManifest: $('link[rel="manifest"]').length > 0,
   };
 }
 
@@ -1333,6 +1340,17 @@ META-AUTHOR: ${f.meta.author || '❌ NICHT GESETZT'}
 SPRACHE: ${f.meta.language || '❌ NICHT GESETZT'}
 
 ${f.dynamicContent.warning ? `⚠️ WARNUNG: ${f.dynamicContent.warning}\n` : ''}
+
+────────────────────────────────────────────────────────────────────────────────
+TECHNOLOGIE & CMS (CODE-BASIERT)
+────────────────────────────────────────────────────────────────────────────────
+(Hinweis: Diese Erkennung basiert REIN auf Code-Spuren wie Ordnerpfaden oder Meta-Tags)
+
+Erkanntes System: ${f.technology.detectedCms}
+Page Builder gefunden: ${f.technology.isPageBuilder ? 'JA' : 'NEIN'}
+Frameworks: ${f.technology.detectedFrameworks.length > 0 ? f.technology.detectedFrameworks.join(', ') : 'Keine'}
+Libraries: ${f.technology.detectedLibraries.length > 0 ? f.technology.detectedLibraries.join(', ') : 'Keine'}
+
 ────────────────────────────────────────────────────────────────────────────────
 SCHEMA.ORG STRUKTURIERTE DATEN
 ────────────────────────────────────────────────────────────────────────────────
@@ -1533,16 +1551,6 @@ STYLES:
 - Extern: ${f.performance.externalStylesCount}
 
 ────────────────────────────────────────────────────────────────────────────────
-TECHNOLOGIE
-────────────────────────────────────────────────────────────────────────────────
-
-CMS: ${f.technology.detectedCms}
-Page Builder: ${f.technology.isPageBuilder ? '⚠️ JA' : '✅ NEIN'}
-Frameworks: ${f.technology.detectedFrameworks.length > 0 ? f.technology.detectedFrameworks.join(', ') : 'Keine erkannt'}
-Libraries: ${f.technology.detectedLibraries.length > 0 ? f.technology.detectedLibraries.join(', ') : 'Keine erkannt'}
-PWA: Service Worker: ${f.technology.hasServiceWorker ? '✅' : '❌'}, Manifest: ${f.technology.hasManifest ? '✅' : '❌'}
-
-────────────────────────────────────────────────────────────────────────────────
 CONTENT SAMPLES (für qualitative Bewertung)
 ────────────────────────────────────────────────────────────────────────────────
 
@@ -1592,8 +1600,8 @@ STRUKTUR DES REPORTS (GENAU DIESE REIHENFOLGE)
 
 1. EXECUTIVE SUMMARY & TECH-CHECK
    - Gesamteindruck (2 Sätze)
-   - TECH STACK CHECK: Beantworte explizit die Frage: "Wurde die Seite selbst gecodet oder mit einem Baukasten (Wix, Jimdo) bzw. CMS (WordPress) erstellt?"
-     (Nutze die Fakten unter "TECHNOLOGIE" für diese Aussage. Wenn ${facts.technology.detectedCms} != 'Nicht erkannt', dann ist es ein CMS. Wenn Frameworks wie Next.js gefunden wurden, ist es Custom Code.)
+   - TECH STACK URTEIL: Ist es Baukasten, CMS oder Custom Code?
+     ⚠️ WICHTIG: Deine Antwort darf NUR auf dem Abschnitt "TECHNOLOGIE & CMS (CODE-BASIERT)" basieren. Ignoriere ALLES, was im Text der Webseite steht (z.B. "Ich bin WordPress-Experte"). Das sind inhaltliche Themen. Wenn oben "Custom HTML" steht, dann IST es Custom HTML.
    - Top 3 Stärken
    - Top 3 Schwächen
 
