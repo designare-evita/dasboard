@@ -31,14 +31,14 @@ interface TechStats {
     hasImprint: boolean;
     hasPrivacy: boolean;
     hasContact: boolean;
-    hasAuthor: boolean; // NEU: Für E-E-A-T
-    hasDate: boolean;   // NEU: Für Aktualität
+    hasAuthor: boolean; // E-E-A-T
+    hasDate: boolean;   // Aktualität
   };
   linkStructure: {
     internal: LinkInfo[];
     externalCount: number;
     internalCount: number;
-    externalLinksSample: LinkInfo[]; // NEU: Um zu sehen, wohin verlinkt wird
+    externalLinksSample: LinkInfo[];
   };
   codeQuality: {
     semanticScore: number; // 0-100
@@ -56,7 +56,7 @@ function detectCMS(html: string, $: cheerio.CheerioAPI): { cms: string; isBuilde
   const htmlLower = html.toLowerCase();
   
   // CMS Definitionen
-  const builders = ['wix', 'squarespace', 'jimdo', 'shopify', 'weebly', 'webflow', 'elementor', 'divi'];
+  const builders = ['wix', 'squarespace', 'jimdo', 'shopify', 'weebly', 'webflow', 'elementor', 'divi', 'clickfunnels'];
   
   let detectedCms = 'Custom Code / Unbekannt';
   
@@ -70,6 +70,7 @@ function detectCMS(html: string, $: cheerio.CheerioAPI): { cms: string; isBuilde
   else if (htmlLower.includes('joomla')) detectedCms = 'Joomla';
   else if (htmlLower.includes('webflow')) detectedCms = 'Webflow';
   else if (htmlLower.includes('next.js') || htmlLower.includes('__next')) detectedCms = 'Next.js (React)';
+  else if (htmlLower.includes('nuxt')) detectedCms = 'Nuxt.js (Vue)';
 
   // Ist es ein Baukasten?
   const isBuilder = builders.some(b => detectedCms.toLowerCase().includes(b) || htmlLower.includes(b));
@@ -93,8 +94,25 @@ function analyzeTech(html: string, $: cheerio.CheerioAPI, baseUrl: string): Tech
 
   // 3. Schema & Meta-Daten (E-E-A-T relevant)
   const hasSchema = $('script[type="application/ld+json"]').length > 0;
-  const hasAuthor = $('meta[name="author"]').length > 0 || $('meta[property="article:author"]').length > 0;
-  const hasDate = $('meta[property="article:published_time"]').length > 0 || $('time').length > 0;
+
+  // 3a. Erweiterte Autor-Erkennung (Meta, Link-Rel, Microdata)
+  const hasAuthor = 
+    $('meta[name="author"]').length > 0 || 
+    $('meta[property="article:author"]').length > 0 ||
+    $('link[rel~="author"]').length > 0 ||      // <link rel="author">
+    $('a[rel~="author"]').length > 0 ||         // <a rel="author">
+    $('[itemprop="author"]').length > 0 ||      // Schema Microdata
+    $('.author-name, .post-author').length > 0; // Gängige Klassen
+
+  // 3b. Erweiterte Datums-Erkennung
+  const hasDate = 
+    $('meta[property="article:published_time"]').length > 0 || 
+    $('meta[property="og:updated_time"]').length > 0 ||
+    $('meta[name="date"]').length > 0 ||
+    $('time').length > 0 ||                             // HTML5 <time>
+    $('[itemprop="datePublished"]').length > 0 ||       // Schema Microdata
+    $('[itemprop="dateModified"]').length > 0 ||
+    $('.date, .published, .entry-date, .post-date, .meta-date').length > 0; // Heuristik Klassen
 
   // 4. Bilder
   const images = $('img');
@@ -108,7 +126,7 @@ function analyzeTech(html: string, $: cheerio.CheerioAPI, baseUrl: string): Tech
   });
   const imgScore = images.length === 0 ? 100 : Math.round(((withAlt + modernFormats) / (images.length * 2)) * 100);
 
-  // 5. Link Struktur & Trust (Verbesserte Logik mit URL-Klasse)
+  // 5. Link Struktur & Trust (Mit URL-Klasse)
   const allLinkText = $('a').map((_, el) => $(el).text().toLowerCase()).get().join(' ');
   const hasImprint = /impressum|imprint|anbieterkennzeichnung/.test(allLinkText);
   const hasPrivacy = /datenschutz|privacy/.test(allLinkText);
@@ -118,12 +136,11 @@ function analyzeTech(html: string, $: cheerio.CheerioAPI, baseUrl: string): Tech
   const externalLinksSample: LinkInfo[] = [];
   let externalCount = 0;
   
-  // Hostname normalisieren (ohne www)
+  // Hostname normalisieren
   let currentHost = '';
   try {
     currentHost = new URL(baseUrl).hostname.replace(/^www\./, '');
   } catch (e) {
-    // Fallback falls baseUrl invalide ist (sollte nicht passieren)
     console.error('Base URL Invalid:', baseUrl);
   }
 
@@ -131,26 +148,24 @@ function analyzeTech(html: string, $: cheerio.CheerioAPI, baseUrl: string): Tech
     const rawHref = $(el).attr('href');
     const text = $(el).text().trim().replace(/\s+/g, ' ');
 
-    // Filter für nutzlose Links
+    // Filter
     if (!rawHref || rawHref.startsWith('#') || rawHref.startsWith('mailto:') || rawHref.startsWith('tel:') || rawHref.startsWith('javascript:') || text.length < 2) return;
 
     try {
-      // URL Auflösung: Macht aus relativen Pfaden absolute URLs
+      // URL Auflösung
       const absoluteUrl = new URL(rawHref, baseUrl);
       const linkHost = absoluteUrl.hostname.replace(/^www\./, '');
       
       const isInternal = linkHost === currentHost;
-
       const linkObj = { text: text.substring(0, 60), href: absoluteUrl.href, isInternal };
 
       if (isInternal) {
-        // Duplikate vermeiden
         if (!internalLinks.some(l => l.href === absoluteUrl.href)) {
           internalLinks.push(linkObj);
         }
       } else {
         externalCount++;
-        // Sammle ein paar externe Links für die Analyse (E-E-A-T: zitiert er Quellen?)
+        // Sammle externe Links (für E-E-A-T Analyse)
         if (externalLinksSample.length < 5 && !externalLinksSample.some(l => l.href === absoluteUrl.href)) {
           externalLinksSample.push(linkObj);
         }
@@ -168,7 +183,7 @@ function analyzeTech(html: string, $: cheerio.CheerioAPI, baseUrl: string): Tech
     imageAnalysis: { total: images.length, withAlt, modernFormats, score: imgScore },
     trustSignals: { hasImprint, hasPrivacy, hasContact, hasAuthor, hasDate },
     linkStructure: {
-      internal: internalLinks.slice(0, 20), // Mehr Links für Analyse übergeben
+      internal: internalLinks.slice(0, 25), // Limit erhöht
       internalCount: internalLinks.length,
       externalCount,
       externalLinksSample
@@ -222,7 +237,6 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     
-    // ALLE Varianten akzeptieren
     const targetUrl = body.targetUrl || body.myUrl || body.url || body.target || body.siteUrl || body.domain;
     const competitorUrl = body.competitorUrl || body.competitor || body.compareUrl;
     const keywords = body.keywords || body.keyword || '';
@@ -243,7 +257,7 @@ export async function POST(req: NextRequest) {
     const compactStyles = getCompactStyleGuide();
 
     // ------------------------------------------------------------------
-    // PROMPT CONSTRUCTION - Optimiert für E-E-A-T & Interne Links
+    // PROMPT CONSTRUCTION
     // ------------------------------------------------------------------
 
     const formatData = (data: any) => `
@@ -256,15 +270,15 @@ export async function POST(req: NextRequest) {
       - Schema.org: ${data.techStats.hasSchema ? 'Ja' : 'Nein'}
       
       E-E-A-T SIGNALE (Technisch):
-      - Autoren-Tag: ${data.techStats.trustSignals.hasAuthor ? 'Vorhanden' : 'Fehlt'}
-      - Datum: ${data.techStats.trustSignals.hasDate ? 'Vorhanden' : 'Fehlt'}
-      - Impressum/Kontakt Links im Text erkannt: ${data.techStats.trustSignals.hasImprint ? 'Ja' : 'Nein'}
+      - Autoren-Erkennung: ${data.techStats.trustSignals.hasAuthor ? '✅ Gefunden (Meta, Rel oder Schema)' : '❌ Nicht gefunden'}
+      - Datums-Erkennung: ${data.techStats.trustSignals.hasDate ? '✅ Gefunden (Time, Meta oder Schema)' : '⚠️ Fehlt (Zeitloser Content?)'}
+      - Impressum/Kontakt Links im Text: ${data.techStats.trustSignals.hasImprint ? 'Ja' : 'Nein'}
       
       STRUKTUR:
       - Interne Links (Total): ${data.techStats.linkStructure.internalCount}
       - Interne Link-Beispiele: ${data.techStats.linkStructure.internal.map((l:any) => l.text).slice(0,5).join(', ')}
       - Externe Links (Total): ${data.techStats.linkStructure.externalCount}
-      - Externe Link-Beispiele (Quellen?): ${data.techStats.linkStructure.externalLinksSample.map((l:any) => l.text).join(', ')}
+      - Externe Link-Beispiele: ${data.techStats.linkStructure.externalLinksSample.map((l:any) => l.text).join(', ')}
 
       CONTENT (Auszug):
       ${data.content.substring(0, 2500)}...
@@ -306,8 +320,8 @@ export async function POST(req: NextRequest) {
              ${targetData.techStats.linkStructure.internalCount > 5 ? '✅ Gute Struktur' : '⚠️ Zu wenig interne Links'} (${targetData.techStats.linkStructure.internalCount} Links)
            </div>
            <div>
-             <strong>Keywords:</strong><br>
-             ${keywords ? (targetData.content.toLowerCase().includes(keywords.split(' ')[0].toLowerCase()) ? '✅ Gefunden' : '⚠️ Fehlt im Top-Bereich') : '⚪ Auto-Detect'}
+             <strong>Aktualität:</strong><br>
+             ${targetData.techStats.trustSignals.hasDate ? '✅ Datum gefunden' : '⚠️ Kein Datum'}
            </div>
          </div>
       </div>
@@ -320,8 +334,9 @@ export async function POST(req: NextRequest) {
             <div class="p-2 bg-slate-50 rounded border border-slate-100">
                 <strong><i class="bi bi-person-badge"></i> Expertise & Autor (E-E):</strong>
                 <br>
-                ${targetData.techStats.trustSignals.hasAuthor ? '✅ Technisches Autoren-Tag gefunden.' : '⚠️ Kein Autoren-Meta-Tag.'}
-                Gibt es klare Autoren-Boxen oder "Über uns" Referenzen im Text? Wirkt der Inhalt von einem echten Experten geschrieben?
+                ${targetData.techStats.trustSignals.hasAuthor ? '✅ Technisches Autoren-Signal gefunden.' : '⚠️ Kein technisches Autoren-Signal (Meta/Rel/Schema).'}
+                <br>
+                Wirkt der Inhalt von einem echten Experten geschrieben? Gibt es eine klare "Über uns" Verbindung?
                 <br>
                 <em>Urteil: [Dein kritisches Urteil hier]</em>
             </div>
@@ -330,7 +345,7 @@ export async function POST(req: NextRequest) {
                 <strong><i class="bi bi-patch-check"></i> Autorität & Trust (A-T):</strong>
                 <br>
                 Sind Impressum/Datenschutz/Kontakt leicht findbar?
-                Werden externe Quellen zitiert (Outbound Links: ${targetData.techStats.linkStructure.externalCount})?
+                Werden externe Quellen zitiert? (${targetData.techStats.linkStructure.externalCount > 0 ? '✅ Ja' : '❌ Nein'})
             </div>
          </div>
       </div>
@@ -339,8 +354,8 @@ export async function POST(req: NextRequest) {
          <h3 class="${STYLES.h3}"><i class="bi bi-file-text"></i> Content & Siloing</h3>
          <ul class="${STYLES.list}">
            <li><strong>Inhaltstiefe:</strong> Deckt der Text das Thema umfassend ab?</li>
-           <li><strong>Interne Verlinkung:</strong> Es wurden ${targetData.techStats.linkStructure.internalCount} interne Links im Content-Bereich gefunden. Bewertung: Reicht das für eine gute SEO-Struktur?</li>
-           <li><strong>Conversion:</strong> Gibt es klare Call-to-Actions?</li>
+           <li><strong>Interne Verlinkung:</strong> Es wurden ${targetData.techStats.linkStructure.internalCount} interne Links gefunden. Reicht das für eine gute SEO-Struktur?</li>
+           <li><strong>Keyword-Fokus:</strong> ${keywords ? `Wie gut wird "${keywords}" abgedeckt?` : 'Worum geht es hauptsächlich?'}</li>
          </ul>
       </div>
 
@@ -370,7 +385,8 @@ export async function POST(req: NextRequest) {
              <div class="text-sm">
                <div>System: ${targetData.cmsData.cms}</div>
                <div>Interne Links: ${targetData.techStats.linkStructure.internalCount}</div>
-               <div>E-E-A-T Tech: ${targetData.techStats.trustSignals.hasAuthor ? '✅ Autor-Tag' : '❌ Kein Autor-Tag'}</div>
+               <div>Autor-Signal: ${targetData.techStats.trustSignals.hasAuthor ? '✅ Ja' : '❌ Nein'}</div>
+               <div>Datum-Signal: ${targetData.techStats.trustSignals.hasDate ? '✅ Ja' : '❌ Nein'}</div>
              </div>
            </div>
            <div class="${STYLES.card} bg-indigo-50 border-indigo-100">
@@ -378,7 +394,8 @@ export async function POST(req: NextRequest) {
              <div class="text-sm">
                <div>System: ${competitorData?.cmsData.cms}</div>
                <div>Interne Links: ${competitorData?.techStats.linkStructure.internalCount}</div>
-               <div>E-E-A-T Tech: ${competitorData?.techStats.trustSignals.hasAuthor ? '✅ Autor-Tag' : '❌ Kein Autor-Tag'}</div>
+               <div>Autor-Signal: ${competitorData?.techStats.trustSignals.hasAuthor ? '✅ Ja' : '❌ Nein'}</div>
+               <div>Datum-Signal: ${competitorData?.techStats.trustSignals.hasDate ? '✅ Ja' : '❌ Nein'}</div>
              </div>
            </div>
          </div>
