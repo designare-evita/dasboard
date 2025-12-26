@@ -5,7 +5,7 @@ import React, { useState, useRef } from 'react';
 import Image from 'next/image';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import ReactMarkdown from 'react-markdown'; // ✅ NEU: Für sauberes Rendering
+import ReactMarkdown from 'react-markdown';
 import {
   FileText,
   Search,
@@ -25,7 +25,8 @@ import {
   InfoCircle,
   ArrowRepeat,
   LayoutTextWindowReverse, 
-  WindowDesktop          
+  WindowDesktop,
+  Trophy // ✅ NEU: Icon für Case Studies
 } from 'react-bootstrap-icons';
 
 // ============================================================================
@@ -84,12 +85,12 @@ export default function LandingPageGenerator({
   // Basis-Inputs
   const [topic, setTopic] = useState('');
   const [targetAudience, setTargetAudience] = useState('');
-  // ✅ Kontext für echte Fakten
   const [productContext, setProductContext] = useState(''); 
-  const [customInstructions, setCustomInstructions] = useState(''); // ✅ NEU
+  const [customInstructions, setCustomInstructions] = useState('');
   const [tone, setTone] = useState<ToneOfVoice>('professional');
   const [contentType, setContentType] = useState<ContentType>('landingpage');
-  const [generationMode, setGenerationMode] = useState('full'); // 'full', 'intro', 'benefits', 'trust', 'faq'
+  // ✅ ERWEITERT: casestudies hinzugefügt
+  const [generationMode, setGenerationMode] = useState('full'); // 'full', 'intro', 'benefits', 'trust', 'faq', 'casestudies'
   const [customKeywords, setCustomKeywords] = useState('');
   
   // SPY FEATURE
@@ -125,14 +126,10 @@ export default function LandingPageGenerator({
   const keywordAnalysis = React.useMemo(() => {
     if (!keywords || keywords.length === 0) return null;
     
-    // Sortiere nach Klicks
     const byClicks = [...keywords].sort((a, b) => b.clicks - a.clicks);
     const mainKeyword = byClicks[0];
-    
-    // Sekundäre Keywords (Top 5 ohne Main)
     const secondaryKeywords = byClicks.slice(1, 6);
     
-    // Striking Distance (Position 4-20)
     const strikingDistance = keywords
       .filter(k => k.position >= 4 && k.position <= 20)
       .sort((a, b) => (b.impressions / b.position) - (a.impressions / a.position))
@@ -144,19 +141,16 @@ export default function LandingPageGenerator({
                 : 'low' as const
       }));
     
-    // Fragen-Keywords
     const questionWords = ['was', 'wie', 'wo', 'wer', 'warum', 'wann', 'welche', 'welcher'];
     const questionKeywords = keywords
       .filter(k => questionWords.some(w => k.query.toLowerCase().startsWith(w)))
       .slice(0, 5);
     
-    // Long-Tail (3+ Wörter)
     const longTailKeywords = keywords
       .filter(k => k.query.split(' ').length >= 3)
       .sort((a, b) => b.clicks - a.clicks)
       .slice(0, 5);
     
-    // Stats
     const totalClicks = keywords.reduce((sum, k) => sum + k.clicks, 0);
     const totalImpressions = keywords.reduce((sum, k) => sum + k.impressions, 0);
     const avgPosition = keywords.reduce((sum, k) => sum + k.position, 0) / keywords.length;
@@ -188,7 +182,6 @@ export default function LandingPageGenerator({
 
   const totalKeywordCount = getAllKeywords().length;
 
-  // --- HELPER: Gap-Analyse Text extrahieren ---
   const extractGapText = (html: string): string[] => {
     const text = html.replace(/<[^>]*>/g, '');
     const items = text
@@ -208,11 +201,10 @@ export default function LandingPageGenerator({
     try {
       let content = generatedContent;
       let mimeType = 'text/plain';
-      let extension = format;
+      const extension = format;
 
       if (format === 'html') {
         mimeType = 'text/html';
-        // Einfacher HTML Wrapper für Markdown Content (würde idealerweise gerendert werden, hier Rohdaten)
         content = `<!DOCTYPE html><html><head><title>${topic}</title><meta charset="UTF-8"></head><body><pre>${generatedContent}</pre></body></html>`;
       } else if (format === 'md') {
         mimeType = 'text/markdown';
@@ -238,7 +230,6 @@ export default function LandingPageGenerator({
 
   // --- HANDLERS ---
 
-  // 1. SPY: URL Analysieren
   const handleAnalyzeUrl = async () => {
     if (!referenceUrl) return;
     try {
@@ -263,7 +254,6 @@ export default function LandingPageGenerator({
     }
   };
 
-  // 2. GAP: Content Gap Analyse
   const handleAnalyzeGap = async () => {
     if (!topic) {
         toast.error('Bitte erst ein Thema eingeben.');
@@ -293,7 +283,6 @@ export default function LandingPageGenerator({
     }
   };
 
-  // 3. MAIN: Generierung
   const handleGenerate = async () => {
     if (!topic.trim()) { toast.error('Bitte geben Sie ein Thema ein.'); return; }
     if (getAllKeywords().length === 0) { toast.error('Bitte Keywords angeben.'); return; }
@@ -309,7 +298,6 @@ export default function LandingPageGenerator({
     try {
       const contextData: ContextData = {};
       
-      // Spy Data
       let currentSpyData = spyData;
       if (referenceUrl && !currentSpyData) {
          try {
@@ -323,13 +311,11 @@ export default function LandingPageGenerator({
       }
       if (currentSpyData) contextData.competitorAnalysis = currentSpyData;
 
-      // GSC
       if (useGscKeywords && keywords.length > 0) {
         contextData.gscKeywords = keywords.slice(0, 10).map(k => k.query);
         contextData.gscKeywordsRaw = keywords.slice(0, 30);
       }
       
-      // News
       if (useNewsCrawler) {
         if (newsMode === 'live') {
           const fetchTopic = newsTopic.trim() || topic;
@@ -360,7 +346,6 @@ export default function LandingPageGenerator({
         contextData.gapAnalysis = cachedGapData;
       }
 
-      // API Call
       const response = await fetch('/api/ai/generate-landingpage', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -369,13 +354,12 @@ export default function LandingPageGenerator({
           contentType, 
           keywords: getAllKeywords(),
           targetAudience: targetAudience.trim() || undefined,
-          // ✅ Product Context senden
           productContext: productContext.trim(),
-          customInstructions: customInstructions.trim(), // ✅ NEU: Senden an API
+          customInstructions: customInstructions.trim(),
           toneOfVoice: tone,
           contextData,
           domain,
-          section: generationMode, // NEU: Sektions-Auswahl
+          section: generationMode,
         }),
       });
 
@@ -396,9 +380,10 @@ export default function LandingPageGenerator({
         if (outputRef.current) outputRef.current.scrollTop = outputRef.current.scrollHeight;
       }
       toast.success('Content erfolgreich generiert!');
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
       console.error(error);
-      toast.error(`Fehler: ${error.message}`);
+      toast.error(`Fehler: ${errorMessage}`);
       setIsWaitingForStream(false);
     } finally {
       setIsGenerating(false);
@@ -421,6 +406,28 @@ export default function LandingPageGenerator({
     setExpandedSection(expandedSection === section ? null : section);
   };
 
+  // ✅ NEU: Loading-Text basierend auf generationMode
+  const getLoadingText = () => {
+    if (isSpying) return 'Klone Stil, Wortwahl und Struktur der Zielseite...';
+    
+    switch (generationMode) {
+      case 'casestudies':
+        return 'Erstelle überzeugende Fallbeispiele & Erfolgsgeschichten...';
+      case 'benefits':
+        return 'Formuliere Vorteile & Features...';
+      case 'trust':
+        return 'Generiere Social Proof & Trust-Elemente...';
+      case 'faq':
+        return 'Erstelle FAQ-Sektion...';
+      case 'intro':
+        return 'Schreibe Hook & Einleitung...';
+      default:
+        return useNewsCrawler && newsMode === 'live' 
+          ? 'Recherchiere News & schreibe...' 
+          : 'Generiere optimierten Content...';
+    }
+  };
+
   // --- RENDER ---
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -437,13 +444,14 @@ export default function LandingPageGenerator({
                 {isSpying ? 'Analysiere URL...' : 'Content wird erstellt'}
               </h3>
               <p className="text-gray-500 text-sm">
-                {isSpying 
-                  ? 'Klone Stil, Wortwahl und Struktur der Zielseite...' 
-                  : (useNewsCrawler && newsMode === 'live' ? 'Recherchiere News & schreibe...' : 'Generiere optimierten Content...')}
+                {getLoadingText()}
               </p>
             </div>
             <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
-               <div className={`h-full bg-purple-500 w-1/3 rounded-full animate-indeterminate-bar ${isSpying ? 'bg-amber-500' : ''}`}></div>
+               <div className={`h-full w-1/3 rounded-full animate-indeterminate-bar ${
+                 isSpying ? 'bg-amber-500' : 
+                 generationMode === 'casestudies' ? 'bg-emerald-500' : 'bg-purple-500'
+               }`}></div>
             </div>
           </div>
         </div>
@@ -538,7 +546,7 @@ export default function LandingPageGenerator({
             />
           </div>
 
-          {/* ✅ PRODUKT KONTEXT FELD (Anti-Lügen) */}
+          {/* PRODUKT KONTEXT FELD */}
           <div className="mt-4">
             <label className="text-sm font-semibold text-gray-700 mb-2 block">
               Produktdetails & USPs (WICHTIG für Qualität!)
@@ -554,7 +562,7 @@ export default function LandingPageGenerator({
             </p>
           </div>
 
-          {/* ✅ NEUES EINGABEFELD FÜR WEITERE ANWEISUNGEN */}
+          {/* EIGENER PROMPT */}
           <div className="mt-4">
             <label className="text-sm font-semibold text-gray-700 mb-2 block">
               Zusätzliche Anweisungen (Eigener Prompt)
@@ -612,7 +620,6 @@ export default function LandingPageGenerator({
                 {/* Keyword-Analyse Toggle & Anzeige */}
                 {useGscKeywords && keywords.length > 0 && keywordAnalysis && (
                   <div className="pl-6 pt-2 border-t border-gray-200 mt-2">
-                    {/* Quick Stats */}
                     <div className="flex items-center gap-2 text-[10px] text-gray-500 mb-2">
                       <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-medium">
                         🎯 {keywordAnalysis.mainKeyword?.query?.slice(0, 20)}{keywordAnalysis.mainKeyword?.query?.length > 20 ? '...' : ''}
@@ -629,7 +636,6 @@ export default function LandingPageGenerator({
                       )}
                     </div>
                     
-                    {/* Expand Button */}
                     <button
                       onClick={() => setShowKeywordAnalysis(!showKeywordAnalysis)}
                       className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center gap-1 font-medium"
@@ -638,11 +644,9 @@ export default function LandingPageGenerator({
                       {showKeywordAnalysis ? 'Analyse ausblenden' : 'Analyse anzeigen'}
                     </button>
                     
-                    {/* Expanded Analysis */}
                     {showKeywordAnalysis && (
                       <div className="mt-3 space-y-3 animate-in slide-in-from-top-2">
                         
-                        {/* Hauptkeyword */}
                         <div className="bg-white p-3 rounded-lg border border-indigo-200 shadow-sm">
                           <div className="text-[10px] font-bold text-indigo-600 uppercase tracking-wide mb-1">Hauptkeyword</div>
                           <div className="font-semibold text-gray-900 text-sm">{keywordAnalysis.mainKeyword?.query}</div>
@@ -653,7 +657,6 @@ export default function LandingPageGenerator({
                           </div>
                         </div>
                         
-                        {/* Striking Distance */}
                         {keywordAnalysis.strikingDistance.length > 0 && (
                           <div className="bg-white p-3 rounded-lg border border-amber-200 shadow-sm">
                             <div className="text-[10px] font-bold text-amber-600 uppercase tracking-wide mb-2">
@@ -674,7 +677,6 @@ export default function LandingPageGenerator({
                           </div>
                         )}
                         
-                        {/* Fragen Keywords */}
                         {keywordAnalysis.questionKeywords.length > 0 && (
                           <div className="bg-white p-3 rounded-lg border border-purple-200 shadow-sm">
                             <div className="text-[10px] font-bold text-purple-600 uppercase tracking-wide mb-2">
@@ -691,7 +693,6 @@ export default function LandingPageGenerator({
                           </div>
                         )}
                         
-                        {/* Long-Tail */}
                         {keywordAnalysis.longTailKeywords.length > 0 && (
                           <div className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm">
                             <div className="text-[10px] font-bold text-gray-600 uppercase tracking-wide mb-2">
@@ -707,7 +708,6 @@ export default function LandingPageGenerator({
                           </div>
                         )}
                         
-                        {/* Stats Summary */}
                         <div className="bg-gradient-to-r from-indigo-50 to-purple-50 p-3 rounded-lg border border-indigo-100">
                           <div className="text-[10px] font-bold text-indigo-600 uppercase tracking-wide mb-2">📊 Statistik</div>
                           <div className="grid grid-cols-3 gap-2 text-center">
@@ -782,12 +782,10 @@ export default function LandingPageGenerator({
                     </Button>
                 </div>
                 
-                {/* STATUS & ERGEBNIS ANZEIGE */}
                 <div className="text-xs text-gray-500 pl-6">
                     {!cachedGapData && !isAnalyzingGap && 'Findet fehlende Themen für bessere Rankings.'}
                     {isAnalyzingGap && <span className="text-indigo-600 animate-pulse">Analysiere Wettbewerb & Semantik...</span>}
                     
-                    {/* ERGEBNIS-BOX MIT SAUBEREM STYLING */}
                     {cachedGapData && !isAnalyzingGap && (
                         <div className="mt-2 p-3 bg-white border border-green-200 rounded-lg shadow-sm">
                             <div className="flex items-center gap-1 text-green-600 font-semibold mb-2">
@@ -830,7 +828,7 @@ export default function LandingPageGenerator({
           />
         </div>
 
-        {/* Generation Mode Selector - Dynamisch je nach Content Type */}
+        {/* ✅ NEU: Generation Mode Selector MIT CASE STUDIES */}
         <select 
           value={generationMode} 
           onChange={(e) => setGenerationMode(e.target.value)}
@@ -841,6 +839,7 @@ export default function LandingPageGenerator({
               <option value="full">Komplette Landingpage (Draft)</option>
               <option value="intro">Nur Hero & Einleitung (Hook)</option>
               <option value="benefits">Nur Vorteile & Features</option>
+              <option value="casestudies">📊 Nur Case Studies / Fallbeispiele</option>
               <option value="trust">Nur Social Proof & Trust</option>
               <option value="faq">Nur FAQ & Abschluss</option>
             </>
@@ -856,21 +855,30 @@ export default function LandingPageGenerator({
         </select>
 
         <Button onClick={handleGenerate} disabled={isGenerating} className="w-full py-6 text-base gap-2 bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-200">
-          {isGenerating ? 'Generiere...' : <><FileText /> {contentType === 'landingpage' ? 'Landingpage erstellen' : 'Blog-Artikel schreiben'}</>}
+          {isGenerating ? 'Generiere...' : (
+            <>
+              {generationMode === 'casestudies' ? <Trophy /> : <FileText />}
+              {contentType === 'landingpage' 
+                ? (generationMode === 'casestudies' ? 'Case Studies erstellen' : 'Landingpage erstellen')
+                : 'Blog-Artikel schreiben'
+              }
+            </>
+          )}
         </Button>
       </div>
 
       {/* --- OUTPUT (RECHTS) --- */}
       <div className="lg:col-span-8">
         <div className="bg-white border border-gray-100 shadow-xl rounded-2xl p-8 h-full min-h-[600px] flex flex-col relative">
-          {/* Header mit Export - z-index erhöht */}
           <div className="flex items-center justify-between mb-4 relative z-20">
-            <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2"><FileText className="text-purple-500" /> Ergebnis</h2>
+            <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+              {generationMode === 'casestudies' ? <Trophy className="text-emerald-500" /> : <FileText className="text-purple-500" />}
+              {generationMode === 'casestudies' ? 'Case Studies' : 'Ergebnis'}
+            </h2>
             {generatedContent && (
               <div className="flex gap-2 relative">
                 <button onClick={handleCopy} className="p-2 hover:bg-gray-100 rounded-lg text-gray-600" title="In Zwischenablage kopieren"><ClipboardCheck/></button>
                 
-                {/* Export Dropdown */}
                 <div className="relative">
                    <button 
                       onClick={() => setShowExportMenu(!showExportMenu)} 
@@ -880,12 +888,10 @@ export default function LandingPageGenerator({
                    </button>
                    {showExportMenu && (
                      <>
-                       {/* Backdrop zum Schließen bei Klick außerhalb */}
                        <div 
                          className="fixed inset-0 z-30" 
                          onClick={() => setShowExportMenu(false)}
                        />
-                       {/* Dropdown-Menü */}
                        <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-xl z-40 animate-in fade-in slide-in-from-top-2">
                          <button 
                            onClick={() => handleExport('txt')} 
@@ -913,7 +919,6 @@ export default function LandingPageGenerator({
             )}
           </div>
           
-          {/* Output-Bereich - ✅ NEU: Mit ReactMarkdown und Tailwind Prose */}
           <div ref={outputRef} className="flex-1 bg-gray-50/50 rounded-xl border border-gray-200/60 p-6 overflow-y-auto relative z-0 custom-scrollbar ai-output">
             {generatedContent ? (
               <div className="ai-content prose prose-indigo max-w-none">
@@ -921,9 +926,19 @@ export default function LandingPageGenerator({
               </div>
             ) : (
               <div className="h-full flex flex-col items-center justify-center text-gray-400 text-center">
-                <FileText className="text-4xl mb-3 text-purple-200" />
-                <p className="font-medium text-gray-500">Bereit für Content</p>
-                <p className="text-xs text-gray-400 mt-2">Wähle links Blog oder Landingpage</p>
+                {generationMode === 'casestudies' ? (
+                  <>
+                    <Trophy className="text-4xl mb-3 text-emerald-200" />
+                    <p className="font-medium text-gray-500">Case Studies Generator</p>
+                    <p className="text-xs text-gray-400 mt-2">Erstelle überzeugende Erfolgsgeschichten mit messbaren Ergebnissen</p>
+                  </>
+                ) : (
+                  <>
+                    <FileText className="text-4xl mb-3 text-purple-200" />
+                    <p className="font-medium text-gray-500">Bereit für Content</p>
+                    <p className="text-xs text-gray-400 mt-2">Wähle links Blog oder Landingpage</p>
+                  </>
+                )}
               </div>
             )}
           </div>
