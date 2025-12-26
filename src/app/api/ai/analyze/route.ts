@@ -31,7 +31,10 @@ export async function POST(req: NextRequest) {
     // ==========================================
     // DEMO-MODUS CHECK - GANZ OBEN!
     // ==========================================
-    if (session.user.is_demo) {
+    // Check via Email (z.B. demo@example.com, demo-admin@designare.at)
+    const isDemo = session.user.email?.includes('demo');
+    
+    if (isDemo) {
       console.log('[AI Analyze] Demo-User erkannt. Simuliere Antwort...');
       
       // Künstliche Verzögerung für Realismus
