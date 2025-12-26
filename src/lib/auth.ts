@@ -126,6 +126,7 @@ export const authConfig = {
         token.permissions = user.permissions;
         token.logo_url = user.logo_url;
         token.gsc_site_url = user.gsc_site_url;
+        token.is_demo = user.email?.includes('demo');
       }
       return token;
     },
@@ -139,6 +140,7 @@ export const authConfig = {
         session.user.permissions = token.permissions as string[] | undefined;
         session.user.logo_url = token.logo_url as string | null | undefined;
         session.user.gsc_site_url = token.gsc_site_url as string | null | undefined;
+        session.user.is_demo = token.is_demo as boolean | undefined;
       }
       return session;
     },
