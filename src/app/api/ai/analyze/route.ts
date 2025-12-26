@@ -38,26 +38,28 @@ export async function POST(req: NextRequest) {
       await new Promise(resolve => setTimeout(resolve, 2000));
 
       // 2. Statische HTML-Antwort (simuliert das KI-Ergebnis)
-      const demoResponse = `
-        <h4 class="text-lg font-semibold text-indigo-900 mb-2">Das Wichtigste zuerst:</h4> 
-        <p class="mb-4">Willkommen im <strong>Demo-Modus</strong>! Hier sehen Sie exemplarisch, wie unsere KI echte Projektdaten analysieren würde. Ihr Demo-Shop entwickelt sich hervorragend.</p>
-        
-        <h4 class="text-lg font-semibold text-indigo-900 mt-4 mb-2">Zusammenfassung:</h4> 
-        <p class="mb-4">Die Besucherzahlen zeigen einen starken Aufwärtstrend (+24% im Vergleich zum Vormonat). Besonders erfreulich: Die Conversion-Rate ist auf stabile 3,2% gestiegen. Das deutet darauf hin, dass die Zielgruppe genau angesprochen wird.</p>
-        
-        <h4 class="text-lg font-semibold text-indigo-900 mt-4 mb-2">Top Seiten:</h4> 
-        <ul class="list-disc pl-5 mb-4 space-y-1">
-          <li>/produkte/sneaker-collection (52 Conversions)</li>
-          <li>/sale/sommer-special (38 Conversions)</li>
-          <li>/landingpage/newsletter-anmeldung (21 Conversions)</li>
-        </ul>
-        
-        <h4 class="text-lg font-semibold text-indigo-900 mt-4 mb-2">Potenzial:</h4> 
-        <p>Wir sehen noch ungenutztes Potenzial bei mobilen Besuchern. Die Absprungrate ist dort leicht erhöht. Eine Optimierung der Ladezeit für Mobilgeräte könnte hier weitere Umsätze freisetzen.</p>
-      `;
+      const demoResponse = `<h4 class="text-lg font-semibold text-indigo-900 mb-2">Das Wichtigste zuerst:</h4>
+<p class="mb-4">Willkommen im <strong>Demo-Modus</strong>! Hier sehen Sie exemplarisch, wie unsere KI echte Projektdaten analysieren würde. Ihr Demo-Shop entwickelt sich hervorragend.</p>
 
-      // Direkt zurückgeben (Client behandelt es wie einen Text-Stream)
-      return new NextResponse(demoResponse);
+<h4 class="text-lg font-semibold text-indigo-900 mt-4 mb-2">Zusammenfassung:</h4>
+<p class="mb-4">Die Besucherzahlen zeigen einen starken Aufwärtstrend (+24% im Vergleich zum Vormonat). Besonders erfreulich: Die Conversion-Rate ist auf stabile 3,2% gestiegen. Das deutet darauf hin, dass die Zielgruppe genau angesprochen wird.</p>
+
+<h4 class="text-lg font-semibold text-indigo-900 mt-4 mb-2">Top Seiten:</h4>
+<ul class="list-disc pl-5 mb-4 space-y-1">
+  <li>/produkte/sneaker-collection (52 Conversions)</li>
+  <li>/sale/sommer-special (38 Conversions)</li>
+  <li>/landingpage/newsletter-anmeldung (21 Conversions)</li>
+</ul>
+
+<h4 class="text-lg font-semibold text-indigo-900 mt-4 mb-2">Potenzial:</h4>
+<p>Wir sehen noch ungenutztes Potenzial bei mobilen Besuchern. Die Absprungrate ist dort leicht erhöht. Eine Optimierung der Ladezeit für Mobilgeräte könnte hier weitere Umsätze freisetzen.</p>`;
+
+      // Direkt als Text-Stream zurückgeben (wie die KI es auch tut)
+      return new NextResponse(demoResponse, {
+        headers: {
+          'Content-Type': 'text/plain; charset=utf-8',
+        },
+      });
     }
     // ==========================================
     // ENDE DEMO-MODUS
