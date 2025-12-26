@@ -270,9 +270,27 @@ export function getDemoAnalyticsData(dateRange: string): ProjectDashboardData {
 
   // Bing Data (optional)
   const bingData = [
-    { keyword: 'sneaker kaufen', clicks: 45, impressions: 892 },
-    { keyword: 'sportschuhe', clicks: 34, impressions: 678 },
-    { keyword: 'laufschuhe', clicks: 28, impressions: 543 },
+    { 
+      query: 'sneaker kaufen', 
+      clicks: 45, 
+      impressions: 892,
+      position: 8.5,
+      ctr: 5.04
+    },
+    { 
+      query: 'sportschuhe', 
+      clicks: 34, 
+      impressions: 678,
+      position: 10.2,
+      ctr: 5.01
+    },
+    { 
+      query: 'laufschuhe', 
+      clicks: 28, 
+      impressions: 543,
+      position: 12.4,
+      ctr: 5.16
+    },
   ];
 
   return {
