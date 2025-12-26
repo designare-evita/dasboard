@@ -70,7 +70,10 @@ export async function getOrFetchGoogleData(
   // ==========================================
   // ✅ DEMO-MODUS CHECK - GANZ OBEN!
   // ==========================================
-  if (user.is_demo) {
+  // Check via Email (z.B. demo@example.com, demo-shop.de, etc.)
+  const isDemo = user.email?.includes('demo') || user.domain?.includes('demo-shop');
+  
+  if (isDemo) {
     console.log('[Google Data Loader] Demo-User erkannt. Lade Demo-Daten...');
     return getDemoAnalyticsData(dateRange);
   }
