@@ -1,325 +1,301 @@
-// src/lib/google-data-loader.ts
-import { sql } from '@vercel/postgres';
-import { type User } from '@/lib/schemas';
-import {
-  getSearchConsoleData,
-  getAnalyticsData,
-  getTopQueries,
-  getAiTrafficData,
-  getGa4DimensionReport,
-  getTopConvertingPages, 
-  type AiTrafficData,
-  type Ga4ExtendedData
-} from '@/lib/google-api';
-import { getBingData } from '@/lib/bing-api';
-import { 
-  ProjectDashboardData, 
-  ChartEntry, 
-  ApiErrorStatus,
-  ConvertingPageData 
-} from '@/lib/dashboard-shared';
-import type { TopQueryData, ChartPoint } from '@/types/dashboard';
+// src/lib/demo-data.ts
+import type { ProjectDashboardData, ConvertingPageData } from '@/lib/dashboard-shared';
+import type { TopQueryData } from '@/types/dashboard';
 
-// ✅ DEMO-DATEN IMPORT
-import { getDemoAnalyticsData } from '@/lib/demo-data';
-
-const CACHE_DURATION_HOURS = 48; 
-
-// Interface für interne Datenhaltung - kompatibel mit Ga4ExtendedData
-interface RawApiData {
-  clicks: { total: number; daily: ChartPoint[] };
-  impressions: { total: number; daily: ChartPoint[] };
-  sessions: { total: number; daily: ChartPoint[] };
-  totalUsers: { total: number; daily: ChartPoint[] };
-  conversions: { total: number; daily: ChartPoint[] };
-  engagementRate: { total: number; daily: ChartPoint[] };
-  bounceRate: { total: number; daily: ChartPoint[] };
-  newUsers: { total: number; daily: ChartPoint[] };
-  avgEngagementTime: { total: number; daily: ChartPoint[] };
-  paidSearch: { total: number; daily: ChartPoint[] };
-}
-
-// Hilfsfunktion: Berechnet Veränderung sicher
-function calculateChange(current: number, previous: number): number {
-  if (!previous || previous === 0) return current > 0 ? 100 : 0;
-  return ((current - previous) / previous) * 100;
-}
-
-// Initialer State für leere Daten
-const INITIAL_DATA: RawApiData = {
-  clicks: { total: 0, daily: [] },
-  impressions: { total: 0, daily: [] },
-  sessions: { total: 0, daily: [] },
-  totalUsers: { total: 0, daily: [] },
-  conversions: { total: 0, daily: [] },
-  engagementRate: { total: 0, daily: [] },
-  bounceRate: { total: 0, daily: [] },
-  newUsers: { total: 0, daily: [] },
-  avgEngagementTime: { total: 0, daily: [] },
-  paidSearch: { total: 0, daily: [] }
+// ✅ Lokale Type Definition um zirkuläre Imports zu vermeiden
+type AiTrafficData = {
+  totalSessions: number;
+  totalUsers: number;
+  totalSessionsChange?: number;
+  totalUsersChange?: number;
+  sessionsBySource: { [key: string]: number };
+  topAiSources: Array<{
+    source: string;
+    sessions: number;
+    users: number;
+    percentage: number;
+  }>;
+  trend: Array<{
+    date: number;
+    sessions: number;
+  }>;
 };
 
-export async function getOrFetchGoogleData(
-  user: User,
-  dateRange: string,
-  forceRefresh = false
-): Promise<ProjectDashboardData | null> {
-  if (!user.id) return null;
-  const userId = user.id;
+/**
+ * Generiert realistische Demo-Daten für Demo-Accounts
+ * Verhindert leere Dashboards und zeigt vollständige Beispieldaten
+ */
 
-  // ==========================================
-  // ✅ DEMO-MODUS CHECK - GANZ OBEN!
-  // ==========================================
-  // Check via Email (z.B. demo@example.com, demo-shop.de, etc.)
-  const isDemo = user.email?.includes('demo') || user.domain?.includes('demo-shop');
-  
-  if (isDemo) {
-    console.log('[Google Data Loader] Demo-User erkannt. Lade Demo-Daten...');
-    return getDemoAnalyticsData(dateRange);
-  }
-  // ==========================================
-  // ENDE DEMO-MODUS
-  // ==========================================
-
-  // 1. Cache prüfen
-  if (!forceRefresh) {
-    try {
-      const { rows } = await sql`
-        SELECT data, last_fetched 
-        FROM google_data_cache 
-        WHERE user_id = ${userId}::uuid AND date_range = ${dateRange}
-        LIMIT 1
-      `;
-
-      if (rows.length > 0) {
-        const cacheEntry = rows[0];
-        const lastFetched = new Date(cacheEntry.last_fetched).getTime();
-        const now = Date.now();
-        if ((now - lastFetched) / (1000 * 60 * 60) < CACHE_DURATION_HOURS) {
-          console.log(`[Google Cache] ✅ HIT für ${user.email}`);
-          return { ...cacheEntry.data, fromCache: true };
-        }
-      }
-    } catch (error) {
-      console.warn('[Google Cache] Lesefehler:', error);
-    }
-  }
-
-  // 2. Daten frisch holen
-  console.log(`[Google Cache] 🔄 Lade frische Daten für ${user.email}...`);
-
-  const end = new Date();
-  const start = new Date();
+export function getDemoAnalyticsData(dateRange: string): ProjectDashboardData {
+  // Berechne Anzahl Tage für Chart-Daten
   let days = 30;
   if (dateRange === '7d') days = 7;
   if (dateRange === '3m') days = 90;
   if (dateRange === '6m') days = 180;
   if (dateRange === '12m') days = 365;
-  start.setDate(end.getDate() - days);
-  
-  const startDateStr = start.toISOString().split('T')[0];
-  const endDateStr = end.toISOString().split('T')[0];
 
-  const prevEnd = new Date(start);
-  prevEnd.setDate(prevEnd.getDate() - 1);
-  const prevStart = new Date(prevEnd);
-  prevStart.setDate(prevEnd.getDate() - days);
-  const prevStartStr = prevStart.toISOString().split('T')[0];
-  const prevEndStr = prevEnd.toISOString().split('T')[0];
-
-  // Datencontainer mit Default-Werten initialisieren
-  let currentData: RawApiData = { ...INITIAL_DATA };
-  let prevData: RawApiData = { ...INITIAL_DATA };
-
-  let topQueries: TopQueryData[] = [];
-  let topConvertingPages: ConvertingPageData[] = []; 
-  let aiTraffic: AiTrafficData | undefined;
-  let countryData: ChartEntry[] = [];
-  let channelData: ChartEntry[] = [];
-  let deviceData: ChartEntry[] = [];
-  let bingData: any[] = [];
-  let apiErrors: ApiErrorStatus = {};
-
-  // --- GSC FETCH ---
-  if (user.gsc_site_url) {
-    try {
-      const gscRaw = await getSearchConsoleData(user.gsc_site_url, startDateStr, endDateStr);
-      currentData = {
-        ...currentData,
-        clicks: { 
-          total: gscRaw.clicks?.total || 0, 
-          daily: gscRaw.clicks?.daily || [] 
-        },
-        impressions: { 
-          total: gscRaw.impressions?.total || 0, 
-          daily: gscRaw.impressions?.daily || [] 
-        }
-      };
-      
-      const gscPrevRaw = await getSearchConsoleData(user.gsc_site_url, prevStartStr, prevEndStr);
-      prevData = {
-        ...prevData,
-        clicks: { ...prevData.clicks, total: gscPrevRaw.clicks?.total || 0 },
-        impressions: { ...prevData.impressions, total: gscPrevRaw.impressions?.total || 0 }
-      };
-
-      topQueries = await getTopQueries(user.gsc_site_url, startDateStr, endDateStr);
-    } catch (e: any) {
-      console.error('[GSC Error]', e);
-      apiErrors.gsc = e.message || 'GSC Fehler';
+  // Generiere Chart-Daten (vereinfacht: letzte X Tage)
+  const generateChartData = (baseValue: number, variance: number) => {
+    const data = [];
+    const now = Date.now();
+    for (let i = days - 1; i >= 0; i--) {
+      const date = now - i * 24 * 60 * 60 * 1000;
+      const randomVariance = (Math.random() - 0.5) * variance;
+      data.push({
+        date,
+        value: Math.max(0, Math.floor(baseValue + randomVariance))
+      });
     }
-  }
+    return data;
+  };
 
-  // --- GA4 FETCH ---
-  if (user.ga4_property_id) {
-    try {
-      const propertyId = user.ga4_property_id.trim();
-      
-      const gaCurrent = await getAnalyticsData(propertyId, startDateStr, endDateStr);
-      const gaPrevious = await getAnalyticsData(propertyId, prevStartStr, prevEndStr);
-      
-      currentData = { 
-        ...currentData,
-        sessions: gaCurrent.sessions,
-        totalUsers: gaCurrent.totalUsers,
-        conversions: gaCurrent.conversions,
-        engagementRate: gaCurrent.engagementRate,
-        bounceRate: gaCurrent.bounceRate,
-        newUsers: gaCurrent.newUsers,
-        avgEngagementTime: gaCurrent.avgEngagementTime,
-        paidSearch: gaCurrent.paidSearch
-      };
-
-      prevData = { 
-        ...prevData,
-        sessions: gaPrevious.sessions,
-        totalUsers: gaPrevious.totalUsers,
-        conversions: gaPrevious.conversions,
-        engagementRate: gaPrevious.engagementRate,
-        bounceRate: gaPrevious.bounceRate,
-        newUsers: gaPrevious.newUsers,
-        avgEngagementTime: gaPrevious.avgEngagementTime,
-        paidSearch: gaPrevious.paidSearch
-      };
-
-      // AI Traffic
-      try { 
-        aiTraffic = await getAiTrafficData(propertyId, startDateStr, endDateStr); 
-      } catch (e) {
-        console.warn('[AI Traffic] Fehler (ignoriert):', e);
-      }
-      
-      // Top Converting Pages
-      try {
-        const rawPages = await getTopConvertingPages(propertyId, startDateStr, endDateStr);
-        
-        topConvertingPages = rawPages.map((p: any) => ({
-          path: p.path,
-          conversions: p.conversions,
-          conversionRate: typeof p.conversionRate === 'string' 
-            ? parseFloat(p.conversionRate) 
-            : Number(p.conversionRate),
-          engagementRate: p.engagementRate, 
-          sessions: p.sessions, 
-          newUsers: p.newUsers  
-        }));
-      } catch (e) {
-        console.warn('[GA4] Konnte Top-Pages nicht laden:', e);
-      }
-
-      // Dimensionen (Charts)
-      try {
-        const rawCountry = await getGa4DimensionReport(propertyId, startDateStr, endDateStr, 'country');
-        countryData = rawCountry.map((item, index) => ({ ...item, fill: `hsl(var(--chart-${(index % 5) + 1}))` }));
-        
-        const rawChannel = await getGa4DimensionReport(propertyId, startDateStr, endDateStr, 'sessionDefaultChannelGroup');
-        channelData = rawChannel.map((item, index) => ({ ...item, fill: `hsl(var(--chart-${(index % 5) + 1}))` }));
-        
-        const rawDevice = await getGa4DimensionReport(propertyId, startDateStr, endDateStr, 'deviceCategory');
-        deviceData = rawDevice.map((item, index) => ({ ...item, fill: `hsl(var(--chart-${(index % 5) + 1}))` }));
-      } catch (e) { 
-        console.error('[GA4 Dimensions Error]', e); 
-      }
-
-    } catch (e: any) {
-      console.error('[GA4 Error]', e);
-      apiErrors.ga4 = e.message || 'GA4 Fehler';
-    }
-  }
-
-  // --- BING FETCH ---
-  if (user.gsc_site_url) {
-    try {
-      bingData = await getBingData(user.gsc_site_url);
-      console.log('[Bing] Daten erfolgreich geladen');
-    } catch (e: any) {
-      console.warn('[Bing] Fetch fehlgeschlagen (optional):', e);
-      apiErrors.bing = e.message || 'Bing Fehler';
-    }
-  }
-
-  // AI Anteil berechnen
-  const aiTrafficPercentage = (aiTraffic && currentData.sessions.total > 0)
-    ? (aiTraffic.totalSessions / currentData.sessions.total) * 100
-    : 0;
-
-  // --- DATEN ZUSAMMENBAUEN ---
-  const freshData: ProjectDashboardData = {
-    kpis: {
-      clicks: { value: currentData.clicks.total, change: calculateChange(currentData.clicks.total, prevData.clicks.total) },
-      impressions: { value: currentData.impressions.total, change: calculateChange(currentData.impressions.total, prevData.impressions.total) },
-      
-      sessions: { 
-        value: currentData.sessions.total, 
-        change: calculateChange(currentData.sessions.total, prevData.sessions.total),
-        aiTraffic: aiTraffic ? { value: aiTraffic.totalSessions, percentage: aiTrafficPercentage } : undefined
-      },
-      totalUsers: { value: currentData.totalUsers.total, change: calculateChange(currentData.totalUsers.total, prevData.totalUsers.total) },
-      conversions: { value: currentData.conversions.total, change: calculateChange(currentData.conversions.total, prevData.conversions.total) },
-      engagementRate: { 
-        value: parseFloat((currentData.engagementRate.total * 100).toFixed(2)), 
-        change: calculateChange(currentData.engagementRate.total, prevData.engagementRate.total) 
-      },
-      bounceRate: { 
-        value: parseFloat((currentData.bounceRate.total * 100).toFixed(2)), 
-        change: calculateChange(currentData.bounceRate.total, prevData.bounceRate.total) 
-      },
-      newUsers: { value: currentData.newUsers.total, change: calculateChange(currentData.newUsers.total, prevData.newUsers.total) },
-      avgEngagementTime: { value: currentData.avgEngagementTime.total, change: calculateChange(currentData.avgEngagementTime.total, prevData.avgEngagementTime.total) },
-      paidSearch: { value: currentData.paidSearch.total, change: calculateChange(currentData.paidSearch.total, prevData.paidSearch.total) }
+  // KPI-Werte (realistisch für einen kleinen E-Commerce Shop)
+  const kpis = {
+    // Google Search Console
+    clicks: {
+      value: 1247,
+      change: 18.5,
+    },
+    impressions: {
+      value: 28934,
+      change: 22.3,
     },
     
-    charts: {
-      clicks: currentData.clicks.daily || [],
-      impressions: currentData.impressions.daily || [],
-      sessions: currentData.sessions.daily || [],
-      totalUsers: currentData.totalUsers.daily || [],
-      conversions: currentData.conversions.daily || [],
-      engagementRate: currentData.engagementRate.daily || [],
-      bounceRate: currentData.bounceRate.daily || [],
-      newUsers: currentData.newUsers.daily || [],
-      avgEngagementTime: currentData.avgEngagementTime.daily || [],
-      paidSearch: currentData.paidSearch.daily || []
+    // Google Analytics 4
+    sessions: {
+      value: 4521,
+      change: 24.7,
+      aiTraffic: {
+        value: 158,
+        percentage: 3.5
+      }
     },
+    totalUsers: {
+      value: 2847,
+      change: 19.2,
+    },
+    conversions: {
+      value: 127,
+      change: 31.5,
+    },
+    engagementRate: {
+      value: 68.5,
+      change: 8.3,
+    },
+    bounceRate: {
+      value: 42.8,
+      change: -5.2, // Negativ ist gut!
+    },
+    newUsers: {
+      value: 1923,
+      change: 21.4,
+    },
+    avgEngagementTime: {
+      value: 245,
+      change: 12.8,
+    },
+    paidSearch: {
+      value: 234,
+      change: 15.6,
+    },
+  };
+
+  // Chart-Daten generieren
+  const charts = {
+    clicks: generateChartData(42, 15),
+    impressions: generateChartData(980, 200),
+    sessions: generateChartData(150, 40),
+    totalUsers: generateChartData(95, 25),
+    conversions: generateChartData(4, 2),
+    engagementRate: generateChartData(68, 5),
+    bounceRate: generateChartData(43, 5),
+    newUsers: generateChartData(64, 20),
+    avgEngagementTime: generateChartData(245, 30),
+    paidSearch: generateChartData(8, 3),
+  };
+
+  // Top Suchanfragen (GSC)
+  const topQueries: TopQueryData[] = [
+    {
+      query: 'sneaker online kaufen',
+      clicks: 234,
+      impressions: 5678,
+      ctr: 4.12,
+      position: 4.2,
+    },
+    {
+      query: 'sportschuhe sale',
+      clicks: 189,
+      impressions: 4321,
+      ctr: 4.37,
+      position: 6.8,
+    },
+    {
+      query: 'laufschuhe damen',
+      clicks: 156,
+      impressions: 3890,
+      ctr: 4.01,
+      position: 8.1,
+    },
+    {
+      query: 'turnschuhe günstig',
+      clicks: 134,
+      impressions: 3245,
+      ctr: 4.13,
+      position: 9.5,
+    },
+    {
+      query: 'nike air max sale',
+      clicks: 98,
+      impressions: 2567,
+      ctr: 3.82,
+      position: 11.2,
+    },
+    {
+      query: 'adidas schuhe herren',
+      clicks: 87,
+      impressions: 2134,
+      ctr: 4.08,
+      position: 12.8,
+    },
+    {
+      query: 'running shoes test',
+      clicks: 76,
+      impressions: 1987,
+      ctr: 3.83,
+      position: 14.3,
+    },
+    {
+      query: 'sneaker trends 2025',
+      clicks: 65,
+      impressions: 1756,
+      ctr: 3.70,
+      position: 15.7,
+    },
+    {
+      query: 'basketballschuhe kaufen',
+      clicks: 54,
+      impressions: 1543,
+      ctr: 3.50,
+      position: 17.2,
+    },
+    {
+      query: 'wanderschuhe test',
+      clicks: 43,
+      impressions: 1234,
+      ctr: 3.48,
+      position: 18.9,
+    },
+  ];
+
+  // Top Converting Pages
+  const topConvertingPages: ConvertingPageData[] = [
+    {
+      path: '/produkte/sneaker-collection',
+      conversions: 52,
+      conversionRate: 4.2,
+      sessions: 1234,
+      newUsers: 892,
+      engagementRate: 72.3,
+    },
+    {
+      path: '/sale/sommer-special',
+      conversions: 38,
+      conversionRate: 3.8,
+      sessions: 987,
+      newUsers: 654,
+      engagementRate: 68.5,
+    },
+    {
+      path: '/landingpage/newsletter-anmeldung',
+      conversions: 21,
+      conversionRate: 4.6,
+      sessions: 456,
+      newUsers: 312,
+      engagementRate: 75.8,
+    },
+    {
+      path: '/blog/top-trends-2025',
+      conversions: 16,
+      conversionRate: 2.0,
+      sessions: 789,
+      newUsers: 567,
+      engagementRate: 64.2,
+    },
+  ];
+
+  // AI Traffic Data
+  const aiTraffic: AiTrafficData = {
+    totalSessions: 158,
+    totalUsers: 134,
+    totalSessionsChange: 28.5,
+    totalUsersChange: 31.2,
+    sessionsBySource: {
+      'ChatGPT': 89,
+      'Google Gemini': 42,
+      'Perplexity': 27,
+    },
+    topAiSources: [
+      {
+        source: 'ChatGPT',
+        sessions: 89,
+        users: 76,
+        percentage: 56.3,
+      },
+      {
+        source: 'Google Gemini',
+        sessions: 42,
+        users: 35,
+        percentage: 26.6,
+      },
+      {
+        source: 'Perplexity',
+        sessions: 27,
+        users: 23,
+        percentage: 17.1,
+      },
+    ],
+    trend: generateChartData(5, 2).map(point => ({
+      date: point.date,
+      sessions: point.value,
+    })),
+  };
+
+  // Country Data (Pie Chart)
+  const countryData = [
+    { name: 'Deutschland', value: 1823, fill: 'hsl(var(--chart-1))' },
+    { name: 'Österreich', value: 567, fill: 'hsl(var(--chart-2))' },
+    { name: 'Schweiz', value: 423, fill: 'hsl(var(--chart-3))' },
+    { name: 'Niederlande', value: 234, fill: 'hsl(var(--chart-4))' },
+    { name: 'Andere', value: 474, fill: 'hsl(var(--chart-5))' },
+  ];
+
+  // Channel Data (Traffic Sources)
+  const channelData = [
+    { name: 'Organic Search', value: 2145, fill: 'hsl(var(--chart-1))' },
+    { name: 'Direct', value: 1234, fill: 'hsl(var(--chart-2))' },
+    { name: 'Social', value: 678, fill: 'hsl(var(--chart-3))' },
+    { name: 'Paid Search', value: 234, fill: 'hsl(var(--chart-4))' },
+    { name: 'Referral', value: 230, fill: 'hsl(var(--chart-5))' },
+  ];
+
+  // Device Data
+  const deviceData = [
+    { name: 'Desktop', value: 2347, fill: 'hsl(var(--chart-1))' },
+    { name: 'Mobile', value: 1823, fill: 'hsl(var(--chart-2))' },
+    { name: 'Tablet', value: 351, fill: 'hsl(var(--chart-3))' },
+  ];
+
+  return {
+    kpis,
+    charts,
     topQueries,
     topConvertingPages,
     aiTraffic,
     countryData,
     channelData,
     deviceData,
-    bingData,
-    apiErrors: Object.keys(apiErrors).length > 0 ? apiErrors : undefined
+    bingData: [], // Leer, da im Frontend nicht angezeigt
+    apiErrors: undefined, // Demo hat keine Fehler
   };
-
-  // Cache speichern
-  try {
-    await sql`
-      INSERT INTO google_data_cache (user_id, date_range, data, last_fetched)
-      VALUES (${userId}::uuid, ${dateRange}, ${JSON.stringify(freshData)}::jsonb, NOW())
-      ON CONFLICT (user_id, date_range)
-      DO UPDATE SET data = ${JSON.stringify(freshData)}::jsonb, last_fetched = NOW();
-    `;
-  } catch (e) { console.error('[Cache Write Error]', e); }
-
-  return freshData;
 }
