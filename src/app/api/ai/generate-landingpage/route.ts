@@ -36,8 +36,8 @@ interface LandingpageRequest {
   // ✅ Optionaler Kontext für Produkte/Fakten
   productContext?: string; 
   customInstructions?: string;
-  // Sektions-Auswahl (Landingpage: full/intro/benefits/trust/faq, Blog: full/intro/main/faq/conclusion)
-  section?: 'full' | 'intro' | 'benefits' | 'trust' | 'faq' | 'main' | 'conclusion';
+  // Sektions-Auswahl (Landingpage: full/intro/benefits/trust/faq/casestudies, Blog: full/intro/main/faq/conclusion)
+  section?: 'full' | 'intro' | 'benefits' | 'trust' | 'faq' | 'main' | 'conclusion' | 'casestudies';
 }
 
 // ============================================================================
@@ -503,6 +503,92 @@ STRUKTUR (NUR DIESE ELEMENTE!):
 WICHTIG: STOPPE HIER! Generiere KEINE Einleitung, KEINE Benefits, KEIN FAQ!
 `;
           break;
+
+        // ✅ NEU: CASE STUDIES SEKTION
+        case 'casestudies':
+          sectionInstruction = `
+⚠️ SEKTIONS-AUFTRAG: NUR FALLBEISPIELE / CASE STUDIES
+Generiere AUSSCHLIESSLICH 2-3 detaillierte Fallbeispiele/Case Studies.
+Jede Case Study muss das STAR-Prinzip folgen: Situation, Task, Action, Result.
+Fokus auf messbare Ergebnisse, konkrete Zahlen und Transformations-Stories.
+STOPPE DANACH! KEINE Einleitung, KEINE Benefits, KEIN FAQ, KEIN Social Proof!
+`;
+          sectionStructure = `
+STRUKTUR (NUR DIESE ELEMENTE!):
+
+## Erfolgsgeschichten: So profitieren unsere Kunden
+
+[Kurze Einleitung: Warum Case Studies wichtig sind, 2-3 Sätze]
+
+---
+
+### 📊 Case Study 1: [Branche/Kundentyp] – [Kernproblem gelöst]
+
+**Ausgangssituation:**
+[Beschreibe die Herausforderung des Kunden KONKRET. Was war das Problem? Welche Schmerzen hatte der Kunde? Min. 80 Wörter]
+
+**Unsere Lösung:**
+[Was haben wir gemacht? Welche Strategie/Methode/Produkt wurde eingesetzt? Sei spezifisch! Min. 80 Wörter]
+
+**Das Ergebnis:**
+* 📈 **[Metrik 1]:** [Konkrete Zahl, z.B. "+150% mehr Traffic"]
+* ⏱️ **[Metrik 2]:** [Zeitersparnis oder Geschwindigkeit]
+* 💰 **[Metrik 3]:** [ROI, Umsatzsteigerung, Kostensenkung]
+
+> _"[Kurzes Kundenzitat zum Ergebnis]"_
+> — [Name], [Position], [Unternehmen/Branche]
+
+---
+
+### 📊 Case Study 2: [Andere Branche/Kundentyp] – [Anderes Kernproblem]
+
+**Ausgangssituation:**
+[Anderes Szenario beschreiben. Zeige Vielfalt! Min. 80 Wörter]
+
+**Unsere Lösung:**
+[Andere Herangehensweise oder anderer Service-Aspekt. Min. 80 Wörter]
+
+**Das Ergebnis:**
+* 📈 **[Metrik 1]:** [Andere konkrete Verbesserung]
+* ✅ **[Metrik 2]:** [Qualitative Verbesserung]
+* 🎯 **[Metrik 3]:** [Zielerreichung]
+
+> _"[Kurzes Kundenzitat]"_
+> — [Name], [Position], [Unternehmen/Branche]
+
+---
+
+### 📊 Case Study 3: [Dritte Branche/Situation] – [Drittes Kernproblem]
+
+**Ausgangssituation:**
+[Drittes Szenario, idealerweise nochmal andere Zielgruppe. Min. 80 Wörter]
+
+**Unsere Lösung:**
+[Dritte Variante der Lösung zeigen. Min. 80 Wörter]
+
+**Das Ergebnis:**
+* 📈 **[Metrik 1]:** [Messbare Verbesserung]
+* 🚀 **[Metrik 2]:** [Wachstum oder Skalierung]
+* ⭐ **[Metrik 3]:** [Kundenzufriedenheit oder Qualität]
+
+> _"[Kurzes Kundenzitat]"_
+> — [Name], [Position], [Unternehmen/Branche]
+
+---
+
+## Ihr Projekt könnte die nächste Erfolgsgeschichte sein
+
+[Kurzer Übergang zum CTA: Was verbindet alle Case Studies? Was kann der Leser erwarten? 2-3 Sätze]
+
+**[CTA: "Lassen Sie uns über Ihr Projekt sprechen" / "Jetzt unverbindlich anfragen"]**
+
+WICHTIG: 
+- Nutze PLATZHALTER wie [BRANCHE], [ZAHL], [NAME] wenn keine echten Daten vorliegen!
+- Die Zahlen müssen realistisch und branchenüblich sein.
+- STOPPE HIER! Generiere KEINE anderen Sektionen!
+`;
+          break;
+
         case 'faq':
           sectionInstruction = `
 ⚠️ SEKTIONS-AUFTRAG: NUR FAQ & ABSCHLUSS
@@ -816,7 +902,7 @@ ${sectionStructure ? `\n⚠️ KRITISCH: Generiere NUR die oben angegebene Sekti
 
     } else {
       // ----------------------------------------------------------------------
-      // LANDINGPAGE PROMPT (MIT INTENT-INTEGRATION)
+      // LANDINGPAGE PROMPT (MIT INTENT-INTEGRATION + CASE STUDIES)
       // ----------------------------------------------------------------------
       prompt = `
 Du bist ein erfahrener SEO-Copywriter und Content-Stratege mit 10+ Jahren Erfahrung.
@@ -912,6 +998,18 @@ ${sectionStructure || `STRUKTUR (in dieser Reihenfolge):
 * **[Benefit 3]:** [Emotionaler Nutzen]
 * **[Benefit 4]:** [Trust-Element: Garantie/Support]
 
+## Erfolgsgeschichten: So haben wir geholfen
+
+### 📊 Fallbeispiel: [Branche/Typ]
+**Ausgangssituation:** [Problem des Kunden]
+**Unsere Lösung:** [Was wurde gemacht]
+**Ergebnis:** 
+* 📈 [Konkrete Verbesserung mit Zahl]
+* ⏱️ [Zeitersparnis oder Effizienz]
+* 💰 [ROI oder Kostenvorteil]
+
+> _"[Kurzes Kundenzitat]"_ — [Name, Position]
+
 ## [Social Proof H2: "Das sagen unsere Kunden" / "Erfolge"]
 [Referenz-Absatz: Branche, Anzahl Kunden, durchschnittliche Ergebnisse]
 
@@ -945,7 +1043,8 @@ ${sectionStructure ? `⚠️ KRITISCH: Generiere NUR die oben angegebene Sektion
 ✅ Ist "${mainKeyword}" in H1 und erstem Absatz?
 ✅ Mindestens 900 Wörter?
 ✅ Wurde die Intent-basierte Struktur befolgt?
-✅ Wurden die FAKTEN aus dem Kontext genutzt (keine Lügen)?`}
+✅ Wurden die FAKTEN aus dem Kontext genutzt (keine Lügen)?
+✅ Ist mindestens ein Fallbeispiel/Case Study enthalten?`}
       `;
     }
 
