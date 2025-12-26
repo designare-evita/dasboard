@@ -20,9 +20,12 @@ import {
 } from '@/lib/dashboard-shared';
 import type { TopQueryData, ChartPoint } from '@/types/dashboard';
 
+// ✅ DEMO-DATEN IMPORT
+import { getDemoAnalyticsData } from '@/lib/demo-data';
+
 const CACHE_DURATION_HOURS = 48; 
 
-// ✅ Interface für interne Datenhaltung - kompatibel mit Ga4ExtendedData
+// Interface für interne Datenhaltung - kompatibel mit Ga4ExtendedData
 interface RawApiData {
   clicks: { total: number; daily: ChartPoint[] };
   impressions: { total: number; daily: ChartPoint[] };
@@ -53,7 +56,7 @@ const INITIAL_DATA: RawApiData = {
   bounceRate: { total: 0, daily: [] },
   newUsers: { total: 0, daily: [] },
   avgEngagementTime: { total: 0, daily: [] },
-  paidSearch: { total: 0, daily: [] } // ✅ NEU
+  paidSearch: { total: 0, daily: [] }
 };
 
 export async function getOrFetchGoogleData(
@@ -63,6 +66,17 @@ export async function getOrFetchGoogleData(
 ): Promise<ProjectDashboardData | null> {
   if (!user.id) return null;
   const userId = user.id;
+
+  // ==========================================
+  // ✅ DEMO-MODUS CHECK - GANZ OBEN!
+  // ==========================================
+  if (user.is_demo) {
+    console.log('[Google Data Loader] Demo-User erkannt. Lade Demo-Daten...');
+    return getDemoAnalyticsData(dateRange);
+  }
+  // ==========================================
+  // ENDE DEMO-MODUS
+  // ==========================================
 
   // 1. Cache prüfen
   if (!forceRefresh) {
@@ -127,7 +141,6 @@ export async function getOrFetchGoogleData(
   if (user.gsc_site_url) {
     try {
       const gscRaw = await getSearchConsoleData(user.gsc_site_url, startDateStr, endDateStr);
-      // ✅ GSC gibt bereits DailyDataPoint[] zurück (date: number)
       currentData = {
         ...currentData,
         clicks: { 
@@ -159,12 +172,9 @@ export async function getOrFetchGoogleData(
     try {
       const propertyId = user.ga4_property_id.trim();
       
-      // Hauptdaten (KPIs & Charts)
       const gaCurrent = await getAnalyticsData(propertyId, startDateStr, endDateStr);
       const gaPrevious = await getAnalyticsData(propertyId, prevStartStr, prevEndStr);
       
-      // ✅ FIX: GA4 Daten gezielt mergen, damit GSC (clicks/impressions) nicht überschrieben wird!
-      // ✅ GA4 gibt bereits DailyDataPoint[] zurück (date: number) - keine Konvertierung nötig
       currentData = { 
         ...currentData,
         sessions: gaCurrent.sessions,
@@ -196,7 +206,7 @@ export async function getOrFetchGoogleData(
         console.warn('[AI Traffic] Fehler (ignoriert):', e);
       }
       
-      // FIX: Daten mappen
+      // Top Converting Pages
       try {
         const rawPages = await getTopConvertingPages(propertyId, startDateStr, endDateStr);
         
@@ -216,15 +226,12 @@ export async function getOrFetchGoogleData(
 
       // Dimensionen (Charts)
       try {
-        // Country
         const rawCountry = await getGa4DimensionReport(propertyId, startDateStr, endDateStr, 'country');
         countryData = rawCountry.map((item, index) => ({ ...item, fill: `hsl(var(--chart-${(index % 5) + 1}))` }));
         
-        // Channel
         const rawChannel = await getGa4DimensionReport(propertyId, startDateStr, endDateStr, 'sessionDefaultChannelGroup');
         channelData = rawChannel.map((item, index) => ({ ...item, fill: `hsl(var(--chart-${(index % 5) + 1}))` }));
         
-        // Device
         const rawDevice = await getGa4DimensionReport(propertyId, startDateStr, endDateStr, 'deviceCategory');
         deviceData = rawDevice.map((item, index) => ({ ...item, fill: `hsl(var(--chart-${(index % 5) + 1}))` }));
       } catch (e) { 
@@ -256,11 +263,9 @@ export async function getOrFetchGoogleData(
   // --- DATEN ZUSAMMENBAUEN ---
   const freshData: ProjectDashboardData = {
     kpis: {
-      // GSC (bleiben erhalten, wenn GA4 sie nicht überschreibt)
       clicks: { value: currentData.clicks.total, change: calculateChange(currentData.clicks.total, prevData.clicks.total) },
       impressions: { value: currentData.impressions.total, change: calculateChange(currentData.impressions.total, prevData.impressions.total) },
       
-      // GA4
       sessions: { 
         value: currentData.sessions.total, 
         change: calculateChange(currentData.sessions.total, prevData.sessions.total),
@@ -278,11 +283,9 @@ export async function getOrFetchGoogleData(
       },
       newUsers: { value: currentData.newUsers.total, change: calculateChange(currentData.newUsers.total, prevData.newUsers.total) },
       avgEngagementTime: { value: currentData.avgEngagementTime.total, change: calculateChange(currentData.avgEngagementTime.total, prevData.avgEngagementTime.total) },
-      // ✅ NEU: Paid Search KPI nur hinzufügen wenn Daten vorhanden
       paidSearch: { value: currentData.paidSearch.total, change: calculateChange(currentData.paidSearch.total, prevData.paidSearch.total) }
     },
     
-    // Charts
     charts: {
       clicks: currentData.clicks.daily || [],
       impressions: currentData.impressions.daily || [],
@@ -293,7 +296,6 @@ export async function getOrFetchGoogleData(
       bounceRate: currentData.bounceRate.daily || [],
       newUsers: currentData.newUsers.daily || [],
       avgEngagementTime: currentData.avgEngagementTime.daily || [],
-      // ✅ NEU: Paid Search Chart
       paidSearch: currentData.paidSearch.daily || []
     },
     topQueries,
