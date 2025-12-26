@@ -5,6 +5,8 @@ import { sql } from '@vercel/postgres';
 import { getOrFetchGoogleData } from '@/lib/google-data-loader';
 import crypto from 'node:crypto';
 import type { User } from '@/lib/schemas'; 
+
+// NEU: Importiere den zentralen Safe-Helper statt direkt 'ai' und 'createGoogleGenerativeAI'
 import { streamTextSafe } from '@/lib/ai-config';
 
 export const runtime = 'nodejs';
@@ -29,18 +31,15 @@ export async function POST(req: NextRequest) {
     }
 
     // ==========================================
-    // DEMO-MODUS CHECK - GANZ OBEN!
+    // ✅ DEMO-MODUS CHECK
     // ==========================================
-    // Check via Email (z.B. demo@example.com, demo-admin@designare.at)
     const isDemo = session.user.email?.includes('demo');
     
     if (isDemo) {
       console.log('[AI Analyze] Demo-User erkannt. Simuliere Antwort...');
       
-      // Künstliche Verzögerung für Realismus
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // Demo-Analyse (simuliert KI-Response)
       const demoResponse = `<h4 class="text-lg font-semibold text-indigo-900 mb-2">Das Wichtigste zuerst:</h4>
 <p class="mb-4">Willkommen im <strong>Demo-Modus</strong>! Hier sehen Sie exemplarisch, wie unsere KI echte Projektdaten analysieren würde. Ihr Demo-Shop entwickelt sich hervorragend.</p>
 <h4 class="text-lg font-semibold text-indigo-900 mt-4 mb-2">Zusammenfassung:</h4>
@@ -55,9 +54,7 @@ export async function POST(req: NextRequest) {
 <p>Wir sehen noch ungenutztes Potenzial bei mobilen Besuchern. Die Absprungrate ist dort leicht erhöht. Eine Optimierung der Ladezeit für Mobilgeräte könnte hier weitere Umsätze freisetzen.</p>`;
 
       return new NextResponse(demoResponse, {
-        headers: {
-          'Content-Type': 'text/plain; charset=utf-8',
-        },
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' }
       });
     }
     // ==========================================
@@ -72,9 +69,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'Projekt-ID und Zeitraum erforderlich' }, { status: 400 });
     }
 
-    // Cache prüfen
+    // 1. Prüfen, ob eine Analyse für diese Daten schon im Cache ist
+    // Wir hashen die Inputs, um Änderungen zu erkennen
     const inputHash = createHash(`${projectId}-${dateRange}`);
     
+    // Check Cache (nur wenn nicht explizit "refresh" angefordert wurde - bauen wir später ein)
     const { rows } = await sql`
       SELECT response, created_at FROM ai_analysis_cache 
       WHERE user_id = ${projectId}::uuid 
@@ -84,10 +83,13 @@ export async function POST(req: NextRequest) {
     `;
 
     if (rows.length > 0) {
+      // Cache Hit!
       return new NextResponse(rows[0].response);
     }
 
-    // Daten laden
+    // 2. Daten laden (wenn nicht im Cache)
+    // Hinweis: getOrFetchGoogleData erwartet ein User-Objekt, nicht nur projectId
+    // Wir müssen den User erst laden
     const { rows: userRows } = await sql`
       SELECT * FROM users WHERE id = ${projectId}::uuid LIMIT 1
     `;
@@ -103,7 +105,10 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ message: 'Keine Daten gefunden' }, { status: 404 });
     }
 
-    // Daten für KI aufbereiten
+    // 3. Daten für KI aufbereiten (Zusammenfassung)
+    // FIX: Zugriff auf die korrekten Properties des ProjectDashboardData Typs
+    // Die Struktur ist: analyticsData.kpis.{metric}.value und analyticsData.kpis.{metric}.change
+    // Optional Chaining für alle Zugriffe um TypeScript-Fehler zu vermeiden
     const kpis = analyticsData.kpis;
     
     const summaryData = `
@@ -121,7 +126,7 @@ export async function POST(req: NextRequest) {
       ${analyticsData.topQueries?.slice(0, 5).map(q => `- ${q.query}: ${q.clicks} Klicks, Position ${q.position?.toFixed(1)}`).join('\n') || 'Keine Daten'}
     `;
 
-    // Prompt Engineering
+    // 4. Prompt Engineering
     let systemPrompt = `
       Du bist ein erfahrener Web-Analyst. Deine Aufgabe ist es, Google Analytics 4 Daten für einen Kunden verständlich und handlungsorientiert zusammenzufassen.
       
@@ -149,7 +154,8 @@ export async function POST(req: NextRequest) {
       `;
     }
 
-    // KI Generierung starten
+    // 5. KI Generierung starten (MIT ZENTRALEM HELPER)
+    // Wir rufen streamTextSafe auf statt streamText. Das 'model' Argument lassen wir weg.
     const result = await streamTextSafe({
       system: systemPrompt,
       prompt: `Analysiere diese Daten für den Zeitraum ${dateRange}:\n${summaryData}`,
