@@ -5,13 +5,11 @@ import { sql } from '@vercel/postgres';
 import { getOrFetchGoogleData } from '@/lib/google-data-loader';
 import crypto from 'node:crypto';
 import type { User } from '@/lib/schemas'; 
-
-// NEU: Importiere den zentralen Safe-Helper statt direkt 'ai' und 'createGoogleGenerativeAI'
 import { streamTextSafe } from '@/lib/ai-config';
 
 export const runtime = 'nodejs';
 
-// Hilfsfunktionen
+// --- Hilfsfunktionen ---
 const fmt = (val?: number) => (val ? val.toLocaleString('de-DE') : '0');
 const change = (val?: number) => {
   if (val === undefined || val === null) return '0';
@@ -30,6 +28,41 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'Nicht autorisiert' }, { status: 401 });
     }
 
+    // ==========================================
+    // SCHRITT 4: DEMO-MODUS CHECK
+    // ==========================================
+    if (session.user.is_demo) {
+      console.log('[AI Analyze] Demo-User erkannt. Simuliere Antwort...');
+      
+      // 1. Künstliche Verzögerung für Realismus (User soll denken, die KI denkt nach)
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // 2. Statische HTML-Antwort (simuliert das KI-Ergebnis)
+      const demoResponse = `
+        <h4 class="text-lg font-semibold text-indigo-900 mb-2">Das Wichtigste zuerst:</h4> 
+        <p class="mb-4">Willkommen im <strong>Demo-Modus</strong>! Hier sehen Sie exemplarisch, wie unsere KI echte Projektdaten analysieren würde. Ihr Demo-Shop entwickelt sich hervorragend.</p>
+        
+        <h4 class="text-lg font-semibold text-indigo-900 mt-4 mb-2">Zusammenfassung:</h4> 
+        <p class="mb-4">Die Besucherzahlen zeigen einen starken Aufwärtstrend (+24% im Vergleich zum Vormonat). Besonders erfreulich: Die Conversion-Rate ist auf stabile 3,2% gestiegen. Das deutet darauf hin, dass die Zielgruppe genau angesprochen wird.</p>
+        
+        <h4 class="text-lg font-semibold text-indigo-900 mt-4 mb-2">Top Seiten:</h4> 
+        <ul class="list-disc pl-5 mb-4 space-y-1">
+          <li>/produkte/sneaker-collection (52 Conversions)</li>
+          <li>/sale/sommer-special (38 Conversions)</li>
+          <li>/landingpage/newsletter-anmeldung (21 Conversions)</li>
+        </ul>
+        
+        <h4 class="text-lg font-semibold text-indigo-900 mt-4 mb-2">Potenzial:</h4> 
+        <p>Wir sehen noch ungenutztes Potenzial bei mobilen Besuchern. Die Absprungrate ist dort leicht erhöht. Eine Optimierung der Ladezeit für Mobilgeräte könnte hier weitere Umsätze freisetzen.</p>
+      `;
+
+      // Direkt zurückgeben (Client behandelt es wie einen Text-Stream)
+      return new NextResponse(demoResponse);
+    }
+    // ==========================================
+    // ENDE DEMO-MODUS
+    // ==========================================
+
     const body = await req.json();
     const { projectId, dateRange } = body;
     const userRole = session.user.role;
@@ -39,10 +72,8 @@ export async function POST(req: NextRequest) {
     }
 
     // 1. Prüfen, ob eine Analyse für diese Daten schon im Cache ist
-    // Wir hashen die Inputs, um Änderungen zu erkennen
     const inputHash = createHash(`${projectId}-${dateRange}`);
     
-    // Check Cache (nur wenn nicht explizit "refresh" angefordert wurde - bauen wir später ein)
     const { rows } = await sql`
       SELECT response, created_at FROM ai_analysis_cache 
       WHERE user_id = ${projectId}::uuid 
@@ -57,8 +88,6 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Daten laden (wenn nicht im Cache)
-    // Hinweis: getOrFetchGoogleData erwartet ein User-Objekt, nicht nur projectId
-    // Wir müssen den User erst laden
     const { rows: userRows } = await sql`
       SELECT * FROM users WHERE id = ${projectId}::uuid LIMIT 1
     `;
@@ -75,9 +104,6 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Daten für KI aufbereiten (Zusammenfassung)
-    // FIX: Zugriff auf die korrekten Properties des ProjectDashboardData Typs
-    // Die Struktur ist: analyticsData.kpis.{metric}.value und analyticsData.kpis.{metric}.change
-    // Optional Chaining für alle Zugriffe um TypeScript-Fehler zu vermeiden
     const kpis = analyticsData.kpis;
     
     const summaryData = `
@@ -124,7 +150,6 @@ export async function POST(req: NextRequest) {
     }
 
     // 5. KI Generierung starten (MIT ZENTRALEM HELPER)
-    // Wir rufen streamTextSafe auf statt streamText. Das 'model' Argument lassen wir weg.
     const result = await streamTextSafe({
       system: systemPrompt,
       prompt: `Analysiere diese Daten für den Zeitraum ${dateRange}:\n${summaryData}`,
