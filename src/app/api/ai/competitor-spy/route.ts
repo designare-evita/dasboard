@@ -1688,11 +1688,11 @@ export async function POST(req: NextRequest) {
     }
     
     let normalizedCompetitorUrl: string | null = null;
-    if (competitorUrl) {
-      normalizedCompetitorUrl = competitorUrl.trim();
-      if (!normalizedCompetitorUrl.startsWith('http')) {
-        normalizedCompetitorUrl = 'https://' + normalizedCompetitorUrl;
-      }
+    if (competitorUrl && typeof competitorUrl === 'string' && competitorUrl.trim()) {
+      const trimmedCompetitor = competitorUrl.trim();
+      normalizedCompetitorUrl = trimmedCompetitor.startsWith('http') 
+        ? trimmedCompetitor 
+        : 'https://' + trimmedCompetitor;
     }
     
     // Parallel scrapen
