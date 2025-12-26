@@ -16,6 +16,7 @@ declare module 'next-auth' {
     permissions?: string[];
     logo_url?: string | null;
     gsc_site_url?: string | null;
+    is_demo?: boolean; // <--- NEU
   }
 
   /**
@@ -34,6 +35,7 @@ declare module 'next-auth' {
       permissions?: string[];
       logo_url?: string | null;
       gsc_site_url?: string | null; // ✅ HINZUGEFÜGT
+      is_demo?: boolean; // <--- NEU
     } & DefaultSession['user'];
   }
 }
@@ -51,5 +53,6 @@ declare module 'next-auth/jwt' {
     permissions?: string[];
     logo_url?: string | null;
     gsc_site_url?: string | null; // ✅ HINZUGEFÜGT
+    is_demo?: boolean; // <--- NEU
   }
 }
