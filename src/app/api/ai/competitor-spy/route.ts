@@ -1,5 +1,6 @@
 // src/app/api/ai/competitor-spy/route.ts
 // OPTION C: Harte Fakten per Code + Qualitätsbewertung per KI
+// FIX: OG Tags entfernt + Konkurrenz-Vergleich funktioniert jetzt
 import { streamTextSafe } from '@/lib/ai-config';
 import * as cheerio from 'cheerio';
 import { NextRequest, NextResponse } from 'next/server';
@@ -250,31 +251,8 @@ interface ExtractedFacts {
     javascriptLinks: number;
   };
 
-  // SOCIAL & OPEN GRAPH
+  // SOCIAL (nur Profile Links - OG Tags entfernt)
   social: {
-    openGraph: {
-      hasOg: boolean;
-      title: string | null;
-      description: string | null;
-      image: string | null;
-      type: string | null;
-      url: string | null;
-      siteName: string | null;
-      locale: string | null;
-      completeness: number; // 0-100
-    };
-    
-    twitter: {
-      hasTwitterCard: boolean;
-      card: string | null;
-      site: string | null;
-      creator: string | null;
-      title: string | null;
-      description: string | null;
-      image: string | null;
-      completeness: number;
-    };
-    
     socialProfiles: {
       found: boolean;
       platforms: string[];
@@ -906,42 +884,11 @@ function extractImages($: cheerio.CheerioAPI): ExtractedFacts['images'] {
 }
 
 // ============================================================================
-// SOCIAL META EXTRAKTION
+// SOCIAL META EXTRAKTION (NUR PROFILE LINKS - OG TAGS ENTFERNT)
 // ============================================================================
 
 function extractSocialMeta($: cheerio.CheerioAPI): ExtractedFacts['social'] {
-  // Open Graph
-  const ogTitle = $('meta[property="og:title"]').attr('content') || null;
-  const ogDesc = $('meta[property="og:description"]').attr('content') || null;
-  const ogImage = $('meta[property="og:image"]').attr('content') || null;
-  const ogType = $('meta[property="og:type"]').attr('content') || null;
-  const ogUrl = $('meta[property="og:url"]').attr('content') || null;
-  const ogSiteName = $('meta[property="og:site_name"]').attr('content') || null;
-  const ogLocale = $('meta[property="og:locale"]').attr('content') || null;
-  
-  let ogCompleteness = 0;
-  if (ogTitle) ogCompleteness += 25;
-  if (ogDesc) ogCompleteness += 25;
-  if (ogImage) ogCompleteness += 30;
-  if (ogType) ogCompleteness += 10;
-  if (ogUrl) ogCompleteness += 10;
-  
-  // Twitter
-  const twCard = $('meta[name="twitter:card"]').attr('content') || null;
-  const twSite = $('meta[name="twitter:site"]').attr('content') || null;
-  const twCreator = $('meta[name="twitter:creator"]').attr('content') || null;
-  const twTitle = $('meta[name="twitter:title"]').attr('content') || null;
-  const twDesc = $('meta[name="twitter:description"]').attr('content') || null;
-  const twImage = $('meta[name="twitter:image"]').attr('content') || null;
-  
-  let twCompleteness = 0;
-  if (twCard) twCompleteness += 30;
-  if (twTitle) twCompleteness += 25;
-  if (twDesc) twCompleteness += 20;
-  if (twImage) twCompleteness += 25;
-  
   // Social Profile Links
-  const socialDomains = ['linkedin.com', 'github.com', 'twitter.com', 'x.com', 'facebook.com', 'instagram.com', 'youtube.com', 'tiktok.com', 'xing.com'];
   const socialProfileLinks: { platform: string; url: string }[] = [];
   
   $('a[href]').each((_, el) => {
@@ -953,27 +900,6 @@ function extractSocialMeta($: cheerio.CheerioAPI): ExtractedFacts['social'] {
   });
   
   return {
-    openGraph: {
-      hasOg: !!(ogTitle || ogImage),
-      title: ogTitle,
-      description: ogDesc,
-      image: ogImage,
-      type: ogType,
-      url: ogUrl,
-      siteName: ogSiteName,
-      locale: ogLocale,
-      completeness: ogCompleteness,
-    },
-    twitter: {
-      hasTwitterCard: !!twCard,
-      card: twCard,
-      site: twSite,
-      creator: twCreator,
-      title: twTitle,
-      description: twDesc,
-      image: twImage,
-      completeness: twCompleteness,
-    },
     socialProfiles: {
       found: socialProfileLinks.length > 0,
       platforms: socialProfileLinks.map(s => s.platform),
@@ -1322,15 +1248,16 @@ async function scrapeAndExtract(url: string): Promise<{ facts: ExtractedFacts; r
 }
 
 // ============================================================================
-// PROMPT BUILDER - FAKTEN FÜR KI AUFBEREITEN
+// PROMPT BUILDER - FAKTEN FÜR KI AUFBEREITEN (OHNE OG TAGS)
 // ============================================================================
 
-function buildFactsForPrompt(facts: ExtractedFacts): string {
+function buildFactsForPrompt(facts: ExtractedFacts, label: string = ''): string {
   const f = facts;
+  const prefix = label ? `[${label}] ` : '';
   
   return `
 ════════════════════════════════════════════════════════════════════════════════
-EXTRAHIERTE FAKTEN (100% verifiziert durch Code-Analyse)
+${prefix}EXTRAHIERTE FAKTEN (100% verifiziert durch Code-Analyse)
 ════════════════════════════════════════════════════════════════════════════════
 
 URL: ${f.meta.url}
@@ -1494,21 +1421,8 @@ Bild-Score: ${f.images.imageScore}/100
 ${f.images.altTexts.length > 0 ? `Alt-Texte Beispiele: "${f.images.altTexts.slice(0, 5).join('", "')}"` : ''}
 
 ────────────────────────────────────────────────────────────────────────────────
-SOCIAL & OPEN GRAPH
+SOCIAL MEDIA PROFILE
 ────────────────────────────────────────────────────────────────────────────────
-
-OPEN GRAPH:
-- og:title: ${f.social.openGraph.title || '❌ FEHLT'}
-- og:description: ${f.social.openGraph.description ? '✅ vorhanden' : '❌ FEHLT'}
-- og:image: ${f.social.openGraph.image || '❌ FEHLT'}
-- og:type: ${f.social.openGraph.type || '❌ FEHLT'}
-- Vollständigkeit: ${f.social.openGraph.completeness}%
-
-TWITTER CARD:
-- twitter:card: ${f.social.twitter.card || '❌ FEHLT'}
-- twitter:title: ${f.social.twitter.title ? '✅' : '❌'}
-- twitter:image: ${f.social.twitter.image ? '✅' : '❌'}
-- Vollständigkeit: ${f.social.twitter.completeness}%
 
 SOCIAL PROFILE LINKS: ${f.social.socialProfiles.found ? f.social.socialProfiles.platforms.join(', ') : 'KEINE gefunden'}
 
@@ -1569,10 +1483,10 @@ ${f.content.blockquoteTexts.length > 0 ? `ZITATE/BLOCKQUOTES:
 }
 
 // ============================================================================
-// KI BEWERTUNGS-PROMPT (OPTIMIERT + TECH + STORYTELLING)
+// KI BEWERTUNGS-PROMPT FÜR EINZELANALYSE
 // ============================================================================
 
-function buildEvaluationPrompt(facts: ExtractedFacts, compactStyles: string): string {
+function buildSingleAnalysisPrompt(facts: ExtractedFacts, compactStyles: string): string {
   const factsText = buildFactsForPrompt(facts);
   
   return `
@@ -1660,7 +1574,101 @@ STYLE GUIDE BASIS: ${compactStyles}
 }
 
 // ============================================================================
-// API HANDLER
+// KI BEWERTUNGS-PROMPT FÜR VERGLEICHSANALYSE (NEU!)
+// ============================================================================
+
+function buildComparisonPrompt(
+  myFacts: ExtractedFacts, 
+  competitorFacts: ExtractedFacts, 
+  compactStyles: string
+): string {
+  const myFactsText = buildFactsForPrompt(myFacts, 'MEINE SEITE');
+  const competitorFactsText = buildFactsForPrompt(competitorFacts, 'KONKURRENZ');
+  
+  return `
+Du bist ein erfahrener SEO-Auditor und Wettbewerbsanalyst.
+
+DEINE AUFGABE:
+Erstelle einen VERGLEICHSREPORT zwischen zwei Webseiten.
+Zeige klar auf, wo die eigene Seite besser oder schlechter als die Konkurrenz ist.
+
+${myFactsText}
+
+${competitorFactsText}
+
+════════════════════════════════════════════════════════════════════════════════
+LAYOUT & DESIGN ANWEISUNGEN (STRIKT BEFOLGEN)
+════════════════════════════════════════════════════════════════════════════════
+
+1. TITEL: "WETTBEWERBSVERGLEICH - SEO ANALYSE"
+2. PADDING: Jede Card/Section MUSS mindestens 24px Padding haben.
+3. FARBEN für Vergleich:
+   - 🟢 GRÜN = Eigene Seite ist besser
+   - 🔴 ROT = Konkurrenz ist besser
+   - 🟡 GELB = Gleichstand / Ähnlich
+4. Nutze Tabellen oder Side-by-Side Cards für direkten Vergleich.
+
+════════════════════════════════════════════════════════════════════════════════
+STRUKTUR DES VERGLEICHSREPORTS
+════════════════════════════════════════════════════════════════════════════════
+
+1. EXECUTIVE SUMMARY
+   - Gesamtsieger auf einen Blick (wer ist SEO-technisch besser aufgestellt?)
+   - 3 wichtigste Vorteile der eigenen Seite
+   - 3 wichtigste Vorteile der Konkurrenz
+   - Empfehlung in 2 Sätzen
+
+2. DIREKTE VERGLEICHSTABELLE
+   Erstelle eine übersichtliche Tabelle mit folgenden Metriken:
+   | Metrik | Meine Seite | Konkurrenz | Gewinner |
+   
+   Metriken:
+   - Wortanzahl
+   - Lesezeit
+   - H1 vorhanden
+   - Meta Description
+   - Schema.org
+   - Bilder Alt-Texte
+   - Interne Links
+   - TTFB
+   - Semantik-Score
+
+3. TECHNISCHES SEO VERGLEICH
+   Für jeden Bereich: Wer ist besser und warum?
+   A) Meta & Indexierung
+   B) Strukturierte Daten
+   C) HTML Struktur
+   D) Performance
+   E) Bilder
+   F) Links
+
+4. CONTENT & E-E-A-T VERGLEICH
+   - Welche Seite wirkt vertrauenswürdiger?
+   - Welche Seite hat den besseren Content-Flow?
+   - Trust-Signale Vergleich
+
+5. KONKRETE MASSNAHMEN
+   Was muss die eigene Seite tun, um die Konkurrenz zu überholen?
+   - 🔴 KRITISCH: [Sofort von Konkurrenz kopieren]
+   - 🟡 WICHTIG: [Aufholen in diesen Bereichen]
+   - 🟢 AUSBAUEN: [Diese Vorteile weiter stärken]
+
+6. QUICK WINS
+   Die 3 schnellsten Maßnahmen, um die Konkurrenz zu schlagen.
+
+OUTPUT FORMAT:
+- Antworte NUR mit HTML.
+- Nutze Farben (grün/rot/gelb) für Vergleiche.
+- Tabellen für übersichtliche Gegenüberstellungen.
+- Keine Markdown-Syntax.
+- Keine Einleitung.
+
+STYLE GUIDE BASIS: ${compactStyles}
+`;
+}
+
+// ============================================================================
+// API HANDLER (FIX: Konkurrenz-Vergleich funktioniert jetzt!)
 // ============================================================================
 
 export async function POST(req: NextRequest) {
@@ -1679,10 +1687,18 @@ export async function POST(req: NextRequest) {
       normalizedUrl = 'https://' + normalizedUrl;
     }
     
+    let normalizedCompetitorUrl: string | null = null;
+    if (competitorUrl) {
+      normalizedCompetitorUrl = competitorUrl.trim();
+      if (!normalizedCompetitorUrl.startsWith('http')) {
+        normalizedCompetitorUrl = 'https://' + normalizedCompetitorUrl;
+      }
+    }
+    
     // Parallel scrapen
     const [targetResult, competitorResult] = await Promise.all([
       scrapeAndExtract(normalizedUrl),
-      competitorUrl ? scrapeAndExtract(competitorUrl) : Promise.resolve(null),
+      normalizedCompetitorUrl ? scrapeAndExtract(normalizedCompetitorUrl) : Promise.resolve(null),
     ]);
     
     if (!targetResult) {
@@ -1690,7 +1706,19 @@ export async function POST(req: NextRequest) {
     }
     
     const compactStyles = getCompactStyleGuide();
-    const prompt = buildEvaluationPrompt(targetResult.facts, compactStyles);
+    
+    // FIX: Unterscheide zwischen Einzel- und Vergleichsanalyse
+    let prompt: string;
+    
+    if (competitorResult) {
+      // VERGLEICHSANALYSE - beide Seiten wurden erfolgreich geladen
+      console.log('🔍 Starte Vergleichsanalyse:', normalizedUrl, 'vs', normalizedCompetitorUrl);
+      prompt = buildComparisonPrompt(targetResult.facts, competitorResult.facts, compactStyles);
+    } else {
+      // EINZELANALYSE - nur eigene Seite
+      console.log('🔍 Starte Einzelanalyse:', normalizedUrl);
+      prompt = buildSingleAnalysisPrompt(targetResult.facts, compactStyles);
+    }
     
     // KI-Bewertung streamen
     const result = await streamTextSafe({ prompt });
