@@ -268,35 +268,6 @@ export function getDemoAnalyticsData(dateRange: string): ProjectDashboardData {
     { name: 'Tablet', value: 351, fill: 'hsl(var(--chart-3))' },
   ];
 
-  // Bing Data (optional) - mit date für Timeline
-  const now = Date.now();
-  const bingData = [
-    { 
-      query: 'sneaker kaufen', 
-      clicks: 45, 
-      impressions: 892,
-      position: 8.5,
-      ctr: 5.04,
-      date: now - 2 * 24 * 60 * 60 * 1000 // vor 2 Tagen
-    },
-    { 
-      query: 'sportschuhe', 
-      clicks: 34, 
-      impressions: 678,
-      position: 10.2,
-      ctr: 5.01,
-      date: now - 5 * 24 * 60 * 60 * 1000 // vor 5 Tagen
-    },
-    { 
-      query: 'laufschuhe', 
-      clicks: 28, 
-      impressions: 543,
-      position: 12.4,
-      ctr: 5.16,
-      date: now - 7 * 24 * 60 * 60 * 1000 // vor 7 Tagen
-    },
-  ];
-
   return {
     kpis,
     charts,
@@ -306,7 +277,7 @@ export function getDemoAnalyticsData(dateRange: string): ProjectDashboardData {
     countryData,
     channelData,
     deviceData,
-    bingData,
+    bingData: [], // Leer, da im Frontend nicht angezeigt
     apiErrors: undefined, // Demo hat keine Fehler
   };
 }
