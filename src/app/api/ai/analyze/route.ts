@@ -40,11 +40,11 @@ export async function POST(req: NextRequest) {
       
       await new Promise(resolve => setTimeout(resolve, 2000));
 
+      // Demo-Response mit [[SPLIT]] Marker für 2-Spalten Layout
       const demoResponse = `<h4 class="text-lg font-semibold text-indigo-900 mb-2">Das Wichtigste zuerst:</h4>
 <p class="mb-4">Willkommen im <strong>Demo-Modus</strong>! Hier sehen Sie exemplarisch, wie unsere KI echte Projektdaten analysieren würde. Ihr Demo-Shop entwickelt sich hervorragend.</p>
 <h4 class="text-lg font-semibold text-indigo-900 mt-4 mb-2">Zusammenfassung:</h4>
-<p class="mb-4">Die Besucherzahlen zeigen einen starken Aufwärtstrend (+24% im Vergleich zum Vormonat). Besonders erfreulich: Die Conversion-Rate ist auf stabile 3,2% gestiegen. Das deutet darauf hin, dass die Zielgruppe genau angesprochen wird.</p>
-<h4 class="text-lg font-semibold text-indigo-900 mt-4 mb-2">Top Seiten:</h4>
+<p class="mb-4">Die Besucherzahlen zeigen einen starken Aufwärtstrend (+24% im Vergleich zum Vormonat). Besonders erfreulich: Die Conversion-Rate ist auf stabile 3,2% gestiegen. Das deutet darauf hin, dass die Zielgruppe genau angesprochen wird.</p>[[SPLIT]]<h4 class="text-lg font-semibold text-indigo-900 mb-2">Top Seiten:</h4>
 <ul class="list-disc pl-5 mb-4 space-y-1">
 <li>/produkte/sneaker-collection (52 Conversions)</li>
 <li>/sale/sommer-special (38 Conversions)</li>
@@ -133,10 +133,17 @@ export async function POST(req: NextRequest) {
       Stil: Professionell, ermutigend, aber ehrlich. "Du"-Ansprache.
       
       Formatierung: Nutze HTML-Tags für die Struktur (KEIN Markdown!).
-      Struktur der Antwort:
+      
+      WICHTIG: Teile deine Antwort in ZWEI Teile mit dem Marker [[SPLIT]]:
+      
+      TEIL 1 (vor [[SPLIT]]):
       1. <h4 class="text-lg font-semibold text-indigo-900 mb-2">Das Wichtigste zuerst:</h4> Ein kurzer Satz als Einleitung.
       2. <h4 class="text-lg font-semibold text-indigo-900 mt-4 mb-2">Zusammenfassung:</h4> Fließtext über Erfolge (Conversions hervorheben).
-      3. <h4 class="text-lg font-semibold text-indigo-900 mt-4 mb-2">Top Seiten:</h4> Nenne die stärksten Inhalte.
+      
+      Dann GENAU den Text: [[SPLIT]]
+      
+      TEIL 2 (nach [[SPLIT]]):
+      3. <h4 class="text-lg font-semibold text-indigo-900 mb-2">Top Seiten:</h4> Nenne die stärksten Inhalte.
       4. <h4 class="text-lg font-semibold text-indigo-900 mt-4 mb-2">Potenzial:</h4> Ein konkreter Verbesserungsvorschlag basierend auf den Daten (z.B. Absprungrate senken).
     `;
 
@@ -144,9 +151,17 @@ export async function POST(req: NextRequest) {
       systemPrompt = `
         Du bist ein knallharter Daten-Analyst. Analysiere die folgenden Daten kurz und prägnant.
         Format: HTML.
+        
+        WICHTIG: Teile deine Antwort in ZWEI Teile mit dem Marker [[SPLIT]]:
+        
+        TEIL 1 (vor [[SPLIT]]):
         1. <h4 class="text-lg font-semibold text-indigo-900 mb-2">Status:</h4> Kurzfazit.
         2. <h4 class="text-lg font-semibold text-indigo-900 mt-4 mb-2">Zusammenfassung:</h4> Fließtext über Erfolge (Conversions hervorheben).
-        3. <h4 class="text-lg font-semibold text-indigo-900 mt-4 mb-2">Top Seiten (Umsatz):</h4> Nenne lobend die Seiten mit den meisten Conversions.
+        
+        Dann GENAU den Text: [[SPLIT]]
+        
+        TEIL 2 (nach [[SPLIT]]):
+        3. <h4 class="text-lg font-semibold text-indigo-900 mb-2">Top Seiten (Umsatz):</h4> Nenne lobend die Seiten mit den meisten Conversions.
         4. <h4 class="text-lg font-semibold text-indigo-900 mt-4 mb-2">Ihr Wachstumspotenzial:</h4> 
            Greifen Sie 1-2 Keywords aus "SEO CHANCEN" heraus und formulieren Sie es als gute Nachricht: 
            "Wir haben tolles Potenzial entdeckt! Viele Menschen suchen nach [Keyword], und Sie sind schon fast ganz vorne dabei (Seite 2)."
