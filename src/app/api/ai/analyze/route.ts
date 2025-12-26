@@ -9,7 +9,7 @@ import { streamTextSafe } from '@/lib/ai-config';
 
 export const runtime = 'nodejs';
 
-// --- Hilfsfunktionen ---
+// Hilfsfunktionen
 const fmt = (val?: number) => (val ? val.toLocaleString('de-DE') : '0');
 const change = (val?: number) => {
   if (val === undefined || val === null) return '0';
@@ -29,32 +29,28 @@ export async function POST(req: NextRequest) {
     }
 
     // ==========================================
-    // SCHRITT 4: DEMO-MODUS CHECK
+    // DEMO-MODUS CHECK - GANZ OBEN!
     // ==========================================
     if (session.user.is_demo) {
       console.log('[AI Analyze] Demo-User erkannt. Simuliere Antwort...');
       
-      // 1. Künstliche Verzögerung für Realismus (User soll denken, die KI denkt nach)
+      // Künstliche Verzögerung für Realismus
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // 2. Statische HTML-Antwort (simuliert das KI-Ergebnis)
+      // Demo-Analyse (simuliert KI-Response)
       const demoResponse = `<h4 class="text-lg font-semibold text-indigo-900 mb-2">Das Wichtigste zuerst:</h4>
 <p class="mb-4">Willkommen im <strong>Demo-Modus</strong>! Hier sehen Sie exemplarisch, wie unsere KI echte Projektdaten analysieren würde. Ihr Demo-Shop entwickelt sich hervorragend.</p>
-
 <h4 class="text-lg font-semibold text-indigo-900 mt-4 mb-2">Zusammenfassung:</h4>
 <p class="mb-4">Die Besucherzahlen zeigen einen starken Aufwärtstrend (+24% im Vergleich zum Vormonat). Besonders erfreulich: Die Conversion-Rate ist auf stabile 3,2% gestiegen. Das deutet darauf hin, dass die Zielgruppe genau angesprochen wird.</p>
-
 <h4 class="text-lg font-semibold text-indigo-900 mt-4 mb-2">Top Seiten:</h4>
 <ul class="list-disc pl-5 mb-4 space-y-1">
-  <li>/produkte/sneaker-collection (52 Conversions)</li>
-  <li>/sale/sommer-special (38 Conversions)</li>
-  <li>/landingpage/newsletter-anmeldung (21 Conversions)</li>
+<li>/produkte/sneaker-collection (52 Conversions)</li>
+<li>/sale/sommer-special (38 Conversions)</li>
+<li>/landingpage/newsletter-anmeldung (21 Conversions)</li>
 </ul>
-
 <h4 class="text-lg font-semibold text-indigo-900 mt-4 mb-2">Potenzial:</h4>
 <p>Wir sehen noch ungenutztes Potenzial bei mobilen Besuchern. Die Absprungrate ist dort leicht erhöht. Eine Optimierung der Ladezeit für Mobilgeräte könnte hier weitere Umsätze freisetzen.</p>`;
 
-      // Direkt als Text-Stream zurückgeben (wie die KI es auch tut)
       return new NextResponse(demoResponse, {
         headers: {
           'Content-Type': 'text/plain; charset=utf-8',
@@ -73,7 +69,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'Projekt-ID und Zeitraum erforderlich' }, { status: 400 });
     }
 
-    // 1. Prüfen, ob eine Analyse für diese Daten schon im Cache ist
+    // Cache prüfen
     const inputHash = createHash(`${projectId}-${dateRange}`);
     
     const { rows } = await sql`
@@ -85,11 +81,10 @@ export async function POST(req: NextRequest) {
     `;
 
     if (rows.length > 0) {
-      // Cache Hit!
       return new NextResponse(rows[0].response);
     }
 
-    // 2. Daten laden (wenn nicht im Cache)
+    // Daten laden
     const { rows: userRows } = await sql`
       SELECT * FROM users WHERE id = ${projectId}::uuid LIMIT 1
     `;
@@ -105,7 +100,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ message: 'Keine Daten gefunden' }, { status: 404 });
     }
 
-    // 3. Daten für KI aufbereiten (Zusammenfassung)
+    // Daten für KI aufbereiten
     const kpis = analyticsData.kpis;
     
     const summaryData = `
@@ -123,7 +118,7 @@ export async function POST(req: NextRequest) {
       ${analyticsData.topQueries?.slice(0, 5).map(q => `- ${q.query}: ${q.clicks} Klicks, Position ${q.position?.toFixed(1)}`).join('\n') || 'Keine Daten'}
     `;
 
-    // 4. Prompt Engineering
+    // Prompt Engineering
     let systemPrompt = `
       Du bist ein erfahrener Web-Analyst. Deine Aufgabe ist es, Google Analytics 4 Daten für einen Kunden verständlich und handlungsorientiert zusammenzufassen.
       
@@ -151,7 +146,7 @@ export async function POST(req: NextRequest) {
       `;
     }
 
-    // 5. KI Generierung starten (MIT ZENTRALEM HELPER)
+    // KI Generierung starten
     const result = await streamTextSafe({
       system: systemPrompt,
       prompt: `Analysiere diese Daten für den Zeitraum ${dateRange}:\n${summaryData}`,
