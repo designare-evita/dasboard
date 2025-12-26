@@ -839,7 +839,7 @@ export default function LandingPageGenerator({
               <option value="full">Komplette Landingpage (Draft)</option>
               <option value="intro">Nur Hero & Einleitung (Hook)</option>
               <option value="benefits">Nur Vorteile & Features</option>
-              <option value="casestudies">📊 Nur Case Studies / Fallbeispiele</option>
+              <option value="casestudies">Nur Case Studies / Fallbeispiele</option>
               <option value="trust">Nur Social Proof & Trust</option>
               <option value="faq">Nur FAQ & Abschluss</option>
             </>
