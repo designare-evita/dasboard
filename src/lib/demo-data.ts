@@ -209,23 +209,38 @@ export function getDemoAnalyticsData(dateRange: string): ProjectDashboardData {
   // AI Traffic Data
   const aiTraffic: AiTrafficData = {
     totalSessions: 158,
-    breakdown: [
+    totalUsers: 134,
+    totalSessionsChange: 28.5,
+    totalUsersChange: 31.2,
+    sessionsBySource: {
+      'ChatGPT': 89,
+      'Google Gemini': 42,
+      'Perplexity': 27,
+    },
+    topAiSources: [
       {
         source: 'ChatGPT',
         sessions: 89,
+        users: 76,
         percentage: 56.3,
       },
       {
         source: 'Google Gemini',
         sessions: 42,
+        users: 35,
         percentage: 26.6,
       },
       {
         source: 'Perplexity',
         sessions: 27,
+        users: 23,
         percentage: 17.1,
       },
     ],
+    trend: generateChartData(5, 2).map(point => ({
+      date: point.date,
+      sessions: point.value,
+    })),
   };
 
   // Country Data (Pie Chart)
