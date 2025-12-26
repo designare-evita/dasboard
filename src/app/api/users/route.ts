@@ -8,6 +8,15 @@ import { auth } from '@/lib/auth';
 export async function GET(request: NextRequest) {
   const session = await auth();
 
+  // --- DEMO-SCHUTZ START ---
+  if (session?.user?.is_demo) {
+    return NextResponse.json(
+      { message: 'Im Demo-Modus können keine neuen Projekte angelegt werden.' }, 
+      { status: 403 }
+    );
+  }
+  // --- DEMO-SCHUTZ ENDE ---
+
   if (!session?.user?.id || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
     return NextResponse.json({ message: "Nicht autorisiert" }, { status: 401 });
   }
