@@ -9,13 +9,32 @@ export async function PATCH(
 ) {
   try {
     const session = await auth();
-    // Nur Admins dürfen ändern!
-    if (!session?.user || (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')) {
-      return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+
+    // 1. Authentifizierungs-Check
+    if (!session?.user) {
+      return NextResponse.json({ message: 'Nicht authentifiziert' }, { status: 401 });
     }
+
+    // 2. Berechtigungs-Check (Nur Admins/Superadmins)
+    if (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN') {
+      return NextResponse.json({ message: 'Keine Berechtigung' }, { status: 403 });
+    }
+
+    // ==========================================
+    // 3. DEMO-SCHUTZ (NEU)
+    // ==========================================
+    if (session.user.is_demo) {
+      console.log('[Settings] Blockiere Schreibzugriff für Demo-User:', session.user.email);
+      return NextResponse.json(
+        { message: 'Im Demo-Modus können Projekteinstellungen nicht geändert werden.' },
+        { status: 403 }
+      );
+    }
+    // ==========================================
 
     const { showLandingPages } = await req.json();
 
+    // 4. Update durchführen
     await sql`
       UPDATE users 
       SET settings_show_landingpages = ${showLandingPages}
@@ -23,6 +42,7 @@ export async function PATCH(
     `;
 
     return NextResponse.json({ success: true });
+
   } catch (error) {
     console.error('Update settings error:', error);
     return NextResponse.json({ message: 'Error updating settings' }, { status: 500 });
