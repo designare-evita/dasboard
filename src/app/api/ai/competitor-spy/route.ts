@@ -1,6 +1,7 @@
 // src/app/api/ai/competitor-spy/route.ts
 // OPTION C: Harte Fakten per Code + Qualitätsbewertung per KI
 // FIX: OG Tags entfernt + Konkurrenz-Vergleich funktioniert jetzt
+// ✅ NEU: Detaillierte Link-Fehlerberichte (Position + Kontext)
 import { streamTextSafe } from '@/lib/ai-config';
 import * as cheerio from 'cheerio';
 import { NextRequest, NextResponse } from 'next/server';
@@ -220,7 +221,7 @@ interface ExtractedFacts {
     imageScore: number;
   };
 
-  // LINKS
+  // LINKS - ✅ ERWEITERT MIT FEHLERDETAILS
   links: {
     // Intern
     internal: {
@@ -249,6 +250,10 @@ interface ExtractedFacts {
     // Potentielle Probleme
     emptyLinks: number;
     javascriptLinks: number;
+    
+    // ✅ NEU: Detaillierte Fehlerberichte
+    emptyLinkDetails: { text: string; context: string; position: number }[];
+    javascriptLinkDetails: { href: string; text: string; position: number }[];
   };
 
   // SOCIAL (nur Profile Links - OG Tags entfernt)
@@ -717,7 +722,7 @@ function extractStructure($: cheerio.CheerioAPI): ExtractedFacts['structure'] {
 }
 
 // ============================================================================
-// LINKS EXTRAKTION
+// LINKS EXTRAKTION - ✅ MIT DETAILLIERTEN FEHLERBERICHTEN
 // ============================================================================
 
 function extractLinks($: cheerio.CheerioAPI, baseUrl: string): ExtractedFacts['links'] {
@@ -740,7 +745,11 @@ function extractLinks($: cheerio.CheerioAPI, baseUrl: string): ExtractedFacts['l
   let emptyLinks = 0;
   let javascriptLinks = 0;
   
-  $('a').each((_, el) => {
+  // ✅ NEU: Sammle fehlerhafte Links mit Details
+  const emptyLinkDetails: { text: string; context: string; position: number }[] = [];
+  const javascriptLinkDetails: { href: string; text: string; position: number }[] = [];
+  
+  $('a').each((index, el) => {
     const href = $(el).attr('href') || '';
     const text = truncate($(el).text(), 60);
     const rel = $(el).attr('rel') || '';
@@ -762,10 +771,28 @@ function extractLinks($: cheerio.CheerioAPI, baseUrl: string): ExtractedFacts['l
     }
     if (href.startsWith('javascript:')) {
       javascriptLinks++;
+      // ✅ Sammle Details für JavaScript-Links
+      javascriptLinkDetails.push({
+        href: truncate(href, 100),
+        text: text || '(kein Text)',
+        position: index + 1
+      });
       return;
     }
     if (!href || !text) {
       emptyLinks++;
+      // ✅ Sammle Details für leere/fehlerhafte Links
+      const parentTag = $(el).parent().prop('tagName')?.toLowerCase() || 'unknown';
+      const parentClass = $(el).parent().attr('class') || '';
+      const context = parentClass 
+        ? `<${parentTag} class="${truncate(parentClass, 30)}">` 
+        : `<${parentTag}>`;
+      
+      emptyLinkDetails.push({
+        text: text || '(kein Text)',
+        context,
+        position: index + 1
+      });
       return;
     }
     if (download !== undefined) {
@@ -822,6 +849,9 @@ function extractLinks($: cheerio.CheerioAPI, baseUrl: string): ExtractedFacts['l
     socialLinks: socialLinks.slice(0, 10),
     emptyLinks,
     javascriptLinks,
+    // ✅ NEU: Fehlerhafte Links mit Details
+    emptyLinkDetails: emptyLinkDetails.slice(0, 10),
+    javascriptLinkDetails: javascriptLinkDetails.slice(0, 10),
   };
 }
 
@@ -979,14 +1009,14 @@ function extractTrustSignals($: cheerio.CheerioAPI, baseUrl: string): ExtractedF
 }
 
 // ============================================================================
-// TECHNOLOGIE DETECTION (NEU: STRIKTE CODE-ANALYSE)
+// TECHNOLOGIE DETECTION
 // ============================================================================
 
 function detectTechnology(html: string, $: cheerio.CheerioAPI): ExtractedFacts['technology'] {
   const htmlLower = html.toLowerCase();
   
   // 1. CMS Detection (STRIKT NACH CODE-INDIKATOREN)
-  let detectedCms = 'Custom HTML / Hand-coded'; // Default, wenn keine eindeutigen Spuren gefunden werden
+  let detectedCms = 'Custom HTML / Hand-coded';
   
   // WordPress Indikatoren (MÜSSEN im Code sein)
   const hasWpContent = htmlLower.includes('/wp-content/') || htmlLower.includes('/wp-includes/');
@@ -1248,7 +1278,7 @@ async function scrapeAndExtract(url: string): Promise<{ facts: ExtractedFacts; r
 }
 
 // ============================================================================
-// PROMPT BUILDER - FAKTEN FÜR KI AUFBEREITEN (OHNE OG TAGS)
+// PROMPT BUILDER - ✅ MIT LINK-FEHLERDETAILS
 // ============================================================================
 
 function buildFactsForPrompt(facts: ExtractedFacts, label: string = ''): string {
@@ -1398,10 +1428,17 @@ SPEZIELLE LINKS:
 - Telefon (tel): ${f.links.telLinks}
 - Anker (#): ${f.links.anchorLinks}
 - Downloads: ${f.links.downloadLinks}
-- Leere/kaputte Links: ${f.links.emptyLinks}
-- JavaScript Links: ${f.links.javascriptLinks}
 
 SOCIAL MEDIA LINKS: ${f.links.socialLinks.length > 0 ? f.links.socialLinks.map(s => `${s.platform}`).join(', ') : 'KEINE im Content'}
+
+⚠️ PROBLEMATISCHE LINKS:
+- Leere/kaputte Links: ${f.links.emptyLinks}${f.links.emptyLinkDetails.length > 0 ? `
+  Details der fehlerhaften Links:
+${f.links.emptyLinkDetails.map((link, i) => `  ${i + 1}. Position ${link.position}: Text="${link.text}", Kontext: ${link.context}`).join('\n')}` : ''}
+
+- JavaScript Links: ${f.links.javascriptLinks}${f.links.javascriptLinkDetails.length > 0 ? `
+  Details der JavaScript Links:
+${f.links.javascriptLinkDetails.map((link, i) => `  ${i + 1}. Position ${link.position}: "${link.text}" → ${link.href}`).join('\n')}` : ''}
 
 ────────────────────────────────────────────────────────────────────────────────
 BILDER
@@ -1483,7 +1520,7 @@ ${f.content.blockquoteTexts.length > 0 ? `ZITATE/BLOCKQUOTES:
 }
 
 // ============================================================================
-// KI BEWERTUNGS-PROMPT FÜR EINZELANALYSE
+// KI BEWERTUNGS-PROMPT FÜR EINZELANALYSE - ✅ MIT LINK-FEHLERDETAILS
 // ============================================================================
 
 function buildSingleAnalysisPrompt(facts: ExtractedFacts, compactStyles: string): string {
@@ -1497,6 +1534,26 @@ Bewerte die Webseite basierend auf den extrahierten FAKTEN.
 Erstelle einen HTML-Report mit MODERNEM, SAUBEREM LAYOUT.
 
 ${factsText}
+
+════════════════════════════════════════════════════════════════════════════════
+WICHTIGE ÄNDERUNG: DETAILLIERTE FEHLERBERICHTE
+════════════════════════════════════════════════════════════════════════════════
+
+Wenn du Probleme wie "Broken Links", "Leere Links" oder "JavaScript Links" meldest:
+1. Zähle NICHT nur die Anzahl
+2. Zeige GENAU, WO der Fehler ist:
+   - Position im HTML (z.B. "Link #5")
+   - Linktext
+   - Parent-Kontext (z.B. "<nav>", "<footer>")
+   - Bei JavaScript-Links: den konkreten href
+
+BEISPIEL (SO SOLLST DU ES MACHEN):
+❌ FALSCH: "Die Seite hat 3 leere Links"
+✅ RICHTIG: 
+"Die Seite hat 3 leere Links:
+1. Position 12: Text='(kein Text)', in <nav class='main-menu'>
+2. Position 45: Text='Mehr erfahren', in <footer>
+3. Position 67: Text='Klick hier', in <div class='cta'>"
 
 ════════════════════════════════════════════════════════════════════════════════
 LAYOUT & DESIGN ANWEISUNGEN (STRIKT BEFOLGEN)
@@ -1529,6 +1586,10 @@ STRUKTUR DES REPORTS (GENAU DIESE REIHENFOLGE)
    D) PERFORMANCE (Core Web Vitals Indikatoren, Scripts, TTFB)
    E) BILDER (Alt-Texte, Formate)
    F) LINKS (Interne/Externe Verlinkung, Status Codes)
+      ⚠️ WENN Problematische Links gefunden wurden:
+      - Zeige die KOMPLETTE Liste aus "Details der fehlerhaften Links"
+      - Zeige Position, Text und Kontext für JEDEN fehlerhaften Link
+      - Gib konkrete Handlungsanweisungen WO der Fehler behoben werden muss
    G) TRUST & SICHERHEIT (HTTPS, Rechtliche Seiten)
 
 3. STORYTELLING & CONTENT-FLOW (VOM TITLE ABWÄRTS)
@@ -1557,6 +1618,8 @@ STRUKTUR DES REPORTS (GENAU DIESE REIHENFOLGE)
 
 6. PRIORISIERTER MASSNAHMENPLAN
    - 🔴 KRITISCH (Sofort handeln)
+     ⚠️ Wenn fehlerhafte Links gefunden wurden, schreibe:
+     "Broken Link fixen: Link #[Position] in [Kontext] - Text: '[Linktext]'"
    - 🟡 WICHTIG (Zeitnah umsetzen)
    - 🟢 OPTIMIERUNG (Perspektivisch)
 
@@ -1574,7 +1637,7 @@ STYLE GUIDE BASIS: ${compactStyles}
 }
 
 // ============================================================================
-// KI BEWERTUNGS-PROMPT FÜR VERGLEICHSANALYSE (NEU!)
+// KI BEWERTUNGS-PROMPT FÜR VERGLEICHSANALYSE
 // ============================================================================
 
 function buildComparisonPrompt(
@@ -1640,7 +1703,7 @@ STRUKTUR DES VERGLEICHSREPORTS
    C) HTML Struktur
    D) Performance
    E) Bilder
-   F) Links
+   F) Links (inkl. detaillierte Fehlerberichte wenn vorhanden)
 
 4. CONTENT & E-E-A-T VERGLEICH
    - Welche Seite wirkt vertrauenswürdiger?
@@ -1668,7 +1731,7 @@ STYLE GUIDE BASIS: ${compactStyles}
 }
 
 // ============================================================================
-// API HANDLER (FIX: Konkurrenz-Vergleich funktioniert jetzt!)
+// API HANDLER
 // ============================================================================
 
 export async function POST(req: NextRequest) {
@@ -1707,15 +1770,14 @@ export async function POST(req: NextRequest) {
     
     const compactStyles = getCompactStyleGuide();
     
-    // FIX: Unterscheide zwischen Einzel- und Vergleichsanalyse
     let prompt: string;
     
     if (competitorResult) {
-      // VERGLEICHSANALYSE - beide Seiten wurden erfolgreich geladen
+      // VERGLEICHSANALYSE
       console.log('🔍 Starte Vergleichsanalyse:', normalizedUrl, 'vs', normalizedCompetitorUrl);
       prompt = buildComparisonPrompt(targetResult.facts, competitorResult.facts, compactStyles);
     } else {
-      // EINZELANALYSE - nur eigene Seite
+      // EINZELANALYSE
       console.log('🔍 Starte Einzelanalyse:', normalizedUrl);
       prompt = buildSingleAnalysisPrompt(targetResult.facts, compactStyles);
     }
