@@ -188,7 +188,7 @@ export function getDemoAnalyticsData(dateRange: string): ProjectDashboardData {
     },
   ];
 
-  // Top Converting Pages
+  // Top Converting Pages - ERWEITERT mit mehr Daten für LandingPageChart
   const topConvertingPages: ConvertingPageData[] = [
     {
       path: '/produkte/sneaker-collection',
@@ -221,6 +221,54 @@ export function getDemoAnalyticsData(dateRange: string): ProjectDashboardData {
       sessions: 789,
       newUsers: 567,
       engagementRate: 64.2,
+    },
+    {
+      path: '/produkte/laufschuhe-damen',
+      conversions: 12,
+      conversionRate: 3.1,
+      sessions: 387,
+      newUsers: 234,
+      engagementRate: 69.1,
+    },
+    {
+      path: '/produkte/basketballschuhe',
+      conversions: 9,
+      conversionRate: 2.8,
+      sessions: 321,
+      newUsers: 198,
+      engagementRate: 66.7,
+    },
+    {
+      path: '/sale/outlet',
+      conversions: 8,
+      conversionRate: 2.5,
+      sessions: 320,
+      newUsers: 187,
+      engagementRate: 65.4,
+    },
+    {
+      path: '/produkte/wanderschuhe',
+      conversions: 7,
+      conversionRate: 2.2,
+      sessions: 318,
+      newUsers: 176,
+      engagementRate: 63.8,
+    },
+    {
+      path: '/blog/sneaker-pflege-tipps',
+      conversions: 5,
+      conversionRate: 1.8,
+      sessions: 278,
+      newUsers: 165,
+      engagementRate: 61.2,
+    },
+    {
+      path: '/produkte/kinderschuhe',
+      conversions: 4,
+      conversionRate: 1.5,
+      sessions: 267,
+      newUsers: 154,
+      engagementRate: 59.8,
     },
   ];
 
