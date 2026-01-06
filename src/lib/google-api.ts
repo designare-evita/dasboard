@@ -808,4 +808,47 @@ export async function getGscDataForPagesWithComparison(
     console.error('Error in getGscDataForPagesWithComparison:', error);
     throw error;
   }
+
+  // ✅ NEU: GSC CTR pro Seite laden
+export async function getGscPageCtr(
+  siteUrl: string,
+  startDate: string,
+  endDate: string
+): Promise<Map<string, number>> {
+  const result = new Map<string, number>();
+  
+  try {
+    const auth = await getGoogleAuth();
+    const searchconsole = google.searchconsole({ version: 'v1', auth });
+    
+    const response = await searchconsole.searchanalytics.query({
+      siteUrl,
+      requestBody: {
+        startDate,
+        endDate,
+        dimensions: ['page'],
+        rowLimit: 500
+      }
+    });
+    
+    response.data.rows?.forEach(row => {
+      if (row.keys?.[0] && row.ctr !== undefined) {
+        try {
+          const url = new URL(row.keys[0]);
+          result.set(url.pathname, row.ctr * 100); // Als Prozent
+        } catch {
+          // Fallback: Pfad direkt extrahieren
+          const path = row.keys[0].replace(/^https?:\/\/[^\/]+/, '') || '/';
+          result.set(path, row.ctr * 100);
+        }
+      }
+    });
+    
+    console.log(`[GSC] ${result.size} Seiten mit CTR-Daten geladen`);
+  } catch (err) {
+    console.warn('[GSC] CTR-Daten konnten nicht geladen werden:', err);
+  }
+  
+  return result;
+}
 }
