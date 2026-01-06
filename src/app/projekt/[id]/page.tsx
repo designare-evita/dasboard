@@ -17,49 +17,57 @@ interface ExtendedUser extends User {
 }
 
 async function loadData(projectId: string, dateRange: string) {
-  // Komplexe Query mit JOINs für Admin-Daten
-  const { rows } = await sql`
-    SELECT
-      u.id::text as id, 
-      u.email, 
-      u.role, 
-      u.domain,
-      u.gsc_site_url, 
-      u.ga4_property_id,
-      u.semrush_project_id, 
-      u.semrush_tracking_id, 
-      u.semrush_tracking_id_02,
-      u.favicon_url, 
-      u.project_timeline_active, 
-      u.project_start_date, 
-      u.project_duration_months,
-      u.settings_show_landingpages,
-      
-      -- E-Mail des Erstellers holen
-      creator.email as creator_email,
-      
-      -- Alle zugewiesenen Admins als String zusammenfassen (Komma getrennt)
-      (
-        SELECT STRING_AGG(DISTINCT admins.email, ', ')
-        FROM project_assignments pa_sub
-        JOIN users admins ON pa_sub.user_id = admins.id
-        WHERE pa_sub.project_id = u.id
-      ) as assigned_admins
+  try {
+    // Komplexe Query mit JOINs für Admin-Daten
+    const { rows } = await sql`
+      SELECT
+        u.id::text as id, 
+        u.email, 
+        u.role, 
+        u.domain,
+        u.gsc_site_url, 
+        u.ga4_property_id,
+        u.semrush_project_id, 
+        u.semrush_tracking_id, 
+        u.semrush_tracking_id_02,
+        u.favicon_url, 
+        u.project_timeline_active, 
+        u.project_start_date, 
+        u.project_duration_months,
+        u.settings_show_landingpages,
+        
+        -- E-Mail des Erstellers holen
+        creator.email as creator_email,
+        
+        -- Alle zugewiesenen Admins als String zusammenfassen (Komma getrennt)
+        (
+          SELECT STRING_AGG(DISTINCT admins.email, ', ')
+          FROM project_assignments pa_sub
+          JOIN users admins ON pa_sub.user_id = admins.id
+          WHERE pa_sub.project_id = u.id
+        ) as assigned_admins
 
-    FROM users u
-    LEFT JOIN users creator ON u."createdByAdminId" = creator.id
-    WHERE u.id::text = ${projectId}
-  `;
+      FROM users u
+      LEFT JOIN users creator ON u."createdByAdminId" = creator.id
+      WHERE u.id::text = ${projectId}
+    `;
 
-  if (rows.length === 0) return null;
+    if (rows.length === 0) return null;
 
-  // Typensicherer Cast
-  const projectUser = rows[0] as unknown as ExtendedUser;
-  
-  // Daten von Google laden
-  const dashboardData = await getOrFetchGoogleData(projectUser, dateRange);
+    // Typensicherer Cast
+    const projectUser = rows[0] as unknown as ExtendedUser;
+    
+    // ✅ DEBUG LOG - sicher formatiert
+    console.log('[Debug] Raw DB value - project_timeline_active:', JSON.stringify(projectUser.project_timeline_active));
+    
+    // Daten von Google laden
+    const dashboardData = await getOrFetchGoogleData(projectUser, dateRange);
 
-  return { projectUser, dashboardData };
+    return { projectUser, dashboardData };
+  } catch (error) {
+    console.error('[loadData] Fehler:', error);
+    return null;
+  }
 }
 
 export default async function ProjectPage({
@@ -84,9 +92,6 @@ export default async function ProjectPage({
 
   const data = await loadData(projectId, dateRange);
 
-  // ✅ DEBUG LOG
-  console.log('[Debug] project_timeline_active:', data?.projectUser?.project_timeline_active, typeof data?.projectUser?.project_timeline_active);
-
   if (!data || !data.dashboardData) {
     return (
       <div className="flex justify-center items-center min-h-screen bg-gray-50">
@@ -99,6 +104,9 @@ export default async function ProjectPage({
 
   // LOGIK: Ermittle die richtige Betreuer-E-Mail
   const supportEmail = projectUser.assigned_admins || projectUser.creator_email || '';
+  
+  // ✅ Sichere Konvertierung zu Boolean
+  const timelineActive = projectUser.project_timeline_active === true;
 
   return (
     <Suspense fallback={<DashboardSkeleton />}>
@@ -111,7 +119,7 @@ export default async function ProjectPage({
         faviconUrl={projectUser.favicon_url}
         semrushTrackingId={projectUser.semrush_tracking_id}
         semrushTrackingId02={projectUser.semrush_tracking_id_02}
-        projectTimelineActive={Boolean(projectUser.project_timeline_active)}
+        projectTimelineActive={timelineActive}
         countryData={dashboardData.countryData}
         channelData={dashboardData.channelData}
         deviceData={dashboardData.deviceData}
