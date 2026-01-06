@@ -14,8 +14,6 @@ import { DashboardSkeleton } from '@/components/skeletons/DashboardSkeleton';
 interface ExtendedUser extends User {
   assigned_admins?: string;
   creator_email?: string;
-  // ❌ GELÖSCHT: settings_show_landingpages?: boolean; 
-  // (Es wird jetzt automatisch korrekt aus 'User' geerbt)
 }
 
 async function loadData(projectId: string, dateRange: string) {
@@ -84,12 +82,10 @@ export default async function ProjectPage({
     redirect('/');
   }
 
-const data = await loadData(projectId, dateRange);
+  const data = await loadData(projectId, dateRange);
 
-// ✅ DEBUG LOG HIER EINFÜGEN
-console.log('[Debug] project_timeline_active:', data?.projectUser?.project_timeline_active, typeof data?.projectUser?.project_timeline_active);
-
-if (!data || !data.dashboardData) {
+  // ✅ DEBUG LOG
+  console.log('[Debug] project_timeline_active:', data?.projectUser?.project_timeline_active, typeof data?.projectUser?.project_timeline_active);
 
   if (!data || !data.dashboardData) {
     return (
@@ -115,14 +111,12 @@ if (!data || !data.dashboardData) {
         faviconUrl={projectUser.favicon_url}
         semrushTrackingId={projectUser.semrush_tracking_id}
         semrushTrackingId02={projectUser.semrush_tracking_id_02}
-        projectTimelineActive={projectUser.project_timeline_active ?? undefined}
+        projectTimelineActive={Boolean(projectUser.project_timeline_active)}
         countryData={dashboardData.countryData}
         channelData={dashboardData.channelData}
         deviceData={dashboardData.deviceData}
-        
         userRole={session.user.role}
-        userEmail={supportEmail} 
-        // Hier greifen wir auf das geerbte Feld zu
+        userEmail={supportEmail}
         showLandingPagesToCustomer={projectUser.settings_show_landingpages ?? false}
       />
     </Suspense>
