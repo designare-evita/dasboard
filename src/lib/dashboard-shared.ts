@@ -60,7 +60,8 @@ export interface ConvertingPageData {
   conversionRate: number; 
   engagementRate?: number;
   sessions?: number; 
-  newUsers?: number; 
+  newUsers?: number;
+  ctr?: number;
 }
 
 export interface ProjectDashboardData {
