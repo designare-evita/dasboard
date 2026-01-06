@@ -1,4 +1,4 @@
- // src/components/charts/LandingPageChart.tsx
+// src/components/charts/LandingPageChart.tsx
 'use client';
 
 import React, { useState } from 'react';
@@ -115,7 +115,7 @@ export default function LandingPageChart({
             <span>{formattedDateRange}</span>
           </div>
 
-          {/* Rechte Seite: Legende (Rechtsbündig - ORIGINAL TEXT WIEDERHERGESTELLT) */}
+          {/* Rechte Seite: Legende */}
           <div className="flex items-center gap-x-4">
             <span className="text-[10px] text-gray-500 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-sky-500"></span>
@@ -124,6 +124,10 @@ export default function LandingPageChart({
             <span className="text-[10px] text-gray-500 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-teal-500"></span>
               Rate = Interaktionsrate
+            </span>
+            <span className="text-[10px] text-gray-500 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+              CTR = Klickrate (GSC)
             </span>
             <span className="text-[10px] text-gray-500 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-slate-400"></span>
@@ -147,6 +151,7 @@ export default function LandingPageChart({
               const sessions = page.sessions || 0;
               const engagementRate = page.engagementRate || 0;
               const conversions = page.conversions || 0;
+              const ctr = page.ctr;
               
               const barWidthPercent = maxNewUsers > 0 
                 ? Math.max((newUsers / maxNewUsers) * 60, 2) 
@@ -177,6 +182,9 @@ export default function LandingPageChart({
                       </div>
                       <div className="bg-teal-500 text-white px-2 py-1.5 rounded-md text-[11px] font-medium whitespace-nowrap min-w-[70px] text-center shadow-sm">
                         {engagementRate.toFixed(0)}% Rate
+                      </div>
+                      <div className="bg-amber-500 text-white px-2 py-1.5 rounded-md text-[11px] font-medium whitespace-nowrap min-w-[65px] text-center shadow-sm">
+                        {ctr !== undefined ? `${ctr.toFixed(1)}% CTR` : '– CTR'}
                       </div>
                       <div className="bg-slate-400 text-white px-2 py-1.5 rounded-md text-[11px] font-medium whitespace-nowrap min-w-[65px] text-center shadow-sm">
                         {conversions} Conv.
