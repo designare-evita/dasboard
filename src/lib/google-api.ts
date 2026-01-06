@@ -839,14 +839,18 @@ export async function getGscPageCtr(
     });
     
     response.data.rows?.forEach(row => {
-      if (row.keys?.[0] && row.ctr !== undefined) {
+      const pageUrl = row.keys?.[0];
+      const ctr = row.ctr;
+      
+      // ✅ Explizite Null-Prüfung für beide Werte
+      if (pageUrl && ctr !== undefined && ctr !== null) {
         try {
-          const url = new URL(row.keys[0]);
-          result.set(url.pathname, row.ctr * 100); // Als Prozent
+          const url = new URL(pageUrl);
+          result.set(url.pathname, ctr * 100); // Als Prozent
         } catch {
           // Fallback: Pfad direkt extrahieren
-          const path = row.keys[0].replace(/^https?:\/\/[^\/]+/, '') || '/';
-          result.set(path, row.ctr * 100);
+          const path = pageUrl.replace(/^https?:\/\/[^\/]+/, '') || '/';
+          result.set(path, ctr * 100);
         }
       }
     });
