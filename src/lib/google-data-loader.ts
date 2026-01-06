@@ -7,7 +7,8 @@ import {
   getTopQueries,
   getAiTrafficData,
   getGa4DimensionReport,
-  getTopConvertingPages, 
+  getTopConvertingPages,
+  getGscPageCtr, 
   type AiTrafficData,
   type Ga4ExtendedData
 } from '@/lib/google-api';
@@ -212,64 +213,30 @@ start.setDate(end.getDate() - days);
         console.warn('[AI Traffic] Fehler (ignoriert):', e);
       }
       
-      // Top Converting Pages
 // Top Converting Pages + GSC CTR
-try {
-  const rawPages = await getTopConvertingPages(propertyId, startDateStr, endDateStr);
-  
-  // ✅ GSC-Daten für URLs laden (falls GSC konfiguriert)
-  let gscPageData: Map<string, number> = new Map();
-  
-  if (user.gsc_site_url) {
-    try {
-      const { google } = await import('googleapis');
-      const auth = await import('@/lib/google-auth').then(m => m.getGoogleAuth());
-      const searchconsole = google.searchconsole({ version: 'v1', auth });
-      
-      const gscResponse = await searchconsole.searchanalytics.query({
-        siteUrl: user.gsc_site_url,
-        requestBody: {
-          startDate: startDateStr,
-          endDate: endDateStr,
-          dimensions: ['page'],
-          rowLimit: 500
+      try {
+        const rawPages = await getTopConvertingPages(propertyId, startDateStr, endDateStr);
+        
+        // ✅ GSC CTR-Daten laden (falls GSC konfiguriert)
+        let gscCtrData = new Map<string, number>();
+        if (user.gsc_site_url) {
+          gscCtrData = await getGscPageCtr(user.gsc_site_url, startDateStr, endDateStr);
         }
-      });
-      
-      // CTR pro Seite in Map speichern
-      gscResponse.data.rows?.forEach(row => {
-        if (row.keys?.[0] && row.ctr !== undefined) {
-          // URL-Pfad extrahieren
-          try {
-            const url = new URL(row.keys[0]);
-            gscPageData.set(url.pathname, row.ctr * 100); // Als Prozent
-          } catch {
-            // Fallback: Direkt den Key verwenden
-            gscPageData.set(row.keys[0], row.ctr * 100);
-          }
-        }
-      });
-      
-      console.log(`[GSC] ${gscPageData.size} Seiten mit CTR-Daten geladen`);
-    } catch (gscErr) {
-      console.warn('[GSC] CTR für Top-Pages konnte nicht geladen werden:', gscErr);
-    }
-  }
-  
-  topConvertingPages = rawPages.map((p: any) => ({
-    path: p.path,
-    conversions: p.conversions,
-    conversionRate: typeof p.conversionRate === 'string' 
-      ? parseFloat(p.conversionRate) 
-      : Number(p.conversionRate),
-    engagementRate: p.engagementRate, 
-    sessions: p.sessions, 
-    newUsers: p.newUsers,
-    ctr: gscPageData.get(p.path) ?? undefined  // ✅ CTR aus GSC
-  }));
-} catch (e) {
-  console.warn('[GA4] Konnte Top-Pages nicht laden:', e);
-}
+        
+        topConvertingPages = rawPages.map((p: any) => ({
+          path: p.path,
+          conversions: p.conversions,
+          conversionRate: typeof p.conversionRate === 'string' 
+            ? parseFloat(p.conversionRate) 
+            : Number(p.conversionRate),
+          engagementRate: p.engagementRate, 
+          sessions: p.sessions, 
+          newUsers: p.newUsers,
+          ctr: gscCtrData.get(p.path)  // ✅ CTR aus GSC
+        }));
+      } catch (e) {
+        console.warn('[GA4] Konnte Top-Pages nicht laden:', e);
+      }
 
       // Dimensionen (Charts)
       try {
