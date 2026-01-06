@@ -84,7 +84,12 @@ export default async function ProjectPage({
     redirect('/');
   }
 
-  const data = await loadData(projectId, dateRange);
+const data = await loadData(projectId, dateRange);
+
+// ✅ DEBUG LOG HIER EINFÜGEN
+console.log('[Debug] project_timeline_active:', data?.projectUser?.project_timeline_active, typeof data?.projectUser?.project_timeline_active);
+
+if (!data || !data.dashboardData) {
 
   if (!data || !data.dashboardData) {
     return (
