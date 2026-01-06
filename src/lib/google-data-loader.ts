@@ -105,17 +105,20 @@ export async function getOrFetchGoogleData(
     }
   }
 
-  // 2. Daten frisch holen
-  console.log(`[Google Cache] 🔄 Lade frische Daten für ${user.email}...`);
+// 2. Daten frisch holen
+console.log(`[Google Cache] 🔄 Lade frische Daten für ${user.email}...`);
 
-  const end = new Date();
-  const start = new Date();
-  let days = 30;
-  if (dateRange === '7d') days = 7;
-  if (dateRange === '3m') days = 90;
-  if (dateRange === '6m') days = 180;
-  if (dateRange === '12m') days = 365;
-  start.setDate(end.getDate() - days);
+//  End-Datum = gestern (damit nur vollständige Tage angezeigt werden)
+const end = new Date();
+end.setDate(end.getDate() - 1); // Immer einen Tag zurück
+
+const start = new Date(end);
+let days = 30;
+if (dateRange === '7d') days = 7;
+if (dateRange === '3m') days = 90;
+if (dateRange === '6m') days = 180;
+if (dateRange === '12m') days = 365;
+start.setDate(end.getDate() - days);
   
   const startDateStr = start.toISOString().split('T')[0];
   const endDateStr = end.toISOString().split('T')[0];
