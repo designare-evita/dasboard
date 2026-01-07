@@ -17,7 +17,9 @@ import {
   ConeStriped,
   PersonFillLock,
   PersonFillCheck,
-  XLg
+  Magic,
+  ToggleOn,
+  ToggleOff
 } from 'react-bootstrap-icons';
 import LoginLogbook from '@/app/admin/LoginLogbook';
 
@@ -27,6 +29,14 @@ type UserInMaintenance = {
   role: string;
   domain: string | null;
   maintenance_mode: boolean;
+};
+
+type UserKiToolStatus = {
+  id: string;
+  email: string;
+  role: string;
+  domain: string | null;
+  ki_tool_enabled: boolean;
 };
 
 export default function SystemHealthPage() {
@@ -39,6 +49,13 @@ export default function SystemHealthPage() {
   const [maintenanceCount, setMaintenanceCount] = useState(0);
   const [isLoadingMaintenance, setIsLoadingMaintenance] = useState(false);
   const [togglingUserId, setTogglingUserId] = useState<string | null>(null);
+
+  // ✅ NEU: KI-Tool State
+  const [kiToolUsers, setKiToolUsers] = useState<UserKiToolStatus[]>([]);
+  const [kiToolDisabledCount, setKiToolDisabledCount] = useState(0);
+  const [isLoadingKiTool, setIsLoadingKiTool] = useState(false);
+  const [togglingKiToolUserId, setTogglingKiToolUserId] = useState<string | null>(null);
+  const [kiToolSearchTerm, setKiToolSearchTerm] = useState('');
 
   // Status Fetcher
   const fetchStatus = async () => {
@@ -71,10 +88,26 @@ export default function SystemHealthPage() {
     }
   }, []);
 
+  // ✅ NEU: KI-Tool Status laden
+  const fetchKiToolStatus = useCallback(async () => {
+    setIsLoadingKiTool(true);
+    try {
+      const res = await fetch('/api/admin/ki-tool-settings');
+      const data = await res.json();
+      setKiToolUsers(data.users || []);
+      setKiToolDisabledCount(data.disabledCount || 0);
+    } catch (e) {
+      console.error('Failed to fetch KI-Tool status', e);
+    } finally {
+      setIsLoadingKiTool(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchStatus();
     fetchMaintenanceStatus();
-  }, [fetchMaintenanceStatus]);
+    fetchKiToolStatus();
+  }, [fetchMaintenanceStatus, fetchKiToolStatus]);
 
   // Wartungsmodus für einzelnen User umschalten
   const toggleUserMaintenance = async (userId: string, currentState: boolean) => {
@@ -89,7 +122,6 @@ export default function SystemHealthPage() {
       });
       
       if (res.ok) {
-        // Liste neu laden
         await fetchMaintenanceStatus();
       } else {
         const data = await res.json();
@@ -107,6 +139,32 @@ export default function SystemHealthPage() {
   const removeFromMaintenance = async (userId: string) => {
     if (!confirm('Benutzer aus dem Wartungsmodus entfernen?')) return;
     await toggleUserMaintenance(userId, true);
+  };
+
+  // ✅ NEU: KI-Tool für User umschalten
+  const toggleKiTool = async (userId: string, currentState: boolean) => {
+    const newState = !currentState;
+    
+    setTogglingKiToolUserId(userId);
+    try {
+      const res = await fetch('/api/admin/ki-tool-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, isEnabled: newState })
+      });
+      
+      if (res.ok) {
+        await fetchKiToolStatus();
+      } else {
+        const data = await res.json();
+        alert(data.message || 'Fehler beim Speichern.');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Verbindungsfehler.');
+    } finally {
+      setTogglingKiToolUserId(null);
+    }
   };
 
   const handleClearCache = async () => {
@@ -135,6 +193,12 @@ export default function SystemHealthPage() {
     return <XCircleFill className="text-red-500 text-xl" />;
   };
 
+  // ✅ Gefilterte KI-Tool User Liste
+  const filteredKiToolUsers = kiToolUsers.filter(user => 
+    user.email.toLowerCase().includes(kiToolSearchTerm.toLowerCase()) ||
+    (user.domain && user.domain.toLowerCase().includes(kiToolSearchTerm.toLowerCase()))
+  );
+
   if (isLoading) return <div className="p-10 text-center animate-pulse">Lade System-Status... Dies testet Live-APIs.</div>;
   if (!status) return <div className="p-10 text-center text-red-500">Fehler beim Laden.</div>;
 
@@ -147,12 +211,19 @@ export default function SystemHealthPage() {
           <p className="text-gray-500">Live-Überwachung aller Systemkomponenten und externen APIs.</p>
         </div>
         
-        {/* Wartungsmodus Badge */}
-        {maintenanceCount > 0 && (
-          <div className="bg-amber-100 text-amber-800 px-4 py-2 rounded-lg flex items-center gap-2 font-bold border border-amber-200">
-            <ConeStriped /> {maintenanceCount} User im Wartungsmodus
-          </div>
-        )}
+        {/* Status Badges */}
+        <div className="flex gap-2">
+          {maintenanceCount > 0 && (
+            <div className="bg-amber-100 text-amber-800 px-4 py-2 rounded-lg flex items-center gap-2 font-bold border border-amber-200">
+              <ConeStriped /> {maintenanceCount} Wartung
+            </div>
+          )}
+          {kiToolDisabledCount > 0 && (
+            <div className="bg-purple-100 text-purple-800 px-4 py-2 rounded-lg flex items-center gap-2 font-bold border border-purple-200">
+              <Magic /> {kiToolDisabledCount} KI deaktiviert
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
@@ -160,7 +231,114 @@ export default function SystemHealthPage() {
         {/* SPALTE LINKS: STATUS KARTEN */}
         <div className="xl:col-span-2 space-y-6">
 
-          {/* WARTUNGSMODUS KONTROLLE - NEU: Per-User */}
+          {/* ✅ NEU: KI-TOOL VERWALTUNG */}
+          <div className={`p-6 rounded-xl border shadow-sm transition-colors ${kiToolDisabledCount > 0 ? 'bg-purple-50 border-purple-200' : 'bg-white border-gray-100'}`}>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className={`p-3 rounded-lg ${kiToolDisabledCount > 0 ? 'bg-purple-100' : 'bg-gray-100'}`}>
+                  <Magic className={`text-xl ${kiToolDisabledCount > 0 ? 'text-purple-600' : 'text-gray-600'}`} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-900">KI-Tool Verwaltung</h3>
+                  <p className="text-sm text-gray-500">
+                    {kiToolDisabledCount > 0 
+                      ? `${kiToolDisabledCount} Benutzer haben keinen Zugriff auf das KI-Tool.`
+                      : 'Alle Benutzer haben Zugriff auf das KI-Tool.'}
+                  </p>
+                </div>
+              </div>
+              
+              <button 
+                onClick={fetchKiToolStatus}
+                disabled={isLoadingKiTool}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all text-sm"
+              >
+                <ArrowRepeat className={isLoadingKiTool ? 'animate-spin' : ''} />
+                Aktualisieren
+              </button>
+            </div>
+            
+            {/* Suchfeld */}
+            <div className="mb-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                <input
+                  type="text"
+                  placeholder="Benutzer suchen..."
+                  value={kiToolSearchTerm}
+                  onChange={(e) => setKiToolSearchTerm(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+            </div>
+
+            {/* User Liste */}
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {filteredKiToolUsers.length === 0 ? (
+                <div className="text-center py-4 text-gray-400 text-sm">
+                  {kiToolSearchTerm ? 'Keine Benutzer gefunden' : 'Keine Benutzer vorhanden'}
+                </div>
+              ) : (
+                filteredKiToolUsers.map((user) => (
+                  <div 
+                    key={user.id}
+                    className={`flex items-center justify-between p-3 rounded-lg border transition-all ${
+                      user.ki_tool_enabled === false 
+                        ? 'bg-red-50 border-red-200' 
+                        : 'bg-white border-gray-100 hover:border-gray-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className={`w-2 h-2 rounded-full ${user.ki_tool_enabled === false ? 'bg-red-500' : 'bg-green-500'}`} />
+                      <div className="min-w-0 flex-1">
+                        <span className="font-medium text-gray-900 truncate block">{user.email}</span>
+                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                          {user.domain && <span>{user.domain}</span>}
+                          <span className={`px-1.5 py-0.5 rounded ${
+                            user.role === 'ADMIN' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
+                          }`}>
+                            {user.role}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <button
+                      onClick={() => toggleKiTool(user.id, user.ki_tool_enabled !== false)}
+                      disabled={togglingKiToolUserId === user.id}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all disabled:opacity-50 ${
+                        user.ki_tool_enabled === false
+                          ? 'bg-green-100 hover:bg-green-200 text-green-700'
+                          : 'bg-red-100 hover:bg-red-200 text-red-700'
+                      }`}
+                    >
+                      {togglingKiToolUserId === user.id ? (
+                        <ArrowRepeat className="animate-spin" size={14} />
+                      ) : user.ki_tool_enabled === false ? (
+                        <>
+                          <ToggleOn size={16} /> Aktivieren
+                        </>
+                      ) : (
+                        <>
+                          <ToggleOff size={16} /> Deaktivieren
+                        </>
+                      )}
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+            
+            {/* Hinweis */}
+            <div className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded-lg">
+              <p className="text-xs text-blue-700">
+                <strong>Hinweis:</strong> Deaktivierte Benutzer sehen den KI-Tool Button nicht mehr im Header. 
+                Superadmins sind davon ausgenommen und haben immer Zugriff.
+              </p>
+            </div>
+          </div>
+
+          {/* WARTUNGSMODUS KONTROLLE */}
           <div className={`p-6 rounded-xl border shadow-sm transition-colors ${maintenanceCount > 0 ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-100'}`}>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
