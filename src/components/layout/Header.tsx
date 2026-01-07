@@ -27,9 +27,16 @@ export default function Header() {
   
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
-  // NEU: Wartungsmodus-Check
+  // Wartungsmodus-Check
   const [isInMaintenance, setIsInMaintenance] = useState(false);
   const [isCheckingMaintenance, setIsCheckingMaintenance] = useState(true);
+  
+  // ✅ NEU: KI-Tool Berechtigung
+  const [kiToolEnabled, setKiToolEnabled] = useState(true);
+  
+  // ✅ NEU: Hat User Landingpages? (für Redaktionsplan-Button)
+  const [hasLandingpages, setHasLandingpages] = useState(false);
+  const [isCheckingLandingpages, setIsCheckingLandingpages] = useState(true);
 
   const isAdmin = session?.user?.role === 'ADMIN' || session?.user?.role === 'SUPERADMIN'; 
   const isSuperAdmin = session?.user?.role === 'SUPERADMIN'; 
@@ -40,17 +47,15 @@ export default function Header() {
   const logoSrc = session?.user?.logo_url || defaultLogo;
   const priorityLoad = logoSrc === defaultLogo;
 
-  // NEU: Wartungsmodus-Status prüfen
+  // Wartungsmodus-Status prüfen
   useEffect(() => {
     const checkMaintenanceStatus = async () => {
-      // Nicht prüfen wenn nicht eingeloggt
       if (status !== 'authenticated' || !session?.user) {
         setIsCheckingMaintenance(false);
         setIsInMaintenance(false);
         return;
       }
 
-      // SUPERADMIN ist immer ausgenommen
       if (session.user.role === 'SUPERADMIN') {
         setIsCheckingMaintenance(false);
         setIsInMaintenance(false);
@@ -74,18 +79,80 @@ export default function Header() {
     }
   }, [session, status]);
 
+  // ✅ NEU: KI-Tool Status prüfen
+  useEffect(() => {
+    const checkKiToolStatus = async () => {
+      if (status !== 'authenticated' || !session?.user) {
+        setKiToolEnabled(true);
+        return;
+      }
+
+      // SUPERADMIN hat immer Zugriff
+      if (session.user.role === 'SUPERADMIN') {
+        setKiToolEnabled(true);
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/admin/ki-tool-settings?checkSelf=true');
+        const data = await res.json();
+        setKiToolEnabled(data.kiToolEnabled !== false);
+      } catch (e) {
+        console.error('Failed to check KI-Tool status:', e);
+        setKiToolEnabled(true); // Im Fehlerfall anzeigen
+      }
+    };
+
+    if (status !== 'loading') {
+      checkKiToolStatus();
+    }
+  }, [session, status]);
+
+  // ✅ NEU: Landingpages-Check für BENUTZER
+  useEffect(() => {
+    const checkLandingpages = async () => {
+      if (status !== 'authenticated' || !session?.user) {
+        setIsCheckingLandingpages(false);
+        setHasLandingpages(false);
+        return;
+      }
+
+      // Admins sehen den Button immer (sie haben ja die Redaktionspläne)
+      if (session.user.role === 'ADMIN' || session.user.role === 'SUPERADMIN') {
+        setIsCheckingLandingpages(false);
+        setHasLandingpages(true);
+        return;
+      }
+
+      // Für BENUTZER: Live-Check ob Landingpages existieren
+      try {
+        const res = await fetch('/api/user/has-landingpages');
+        const data = await res.json();
+        setHasLandingpages(data.hasLandingpages === true);
+      } catch (e) {
+        console.error('Failed to check landingpages:', e);
+        setHasLandingpages(false);
+      } finally {
+        setIsCheckingLandingpages(false);
+      }
+    };
+
+    if (status !== 'loading') {
+      checkLandingpages();
+    }
+  }, [session, status]);
+
   // Login-Seite: Header nicht anzeigen
   if (pathname === '/login') { 
     return null;
   }
 
-  // NEU: Wartungsmodus aktiv -> Header ausblenden
+  // Wartungsmodus aktiv -> Header ausblenden
   if (isInMaintenance) {
     return null;
   }
 
-  // NEU: Während der Prüfung Header nicht anzeigen (verhindert Flackern)
-  // Optional: Du kannst dies entfernen, wenn du lieber den Header sofort zeigst
+  // Während der Prüfung Header nicht anzeigen (verhindert Flackern)
   if (isCheckingMaintenance && status === 'authenticated' && session?.user?.role !== 'SUPERADMIN') {
     return null;
   }
@@ -93,6 +160,12 @@ export default function Header() {
   const handleLinkClick = () => {
     setIsMobileMenuOpen(false);
   };
+
+  // ✅ Hilfsfunktion: Soll der KI-Tool Button angezeigt werden?
+  const shouldShowKiTool = isAdmin && kiToolEnabled;
+
+  // ✅ Hilfsfunktion: Soll der Redaktionsplan Button für User angezeigt werden?
+  const shouldShowRedaktionsplanForUser = isUser && hasLandingpages && !isCheckingLandingpages;
 
   return (
     <header className="bg-white shadow-md relative">
@@ -132,6 +205,8 @@ export default function Header() {
           {status === 'authenticated' && (
             <>
               <NotificationBell />
+              
+              {/* ADMIN: Projekte */}
               {isAdmin && (
                 <Link href="/" passHref>
                   <Button variant={pathname === '/' ? 'default' : 'outline'} className="gap-2">
@@ -140,6 +215,8 @@ export default function Header() {
                   </Button>
                 </Link>
               )}
+              
+              {/* ADMIN: Redaktionspläne (immer sichtbar für Admins) */}
               {isAdmin && (
                 <Link href="/admin/redaktionsplan" passHref>
                   <Button variant={pathname === '/admin/redaktionsplan' ? 'default' : 'outline'} className="gap-2">
@@ -149,8 +226,8 @@ export default function Header() {
                 </Link>
               )}
               
-              {/* KI Tool Button (Desktop) */}
-              {isAdmin && (
+              {/* ✅ ADMIN: KI Tool Button (nur wenn aktiviert) */}
+              {shouldShowKiTool && (
                 <Link href="/admin/ki-tool" passHref>
                   <Button variant={pathname === '/admin/ki-tool' ? 'default' : 'outline'} className="gap-2">
                     <Magic size={16} />
@@ -159,6 +236,7 @@ export default function Header() {
                 </Link>
               )}
 
+              {/* ADMIN: Admin-Bereich */}
               {isAdmin && (
                 <Link href="/admin" passHref>
                   <Button variant={pathname === '/admin' ? 'default' : 'outline'} className="gap-2">
@@ -168,7 +246,7 @@ export default function Header() {
                 </Link>
               )}
 
-              {/* Button nur für Superadmin */}
+              {/* SUPERADMIN: System */}
               {isSuperAdmin && (
                 <Link href="/admin/system" passHref>
                   <Button 
@@ -182,6 +260,7 @@ export default function Header() {
                 </Link>
               )}
 
+              {/* BENUTZER: Dashboard */}
               {isUser && (
                 <Link href="/" passHref>
                   <Button variant={pathname === '/' ? 'default' : 'outline'} className="gap-2">
@@ -190,7 +269,9 @@ export default function Header() {
                   </Button>
                 </Link>
               )}
-              {isUser && (
+              
+              {/* ✅ BENUTZER: Redaktionsplan (nur wenn Landingpages vorhanden) */}
+              {shouldShowRedaktionsplanForUser && (
                 <Link href="/dashboard/freigabe" passHref>
                   <Button variant={pathname === '/dashboard/freigabe' ? 'default' : 'outline'} className="gap-2">
                     <CalendarCheck size={16} />
@@ -198,6 +279,7 @@ export default function Header() {
                   </Button>
                 </Link>
               )}
+              
               <Button variant="outline" onClick={() => signOut({ callbackUrl: '/login' })} className="gap-2">
                 <BoxArrowRight size={16} />
                 Abmelden
@@ -251,13 +333,15 @@ export default function Header() {
                   </Button>
                 </Link>
 
-                {/* KI Tool Button (Mobil) */}
-                <Link href="/admin/ki-tool" passHref>
-                  <Button variant={pathname === '/admin/ki-tool' ? 'default' : 'outline'} className="w-full justify-start gap-2">
-                    <Magic size={16} />
-                    KI Tool
-                  </Button>
-                </Link>
+                {/* ✅ KI Tool Button (Mobil) - nur wenn aktiviert */}
+                {shouldShowKiTool && (
+                  <Link href="/admin/ki-tool" passHref>
+                    <Button variant={pathname === '/admin/ki-tool' ? 'default' : 'outline'} className="w-full justify-start gap-2">
+                      <Magic size={16} />
+                      KI Tool
+                    </Button>
+                  </Link>
+                )}
 
                 <Link href="/admin" passHref>
                   <Button variant={pathname === '/admin' ? 'default' : 'outline'} className="w-full justify-start gap-2">
@@ -286,12 +370,16 @@ export default function Header() {
                     Dashboard
                   </Button>
                 </Link>
-                <Link href="/dashboard/freigabe" passHref>
-                  <Button variant={pathname === '/dashboard/freigabe' ? 'default' : 'outline'} className="w-full justify-start gap-2">
-                    <CalendarCheck size={16} />
-                    Redaktionsplan
-                  </Button>
-                </Link>
+                
+                {/* ✅ Redaktionsplan für User (Mobil) - nur wenn Landingpages vorhanden */}
+                {shouldShowRedaktionsplanForUser && (
+                  <Link href="/dashboard/freigabe" passHref>
+                    <Button variant={pathname === '/dashboard/freigabe' ? 'default' : 'outline'} className="w-full justify-start gap-2">
+                      <CalendarCheck size={16} />
+                      Redaktionsplan
+                    </Button>
+                  </Link>
+                )}
               </>
             )}
             
