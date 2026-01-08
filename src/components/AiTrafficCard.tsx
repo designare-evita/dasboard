@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import { Cpu, GraphUp, People, ArrowUp, ArrowDown, ExclamationTriangleFill } from 'react-bootstrap-icons';
+import { Cpu, GraphUp, People, ArrowUp, ArrowDown, ExclamationTriangleFill, ChevronRight } from 'react-bootstrap-icons';
 import { cn } from '@/lib/utils';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import type { AiTrafficCardProps } from '@/types/ai-traffic';
@@ -35,8 +35,9 @@ export default function AiTrafficCard({
   isLoading = false,
   dateRange = '30d',
   className,
-  error
-}: AiTrafficCardProps) {
+  error,
+  onDetailClick // Neu: Prop für die Klick-Aktion
+}: AiTrafficCardProps & { onDetailClick?: () => void }) { // Typ erweitert für onDetailClick
 
   const safePercentage = typeof percentage === 'number' && !isNaN(percentage) ? percentage : 0;
   const safeTotalSessions = typeof totalSessions === 'number' && !isNaN(totalSessions) ? totalSessions : 0;
@@ -261,11 +262,20 @@ export default function AiTrafficCard({
         </div>
       )} 
         
-      {/* Footer Info-Text */}
-      <div className="mt-4 pt-4 border-t border-gray-100">
+      {/* Footer Info-Text & Button */}
+      <div className="mt-4 pt-4 border-t border-gray-100 flex flex-col gap-3">
         <p className="text-xs text-gray-500">
           KI-Traffic umfasst Besuche von bekannten KI-Bots wie ChatGPT, Claude, Perplexity und Google Gemini.
         </p>
+        
+        {/* Detail Button */}
+        <button 
+          onClick={onDetailClick}
+          className="w-full py-2.5 px-4 bg-transparent border border-purple-200 text-purple-700 text-sm font-medium rounded-lg hover:bg-purple-50 transition-colors flex items-center justify-center group"
+        >
+          Details anzeigen
+          <ChevronRight size={12} className="ml-1 text-purple-400 group-hover:text-purple-600 transition-colors" />
+        </button>
       </div>
     </div>
   );
