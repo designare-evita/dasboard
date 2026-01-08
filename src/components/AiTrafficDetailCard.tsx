@@ -170,6 +170,70 @@ function getDateRangeString(range: string): string {
 }
 
 // ============================================================================
+// SUB-KOMPONENTEN
+// ============================================================================
+
+// KPI Mini-Card
+const KpiMini: React.FC<{
+  icon: React.ReactNode;
+  label: string;
+  value: string | number;
+  change?: number;
+  color?: string;
+}> = ({ icon, label, value, change, color = 'purple' }) => (
+  <div className={`bg-${color}-50 rounded-xl p-4 border border-${color}-100/50`}>
+    <div className="flex items-center gap-2 mb-1">
+      <span className={`text-${color}-600`}>{icon}</span>
+      <span className={`text-xs font-medium text-${color}-700`}>{label}</span>
+    </div>
+    <div className="flex items-baseline gap-2">
+      <span className={`text-2xl font-bold text-${color}-900`}>
+        {typeof value === 'number' ? value.toLocaleString('de-DE') : value}
+      </span>
+      {change !== undefined && (
+        <span className={`text-xs font-semibold ${change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+          {change >= 0 ? '+' : ''}{change.toFixed(1)}%
+        </span>
+      )}
+    </div>
+  </div>
+);
+
+// Source Badge
+const SourceBadge: React.FC<{ source: string; sessions: number }> = ({ source, sessions }) => (
+  <span 
+    className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium text-white shadow-sm"
+    style={{ backgroundColor: getSourceColor(source) }}
+  >
+    <span className="w-1.5 h-1.5 rounded-full bg-white/30" />
+    {getSourceLabel(source)}
+    <span className="opacity-75">({sessions})</span>
+  </span>
+);
+
+// Sort Button
+const SortButton: React.FC<{
+  field: SortField;
+  currentField: SortField;
+  direction: SortDirection;
+  onClick: (field: SortField) => void;
+  children: React.ReactNode;
+}> = ({ field, currentField, direction, onClick, children }) => (
+  <button
+    onClick={() => onClick(field)}
+    className={cn(
+      "flex items-center gap-1 text-xs font-semibold transition-colors",
+      currentField === field ? "text-purple-700" : "text-gray-500 hover:text-gray-700"
+    )}
+  >
+    {children}
+    {currentField === field && (
+      direction === 'desc' ? <SortDown size={12} /> : <SortUp size={12} />
+    )}
+  </button>
+);
+
+// ============================================================================
 // HAUPTKOMPONENTE
 // ============================================================================
 
@@ -206,6 +270,11 @@ export default function AiTrafficDetailCard({
 
     let filtered = [...data.landingPages];
 
+    // (not set) ausfiltern - keine aussagekräftige Information
+    filtered = filtered.filter(p => 
+      p.path !== '(not set)' && p.path !== '(not provided)'
+    );
+
     // Suchfilter
     if (searchTerm) {
       filtered = filtered.filter(p => 
@@ -238,6 +307,12 @@ export default function AiTrafficDetailCard({
     return filtered;
   }, [data?.landingPages, searchTerm, selectedSource, sortField, sortDirection]);
 
+  // Helper: Pfad formatieren (/ = Startseite)
+  const formatPath = (path: string): string => {
+    if (path === '/') return '/ (Startseite)';
+    return path;
+  };
+
   // Chart-Daten für Quellen
   const sourceChartData = useMemo(() => {
     if (!data?.sources) return [];
@@ -259,14 +334,6 @@ export default function AiTrafficDetailCard({
   }, [data?.trend]);
 
   const formattedDateRange = getDateRangeString(dateRange);
-
-  // Helper zum Rendern von Sort-Icons in der Tabelle (ähnlich wie TopQueriesList)
-  const renderSortIcon = (field: SortField) => {
-    if (sortField !== field) return <FunnelFill size={10} className="opacity-40 ml-1" />;
-    return sortDirection === 'desc' 
-      ? <SortDown size={12} className="ml-1" />
-      : <SortUp size={12} className="ml-1" />;
-  };
 
   // ========== LOADING STATE ==========
   if (isLoading) {
@@ -604,108 +671,122 @@ export default function AiTrafficDetailCard({
           </div>
 
           {/* ===== DATA TABLE ===== */}
-          <div className="flex-grow">
+          <div className="px-6 py-4 overflow-x-auto">
             
             {viewMode === 'pages' ? (
-              <div className="overflow-x-auto">
-                 {filteredPages.length === 0 ? (
-                    <div className="p-8 text-center text-sm text-gray-500 italic min-h-[200px] flex flex-col items-center justify-center">
-                      <Search className="text-gray-300 mb-2" size={32} />
-                      {searchTerm || selectedSource ? 'Keine Ergebnisse für diese Filter' : 'Keine Landingpage-Daten verfügbar'}
+              <>
+                {/* Table Header - Feste Breiten statt Grid */}
+                <div className="min-w-[800px]">
+                  <div className="flex items-center px-4 py-3 bg-gray-50 rounded-lg mb-2 text-xs">
+                    <div className="flex-1 min-w-[300px] font-semibold text-gray-600">Landingpage</div>
+                    <div className="w-[90px] text-center">
+                      <SortButton field="sessions" currentField={sortField} direction={sortDirection} onClick={handleSort}>
+                        Sitzungen
+                      </SortButton>
                     </div>
-                 ) : (
-                  <div className="max-h-[400px] overflow-y-auto custom-scrollbar">
-                    {/* HIER: Ersetzung des Grids durch <table> angelehnt an TopQueriesList */}
-                    <table className="w-full border-collapse">
-                      <thead className="sticky top-0 z-10">
-                        {/* Header in Lila (passend zur AI Card), Struktur identisch zu TopQueriesList (Blau) */}
-                        <tr className="bg-purple-600 text-white">
-                          <th onClick={() => handleSort('sessions')} className="px-4 py-3 text-left text-sm font-semibold border-r border-white/20">
-                            Landingpage
-                          </th>
-                          <th onClick={() => handleSort('sessions')} className="px-4 py-3 text-right text-sm font-semibold border-r border-white/20 cursor-pointer hover:bg-purple-700 transition-colors whitespace-nowrap">
-                            <div className="flex items-center justify-end gap-1">Sitzungen {renderSortIcon('sessions')}</div>
-                          </th>
-                          <th onClick={() => handleSort('users')} className="px-4 py-3 text-right text-sm font-semibold border-r border-white/20 cursor-pointer hover:bg-purple-700 transition-colors whitespace-nowrap">
-                            <div className="flex items-center justify-end gap-1">Nutzer {renderSortIcon('users')}</div>
-                          </th>
-                          <th onClick={() => handleSort('avgEngagementTime')} className="px-4 py-3 text-right text-sm font-semibold border-r border-white/20 cursor-pointer hover:bg-purple-700 transition-colors whitespace-nowrap">
-                            <div className="flex items-center justify-end gap-1">Ø Zeit {renderSortIcon('avgEngagementTime')}</div>
-                          </th>
-                          <th onClick={() => handleSort('bounceRate')} className="px-4 py-3 text-right text-sm font-semibold border-r border-white/20 cursor-pointer hover:bg-purple-700 transition-colors whitespace-nowrap">
-                            <div className="flex items-center justify-end gap-1">Interaktion {renderSortIcon('bounceRate')}</div>
-                          </th>
-                          <th onClick={() => handleSort('conversions')} className="px-4 py-3 text-right text-sm font-semibold cursor-pointer hover:bg-purple-700 transition-colors whitespace-nowrap">
-                            <div className="flex items-center justify-end gap-1">Conv. {renderSortIcon('conversions')}</div>
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredPages.map((page, index) => (
-                          <tr 
-                            key={`${page.path}-${index}`}
-                            className={cn("border-b border-gray-200 hover:bg-purple-50 transition-colors", index % 2 === 0 ? "bg-white" : "bg-gray-50")}
-                          >
-                            <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-200">
-                              <div className="font-medium break-all mb-1">{page.path}</div>
-                              <div className="flex flex-wrap gap-1">
-                                {page.sources.slice(0, 3).map((s, j) => (
-                                  <span
-                                    key={j}
-                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium"
-                                    style={{ 
-                                      backgroundColor: `${getSourceColor(s.source)}15`,
-                                      color: getSourceColor(s.source)
-                                    }}
-                                  >
-                                    {getSourceLabel(s.source)}
-                                  </span>
-                                ))}
-                                {page.sources.length > 3 && (
-                                  <span className="text-[10px] text-gray-400">
-                                    +{page.sources.length - 3}
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 text-sm text-gray-900 text-right border-r border-gray-200 whitespace-nowrap">
-                              {page.sessions.toLocaleString('de-DE')}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-gray-600 text-right border-r border-gray-200 whitespace-nowrap">
-                              {page.users.toLocaleString('de-DE')}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-gray-600 text-right border-r border-gray-200 whitespace-nowrap">
-                              {formatDuration(page.avgEngagementTime)}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-right border-r border-gray-200 whitespace-nowrap">
-                              <span className={cn(
-                                "font-medium",
-                                page.bounceRate < 30 ? "text-red-600" : 
-                                page.bounceRate < 50 ? "text-amber-600" : "text-green-600"
-                              )}>
-                                {(100 - page.bounceRate).toFixed(0)}%
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-right whitespace-nowrap">
-                              <span className={cn(
-                                "inline-flex items-center justify-center min-w-[2rem] px-2 py-0.5 rounded text-sm font-semibold",
-                                page.conversions > 0 
-                                  ? "bg-green-100 text-green-700" 
-                                  : "bg-gray-100 text-gray-500"
-                              )}>
-                                {page.conversions}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                    <div className="w-[70px] text-center">
+                      <SortButton field="users" currentField={sortField} direction={sortDirection} onClick={handleSort}>
+                        Nutzer
+                      </SortButton>
+                    </div>
+                    <div className="w-[70px] text-center">
+                      <SortButton field="avgEngagementTime" currentField={sortField} direction={sortDirection} onClick={handleSort}>
+                        Ø Zeit
+                      </SortButton>
+                    </div>
+                    <div className="w-[90px] text-center">
+                      <SortButton field="bounceRate" currentField={sortField} direction={sortDirection} onClick={handleSort}>
+                        Interaktion
+                      </SortButton>
+                    </div>
+                    <div className="w-[70px] text-center">
+                      <SortButton field="conversions" currentField={sortField} direction={sortDirection} onClick={handleSort}>
+                        Conv.
+                      </SortButton>
+                    </div>
                   </div>
-                 )}
-              </div>
+
+                  {/* Table Body */}
+                  <div className="space-y-1 max-h-[400px] overflow-y-auto custom-scrollbar">
+                    {filteredPages.length === 0 ? (
+                      <div className="text-center py-8 text-gray-500 text-sm">
+                        {searchTerm || selectedSource 
+                          ? 'Keine Ergebnisse für diese Filter' 
+                          : 'Keine Landingpage-Daten verfügbar'}
+                      </div>
+                    ) : (
+                      filteredPages.map((page, i) => (
+                        <div 
+                          key={i}
+                          className="flex items-center px-4 py-3 hover:bg-purple-50/50 rounded-lg transition-colors group"
+                        >
+                          <div className="flex-1 min-w-[300px] pr-4">
+                            <div className="font-medium text-gray-800 text-sm truncate mb-1" title={page.path}>
+                              {formatPath(page.path)}
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                              {page.sources.slice(0, 3).map((s, j) => (
+                                <span
+                                  key={j}
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium"
+                                  style={{ 
+                                    backgroundColor: `${getSourceColor(s.source)}15`,
+                                    color: getSourceColor(s.source)
+                                  }}
+                                >
+                                  {getSourceLabel(s.source)}
+                                </span>
+                              ))}
+                              {page.sources.length > 3 && (
+                                <span className="text-[10px] text-gray-400">
+                                  +{page.sources.length - 3}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="w-[90px] text-center">
+                            <span className="text-sm font-semibold text-gray-900">
+                              {page.sessions.toLocaleString('de-DE')}
+                            </span>
+                          </div>
+                          <div className="w-[70px] text-center">
+                            <span className="text-sm text-gray-600">
+                              {page.users.toLocaleString('de-DE')}
+                            </span>
+                          </div>
+                          <div className="w-[70px] text-center">
+                            <span className="text-sm text-gray-600">
+                              {formatDuration(page.avgEngagementTime)}
+                            </span>
+                          </div>
+                          <div className="w-[90px] text-center">
+                            <span className={cn(
+                              "text-sm font-medium",
+                              (100 - page.bounceRate) >= 50 ? "text-green-600" : 
+                              (100 - page.bounceRate) >= 30 ? "text-amber-600" : "text-red-600"
+                            )}>
+                              {(100 - page.bounceRate).toFixed(0)}%
+                            </span>
+                          </div>
+                          <div className="w-[70px] text-center">
+                            <span className={cn(
+                              "inline-flex items-center justify-center min-w-[2rem] px-2 py-0.5 rounded text-sm font-semibold",
+                              page.conversions > 0 
+                                ? "bg-green-100 text-green-700" 
+                                : "bg-gray-100 text-gray-500"
+                            )}>
+                              {page.conversions}
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </>
             ) : (
-              /* Sources View (unverändert, nur Padding angepasst falls nötig) */
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 px-6 py-4">
+              /* Sources View */
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {data.sources.map((source, i) => (
                   <div 
                     key={i}
