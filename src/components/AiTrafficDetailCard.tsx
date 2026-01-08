@@ -286,8 +286,16 @@ export default function AiTrafficDetailCard({
 
     // Sortierung
     filtered.sort((a, b) => {
-      const aVal = a[sortField] ?? 0;
-      const bVal = b[sortField] ?? 0;
+      let aVal = a[sortField] ?? 0;
+      let bVal = b[sortField] ?? 0;
+      
+      // Für bounceRate invertieren wir die Sortierung, da wir Interaktionsrate anzeigen
+      // Hohe Interaktion (= niedrige Bounce) soll bei "desc" oben stehen
+      if (sortField === 'bounceRate') {
+        aVal = 100 - aVal;
+        bVal = 100 - bVal;
+      }
+      
       return sortDirection === 'desc' ? bVal - aVal : aVal - bVal;
     });
 
@@ -676,7 +684,7 @@ export default function AiTrafficDetailCard({
                   </div>
                   <div className="col-span-1 text-center">
                     <SortButton field="bounceRate" currentField={sortField} direction={sortDirection} onClick={handleSort}>
-                      Bounce
+                      Interaktion
                     </SortButton>
                   </div>
                   <div className="col-span-2 text-center">
@@ -742,10 +750,10 @@ export default function AiTrafficDetailCard({
                         <div className="col-span-1 text-center">
                           <span className={cn(
                             "text-sm font-medium",
-                            page.bounceRate > 70 ? "text-red-600" : 
-                            page.bounceRate > 50 ? "text-amber-600" : "text-green-600"
+                            page.bounceRate < 30 ? "text-red-600" : 
+                            page.bounceRate < 50 ? "text-amber-600" : "text-green-600"
                           )}>
-                            {page.bounceRate.toFixed(0)}%
+                            {(100 - page.bounceRate).toFixed(0)}%
                           </span>
                         </div>
                         <div className="col-span-2 text-center">
