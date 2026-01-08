@@ -787,63 +787,70 @@ export default function AiTrafficDetailCard({
             ) : (
               /* Sources View */
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {data.sources.map((source, i) => (
-                  <div 
-                    key={i}
-                    className="p-4 rounded-xl border border-gray-100 hover:border-purple-200 hover:shadow-md transition-all bg-white"
-                  >
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <span 
-                          className="w-3 h-3 rounded-full"
-                          style={{ backgroundColor: getSourceColor(source.source) }}
-                        />
-                        <span className="font-semibold text-gray-900">
-                          {getSourceLabel(source.source)}
+                {data.sources.map((source, i) => {
+                  // Filtere (not set) aus den Top-Seiten
+                  const cleanTopPages = source.topPages.filter(p => 
+                    p.path !== '(not set)' && p.path !== '(not provided)'
+                  );
+                  
+                  return (
+                    <div 
+                      key={i}
+                      className="p-4 rounded-xl border border-gray-100 hover:border-purple-200 hover:shadow-md transition-all bg-white"
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <span 
+                            className="w-3 h-3 rounded-full"
+                            style={{ backgroundColor: getSourceColor(source.source) }}
+                          />
+                          <span className="font-semibold text-gray-900">
+                            {getSourceLabel(source.source)}
+                          </span>
+                        </div>
+                        <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">
+                          {source.percentage.toFixed(1)}%
                         </span>
                       </div>
-                      <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">
-                        {source.percentage.toFixed(1)}%
-                      </span>
-                    </div>
 
-                    <div className="grid grid-cols-2 gap-3 mb-3">
-                      <div>
-                        <div className="text-xs text-gray-500 mb-0.5">Sitzungen</div>
-                        <div className="text-lg font-bold text-gray-900">
-                          {source.sessions.toLocaleString('de-DE')}
+                      <div className="grid grid-cols-2 gap-3 mb-3">
+                        <div>
+                          <div className="text-xs text-gray-500 mb-0.5">Sitzungen</div>
+                          <div className="text-lg font-bold text-gray-900">
+                            {source.sessions.toLocaleString('de-DE')}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-gray-500 mb-0.5">Nutzer</div>
+                          <div className="text-lg font-bold text-gray-900">
+                            {source.users.toLocaleString('de-DE')}
+                          </div>
                         </div>
                       </div>
-                      <div>
-                        <div className="text-xs text-gray-500 mb-0.5">Nutzer</div>
-                        <div className="text-lg font-bold text-gray-900">
-                          {source.users.toLocaleString('de-DE')}
-                        </div>
-                      </div>
-                    </div>
 
-                    {source.topPages.length > 0 && (
-                      <div>
-                        <div className="text-xs font-semibold text-gray-500 mb-2">Top Seiten</div>
-                        <div className="space-y-1">
-                          {source.topPages.slice(0, 3).map((page, j) => (
-                            <div 
-                              key={j}
-                              className="flex items-center justify-between text-xs"
-                            >
-                              <span className="text-gray-600 truncate max-w-[70%]" title={page.path}>
-                                {page.path}
-                              </span>
-                              <span className="text-gray-400 font-medium">
-                                {page.sessions}
-                              </span>
-                            </div>
-                          ))}
+                      {cleanTopPages.length > 0 && (
+                        <div>
+                          <div className="text-xs font-semibold text-gray-500 mb-2">Top Seiten</div>
+                          <div className="space-y-1">
+                            {cleanTopPages.slice(0, 3).map((page, j) => (
+                              <div 
+                                key={j}
+                                className="flex items-center justify-between text-xs"
+                              >
+                                <span className="text-gray-600 truncate max-w-[70%]" title={page.path}>
+                                  {formatPath(page.path)}
+                                </span>
+                                <span className="text-gray-400 font-medium">
+                                  {page.sessions}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
