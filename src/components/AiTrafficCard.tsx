@@ -36,8 +36,8 @@ export default function AiTrafficCard({
   dateRange = '30d',
   className,
   error,
-  onDetailClick // Neu: Prop für die Klick-Aktion
-}: AiTrafficCardProps & { onDetailClick?: () => void }) { // Typ erweitert für onDetailClick
+  onDetailClick 
+}: AiTrafficCardProps & { onDetailClick?: () => void }) {
 
   const safePercentage = typeof percentage === 'number' && !isNaN(percentage) ? percentage : 0;
   const safeTotalSessions = typeof totalSessions === 'number' && !isNaN(totalSessions) ? totalSessions : 0;
@@ -45,7 +45,7 @@ export default function AiTrafficCard({
   const safeTopAiSources = Array.isArray(topAiSources) ? topAiSources : [];
   const safeTrend = Array.isArray(trend) ? trend : [];
 
-  // --- NEU: Dynamische Datumsberechnung für die Anzeige wie im Screenshot ---
+  // Dynamische Datumsberechnung
   const formattedDateRange = useMemo(() => {
     const endDate = new Date();
     const startDate = new Date();
@@ -93,7 +93,7 @@ export default function AiTrafficCard({
   return (
     <div className={cn("bg-white rounded-lg shadow-md border border-gray-200 p-6 flex flex-col", className)}>
       
-      {/* Header */}
+      {/* Header - Bereinigt: Nur Icon, Titel und Badge (keine Buttons) */}
       <div className="flex items-center justify-between mb-1">
         <div className="flex items-center gap-2">
           <Cpu className="text-purple-600" size={24} />
@@ -107,7 +107,7 @@ export default function AiTrafficCard({
         )}
       </div>
 
-      {/* --- NEU: Quelle und Datum im Stil des Screenshots --- */}
+      {/* Meta-Info: Quelle und Datum */}
       <div className="flex items-center gap-2 mb-5 text-sm">
         <span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded text-xs font-semibold">
           Quelle: GA4
@@ -262,16 +262,17 @@ export default function AiTrafficCard({
         </div>
       )} 
         
-      {/* Footer Info-Text & Button */}
+      {/* Footer Info-Text & Neuer Button */}
       <div className="mt-4 pt-4 border-t border-gray-100 flex flex-col gap-3">
         <p className="text-xs text-gray-500">
           KI-Traffic umfasst Besuche von bekannten KI-Bots wie ChatGPT, Claude, Perplexity und Google Gemini.
         </p>
         
-        {/* Detail Button */}
+        {/* Neuer Detail Button (groß, transparent, lila Rahmen) */}
         <button 
+          type="button"
           onClick={onDetailClick}
-          className="w-full py-2.5 px-4 bg-transparent border border-purple-200 text-purple-700 text-sm font-medium rounded-lg hover:bg-purple-50 transition-colors flex items-center justify-center group"
+          className="w-full py-2.5 px-4 bg-transparent border border-purple-200 text-purple-700 text-sm font-medium rounded-lg hover:bg-purple-50 transition-colors flex items-center justify-center group cursor-pointer"
         >
           Details anzeigen
           <ChevronRight size={12} className="ml-1 text-purple-400 group-hover:text-purple-600 transition-colors" />
