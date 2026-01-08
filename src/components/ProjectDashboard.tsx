@@ -225,34 +225,23 @@ export default function ProjectDashboard({
         {/* ✅ ANGEPASST: KI-Traffic Sektion mit Toggle für Detail-Ansicht */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mt-6 print-traffic-grid">
           <div className="xl:col-span-1 print-ai-card">
-            <div className="relative">
-              <AiTrafficCard 
-                totalSessions={data.aiTraffic?.totalSessions ?? 0}
-                totalUsers={data.aiTraffic?.totalUsers ?? 0}
-                percentage={data.kpis?.sessions?.value ? ((data.aiTraffic?.totalSessions ?? 0) / data.kpis.sessions.value * 100) : 0}
-                totalSessionsChange={data.aiTraffic?.totalSessionsChange}
-                totalUsersChange={data.aiTraffic?.totalUsersChange}
-                trend={(data.aiTraffic?.trend ?? []).map(item => ({
-                  date: item.date,
-                  value: (item as any).value ?? (item as any).sessions ?? 0
-                }))}
-                topAiSources={data.aiTraffic?.topAiSources ?? []}
-                className="h-full"
-                isLoading={isLoading}
-                dateRange={dateRange}
-                error={safeApiErrors?.ga4}
-              />
-              
-              {/* ✅ Button für Detail-Ansicht - Position unter Quelle/Datum Zeile */}
-              {hasAiTraffic && !safeApiErrors?.ga4 && (
-                <button
-                  onClick={() => setShowAiTrafficDetail(!showAiTrafficDetail)}
-                  className="absolute top-[52px] right-6 px-2.5 py-1 text-[11px] font-semibold bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors print:hidden shadow-sm z-10"
-                >
-                  {showAiTrafficDetail ? '← Übersicht' : 'Details →'}
-                </button>
-              )}
-            </div>
+            <AiTrafficCard 
+              totalSessions={data.aiTraffic?.totalSessions ?? 0}
+              totalUsers={data.aiTraffic?.totalUsers ?? 0}
+              percentage={data.kpis?.sessions?.value ? ((data.aiTraffic?.totalSessions ?? 0) / data.kpis.sessions.value * 100) : 0}
+              totalSessionsChange={data.aiTraffic?.totalSessionsChange}
+              totalUsersChange={data.aiTraffic?.totalUsersChange}
+              trend={(data.aiTraffic?.trend ?? []).map(item => ({
+                date: item.date,
+                value: (item as any).value ?? (item as any).sessions ?? 0
+              }))}
+              topAiSources={data.aiTraffic?.topAiSources ?? []}
+              className="h-full"
+              isLoading={isLoading}
+              dateRange={dateRange}
+              error={safeApiErrors?.ga4}
+              onDetailClick={() => setShowAiTrafficDetail(!showAiTrafficDetail)}
+            />
           </div>
           
           <div className="xl:col-span-2 print-queries-list">
