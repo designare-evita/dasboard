@@ -657,29 +657,29 @@ export default function AiTrafficDetailCard({
             {viewMode === 'pages' ? (
               <>
                 {/* Table Header */}
-                <div className="grid grid-cols-12 gap-4 px-4 py-3 bg-gray-50 rounded-lg mb-2 text-xs">
-                  <div className="col-span-5 font-semibold text-gray-600">Landingpage</div>
-                  <div className="col-span-2 text-right">
+                <div className="grid grid-cols-12 gap-2 px-4 py-3 bg-gray-50 rounded-lg mb-2 text-xs">
+                  <div className="col-span-6 font-semibold text-gray-600">Landingpage</div>
+                  <div className="col-span-1 text-center">
                     <SortButton field="sessions" currentField={sortField} direction={sortDirection} onClick={handleSort}>
                       Sitzungen
                     </SortButton>
                   </div>
-                  <div className="col-span-1 text-right">
+                  <div className="col-span-1 text-center">
                     <SortButton field="users" currentField={sortField} direction={sortDirection} onClick={handleSort}>
                       Nutzer
                     </SortButton>
                   </div>
-                  <div className="col-span-1 text-right">
+                  <div className="col-span-1 text-center">
                     <SortButton field="avgEngagementTime" currentField={sortField} direction={sortDirection} onClick={handleSort}>
                       Ø Zeit
                     </SortButton>
                   </div>
-                  <div className="col-span-1 text-right">
+                  <div className="col-span-1 text-center">
                     <SortButton field="bounceRate" currentField={sortField} direction={sortDirection} onClick={handleSort}>
                       Bounce
                     </SortButton>
                   </div>
-                  <div className="col-span-2 text-right">
+                  <div className="col-span-2 text-center">
                     <SortButton field="conversions" currentField={sortField} direction={sortDirection} onClick={handleSort}>
                       Conv.
                     </SortButton>
@@ -698,9 +698,9 @@ export default function AiTrafficDetailCard({
                     filteredPages.map((page, i) => (
                       <div 
                         key={i}
-                        className="grid grid-cols-12 gap-4 px-4 py-3 hover:bg-purple-50/50 rounded-lg transition-colors group"
+                        className="grid grid-cols-12 gap-2 px-4 py-3 hover:bg-purple-50/50 rounded-lg transition-colors group items-center"
                       >
-                        <div className="col-span-5">
+                        <div className="col-span-6 min-w-0">
                           <div className="font-medium text-gray-800 text-sm truncate mb-1" title={page.path}>
                             {page.path}
                           </div>
@@ -724,31 +724,31 @@ export default function AiTrafficDetailCard({
                             )}
                           </div>
                         </div>
-                        <div className="col-span-2 text-right">
+                        <div className="col-span-1 text-center">
                           <span className="text-sm font-semibold text-gray-900">
                             {page.sessions.toLocaleString('de-DE')}
                           </span>
                         </div>
-                        <div className="col-span-1 text-right">
+                        <div className="col-span-1 text-center">
                           <span className="text-sm text-gray-600">
                             {page.users.toLocaleString('de-DE')}
                           </span>
                         </div>
-                        <div className="col-span-1 text-right">
+                        <div className="col-span-1 text-center">
                           <span className="text-sm text-gray-600">
                             {formatDuration(page.avgEngagementTime)}
                           </span>
                         </div>
-                        <div className="col-span-1 text-right">
+                        <div className="col-span-1 text-center">
                           <span className={cn(
-                            "text-sm",
+                            "text-sm font-medium",
                             page.bounceRate > 70 ? "text-red-600" : 
                             page.bounceRate > 50 ? "text-amber-600" : "text-green-600"
                           )}>
                             {page.bounceRate.toFixed(0)}%
                           </span>
                         </div>
-                        <div className="col-span-2 text-right">
+                        <div className="col-span-2 text-center">
                           <span className={cn(
                             "inline-flex items-center justify-center min-w-[2rem] px-2 py-0.5 rounded text-sm font-semibold",
                             page.conversions > 0 

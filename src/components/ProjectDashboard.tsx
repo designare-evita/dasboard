@@ -243,13 +243,13 @@ export default function ProjectDashboard({
                 error={safeApiErrors?.ga4}
               />
               
-              {/* ✅ NEU: Button für Detail-Ansicht */}
+              {/* ✅ Button für Detail-Ansicht - Position unter Quelle/Datum Zeile */}
               {hasAiTraffic && !safeApiErrors?.ga4 && (
                 <button
                   onClick={() => setShowAiTrafficDetail(!showAiTrafficDetail)}
-                  className="absolute top-4 right-4 px-3 py-1.5 text-xs font-medium bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors print:hidden"
+                  className="absolute top-[52px] right-6 px-2.5 py-1 text-[11px] font-semibold bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors print:hidden shadow-sm z-10"
                 >
-                  {showAiTrafficDetail ? 'Übersicht' : 'Details →'}
+                  {showAiTrafficDetail ? '← Übersicht' : 'Details →'}
                 </button>
               )}
             </div>
