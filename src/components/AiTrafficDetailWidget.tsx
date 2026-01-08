@@ -35,29 +35,22 @@ export default function AiTrafficDetailWidget({
       
       const response = await fetch(url);
       
-      // Prüfe ob Response OK ist
-      if (!response.ok) {
-        // Versuche JSON zu parsen, aber fange Fehler ab
-        let errorMessage = `HTTP ${response.status}`;
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.message || errorMessage;
-        } catch {
-          // Response war kein JSON (z.B. HTML Error Page)
-          const text = await response.text();
-          console.error('[AiTrafficDetailWidget] Non-JSON Response:', text.substring(0, 200));
-          errorMessage = 'Server-Fehler - bitte später erneut versuchen';
-        }
-        throw new Error(errorMessage);
-      }
-
+      // Erst als Text lesen, dann parsen
+      const responseText = await response.text();
+      
       // Versuche JSON zu parsen
       let result;
       try {
-        result = await response.json();
+        result = JSON.parse(responseText);
       } catch (parseError) {
         console.error('[AiTrafficDetailWidget] JSON Parse Error:', parseError);
+        console.error('[AiTrafficDetailWidget] Response was:', responseText.substring(0, 500));
         throw new Error('Ungültige Server-Antwort');
+      }
+
+      // Prüfe ob Response OK ist
+      if (!response.ok) {
+        throw new Error(result.message || `HTTP ${response.status}`);
       }
 
       console.log('[AiTrafficDetailWidget] Data received:', result.data ? 'OK' : 'null');
