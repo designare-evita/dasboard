@@ -178,6 +178,26 @@ export async function POST(req: NextRequest) {
       .map((c: any) => `${c.name} (${fmt(c.value)})`)
       .join(', ') || 'Keine Kanal-Daten';
 
+    // ✅ NEU: KI-Traffic Analyse mit Quellen und Top-Seiten
+    const aiTrafficSources = data.aiTraffic?.topAiSources
+      ?.slice(0, 5)
+      .map((s: any) => `- ${s.source}: ${s.sessions} Sitzungen (${s.percentage.toFixed(1)}%)`)
+      .join('\n') || 'Keine KI-Quellen erkannt';
+
+    // KI-Traffic Trend-Analyse
+    const aiTrend = data.aiTraffic?.trend;
+    let aiTrendInfo = 'Keine Trenddaten';
+    if (aiTrend && aiTrend.length >= 7) {
+      const recentWeek = aiTrend.slice(-7).reduce((sum: number, t: any) => sum + (t.sessions || t.value || 0), 0);
+      const previousWeek = aiTrend.slice(-14, -7).reduce((sum: number, t: any) => sum + (t.sessions || t.value || 0), 0);
+      if (previousWeek > 0) {
+        const trendChange = ((recentWeek - previousWeek) / previousWeek * 100).toFixed(1);
+        aiTrendInfo = `Letzte 7 Tage: ${recentWeek} Sitzungen (${Number(trendChange) >= 0 ? '+' : ''}${trendChange}% vs. Vorwoche)`;
+      } else {
+        aiTrendInfo = `Letzte 7 Tage: ${recentWeek} Sitzungen`;
+      }
+    }
+
     const summaryData = `
       DOMAIN: ${project.domain}
       ZEITPLAN STATUS: ${timelineInfo}
@@ -206,10 +226,24 @@ export async function POST(req: NextRequest) {
       
       KANÄLE:
       ${topChannels}
+
+      ===== KI-TRAFFIC ANALYSE =====
+      Gesamt KI-Traffic: ${fmt(data.aiTraffic?.totalSessions || 0)} Sitzungen von ${fmt(data.aiTraffic?.totalUsers || 0)} Nutzern
+      Anteil am Gesamttraffic: ${aiShare}%
+      Trend: ${aiTrendInfo}
+      
+      KI-QUELLEN (Woher kommen die Besucher?):
+      ${aiTrafficSources}
+      
+      INTERPRETATION:
+      - ChatGPT/OpenAI = Nutzer haben in ChatGPT nach Infos gesucht und wurden auf diese Seite verwiesen
+      - Perplexity = KI-Suchmaschine hat diese Seite als Quelle zitiert
+      - Gemini/Bard = Google's KI hat auf diese Inhalte verwiesen
+      - Copilot = Microsoft's KI-Assistent hat hierher verlinkt
     `;
 
     // --- CACHE LOGIK ---
-    const cacheInputString = `${summaryData}|ROLE:${userRole}|V5_FILTERED_DATA`;
+    const cacheInputString = `${summaryData}|ROLE:${userRole}|V6_WITH_AI_TRAFFIC`;
     const inputHash = createHash(cacheInputString);
 
     const { rows: cacheRows } = await sql`
@@ -245,6 +279,17 @@ export async function POST(req: NextRequest) {
       </div>
     `;
 
+    // ✅ NEU: KI-Traffic Visual Template
+    const aiTrafficTemplate = `
+      <div class="mt-4 p-4 bg-purple-50 rounded-xl border border-purple-100">
+         <div class="flex items-center gap-2 mb-2">
+            <span class="text-purple-600">🤖</span>
+            <span class="text-sm font-bold text-purple-900">KI-Traffic Analyse</span>
+         </div>
+         <div class="text-sm text-purple-800">KI_TRAFFIC_INHALT</div>
+      </div>
+    `;
+
     let systemPrompt = `
       Du bist "Data Max", ein Performance-Analyst.
 
@@ -261,6 +306,7 @@ export async function POST(req: NextRequest) {
       - Positiv: <span class="text-emerald-600 font-bold">
       - Negativ: <span class="text-red-600 font-bold">
       - Wichtig: <span class="font-semibold text-gray-900">
+      - KI-Highlight: <span class="text-purple-600 font-semibold">
 
       OUTPUT AUFBAU:
       [Inhalt Spalte 1]
@@ -280,15 +326,22 @@ export async function POST(req: NextRequest) {
              <li...>Liste alle KPIs inkl. Conversions und Engagement.
              <li...>Negative Trends ROT.
            </ul...>
-        3. VISUAL ENDING: ${visualSuccessTemplate}
+        3. <h4...>KI-Traffic Status:</h4>
+           Zeige: Gesamt-Sessions, Top 3 Quellen (ChatGPT, Perplexity, etc.), Trend.
+           Nutze das lila Design: ${aiTrafficTemplate}
+        4. VISUAL ENDING: ${visualSuccessTemplate}
         
         SPALTE 2 (Analyse):
         1. <h4...>Status-Analyse:</h4> Kritische Analyse.
         2. <h4...>Handlungsempfehlung:</h4> Technische Schritte.
-        3. <h4...>Conversion Analyse:</h4> Welche Seiten bringen Umsatz? (Ignoriere Impressum/Datenschutz falls noch vorhanden).
+        3. <h4...>Conversion Analyse:</h4> Welche Seiten bringen Umsatz?
         4. <h4...>SEO-Chancen (Striking Distance):</h4> 
-           Analysiere die "SEO CHANCEN" Daten. Identifiziere Keywords auf Position 4-20 mit hohem Suchvolumen (Striking Distance). 
-           Gib eine konkrete technische Handlungsempfehlung (z.B. "Content schärfen", "Metas optimieren", "Interne Verlinkung stärken") um diese Rankings auf Seite 1 zu heben.
+           Analysiere die "SEO CHANCEN" Daten. Keywords auf Position 4-20 mit hohem Suchvolumen.
+        5. <h4...>KI-Sichtbarkeit Optimierung:</h4>
+           Basierend auf den KI-Traffic Daten:
+           - Welche KI-Plattformen bringen Traffic?
+           - Ist der KI-Anteil am Gesamttraffic steigend/fallend?
+           - Konkrete Empfehlungen zur Verbesserung der KI-Sichtbarkeit (strukturierte Daten, FAQ-Seiten, etc.)
       `;
     } else {
       // === KUNDEN MODUS ===
@@ -301,7 +354,7 @@ export async function POST(req: NextRequest) {
            <ul...>
              <li...>Nutzer & Klassische Besucher.
              <li...>Conversions (Erreichte Ziele) & Engagement.
-             <li...>KI-Sichtbarkeit: Füge hinzu: <br><span class="text-xs text-emerald-600 block mt-0.5">✓ Ihre Inhalte werden von KI (ChatGPT, Gemini) gefunden.</span>
+             <li...>KI-Sichtbarkeit: Füge hinzu: <br><span class="text-xs text-purple-600 block mt-0.5">🤖 Ihre Inhalte werden von KI-Assistenten (ChatGPT, Gemini, Perplexity) gefunden und empfohlen!</span>
            </ul...>
         3. VISUAL ENDING: ${visualSuccessTemplate}
         
@@ -310,9 +363,12 @@ export async function POST(req: NextRequest) {
         2. <h4...>Zusammenfassung:</h4> Fließtext über Erfolge (Conversions hervorheben).
         3. <h4...>Top Seiten (Umsatz):</h4> Nenne lobend die Seiten mit den meisten Conversions.
         4. <h4...>Ihr Wachstumspotenzial:</h4> 
-           Greifen Sie 1-2 Keywords aus "SEO CHANCEN" heraus und formulieren Sie es als gute Nachricht: 
-           "Wir haben tolles Potenzial entdeckt! Viele Menschen suchen nach [Keyword], und Sie sind schon fast ganz vorne dabei (Seite 2)."
-           Erklären Sie motivierend, dass kleine Anpassungen hier große Wirkung für noch mehr Besucher haben können.
+           Greifen Sie 1-2 Keywords aus "SEO CHANCEN" heraus und formulieren Sie es als gute Nachricht.
+        5. <h4...>Zukunft: KI-Sichtbarkeit:</h4>
+           Erkläre dem Kunden positiv und verständlich:
+           - "${fmt(data.aiTraffic?.totalUsers || 0)} Besucher kamen über KI-Assistenten wie ChatGPT"
+           - "Das bedeutet: Wenn Menschen KI-Tools nach [Branche/Thema] fragen, werden SIE empfohlen!"
+           - "Dieser Trend wächst stark - wir positionieren Sie optimal dafür."
       `;
     }
 
