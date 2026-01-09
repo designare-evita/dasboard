@@ -6,15 +6,53 @@ import { getOrFetchGoogleData } from '@/lib/google-data-loader';
 import { streamTextSafe } from '@/lib/ai-config';
 import { UserSchema, type User } from '@/lib/schemas';
 import type { ProjectDashboardData } from '@/lib/dashboard-shared';
+import { getAiTrafficDetailWithComparison } from '@/lib/ai-traffic-extended';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 // ============================================================================
-// KONTEXT-BUILDER
+// HELPER: Datumsberechnung
 // ============================================================================
 
-function buildChatContext(data: ProjectDashboardData, user: User, dateRange: string): string {
+function getDateRanges(dateRange: string) {
+  const end = new Date();
+  end.setDate(end.getDate() - 1); // Gestern
+
+  const start = new Date(end);
+  let days = 30;
+  if (dateRange === '7d') days = 7;
+  if (dateRange === '3m') days = 90;
+  if (dateRange === '6m') days = 180;
+  if (dateRange === '12m') days = 365;
+  start.setDate(end.getDate() - days);
+
+  const startDateStr = start.toISOString().split('T')[0];
+  const endDateStr = end.toISOString().split('T')[0];
+
+  // Vorperiode
+  const prevEnd = new Date(start);
+  prevEnd.setDate(prevEnd.getDate() - 1);
+  const prevStart = new Date(prevEnd);
+  prevStart.setDate(prevEnd.getDate() - days);
+
+  return {
+    current: { start: startDateStr, end: endDateStr },
+    previous: { start: prevStart.toISOString().split('T')[0], end: prevEnd.toISOString().split('T')[0] },
+    days
+  };
+}
+
+// ============================================================================
+// KONTEXT-BUILDER (Erweitert mit AI Traffic Details)
+// ============================================================================
+
+function buildChatContext(
+  data: ProjectDashboardData, 
+  user: User, 
+  dateRange: string,
+  aiTrafficDetail?: any // Extended AI Traffic Data
+): string {
   const kpis = data.kpis;
   const fmt = (val?: number) => val?.toLocaleString('de-DE') ?? '0';
   const pct = (val?: number) => val ? `${val > 0 ? '+' : ''}${val.toFixed(1)}%` : '0%';
@@ -49,17 +87,72 @@ Keine Daten verfügbar. Bitte stelle sicher, dass GA4 und GSC korrekt konfigurie
     .map(p => `${p.path}: ${p.conversions} Conv. (${p.conversionRate}%)`)
     .join('\n') || 'Keine Daten';
 
-  // KI-Traffic
-  const aiInfo = data.aiTraffic ? `
-KI-TRAFFIC:
-- Gesamt: ${fmt(data.aiTraffic.totalSessions)} Sessions von ${fmt(data.aiTraffic.totalUsers)} Nutzern
-- Top-Quellen: ${data.aiTraffic.topAiSources?.slice(0, 3).map(s => `${s.source} (${s.sessions})`).join(', ') || 'Keine'}
-` : '';
-
   // Kanäle
   const channels = data.channelData?.slice(0, 5)
     .map(c => `${c.name}: ${fmt(c.value)} Sessions`)
     .join('\n') || 'Keine Daten';
+
+  // =========================================================================
+  // ✅ NEU: Erweiterte KI-Traffic Analyse
+  // =========================================================================
+  let aiTrafficSection = '';
+  
+  if (aiTrafficDetail && aiTrafficDetail.totalSessions > 0) {
+    // KI-Quellen mit Details
+    const aiSources = aiTrafficDetail.sources?.slice(0, 5)
+      .map((s: any) => `- ${s.source}: ${s.sessions} Sessions (${s.percentage.toFixed(1)}%), Top-Seite: ${s.topPages?.[0]?.path || 'k.A.'}`)
+      .join('\n') || 'Keine KI-Quellen';
+
+    // Landingpages die von KI-Traffic profitieren
+    const aiLandingPages = aiTrafficDetail.landingPages?.slice(0, 5)
+      .map((p: any) => {
+        const topSource = p.sources?.[0]?.source || 'unbekannt';
+        return `- ${p.path}: ${p.sessions} Sessions (via ${topSource}), ${p.conversions} Conv., Bounce: ${p.bounceRate.toFixed(1)}%`;
+      })
+      .join('\n') || 'Keine Seiten';
+
+    // Trend-Analyse
+    let trendInfo = '';
+    if (aiTrafficDetail.trend && aiTrafficDetail.trend.length >= 7) {
+      const recentWeek = aiTrafficDetail.trend.slice(-7).reduce((sum: number, t: any) => sum + t.sessions, 0);
+      const previousWeek = aiTrafficDetail.trend.slice(-14, -7).reduce((sum: number, t: any) => sum + t.sessions, 0);
+      if (previousWeek > 0) {
+        const change = ((recentWeek - previousWeek) / previousWeek * 100).toFixed(1);
+        trendInfo = `Trend letzte 7 Tage: ${recentWeek} Sessions (${Number(change) >= 0 ? '+' : ''}${change}% vs Vorwoche)`;
+      }
+    }
+
+    aiTrafficSection = `
+=== KI-TRAFFIC DETAIL-ANALYSE ===
+Gesamt: ${fmt(aiTrafficDetail.totalSessions)} Sessions von ${fmt(aiTrafficDetail.totalUsers)} Nutzern
+Veraenderung: ${pct(aiTrafficDetail.totalSessionsChange)}
+Durchschn. Engagement: ${aiTrafficDetail.avgEngagementTime?.toFixed(0) || '0'} Sekunden
+Bounce-Rate: ${aiTrafficDetail.bounceRate?.toFixed(1) || '0'}%
+Conversions durch KI-Traffic: ${aiTrafficDetail.conversions || 0}
+${trendInfo}
+
+KI-QUELLEN (woher kommen die Besucher?):
+${aiSources}
+
+TOP LANDINGPAGES (von KI empfohlen):
+${aiLandingPages}
+
+INTERPRETATION:
+- ChatGPT/OpenAI: Nutzer haben ChatGPT gefragt und wurden hierher verwiesen
+- Perplexity: KI-Suchmaschine hat diese Seite als Quelle zitiert
+- Gemini/Bard: Google's KI hat auf diese Inhalte verwiesen
+- Copilot: Microsoft's KI-Assistent hat hierher verlinkt
+
+WICHTIG: Seiten mit hohem KI-Traffic und niedriger Bounce-Rate sind besonders wertvoll!
+`;
+  } else if (data.aiTraffic && data.aiTraffic.totalSessions > 0) {
+    // Fallback auf Basis-Daten wenn Extended nicht verfügbar
+    aiTrafficSection = `
+=== KI-TRAFFIC (Basis) ===
+Gesamt: ${fmt(data.aiTraffic.totalSessions)} Sessions von ${fmt(data.aiTraffic.totalUsers)} Nutzern
+Top-Quellen: ${data.aiTraffic.topAiSources?.slice(0, 3).map(s => `${s.source} (${s.sessions})`).join(', ') || 'Keine'}
+`;
+  }
 
   return `
 PROJEKT: ${user.domain || 'Unbekannt'}
@@ -73,7 +166,7 @@ Impressionen: ${fmt(kpis.impressions?.value)} (${pct(kpis.impressions?.change)})
 Conversions: ${fmt(kpis.conversions?.value)} (${pct(kpis.conversions?.change)})
 Interaktionsrate: ${kpis.engagementRate?.value?.toFixed(1) ?? '0'}%
 Bounce Rate: ${kpis.bounceRate?.value?.toFixed(1) ?? '0'}%
-${aiInfo}
+${aiTrafficSection}
 === TOP KEYWORDS ===
 ${topKeywords}
 
@@ -83,20 +176,20 @@ ${seoChances}
 === TOP CONVERTING PAGES ===
 ${topPages}
 
-=== TRAFFIC-KANÄLE ===
+=== TRAFFIC-KANAELE ===
 ${channels}
 `.trim();
 }
 
 // ============================================================================
-// SUGGESTED QUESTIONS GENERATOR
+// SUGGESTED QUESTIONS GENERATOR (Erweitert)
 // ============================================================================
 
-function generateSuggestedQuestions(data: ProjectDashboardData): string[] {
+function generateSuggestedQuestions(data: ProjectDashboardData, aiTrafficDetail?: any): string[] {
   const questions: string[] = [];
   const kpis = data.kpis;
 
-  // Basierend auf Daten-Anomalien (nur wenn kpis vorhanden)
+  // Basierend auf Daten-Anomalien
   if (kpis) {
     if (kpis.conversions?.change && kpis.conversions.change < -10) {
       questions.push('Warum sind meine Conversions gesunken?');
@@ -106,9 +199,21 @@ function generateSuggestedQuestions(data: ProjectDashboardData): string[] {
     }
   }
   
-  if (data.aiTraffic && data.aiTraffic.totalSessions > 50) {
+  // ✅ NEU: KI-Traffic spezifische Fragen
+  if (aiTrafficDetail && aiTrafficDetail.totalSessions > 50) {
+    questions.push('Welche Seiten werden von KI-Systemen empfohlen?');
+    
+    if (aiTrafficDetail.conversions > 0) {
+      questions.push('Wie viele Conversions kommen durch KI-Traffic?');
+    }
+    
+    if (aiTrafficDetail.sources?.length > 1) {
+      questions.push('Welche KI-Plattform bringt den besten Traffic?');
+    }
+  } else if (data.aiTraffic && data.aiTraffic.totalSessions > 50) {
     questions.push('Erklaere meinen KI-Traffic genauer');
   }
+  
   if (data.topQueries?.some(q => q.position >= 4 && q.position <= 10)) {
     questions.push('Welche Keywords sollte ich priorisieren?');
   }
@@ -144,7 +249,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Nachricht fehlt' }, { status: 400 });
     }
 
-    // 2. Ziel-User bestimmen (eigenes Projekt oder Admin-Zugriff)
+    // 2. Ziel-User bestimmen
     const userId = session.user.id;
     const userRole = session.user.role;
     let targetUserId = projectId || userId;
@@ -179,16 +284,38 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Keine Projektdaten verfügbar' }, { status: 400 });
     }
 
-    // 5. Kontext bauen
-    const context = buildChatContext(dashboardData, user, dateRange);
-    const suggestedQuestions = generateSuggestedQuestions(dashboardData);
+    // =========================================================================
+    // ✅ NEU: Extended AI Traffic Daten laden
+    // =========================================================================
+    let aiTrafficDetail = null;
+    
+    if (user.ga4_property_id) {
+      try {
+        const dateRanges = getDateRanges(dateRange);
+        aiTrafficDetail = await getAiTrafficDetailWithComparison(
+          user.ga4_property_id,
+          dateRanges.current.start,
+          dateRanges.current.end,
+          dateRanges.previous.start,
+          dateRanges.previous.end
+        );
+        console.log('[DataMax Chat] Extended AI Traffic geladen:', aiTrafficDetail?.totalSessions, 'Sessions');
+      } catch (e) {
+        console.warn('[DataMax Chat] Extended AI Traffic nicht verfügbar:', e);
+        // Kein Fehler werfen - wir nutzen dann die Basis-Daten
+      }
+    }
+
+    // 5. Kontext bauen (mit Extended AI Traffic)
+    const context = buildChatContext(dashboardData, user, dateRange, aiTrafficDetail);
+    const suggestedQuestions = generateSuggestedQuestions(dashboardData, aiTrafficDetail);
 
     // 6. System-Prompt
     const isAdmin = userRole === 'ADMIN' || userRole === 'SUPERADMIN';
     
     const systemPrompt = `Du bist "DataMax", ein freundlicher aber kompetenter SEO- und Analytics-Experte.
 
-DEINE PERSÖNLICHKEIT:
+DEINE PERSOENLICHKEIT:
 - Praezise und datengetrieben
 - Gibst konkrete, umsetzbare Empfehlungen
 - Erklaerst komplexe Zusammenhaenge verstaendlich
@@ -200,21 +327,24 @@ ${context}
 REGELN:
 1. Beziehe dich IMMER auf die konkreten Zahlen oben
 2. Gib maximal 3-4 Empfehlungen pro Antwort
-3. Sei praegnant (max. 200 Woerter, ausser explizit mehr gewuenscht)
+3. Sei praegnant (max. 250 Woerter, ausser explizit mehr gewuenscht)
 4. Bei Fragen ausserhalb deines Datenbereichs: Sage ehrlich, dass du das nicht weisst
 5. Formatiere mit **fett** fuer wichtige Zahlen und Begriffe
 6. Nutze Aufzaehlungen fuer Empfehlungen
+7. Bei KI-Traffic Fragen: Erklaere welche Seiten von welchen KI-Systemen empfohlen werden
 
 ${isAdmin ? `
 ADMIN-MODUS AKTIV:
 - Du kannst technische Details und API-Daten erwaehnen
 - Erwaehne auch negative Trends offen
 - Schlage auch komplexere SEO-Massnahmen vor
+- Analysiere KI-Traffic im Detail (Quellen, Landingpages, Conversions)
 ` : `
 KUNDEN-MODUS AKTIV:
 - Erklaere Fachbegriffe kurz
 - Fokussiere auf positive Entwicklungen, aber sei ehrlich
 - Halte Empfehlungen einfach umsetzbar
+- Bei KI-Traffic: Erklaere es als "Ihre Inhalte werden von KI-Assistenten empfohlen"
 `}`;
 
     // 7. Stream-Response
@@ -224,7 +354,7 @@ KUNDEN-MODUS AKTIV:
       temperature: 0.7,
     });
 
-    // ✅ FIX: Base64-Encoding für Header (non-ASCII Zeichen vermeiden)
+    // Base64-Encoding für Header
     const questionsBase64 = Buffer.from(JSON.stringify(suggestedQuestions), 'utf-8').toString('base64');
     
     const response = result.toTextStreamResponse();
@@ -267,13 +397,32 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ questions: [] });
     }
 
+    const user = parseResult.data;
+
     // Daten laden
-    const dashboardData = await getOrFetchGoogleData(parseResult.data, dateRange);
+    const dashboardData = await getOrFetchGoogleData(user, dateRange);
     if (!dashboardData) {
       return NextResponse.json({ questions: [] });
     }
 
-    const questions = generateSuggestedQuestions(dashboardData);
+    // Extended AI Traffic für bessere Fragen
+    let aiTrafficDetail = null;
+    if (user.ga4_property_id) {
+      try {
+        const dateRanges = getDateRanges(dateRange);
+        aiTrafficDetail = await getAiTrafficDetailWithComparison(
+          user.ga4_property_id,
+          dateRanges.current.start,
+          dateRanges.current.end,
+          dateRanges.previous.start,
+          dateRanges.previous.end
+        );
+      } catch {
+        // Ignore - nutzen Basis-Daten
+      }
+    }
+
+    const questions = generateSuggestedQuestions(dashboardData, aiTrafficDetail);
     return NextResponse.json({ questions });
 
   } catch (error) {
