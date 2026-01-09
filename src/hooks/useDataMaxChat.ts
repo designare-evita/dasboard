@@ -87,12 +87,16 @@ export function useDataMaxChat(options: UseDataMaxChatOptions = {}) {
         throw new Error(errorData.error || `Fehler: ${response.status}`);
       }
 
-      // Suggested Questions aus Header extrahieren
+      // Suggested Questions aus Header extrahieren (Base64 encoded)
       const suggestedHeader = response.headers.get('X-Suggested-Questions');
       if (suggestedHeader) {
         try {
-          setSuggestedQuestions(JSON.parse(suggestedHeader));
-        } catch {}
+          // Base64 decodieren
+          const decoded = atob(suggestedHeader);
+          setSuggestedQuestions(JSON.parse(decoded));
+        } catch {
+          console.warn('Konnte Suggested Questions nicht decodieren');
+        }
       }
 
       // Stream lesen
