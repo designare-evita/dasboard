@@ -18,6 +18,16 @@ function buildChatContext(data: ProjectDashboardData, user: User, dateRange: str
   const fmt = (val?: number) => val?.toLocaleString('de-DE') ?? '0';
   const pct = (val?: number) => val ? `${val > 0 ? '+' : ''}${val.toFixed(1)}%` : '0%';
 
+  // Early return wenn keine KPIs vorhanden
+  if (!kpis) {
+    return `
+PROJEKT: ${user.domain || 'Unbekannt'}
+ZEITRAUM: ${dateRange}
+
+Keine Daten verfügbar. Bitte stelle sicher, dass GA4 und GSC korrekt konfiguriert sind.
+`.trim();
+  }
+
   // Top Keywords (max 10)
   const topKeywords = data.topQueries?.slice(0, 10)
     .map(q => `"${q.query}" (Pos: ${q.position.toFixed(1)}, Klicks: ${q.clicks})`)
@@ -85,13 +95,16 @@ function generateSuggestedQuestions(data: ProjectDashboardData): string[] {
   const questions: string[] = [];
   const kpis = data.kpis;
 
-  // Basierend auf Daten-Anomalien
-  if (kpis.conversions?.change && kpis.conversions.change < -10) {
-    questions.push('Warum sind meine Conversions gesunken?');
+  // Basierend auf Daten-Anomalien (nur wenn kpis vorhanden)
+  if (kpis) {
+    if (kpis.conversions?.change && kpis.conversions.change < -10) {
+      questions.push('Warum sind meine Conversions gesunken?');
+    }
+    if (kpis.clicks?.change && kpis.clicks.change > 20) {
+      questions.push('Was hat den Klick-Anstieg verursacht?');
+    }
   }
-  if (kpis.clicks?.change && kpis.clicks.change > 20) {
-    questions.push('Was hat den Klick-Anstieg verursacht?');
-  }
+  
   if (data.aiTraffic && data.aiTraffic.totalSessions > 50) {
     questions.push('Erkläre meinen KI-Traffic genauer');
   }
