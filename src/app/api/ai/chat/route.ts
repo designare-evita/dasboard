@@ -1,5 +1,5 @@
 // src/app/api/ai/chat/route.ts
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { sql } from '@vercel/postgres';
 import { getOrFetchGoogleData } from '@/lib/google-data-loader';
@@ -8,6 +8,7 @@ import { UserSchema, type User } from '@/lib/schemas';
 import type { ProjectDashboardData } from '@/lib/dashboard-shared';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 // ============================================================================
 // KONTEXT-BUILDER
@@ -70,8 +71,8 @@ Sessions: ${fmt(kpis.sessions?.value)} (${pct(kpis.sessions?.change)})
 Klicks (GSC): ${fmt(kpis.clicks?.value)} (${pct(kpis.clicks?.change)})
 Impressionen: ${fmt(kpis.impressions?.value)} (${pct(kpis.impressions?.change)})
 Conversions: ${fmt(kpis.conversions?.value)} (${pct(kpis.conversions?.change)})
-Interaktionsrate: ${kpis.engagementRate?.value?.toFixed(1)}%
-Bounce Rate: ${kpis.bounceRate?.value?.toFixed(1)}%
+Interaktionsrate: ${kpis.engagementRate?.value?.toFixed(1) ?? '0'}%
+Bounce Rate: ${kpis.bounceRate?.value?.toFixed(1) ?? '0'}%
 ${aiInfo}
 === TOP KEYWORDS ===
 ${topKeywords}
@@ -106,7 +107,7 @@ function generateSuggestedQuestions(data: ProjectDashboardData): string[] {
   }
   
   if (data.aiTraffic && data.aiTraffic.totalSessions > 50) {
-    questions.push('Erkläre meinen KI-Traffic genauer');
+    questions.push('Erklaere meinen KI-Traffic genauer');
   }
   if (data.topQueries?.some(q => q.position >= 4 && q.position <= 10)) {
     questions.push('Welche Keywords sollte ich priorisieren?');
@@ -115,7 +116,7 @@ function generateSuggestedQuestions(data: ProjectDashboardData): string[] {
   // Fallback-Fragen
   if (questions.length < 3) {
     questions.push('Wie kann ich meine Conversion-Rate verbessern?');
-    questions.push('Was sind meine größten SEO-Chancen?');
+    questions.push('Was sind meine groessten SEO-Chancen?');
     questions.push('Gib mir 3 konkrete Empfehlungen');
   }
 
@@ -123,21 +124,24 @@ function generateSuggestedQuestions(data: ProjectDashboardData): string[] {
 }
 
 // ============================================================================
-// MAIN HANDLER
+// POST HANDLER
 // ============================================================================
 
 export async function POST(req: NextRequest) {
+  console.log('[DataMax Chat] POST Request erhalten');
+  
   try {
     // 1. Auth
     const session = await auth();
     if (!session?.user?.email) {
-      return Response.json({ error: 'Nicht autorisiert' }, { status: 401 });
+      return NextResponse.json({ error: 'Nicht autorisiert' }, { status: 401 });
     }
 
-    const { message, projectId, dateRange = '30d' } = await req.json();
+    const body = await req.json();
+    const { message, projectId, dateRange = '30d' } = body;
 
     if (!message || typeof message !== 'string') {
-      return Response.json({ error: 'Nachricht fehlt' }, { status: 400 });
+      return NextResponse.json({ error: 'Nachricht fehlt' }, { status: 400 });
     }
 
     // 2. Ziel-User bestimmen (eigenes Projekt oder Admin-Zugriff)
@@ -152,26 +156,27 @@ export async function POST(req: NextRequest) {
         WHERE user_id::text = ${userId} AND project_id::text = ${targetUserId}
       `;
       if (assignments.length === 0) {
-        return Response.json({ error: 'Zugriff verweigert' }, { status: 403 });
+        return NextResponse.json({ error: 'Zugriff verweigert' }, { status: 403 });
       }
     }
 
     // 3. User-Daten laden
     const { rows } = await sql`SELECT * FROM users WHERE id::text = ${targetUserId}`;
     if (rows.length === 0) {
-      return Response.json({ error: 'Projekt nicht gefunden' }, { status: 404 });
+      return NextResponse.json({ error: 'Projekt nicht gefunden' }, { status: 404 });
     }
 
     const parseResult = UserSchema.safeParse(rows[0]);
     if (!parseResult.success) {
-      return Response.json({ error: 'Daten fehlerhaft' }, { status: 500 });
+      console.error('[DataMax Chat] User Parse Error:', parseResult.error);
+      return NextResponse.json({ error: 'Daten fehlerhaft' }, { status: 500 });
     }
     const user = parseResult.data;
 
     // 4. Dashboard-Daten laden (aus Cache)
     const dashboardData = await getOrFetchGoogleData(user, dateRange);
     if (!dashboardData) {
-      return Response.json({ error: 'Keine Projektdaten verfügbar' }, { status: 400 });
+      return NextResponse.json({ error: 'Keine Projektdaten verfügbar' }, { status: 400 });
     }
 
     // 5. Kontext bauen
@@ -184,9 +189,9 @@ export async function POST(req: NextRequest) {
     const systemPrompt = `Du bist "DataMax", ein freundlicher aber kompetenter SEO- und Analytics-Experte.
 
 DEINE PERSÖNLICHKEIT:
-- Präzise und datengetrieben
+- Praezise und datengetrieben
 - Gibst konkrete, umsetzbare Empfehlungen
-- Erklärst komplexe Zusammenhänge verständlich
+- Erklaerst komplexe Zusammenhaenge verstaendlich
 - ${isAdmin ? 'Sprichst technisch mit SEO-Fachbegriffen' : 'Sprichst kundenfreundlich ohne zu viel Fachjargon'}
 
 KONTEXT - AKTUELLE PROJEKTDATEN:
@@ -195,19 +200,19 @@ ${context}
 REGELN:
 1. Beziehe dich IMMER auf die konkreten Zahlen oben
 2. Gib maximal 3-4 Empfehlungen pro Antwort
-3. Sei prägnant (max. 200 Wörter, außer explizit mehr gewünscht)
-4. Bei Fragen außerhalb deines Datenbereichs: Sage ehrlich, dass du das nicht weißt
-5. Formatiere mit **fett** für wichtige Zahlen und Begriffe
-6. Nutze Aufzählungen für Empfehlungen
+3. Sei praegnant (max. 200 Woerter, ausser explizit mehr gewuenscht)
+4. Bei Fragen ausserhalb deines Datenbereichs: Sage ehrlich, dass du das nicht weisst
+5. Formatiere mit **fett** fuer wichtige Zahlen und Begriffe
+6. Nutze Aufzaehlungen fuer Empfehlungen
 
 ${isAdmin ? `
 ADMIN-MODUS AKTIV:
-- Du kannst technische Details und API-Daten erwähnen
-- Erwähne auch negative Trends offen
-- Schlage auch komplexere SEO-Maßnahmen vor
+- Du kannst technische Details und API-Daten erwaehnen
+- Erwaehne auch negative Trends offen
+- Schlage auch komplexere SEO-Massnahmen vor
 ` : `
 KUNDEN-MODUS AKTIV:
-- Erkläre Fachbegriffe kurz
+- Erklaere Fachbegriffe kurz
 - Fokussiere auf positive Entwicklungen, aber sei ehrlich
 - Halte Empfehlungen einfach umsetzbar
 `}`;
@@ -219,15 +224,17 @@ KUNDEN-MODUS AKTIV:
       temperature: 0.7,
     });
 
-    // Response mit Suggested Questions Header
+    // ✅ FIX: Base64-Encoding für Header (non-ASCII Zeichen vermeiden)
+    const questionsBase64 = Buffer.from(JSON.stringify(suggestedQuestions), 'utf-8').toString('base64');
+    
     const response = result.toTextStreamResponse();
-    response.headers.set('X-Suggested-Questions', JSON.stringify(suggestedQuestions));
+    response.headers.set('X-Suggested-Questions', questionsBase64);
     
     return response;
 
   } catch (error) {
     console.error('[DataMax Chat] Fehler:', error);
-    return Response.json(
+    return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Interner Fehler' },
       { status: 500 }
     );
@@ -242,7 +249,7 @@ export async function GET(req: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user) {
-      return Response.json({ error: 'Nicht autorisiert' }, { status: 401 });
+      return NextResponse.json({ error: 'Nicht autorisiert' }, { status: 401 });
     }
 
     const { searchParams } = new URL(req.url);
@@ -252,25 +259,25 @@ export async function GET(req: NextRequest) {
     // User laden
     const { rows } = await sql`SELECT * FROM users WHERE id::text = ${projectId}`;
     if (rows.length === 0) {
-      return Response.json({ questions: [] });
+      return NextResponse.json({ questions: [] });
     }
 
     const parseResult = UserSchema.safeParse(rows[0]);
     if (!parseResult.success) {
-      return Response.json({ questions: [] });
+      return NextResponse.json({ questions: [] });
     }
 
     // Daten laden
     const dashboardData = await getOrFetchGoogleData(parseResult.data, dateRange);
     if (!dashboardData) {
-      return Response.json({ questions: [] });
+      return NextResponse.json({ questions: [] });
     }
 
     const questions = generateSuggestedQuestions(dashboardData);
-    return Response.json({ questions });
+    return NextResponse.json({ questions });
 
   } catch (error) {
     console.error('[DataMax Questions] Fehler:', error);
-    return Response.json({ questions: [] });
+    return NextResponse.json({ questions: [] });
   }
 }
