@@ -3,4 +3,4 @@ export { DataMaxChat } from './DataMaxChat';
 export { ChatMessage } from './ChatMessage';
 export { SuggestedQuestions } from './SuggestedQuestions';
 
-export default DataMaxChat;
+export { DataMaxChat as default } from './DataMaxChat';
