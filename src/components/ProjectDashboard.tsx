@@ -16,7 +16,7 @@ import TableauKpiGrid from '@/components/TableauKpiGrid';
 import TableauPieChart from '@/components/charts/TableauPieChart';
 import KpiTrendChart from '@/components/charts/KpiTrendChart';
 import AiTrafficCard from '@/components/AiTrafficCard';
-import AiTrafficDetailWidget from '@/components/AiTrafficDetailWidget'; // ✅ NEU
+import AiTrafficDetailWidget from '@/components/AiTrafficDetailWidget';
 import { type DateRangeOption } from '@/components/DateRangeSelector';
 import TopQueriesList from '@/components/TopQueriesList';
 import SemrushTopKeywords from '@/components/SemrushTopKeywords';
@@ -26,6 +26,9 @@ import ProjectTimelineWidget from '@/components/ProjectTimelineWidget';
 import AiAnalysisWidget from '@/components/AiAnalysisWidget';
 import LandingPageChart from '@/components/charts/LandingPageChart';
 import { aggregateLandingPages } from '@/lib/utils';
+
+// ✅ NEU: DataMax Chat Import
+import { DataMaxChat } from '@/components/datamax';
 
 interface ProjectDashboardProps {
   data: ProjectDashboardData;
@@ -74,7 +77,7 @@ export default function ProjectDashboard({
   const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
   const [isLandingPagesVisible, setIsLandingPagesVisible] = useState(showLandingPagesToCustomer);
   const [isUpdating, setIsUpdating] = useState(false);
-  const [showAiTrafficDetail, setShowAiTrafficDetail] = useState(false); // ✅ NEU: Toggle für Detail-Ansicht
+  const [showAiTrafficDetail, setShowAiTrafficDetail] = useState(false);
   const chartRef = useRef<HTMLDivElement>(null);
   
   useEffect(() => {
@@ -139,7 +142,6 @@ export default function ProjectDashboard({
   const hasKampagne2Config = !!semrushTrackingId02;
   const safeApiErrors = (apiErrors as any) || {};
 
-  // ✅ Prüfen ob KI-Traffic vorhanden ist
   const hasAiTraffic = (data.aiTraffic?.totalSessions ?? 0) > 0;
 
   return (
@@ -222,7 +224,7 @@ export default function ProjectDashboard({
           />
         </div>
         
-        {/* ✅ ANGEPASST: KI-Traffic Sektion mit Toggle für Detail-Ansicht */}
+        {/* KI-Traffic Sektion mit Toggle für Detail-Ansicht */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mt-6 print-traffic-grid">
           <div className="xl:col-span-1 print-ai-card">
             <AiTrafficCard 
@@ -255,7 +257,7 @@ export default function ProjectDashboard({
           </div>
         </div>
 
-        {/* ✅ NEU: KI-Traffic Detail-Ansicht (ausklappbar) */}
+        {/* KI-Traffic Detail-Ansicht (ausklappbar) */}
         {showAiTrafficDetail && hasAiTraffic && (
           <div className="mt-6 animate-in slide-in-from-top-4 duration-300 print:hidden">
             <AiTrafficDetailWidget 
@@ -329,6 +331,9 @@ export default function ProjectDashboard({
         )}
 
       </div>
+
+      {/* ✅ NEU: DataMax Chat - Floating Button unten rechts */}
+      <DataMaxChat projectId={projectId} dateRange={dateRange} />
 
       {/* Animation Styles */}
       <style jsx global>{`
