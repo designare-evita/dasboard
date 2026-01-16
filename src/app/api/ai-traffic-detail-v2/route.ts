@@ -26,15 +26,16 @@ export async function GET(request: NextRequest) {
     let ga4PropertyId: string | null = null;
 
     if (projectId) {
-      // Projekt-spezifisch
+      // KORREKTUR: Projekte sind technisch User-Einträge in der 'users'-Tabelle.
+      // Wir fragen daher die 'users'-Tabelle ab, nicht 'projects'.
       const { rows: projectRows } = await sql`
-        SELECT ga4_property_id FROM projects WHERE id = ${projectId}::uuid
+        SELECT ga4_property_id FROM users WHERE id = ${projectId}::uuid
       `;
       if (projectRows.length > 0) {
         ga4PropertyId = projectRows[0].ga4_property_id;
       }
     } else {
-      // User-basiert
+      // User-basiert (Fallback auf den aktuell eingeloggten User)
       const { rows: userRows } = await sql`
         SELECT ga4_property_id FROM users WHERE email = ${session.user.email}
       `;
@@ -44,19 +45,18 @@ export async function GET(request: NextRequest) {
     }
 
     if (!ga4PropertyId) {
+      console.warn(`[AI Traffic V2] No GA4 Property ID found. ProjectId: ${projectId}, User: ${session.user.email}`);
       return NextResponse.json({ 
-        error: 'GA4 Property nicht konfiguriert',
-        data: null 
-      }, { status: 200 });
+        data: null, 
+        error: 'Keine GA4 Property ID gefunden' 
+      });
     }
 
-    // Datumsbereich berechnen
+    // Datumsberechnung
     const end = new Date();
-    end.setDate(end.getDate() - 1); // Gestern (vollständige Daten)
-    
-    const start = new Date(end);
+    const start = new Date();
     let days = 30;
-    
+
     switch (dateRange) {
       case '7d': days = 7; break;
       case '30d': days = 30; break;
@@ -79,8 +79,8 @@ export async function GET(request: NextRequest) {
     const prevEndStr = prevEnd.toISOString().split('T')[0];
 
     console.log(`[AI Traffic V2] Loading data for ${ga4PropertyId}`);
-    console.log(`[AI Traffic V2] Current: ${currentStartStr} - ${currentEndStr}`);
-    console.log(`[AI Traffic V2] Previous: ${prevStartStr} - ${prevEndStr}`);
+    // console.log(`[AI Traffic V2] Current: ${currentStartStr} - ${currentEndStr}`);
+    // console.log(`[AI Traffic V2] Previous: ${prevStartStr} - ${prevEndStr}`);
 
     // Daten laden (mit Vergleich)
     const data = await getAiTrafficExtendedWithComparison(
@@ -103,9 +103,9 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('[AI Traffic V2 API] Error:', error);
-    return NextResponse.json({ 
-      error: error instanceof Error ? error.message : 'Unbekannter Fehler',
-      data: null
-    }, { status: 500 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Internal Server Error' },
+      { status: 500 }
+    );
   }
 }
