@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+// Wir nutzen hier den absoluten Pfad mit @, um sicherzustellen, dass die Datei gefunden wird
 import AiTrafficDetailCardV2 from '@/components/AiTrafficDetailCardV2';
 import type { AiTrafficExtendedData } from '@/lib/ai-traffic-extended-v2';
 
@@ -34,15 +35,16 @@ export default function AiTrafficDetailWidgetV2({
       console.log('[AiTrafficDetailWidgetV2] Fetching:', url);
       
       const response = await fetch(url);
-      const responseText = await response.text();
       
-      let result;
-      try {
-        result = JSON.parse(responseText);
-      } catch (parseError) {
-        console.error('[AiTrafficDetailWidgetV2] JSON Parse Error:', parseError);
-        throw new Error('Ungültige Server-Antwort');
+      // Fehlerbehandlung für nicht-JSON Antworten (z.B. 404 oder 500 HTML Seiten)
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+         const text = await response.text();
+         console.error('[AiTrafficDetailWidgetV2] Ungültige Antwort:', text.substring(0, 100));
+         throw new Error(`Server lieferte kein JSON (Status: ${response.status})`);
       }
+
+      const result = await response.json();
 
       if (!response.ok) {
         throw new Error(result.error || `HTTP ${response.status}`);
