@@ -294,18 +294,18 @@ export async function getAnalyticsData(
 
   // Default-Werte
   const defaultData: DateRangeData = { total: 0, daily: [] };
-  const result: Ga4ExtendedData = {
-    sessions: { ...defaultData },
-    totalUsers: { ...defaultData },
-    newUsers: { ...defaultData },
-    conversions: { ...defaultData },
-    bounceRate: { ...defaultData },
-    engagementRate: { ...defaultData },
-    avgEngagementTime: { ...defaultData },
-    clicks: { ...defaultData },
-    impressions: { ...defaultData },
-    paidSearch: { ...defaultData }
-  };
+const result: Ga4ExtendedData = {
+  sessions: { total: 0, daily: [] },
+  totalUsers: { total: 0, daily: [] },
+  newUsers: { total: 0, daily: [] },
+  conversions: { total: 0, daily: [] },
+  bounceRate: { total: 0, daily: [] },
+  engagementRate: { total: 0, daily: [] },
+  avgEngagementTime: { total: 0, daily: [] },
+  clicks: { total: 0, daily: [] },
+  impressions: { total: 0, daily: [] },
+  paidSearch: { total: 0, daily: [] }
+};
 
   try {
     // Report mit Tagesaufteilung
