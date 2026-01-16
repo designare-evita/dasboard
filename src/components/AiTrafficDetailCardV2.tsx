@@ -3,29 +3,30 @@
 
 import React, { useState, useMemo } from 'react';
 import { 
-  Cpu, 
-  FunnelFill, 
-  SortDown, 
-  SortUp,
-  FileEarmarkText,
+  Bot, 
+  Filter, 
+  ArrowDown, 
+  ArrowUp,
+  FileText,
   Search,
-  XCircleFill,
-  ArrowRepeat,
-  GraphUpArrow,
-  People,
+  XCircle,
+  RefreshCcw,
+  TrendingUp,
+  Users,
   Clock,
   ChevronDown,
   ChevronUp,
-  ExclamationTriangleFill,
-  InfoCircle,
+  AlertTriangle,
+  Info,
   ArrowRight,
-  Bullseye,
-  BarChartFill,
-  Diagram3,
-  HandIndexThumb,
-  CheckCircleFill,
-  XCircle
-} from 'react-bootstrap-icons';
+  Target,
+  BarChart3,
+  Waypoints, // Für Journey
+  MousePointerClick,
+  CheckCircle2,
+  Sparkles,
+  LayoutGrid
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { 
   ResponsiveContainer, 
@@ -37,10 +38,7 @@ import {
   CartesianGrid,
   BarChart,
   Bar,
-  Cell,
-  PieChart,
-  Pie,
-  Treemap
+  Cell
 } from 'recharts';
 import { format, subDays, subMonths } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -86,7 +84,7 @@ const AI_SOURCE_LABELS: Record<string, string> = {
   'character.ai': 'Character.AI'
 };
 
-type ViewTab = 'overview' | 'intent' | 'journey' | 'pages';
+type ViewTab = 'overview' | 'intent' | 'journey' | 'pages' | 'sources';
 type SortField = 'sessions' | 'users' | 'avgEngagementTime' | 'bounceRate' | 'conversions';
 type SortDirection = 'asc' | 'desc';
 
@@ -173,6 +171,7 @@ const IntentCard: React.FC<{
   >
     <div className="flex items-center justify-between mb-3">
       <div className="flex items-center gap-2">
+        {/* Intent Icon könnte ein Emoji sein, wir lassen es hier dynamisch */}
         <span className="text-xl">{intent.icon}</span>
         <span className="font-semibold text-gray-900">{intent.label}</span>
       </div>
@@ -250,7 +249,7 @@ const JourneyFlowCard: React.FC<{
 
     <div className="flex items-center gap-4 mb-3 text-xs">
       <div className="flex items-center gap-1">
-        <CheckCircleFill className="text-green-500" size={12} />
+        <CheckCircle2 className="text-green-500" size={12} />
         <span className="text-gray-600">Conv: </span>
         <span className="font-semibold">{conversionRate.toFixed(1)}%</span>
       </div>
@@ -350,24 +349,15 @@ export default function AiTrafficDetailCardV2({
     return filtered;
   }, [data?.landingPages, searchTerm, selectedIntent, sortField, sortDirection]);
 
-  // Intent Chart Data
-  const intentChartData = useMemo(() => {
-    if (!data?.intentBreakdown) return [];
-    return data.intentBreakdown.map(item => ({
-      name: item.intent.label,
-      value: item.sessions,
-      fill: item.intent.color,
-      icon: item.intent.icon
-    }));
-  }, [data?.intentBreakdown]);
-
   // Source Chart Data
   const sourceChartData = useMemo(() => {
     if (!data?.sources) return [];
     return data.sources.slice(0, 6).map(s => ({
       name: getSourceLabel(s.source),
+      rawSource: s.source, // Keep raw source for filtering
       sessions: s.sessions,
       users: s.users,
+      engagementRate: s.engagementRate,
       fill: getSourceColor(s.source)
     }));
   }, [data?.sources]);
@@ -413,7 +403,7 @@ export default function AiTrafficDetailCardV2({
     return (
       <div className={cn("bg-white rounded-2xl border border-gray-200 shadow-sm p-6", className)}>
         <div className="flex flex-col items-center justify-center text-center py-8">
-          <ExclamationTriangleFill className="text-red-500 w-12 h-12 mb-4" />
+          <AlertTriangle className="text-red-500 w-12 h-12 mb-4" />
           <h3 className="text-lg font-semibold text-gray-900 mb-2">Fehler beim Laden</h3>
           <p className="text-sm text-gray-500 mb-4 max-w-md">{error}</p>
           {onRefresh && (
@@ -421,7 +411,7 @@ export default function AiTrafficDetailCardV2({
               onClick={onRefresh}
               className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
             >
-              <ArrowRepeat size={16} />
+              <RefreshCcw size={16} />
               Erneut versuchen
             </button>
           )}
@@ -436,7 +426,7 @@ export default function AiTrafficDetailCardV2({
       <div className={cn("bg-white rounded-2xl border border-gray-200 shadow-sm p-6", className)}>
         <div className="flex flex-col items-center justify-center text-center py-12">
           <div className="w-16 h-16 rounded-2xl bg-purple-50 flex items-center justify-center mb-4">
-            <Cpu className="text-purple-400" size={32} />
+            <Bot className="text-purple-400" size={32} />
           </div>
           <h3 className="text-lg font-semibold text-gray-900 mb-2">Keine KI-Traffic Daten</h3>
           <p className="text-sm text-gray-500 max-w-md">
@@ -459,7 +449,7 @@ export default function AiTrafficDetailCardV2({
         <div className="flex items-start justify-between mb-3">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
-              <Cpu className="text-white" size={24} />
+              <Bot className="text-white" size={24} />
             </div>
             <div>
               <h2 className="text-xl font-bold text-gray-900">KI-Traffic Analyse</h2>
@@ -487,7 +477,7 @@ export default function AiTrafficDetailCardV2({
                 onClick={onRefresh}
                 className="text-purple-600 hover:text-purple-700 font-medium flex items-center gap-1"
               >
-                <ArrowRepeat size={12} />
+                <RefreshCcw size={12} />
                 Aktualisieren
               </button>
             </>
@@ -502,7 +492,7 @@ export default function AiTrafficDetailCardV2({
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               <div className="bg-purple-50 rounded-xl p-4 border border-purple-100/50">
                 <div className="flex items-center gap-2 mb-1">
-                  <GraphUpArrow className="text-purple-600" size={16} />
+                  <TrendingUp className="text-purple-600" size={16} />
                   <span className="text-xs font-medium text-purple-700">Sessions</span>
                 </div>
                 <div className="flex items-baseline gap-2">
@@ -522,7 +512,7 @@ export default function AiTrafficDetailCardV2({
 
               <div className="bg-indigo-50 rounded-xl p-4 border border-indigo-100/50">
                 <div className="flex items-center gap-2 mb-1">
-                  <People className="text-indigo-600" size={16} />
+                  <Users className="text-indigo-600" size={16} />
                   <span className="text-xs font-medium text-indigo-700">Nutzer</span>
                 </div>
                 <span className="text-2xl font-bold text-indigo-900">
@@ -542,7 +532,7 @@ export default function AiTrafficDetailCardV2({
 
               <div className="bg-amber-50 rounded-xl p-4 border border-amber-100/50">
                 <div className="flex items-center gap-2 mb-1">
-                  <Bullseye className="text-amber-600" size={16} />
+                  <Target className="text-amber-600" size={16} />
                   <span className="text-xs font-medium text-amber-700">Conversions</span>
                 </div>
                 <span className="text-2xl font-bold text-amber-900">
@@ -552,7 +542,7 @@ export default function AiTrafficDetailCardV2({
 
               <div className="bg-blue-50 rounded-xl p-4 border border-blue-100/50">
                 <div className="flex items-center gap-2 mb-1">
-                  <BarChartFill className="text-blue-600" size={16} />
+                  <BarChart3 className="text-blue-600" size={16} />
                   <span className="text-xs font-medium text-blue-700">Ø Seiten/Session</span>
                 </div>
                 <span className="text-2xl font-bold text-blue-900">
@@ -567,26 +557,32 @@ export default function AiTrafficDetailCardV2({
             <TabButton
               active={activeTab === 'overview'}
               onClick={() => setActiveTab('overview')}
-              icon={<BarChartFill size={14} />}
+              icon={<LayoutGrid size={14} />}
               label="Übersicht"
             />
             <TabButton
               active={activeTab === 'intent'}
               onClick={() => setActiveTab('intent')}
-              icon={<Bullseye size={14} />}
+              icon={<Target size={14} />}
               label="Intent-Analyse"
             />
             <TabButton
               active={activeTab === 'journey'}
               onClick={() => setActiveTab('journey')}
-              icon={<Diagram3 size={14} />}
+              icon={<Waypoints size={14} />}
               label="User-Journey"
             />
             <TabButton
               active={activeTab === 'pages'}
               onClick={() => setActiveTab('pages')}
-              icon={<FileEarmarkText size={14} />}
+              icon={<FileText size={14} />}
               label="Alle Seiten"
+            />
+            <TabButton
+              active={activeTab === 'sources'}
+              onClick={() => setActiveTab('sources')}
+              icon={<Bot size={14} />}
+              label="KI-Quellen"
             />
           </div>
 
@@ -599,7 +595,7 @@ export default function AiTrafficDetailCardV2({
                 {/* Trend Chart */}
                 <div>
                   <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                    <GraphUpArrow size={14} className="text-purple-500" />
+                    <TrendingUp size={14} className="text-purple-500" />
                     Sessions-Trend
                   </h3>
                   <div className="h-48">
@@ -634,21 +630,21 @@ export default function AiTrafficDetailCardV2({
                   </div>
                 </div>
 
-                {/* Source Distribution */}
+                {/* Source Distribution Summary */}
                 <div>
                   <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                    <Cpu size={14} className="text-purple-500" />
-                    KI-Quellen
+                    <Bot size={14} className="text-purple-500" />
+                    Top KI-Quellen
                   </h3>
                   <div className="h-48">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={sourceChartData} layout="vertical">
+                      <BarChart data={sourceChartData.slice(0, 5)} layout="vertical">
                         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" horizontal={false} />
                         <XAxis type="number" tick={{ fontSize: 10, fill: '#6b7280' }} />
                         <YAxis dataKey="name" type="category" tick={{ fontSize: 11, fill: '#374151' }} width={80} />
                         <Tooltip />
                         <Bar dataKey="sessions" radius={[0, 4, 4, 0]}>
-                          {sourceChartData.map((entry, index) => (
+                          {sourceChartData.slice(0, 5).map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={entry.fill} />
                           ))}
                         </Bar>
@@ -660,7 +656,7 @@ export default function AiTrafficDetailCardV2({
                 {/* Intent Overview */}
                 <div className="lg:col-span-2">
                   <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                    <Bullseye size={14} className="text-purple-500" />
+                    <Target size={14} className="text-purple-500" />
                     Intent-Verteilung
                   </h3>
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -675,7 +671,8 @@ export default function AiTrafficDetailCardV2({
                         }}
                       >
                         <div className="flex items-center gap-1.5 mb-1">
-                          <span>{item.intent.icon}</span>
+                          {/* Intent Icon könnte ein String/Emoji sein, daher rendern wir es direkt */}
+                          <span className="text-sm">{item.intent.icon}</span>
                           <span className="text-xs font-medium text-gray-700 truncate">{item.intent.label}</span>
                         </div>
                         <div className="text-lg font-bold text-gray-900">{item.sessions}</div>
@@ -689,7 +686,7 @@ export default function AiTrafficDetailCardV2({
                 {data.userJourney.interactionEvents.length > 0 && (
                   <div className="lg:col-span-2">
                     <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                      <HandIndexThumb size={14} className="text-purple-500" />
+                      <MousePointerClick size={14} className="text-purple-500" />
                       Interaktionen
                     </h3>
                     <div className="flex flex-wrap gap-2">
@@ -805,7 +802,7 @@ export default function AiTrafficDetailCardV2({
                         onClick={() => setSearchTerm('')}
                         className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                       >
-                        <XCircleFill size={16} />
+                        <XCircle size={16} />
                       </button>
                     )}
                   </div>
@@ -818,6 +815,7 @@ export default function AiTrafficDetailCardV2({
                     <option value="">Alle Intents</option>
                     {data.intentBreakdown.map(item => (
                       <option key={item.intent.key} value={item.intent.key}>
+                        {/* Intent Icon als Emoji */}
                         {item.intent.icon} {item.intent.label} ({item.sessions})
                       </option>
                     ))}
@@ -835,19 +833,19 @@ export default function AiTrafficDetailCardV2({
                           className="px-4 py-3 text-right font-semibold cursor-pointer hover:text-purple-600"
                           onClick={() => handleSort('sessions')}
                         >
-                          Sessions {sortField === 'sessions' && (sortDirection === 'desc' ? '↓' : '↑')}
+                          Sessions {sortField === 'sessions' && (sortDirection === 'desc' ? <ArrowDown size={12} className="inline"/> : <ArrowUp size={12} className="inline"/>)}
                         </th>
                         <th 
                           className="px-4 py-3 text-right font-semibold cursor-pointer hover:text-purple-600"
                           onClick={() => handleSort('avgEngagementTime')}
                         >
-                          Ø Zeit {sortField === 'avgEngagementTime' && (sortDirection === 'desc' ? '↓' : '↑')}
+                          Ø Zeit {sortField === 'avgEngagementTime' && (sortDirection === 'desc' ? <ArrowDown size={12} className="inline"/> : <ArrowUp size={12} className="inline"/>)}
                         </th>
                         <th 
                           className="px-4 py-3 text-right font-semibold cursor-pointer hover:text-purple-600"
                           onClick={() => handleSort('conversions')}
                         >
-                          Conv. {sortField === 'conversions' && (sortDirection === 'desc' ? '↓' : '↑')}
+                          Conv. {sortField === 'conversions' && (sortDirection === 'desc' ? <ArrowDown size={12} className="inline"/> : <ArrowUp size={12} className="inline"/>)}
                         </th>
                       </tr>
                     </thead>
@@ -911,12 +909,93 @@ export default function AiTrafficDetailCardV2({
                 </div>
               </div>
             )}
+
+            {/* SOURCES TAB (NEU) */}
+            {activeTab === 'sources' && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                
+                {/* Detail Chart */}
+                <div className="bg-gray-50 rounded-xl p-5 border border-gray-100">
+                  <h3 className="text-sm font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                    <BarChart3 size={14} className="text-purple-500" />
+                    Verteilung der KI-Quellen
+                  </h3>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={sourceChartData} layout="vertical" margin={{ left: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" horizontal={false} />
+                        <XAxis type="number" tick={{ fontSize: 10, fill: '#6b7280' }} />
+                        <YAxis dataKey="name" type="category" tick={{ fontSize: 11, fill: '#374151', fontWeight: 500 }} width={100} />
+                        <Tooltip 
+                          cursor={{ fill: 'rgba(0,0,0,0.05)' }}
+                          contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                        />
+                        <Bar dataKey="sessions" radius={[0, 4, 4, 0]} barSize={20}>
+                          {sourceChartData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.fill} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Source Table */}
+                <div>
+                   <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                    <Sparkles size={14} className="text-amber-500" />
+                    Performance nach Plattform
+                  </h3>
+                  <div className="overflow-hidden rounded-xl border border-gray-100">
+                    <table className="w-full">
+                      <thead className="bg-gray-50 text-xs text-gray-500">
+                        <tr>
+                          <th className="px-4 py-2 text-left font-medium">Plattform</th>
+                          <th className="px-4 py-2 text-right font-medium">Sessions</th>
+                          <th className="px-4 py-2 text-right font-medium">Nutzer</th>
+                          <th className="px-4 py-2 text-right font-medium">Eng. Rate</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {sourceChartData.map((source, i) => (
+                          <tr key={i} className="hover:bg-purple-50/30 transition-colors">
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                <div 
+                                  className="w-2 h-2 rounded-full" 
+                                  style={{ backgroundColor: source.fill }}
+                                />
+                                <span className="text-sm font-medium text-gray-900">{source.name}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-right text-sm text-gray-600">
+                              {source.sessions.toLocaleString('de-DE')}
+                            </td>
+                            <td className="px-4 py-3 text-right text-sm text-gray-600">
+                              {source.users.toLocaleString('de-DE')}
+                            </td>
+                            <td className="px-4 py-3 text-right text-sm">
+                              <span className={cn(
+                                "font-medium",
+                                source.engagementRate > 50 ? "text-green-600" : "text-gray-600"
+                              )}>
+                                {source.engagementRate.toFixed(1)}%
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* ===== FOOTER ===== */}
           <div className="px-6 py-4 bg-gray-50 border-t border-gray-100">
             <div className="flex items-start gap-2 text-xs text-gray-500">
-              <InfoCircle size={14} className="text-gray-400 mt-0.5 shrink-0" />
+              <Info size={14} className="text-gray-400 mt-0.5 shrink-0" />
               <p>
                 <strong>Intent-Kategorisierung:</strong> Seiten werden automatisch anhand ihrer URL-Struktur kategorisiert.
                 Die User-Journey zeigt, welche Seiten nach dem KI-Einstieg besucht werden.
