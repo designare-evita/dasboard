@@ -16,7 +16,7 @@ import TableauKpiGrid from '@/components/TableauKpiGrid';
 import TableauPieChart from '@/components/charts/TableauPieChart';
 import KpiTrendChart from '@/components/charts/KpiTrendChart';
 import AiTrafficCard from '@/components/AiTrafficCard';
-import AiTrafficDetailWidget from '@/components/AiTrafficDetailWidget';
+import AiTrafficDetailWidgetV2 from '@/components/AiTrafficDetailWidgetV2';
 import { type DateRangeOption } from '@/components/DateRangeSelector';
 import TopQueriesList from '@/components/TopQueriesList';
 import SemrushTopKeywords from '@/components/SemrushTopKeywords';
