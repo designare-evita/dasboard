@@ -260,7 +260,7 @@ export default function ProjectDashboard({
         {/* KI-Traffic Detail-Ansicht (ausklappbar) */}
         {showAiTrafficDetail && hasAiTraffic && (
           <div className="mt-6 animate-in slide-in-from-top-4 duration-300 print:hidden">
-            <AiTrafficDetailWidget 
+            <AiTrafficDetailWidgetV2 
               projectId={projectId}
               dateRange={dateRange}
             />
