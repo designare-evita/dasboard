@@ -1,9 +1,9 @@
 // src/components/kpi-card.tsx
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { ArrowUp, ArrowDown, ExclamationTriangleFill } from 'react-bootstrap-icons';
-import { ResponsiveContainer, AreaChart, Area } from 'recharts';
+import { ResponsiveContainer, AreaChart, Area, YAxis } from 'recharts';
 import { ChartPoint } from '@/types/dashboard'; 
 
 interface KpiCardProps {
@@ -14,7 +14,7 @@ interface KpiCardProps {
   data?: ChartPoint[];
   color?: string;
   error?: string | null;
-  className?: string; // NEU: Für Styling-Overrides
+  className?: string;
 }
 
 export default function KpiCard({ 
@@ -29,6 +29,27 @@ export default function KpiCard({
 }: KpiCardProps) {
   
   const isPositive = change !== undefined && change >= 0;
+
+  // ✅ FIX: Berechne min/max mit Puffer für korrekte Skalierung
+  const yDomain = useMemo(() => {
+    if (!data || data.length === 0) return [0, 100];
+    
+    const values = data.map(d => d.value);
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    
+    // Falls alle Werte gleich sind, kleinen Bereich erstellen
+    if (min === max) {
+      return [min * 0.9, max * 1.1];
+    }
+    
+    // 10% Puffer oben und unten hinzufügen
+    const padding = (max - min) * 0.1;
+    return [
+      Math.max(0, min - padding), // Nicht unter 0 gehen
+      max + padding
+    ];
+  }, [data]);
 
   if (isLoading) {
     return (
@@ -74,24 +95,36 @@ export default function KpiCard({
             {value.toLocaleString('de-DE')}
           </div>
 
-          {/* ✨ SPARKLINE CHART ✨ */}
+          {/* ✨ SPARKLINE CHART - MIT FIX ✨ */}
           <div className="h-[50px] -mx-2">
             {data && data.length > 1 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={data}>
+                <AreaChart 
+                  data={data}
+                  margin={{ top: 2, right: 2, bottom: 2, left: 2 }}
+                >
                   <defs>
-                    <linearGradient id={`grad-${title}`} x1="0" y1="0" x2="0" y2="1">
+                    <linearGradient id={`grad-${title.replace(/\s+/g, '-')}`} x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor={color} stopOpacity={0.2} />
                       <stop offset="100%" stopColor={color} stopOpacity={0} />
                     </linearGradient>
                   </defs>
+                  
+                  {/* ✅ FIX: Versteckte Y-Achse mit korrekter Domain */}
+                  <YAxis 
+                    domain={yDomain}
+                    hide={true}
+                    allowDataOverflow={false}
+                  />
+                  
                   <Area
                     type="monotone"
                     dataKey="value"
                     stroke={color}
                     strokeWidth={2}
-                    fill={`url(#grad-${title})`}
+                    fill={`url(#grad-${title.replace(/\s+/g, '-')})`}
                     animationDuration={1000}
+                    isAnimationActive={true}
                   />
                 </AreaChart>
               </ResponsiveContainer>
