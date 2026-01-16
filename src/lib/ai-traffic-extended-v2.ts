@@ -11,7 +11,7 @@ import { JWT } from 'google-auth-library';
 export interface IntentCategory {
   key: string;
   label: string;
-  icon: string;
+  icon: string; // Lucide Icon Name (z.B. 'book-open', 'shopping-cart')
   color: string;
   patterns: RegExp[];
 }
@@ -23,6 +23,7 @@ export interface PageIntent {
   users: number;
   conversions: number;
   avgEngagementTime: number;
+  engagementRate: number;
 }
 
 export interface UserJourneyStep {
@@ -38,6 +39,7 @@ export interface UserJourneyData {
   avgPagesPerSession: number;
   avgSessionDuration: number;
   conversionRate: number;
+  engagementRate: number;
   nextPages: Array<{
     path: string;
     sessions: number;
@@ -52,16 +54,17 @@ export interface UserJourneyData {
 }
 
 export interface AiTrafficExtendedData {
-  // Basis-Daten (wie bisher)
+  // Basis-Daten
   totalSessions: number;
   totalUsers: number;
   totalSessionsChange?: number;
   totalUsersChange?: number;
   avgEngagementTime: number;
   bounceRate: number;
+  engagementRate: number; // Globale Interaktionsrate
   conversions: number;
   
-  // NEU: Intent-Analyse
+  // Intent-Analyse
   intentBreakdown: Array<{
     intent: IntentCategory;
     sessions: number;
@@ -69,6 +72,7 @@ export interface AiTrafficExtendedData {
     conversions: number;
     conversionRate: number;
     avgEngagementTime: number;
+    engagementRate: number;
     percentage: number;
     topPages: Array<{
       path: string;
@@ -76,10 +80,11 @@ export interface AiTrafficExtendedData {
     }>;
   }>;
   
-  // NEU: User-Journey Daten
+  // User-Journey Daten
   userJourney: {
     avgPagesPerSession: number;
     avgSessionDuration: number;
+    avgEngagementRate: number;
     topJourneys: UserJourneyData[];
     interactionEvents: Array<{
       eventName: string;
@@ -94,15 +99,17 @@ export interface AiTrafficExtendedData {
     };
   };
   
-  // Bestehende Daten
+  // Quellen-Daten
   sources: Array<{
     source: string;
     sessions: number;
     users: number;
-    engagementRate: number; // ✅ NEU HINZUGEFÜGT
+    engagementRate: number;
     percentage: number;
     topPages: Array<{ path: string; sessions: number }>;
   }>;
+  
+  // Landingpages
   landingPages: Array<{
     path: string;
     intent: IntentCategory;
@@ -110,22 +117,24 @@ export interface AiTrafficExtendedData {
     users: number;
     avgEngagementTime: number;
     bounceRate: number;
+    engagementRate: number;
     conversions: number;
     sources: Array<{ source: string; sessions: number; users: number }>;
   }>;
+  
   trend: Array<{ date: string; sessions: number; users: number }>;
 }
 
 // ============================================================================
-// INTENT-KATEGORIEN (automatische Erkennung)
+// INTENT-KATEGORIEN (mit Lucide Icon-Namen statt Emojis)
 // ============================================================================
 
 export const INTENT_CATEGORIES: IntentCategory[] = [
   {
     key: 'informational',
     label: 'Informational',
-    icon: '📚',
-    color: '#3b82f6', // Blue
+    icon: 'book-open',
+    color: '#3b82f6',
     patterns: [
       /\/blog\//i,
       /\/ratgeber\//i,
@@ -147,8 +156,8 @@ export const INTENT_CATEGORIES: IntentCategory[] = [
   {
     key: 'transactional',
     label: 'Transaktional',
-    icon: '💰',
-    color: '#10b981', // Emerald
+    icon: 'shopping-cart',
+    color: '#10b981',
     patterns: [
       /\/preise/i,
       /\/pricing/i,
@@ -169,8 +178,8 @@ export const INTENT_CATEGORIES: IntentCategory[] = [
   {
     key: 'lead',
     label: 'Lead / Anfrage',
-    icon: '📞',
-    color: '#f59e0b', // Amber
+    icon: 'phone',
+    color: '#f59e0b',
     patterns: [
       /\/kontakt/i,
       /\/contact/i,
@@ -190,8 +199,8 @@ export const INTENT_CATEGORIES: IntentCategory[] = [
   {
     key: 'navigational',
     label: 'Service / Leistung',
-    icon: '🔍',
-    color: '#8b5cf6', // Purple
+    icon: 'compass',
+    color: '#8b5cf6',
     patterns: [
       /\/leistungen/i,
       /\/services/i,
@@ -208,8 +217,8 @@ export const INTENT_CATEGORIES: IntentCategory[] = [
   {
     key: 'brand',
     label: 'Brand / Vertrauen',
-    icon: '🏢',
-    color: '#ec4899', // Pink
+    icon: 'building-2',
+    color: '#ec4899',
     patterns: [
       /\/ueber-uns/i,
       /\/about/i,
@@ -229,8 +238,8 @@ export const INTENT_CATEGORIES: IntentCategory[] = [
   {
     key: 'legal',
     label: 'Rechtliches',
-    icon: '⚖️',
-    color: '#6b7280', // Gray
+    icon: 'scale',
+    color: '#6b7280',
     patterns: [
       /\/impressum/i,
       /\/datenschutz/i,
@@ -248,8 +257,17 @@ export const INTENT_CATEGORIES: IntentCategory[] = [
 export const DEFAULT_INTENT: IntentCategory = {
   key: 'other',
   label: 'Sonstige',
-  icon: '📄',
+  icon: 'file-text',
   color: '#9ca3af',
+  patterns: []
+};
+
+// Homepage Intent
+export const HOMEPAGE_INTENT: IntentCategory = {
+  key: 'homepage',
+  label: 'Homepage',
+  icon: 'home',
+  color: '#0ea5e9',
   patterns: []
 };
 
@@ -291,15 +309,8 @@ function createAuth(): JWT {
  * Ermittelt die Intent-Kategorie für einen Pfad
  */
 export function detectIntent(path: string): IntentCategory {
-  // Homepage ist ein Sonderfall
   if (path === '/' || path === '') {
-    return {
-      key: 'homepage',
-      label: 'Homepage',
-      icon: '🏠',
-      color: '#0ea5e9',
-      patterns: []
-    };
+    return HOMEPAGE_INTENT;
   }
 
   for (const category of INTENT_CATEGORIES) {
@@ -389,7 +400,7 @@ export async function getAiTrafficExtended(
       scrollResponse
     ] = await Promise.all([
       
-      // 1. Hauptdaten: Source + Landingpage + Metriken
+      // 1. Hauptdaten: Source + Landingpage + Metriken (inkl. engagementRate)
       analytics.properties.runReport({
         property: formattedPropertyId,
         requestBody: {
@@ -405,7 +416,7 @@ export async function getAiTrafficExtended(
             { name: 'bounceRate' },
             { name: 'conversions' },
             { name: 'screenPageViewsPerSession' },
-            { name: 'engagementRate' } // ✅ NEU: Engagement Rate abrufen
+            { name: 'engagementRate' }
           ],
           dimensionFilter: aiSourceFilter,
           orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
@@ -447,7 +458,7 @@ export async function getAiTrafficExtended(
         },
       }),
 
-      // 4. Interaktions-Events (clicks, form_submit, etc.)
+      // 4. Interaktions-Events
       analytics.properties.runReport({
         property: formattedPropertyId,
         requestBody: {
@@ -478,7 +489,7 @@ export async function getAiTrafficExtended(
         },
       }),
 
-      // 5. Scroll-Tiefe (falls als Event konfiguriert)
+      // 5. Scroll-Tiefe
       analytics.properties.runReport({
         property: formattedPropertyId,
         requestBody: {
@@ -502,7 +513,7 @@ export async function getAiTrafficExtended(
             }
           }
         },
-      }).catch(() => ({ data: { rows: [] } })) // Falls scroll nicht konfiguriert
+      }).catch(() => ({ data: { rows: [] } }))
     ]);
 
     // =========================================================================
@@ -519,7 +530,7 @@ export async function getAiTrafficExtended(
     const sourceMap = new Map<string, {
       sessions: number;
       users: number;
-      engagementRateWeighted: number; // ✅ NEU: Für gewichteten Durchschnitt
+      engagementRateWeighted: number;
       pages: Map<string, number>;
     }>();
 
@@ -528,9 +539,11 @@ export async function getAiTrafficExtended(
       users: number;
       avgEngagementTime: number;
       bounceRate: number;
+      engagementRate: number;
       conversions: number;
       engagementTimeSum: number;
       bounceRateSum: number;
+      engagementRateSum: number;
       pagesPerSessionSum: number;
       sources: Map<string, { sessions: number; users: number }>;
     }>();
@@ -541,6 +554,7 @@ export async function getAiTrafficExtended(
       users: number;
       conversions: number;
       engagementTimeSum: number;
+      engagementRateSum: number;
       pages: Map<string, number>;
     }>();
 
@@ -548,6 +562,7 @@ export async function getAiTrafficExtended(
     let totalUsers = 0;
     let totalEngagementTimeWeighted = 0;
     let totalBounceRateWeighted = 0;
+    let totalEngagementRateWeighted = 0;
     let totalConversions = 0;
     let totalPagesPerSessionWeighted = 0;
 
@@ -557,7 +572,6 @@ export async function getAiTrafficExtended(
       const source = normalizeSource(rawSource);
       const path = row.dimensionValues?.[1]?.value || '/';
       
-      // Skip (not set)
       if (path === '(not set)' || path === '(not provided)') continue;
       
       const sessions = parseInt(row.metricValues?.[0]?.value || '0', 10);
@@ -566,13 +580,14 @@ export async function getAiTrafficExtended(
       const bounceRate = parseFloat(row.metricValues?.[3]?.value || '0');
       const conversions = parseInt(row.metricValues?.[4]?.value || '0', 10);
       const pagesPerSession = parseFloat(row.metricValues?.[5]?.value || '0');
-      const engagementRate = parseFloat(row.metricValues?.[6]?.value || '0'); // ✅ NEU
+      const engagementRate = parseFloat(row.metricValues?.[6]?.value || '0');
 
       // Totals
       totalSessions += sessions;
       totalUsers += users;
       totalEngagementTimeWeighted += avgEngTime * sessions;
       totalBounceRateWeighted += bounceRate * sessions;
+      totalEngagementRateWeighted += engagementRate * sessions;
       totalConversions += conversions;
       totalPagesPerSessionWeighted += pagesPerSession * sessions;
 
@@ -585,6 +600,7 @@ export async function getAiTrafficExtended(
           users: 0,
           conversions: 0,
           engagementTimeSum: 0,
+          engagementRateSum: 0,
           pages: new Map()
         });
       }
@@ -593,21 +609,22 @@ export async function getAiTrafficExtended(
       intentData.users += users;
       intentData.conversions += conversions;
       intentData.engagementTimeSum += avgEngTime * sessions;
+      intentData.engagementRateSum += engagementRate * sessions;
       intentData.pages.set(path, (intentData.pages.get(path) || 0) + sessions);
 
       // Source aggregieren
       if (!sourceMap.has(source)) {
         sourceMap.set(source, { 
-            sessions: 0, 
-            users: 0, 
-            engagementRateWeighted: 0, 
-            pages: new Map() 
+          sessions: 0, 
+          users: 0, 
+          engagementRateWeighted: 0, 
+          pages: new Map() 
         });
       }
       const sourceData = sourceMap.get(source)!;
       sourceData.sessions += sessions;
       sourceData.users += users;
-      sourceData.engagementRateWeighted += engagementRate * sessions; // Gewichtet aufsummieren
+      sourceData.engagementRateWeighted += engagementRate * sessions;
       sourceData.pages.set(path, (sourceData.pages.get(path) || 0) + sessions);
 
       // Page aggregieren
@@ -617,9 +634,11 @@ export async function getAiTrafficExtended(
           users: 0,
           avgEngagementTime: 0,
           bounceRate: 0,
+          engagementRate: 0,
           conversions: 0,
           engagementTimeSum: 0,
           bounceRateSum: 0,
+          engagementRateSum: 0,
           pagesPerSessionSum: 0,
           sources: new Map()
         });
@@ -629,6 +648,7 @@ export async function getAiTrafficExtended(
       pageData.users += users;
       pageData.engagementTimeSum += avgEngTime * sessions;
       pageData.bounceRateSum += bounceRate * sessions;
+      pageData.engagementRateSum += engagementRate * sessions;
       pageData.conversions += conversions;
       pageData.pagesPerSessionSum += pagesPerSession * sessions;
 
@@ -648,7 +668,7 @@ export async function getAiTrafficExtended(
       const sessions = parseInt(row.metricValues?.[0]?.value || '0', 10);
 
       if (landingPage === '(not set)' || nextPage === '(not set)') continue;
-      if (landingPage === nextPage) continue; // Gleiche Seite überspringen
+      if (landingPage === nextPage) continue;
 
       if (!journeyMap.has(landingPage)) {
         journeyMap.set(landingPage, new Map());
@@ -679,8 +699,9 @@ export async function getAiTrafficExtended(
           avgPagesPerSession: data.sessions > 0 ? data.pagesPerSessionSum / data.sessions : 0,
           avgSessionDuration: data.sessions > 0 ? data.engagementTimeSum / data.sessions : 0,
           conversionRate: data.sessions > 0 ? (data.conversions / data.sessions) * 100 : 0,
+          engagementRate: data.sessions > 0 ? (data.engagementRateSum / data.sessions) * 100 : 0,
           nextPages,
-          exitPages: [], // Könnte mit separatem Report gefüllt werden
+          exitPages: [],
           journeySteps: []
         };
       });
@@ -715,6 +736,7 @@ export async function getAiTrafficExtended(
 
     const avgEngagementTime = totalSessions > 0 ? totalEngagementTimeWeighted / totalSessions : 0;
     const avgBounceRate = totalSessions > 0 ? (totalBounceRateWeighted / totalSessions) * 100 : 0;
+    const avgEngagementRate = totalSessions > 0 ? (totalEngagementRateWeighted / totalSessions) * 100 : 0;
     const avgPagesPerSession = totalSessions > 0 ? totalPagesPerSessionWeighted / totalSessions : 0;
 
     // Intent Breakdown
@@ -726,6 +748,7 @@ export async function getAiTrafficExtended(
         conversions: data.conversions,
         conversionRate: data.sessions > 0 ? (data.conversions / data.sessions) * 100 : 0,
         avgEngagementTime: data.sessions > 0 ? data.engagementTimeSum / data.sessions : 0,
+        engagementRate: data.sessions > 0 ? (data.engagementRateSum / data.sessions) * 100 : 0,
         percentage: totalSessions > 0 ? (data.sessions / totalSessions) * 100 : 0,
         topPages: Array.from(data.pages.entries())
           .sort((a, b) => b[1] - a[1])
@@ -740,7 +763,7 @@ export async function getAiTrafficExtended(
         source,
         sessions: data.sessions,
         users: data.users,
-        engagementRate: data.sessions > 0 ? (data.engagementRateWeighted / data.sessions) * 100 : 0, // ✅ Berechnung
+        engagementRate: data.sessions > 0 ? (data.engagementRateWeighted / data.sessions) * 100 : 0,
         percentage: totalSessions > 0 ? (data.sessions / totalSessions) * 100 : 0,
         topPages: Array.from(data.pages.entries())
           .sort((a, b) => b[1] - a[1])
@@ -758,6 +781,7 @@ export async function getAiTrafficExtended(
         users: data.users,
         avgEngagementTime: data.sessions > 0 ? data.engagementTimeSum / data.sessions : 0,
         bounceRate: data.sessions > 0 ? (data.bounceRateSum / data.sessions) * 100 : 0,
+        engagementRate: data.sessions > 0 ? (data.engagementRateSum / data.sessions) * 100 : 0,
         conversions: data.conversions,
         sources: Array.from(data.sources.entries())
           .map(([source, sourceData]) => ({
@@ -781,11 +805,13 @@ export async function getAiTrafficExtended(
       totalUsers,
       avgEngagementTime,
       bounceRate: avgBounceRate,
+      engagementRate: avgEngagementRate,
       conversions: totalConversions,
       intentBreakdown,
       userJourney: {
         avgPagesPerSession,
         avgSessionDuration: avgEngagementTime,
+        avgEngagementRate,
         topJourneys,
         interactionEvents,
         scrollDepth
