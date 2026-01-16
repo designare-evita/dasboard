@@ -1,9 +1,9 @@
 // src/components/tableau-kpi-card.tsx
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { ExclamationTriangleFill, InfoCircle } from 'react-bootstrap-icons';
-import { ResponsiveContainer, AreaChart, Area } from 'recharts';
+import { ResponsiveContainer, AreaChart, Area, YAxis } from 'recharts';
 import { ChartPoint } from '@/lib/dashboard-shared';
 
 interface TableauKpiCardProps {
@@ -46,21 +46,48 @@ export default function TableauKpiCard({
 }: TableauKpiCardProps) {
 
   const isPositive = change !== undefined && change >= 0;
-  const gradientId = `tableau-grad-${title.replace(/\s+/g, '-').toLowerCase()}`;
+  
+  // ✅ FIX: Eindeutige ID mit Timestamp/Random für garantierte Einzigartigkeit
+  const uniqueId = useMemo(() => {
+    const sanitizedTitle = title.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
+    const randomSuffix = Math.random().toString(36).substring(2, 8);
+    return `tableau-grad-${sanitizedTitle}-${randomSuffix}`;
+  }, [title]);
+
+  // ✅ FIX: Berechne min/max mit Puffer für korrekte Skalierung
+  const yDomain = useMemo(() => {
+    if (!data || data.length === 0) return [0, 100];
+    
+    const values = data.map(d => d.value).filter(v => typeof v === 'number' && !isNaN(v));
+    if (values.length === 0) return [0, 100];
+    
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    
+    // Falls alle Werte gleich sind, kleinen Bereich erstellen
+    if (min === max) {
+      if (min === 0) return [0, 1];
+      return [min * 0.9, max * 1.1];
+    }
+    
+    // 10% Puffer oben und unten hinzufügen
+    const padding = (max - min) * 0.15;
+    return [
+      Math.max(0, min - padding), // Nicht unter 0 gehen
+      max + padding
+    ];
+  }, [data]);
 
   const InfoIcon = ({ iconClass = "text-gray-400 hover:text-blue-600" }: { iconClass?: string }) => {
     if (!description) return null;
     return (
-      // WICHTIG: Kein hardcodiertes ml-2 mehr hier, damit es links bündig ist
       <div className="group relative inline-flex items-center align-middle z-20">
         <InfoCircle size={14} className={`${iconClass} cursor-help transition-colors`} />
-        {/* Tooltip */}
         <div className="absolute left-0 bottom-full mb-2 w-52 p-3 
                         bg-gray-800 text-white text-xs leading-snug rounded-md shadow-xl 
                         opacity-0 invisible group-hover:opacity-100 group-hover:visible 
                         transition-all duration-200 pointer-events-none text-center font-normal normal-case z-50">
           {description}
-          {/* Pfeil unten */}
           <div className="absolute top-full left-4 -translate-x-1/2 border-4 border-transparent border-t-gray-800"></div>
         </div>
       </div>
@@ -176,23 +203,36 @@ export default function TableauKpiCard({
               </div>
             )}
 
+            {/* ✅ FIX: Chart mit korrekter Y-Achsen-Skalierung */}
             <div className="h-[65px] -mx-2 opacity-90 hover:opacity-100 transition-opacity">
               {data && data.length > 1 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={data}>
+                  <AreaChart 
+                    data={data}
+                    margin={{ top: 4, right: 4, bottom: 4, left: 4 }}
+                  >
                     <defs>
-                      <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                      <linearGradient id={uniqueId} x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor={color} stopOpacity={0.25} />
                         <stop offset="100%" stopColor={color} stopOpacity={0} />
                       </linearGradient>
                     </defs>
+                    
+                    {/* ✅ FIX: Versteckte Y-Achse mit korrekter Domain */}
+                    <YAxis 
+                      domain={yDomain}
+                      hide={true}
+                      allowDataOverflow={false}
+                    />
+                    
                     <Area
                       type="monotone"
                       dataKey="value"
                       stroke={color}
                       strokeWidth={2.5}
-                      fill={`url(#${gradientId})`}
+                      fill={`url(#${uniqueId})`}
                       animationDuration={1000}
+                      isAnimationActive={true}
                     />
                   </AreaChart>
                 </ResponsiveContainer>
