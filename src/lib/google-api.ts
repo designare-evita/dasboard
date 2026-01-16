@@ -274,7 +274,7 @@ export async function getTopQueries(
 
     return results
       .sort((a, b) => b.clicks - a.clicks)
-      .slice(0, 50);
+      .slice(0, 100);
   } catch (error) {
     console.error('Error in getTopQueries:', error);
     return [];
