@@ -99,6 +99,7 @@ export interface AiTrafficExtendedData {
     source: string;
     sessions: number;
     users: number;
+    engagementRate: number; // ✅ NEU HINZUGEFÜGT
     percentage: number;
     topPages: Array<{ path: string; sessions: number }>;
   }>;
@@ -403,7 +404,8 @@ export async function getAiTrafficExtended(
             { name: 'averageSessionDuration' },
             { name: 'bounceRate' },
             { name: 'conversions' },
-            { name: 'screenPageViewsPerSession' }
+            { name: 'screenPageViewsPerSession' },
+            { name: 'engagementRate' } // ✅ NEU: Engagement Rate abrufen
           ],
           dimensionFilter: aiSourceFilter,
           orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
@@ -517,6 +519,7 @@ export async function getAiTrafficExtended(
     const sourceMap = new Map<string, {
       sessions: number;
       users: number;
+      engagementRateWeighted: number; // ✅ NEU: Für gewichteten Durchschnitt
       pages: Map<string, number>;
     }>();
 
@@ -563,6 +566,7 @@ export async function getAiTrafficExtended(
       const bounceRate = parseFloat(row.metricValues?.[3]?.value || '0');
       const conversions = parseInt(row.metricValues?.[4]?.value || '0', 10);
       const pagesPerSession = parseFloat(row.metricValues?.[5]?.value || '0');
+      const engagementRate = parseFloat(row.metricValues?.[6]?.value || '0'); // ✅ NEU
 
       // Totals
       totalSessions += sessions;
@@ -593,11 +597,17 @@ export async function getAiTrafficExtended(
 
       // Source aggregieren
       if (!sourceMap.has(source)) {
-        sourceMap.set(source, { sessions: 0, users: 0, pages: new Map() });
+        sourceMap.set(source, { 
+            sessions: 0, 
+            users: 0, 
+            engagementRateWeighted: 0, 
+            pages: new Map() 
+        });
       }
       const sourceData = sourceMap.get(source)!;
       sourceData.sessions += sessions;
       sourceData.users += users;
+      sourceData.engagementRateWeighted += engagementRate * sessions; // Gewichtet aufsummieren
       sourceData.pages.set(path, (sourceData.pages.get(path) || 0) + sessions);
 
       // Page aggregieren
@@ -730,6 +740,7 @@ export async function getAiTrafficExtended(
         source,
         sessions: data.sessions,
         users: data.users,
+        engagementRate: data.sessions > 0 ? (data.engagementRateWeighted / data.sessions) * 100 : 0, // ✅ Berechnung
         percentage: totalSessions > 0 ? (data.sessions / totalSessions) * 100 : 0,
         topPages: Array.from(data.pages.entries())
           .sort((a, b) => b[1] - a[1])
