@@ -2,8 +2,7 @@
 // API Route für erweiterte KI-Traffic Analyse mit Intent & Journey
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { auth } from '@/lib/auth';
 import { sql } from '@vercel/postgres';
 import { 
   getAiTrafficExtended, 
@@ -12,8 +11,8 @@ import {
 
 export async function GET(request: NextRequest) {
   try {
-    // Auth Check
-    const session = await getServerSession(authOptions);
+    // Auth Check (NextAuth v5 Pattern)
+    const session = await auth();
     if (!session?.user?.email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
