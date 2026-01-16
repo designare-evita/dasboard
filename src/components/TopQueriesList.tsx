@@ -12,6 +12,7 @@ type TopQueryData = {
   impressions: number;
   ctr: number;
   position: number;
+  url?: string; // ✅ NEU: Landingpage URL (optional für Abwärtskompatibilität)
 };
 
 interface TopQueriesListProps {
@@ -20,6 +21,42 @@ interface TopQueriesListProps {
   className?: string;
   dateRange?: DateRangeOption;
   error?: string | null;
+}
+
+// ✅ Hilfsfunktion: URL zu lesbarem Pfad konvertieren
+function formatUrl(url: string | undefined): string | null {
+  if (!url) return null;
+  
+  try {
+    const urlObj = new URL(url);
+    let path = urlObj.pathname;
+    
+    // Query-Parameter entfernen falls vorhanden
+    path = path.split('?')[0];
+    
+    // Trailing Slash entfernen (außer bei Root)
+    if (path.length > 1 && path.endsWith('/')) {
+      path = path.slice(0, -1);
+    }
+    
+    // Leerer Pfad = Homepage
+    if (path === '' || path === '/') {
+      return '/';
+    }
+    
+    return path;
+  } catch {
+    // Fallback: Wenn URL nicht parsebar, versuche Pfad direkt zu extrahieren
+    const match = url.match(/^https?:\/\/[^\/]+(\/[^\?]*)/);
+    if (match && match[1]) {
+      let path = match[1];
+      if (path.length > 1 && path.endsWith('/')) {
+        path = path.slice(0, -1);
+      }
+      return path;
+    }
+    return url.startsWith('/') ? url : null;
+  }
 }
 
 export default function TopQueriesList({
@@ -48,7 +85,11 @@ export default function TopQueriesList({
     let data = queries || [];
     if (searchTerm) {
       const lowerTerm = searchTerm.toLowerCase();
-      data = data.filter(q => q.query.toLowerCase().includes(lowerTerm));
+      // ✅ Suche auch in URL
+      data = data.filter(q => 
+        q.query.toLowerCase().includes(lowerTerm) ||
+        (q.url && q.url.toLowerCase().includes(lowerTerm))
+      );
     }
     if (!sortField) return data;
     
@@ -102,7 +143,6 @@ export default function TopQueriesList({
 
   if (isLoading) {
     return (
-      // ÄNDERUNG: shadow-md -> shadow-sm
       <div className={cn("bg-white rounded-lg shadow-sm border border-gray-200 card-glass", className)}>
         <div className="p-4 bg-[#188BDB] rounded-t-lg">
           <div className="flex items-center gap-2 text-white">
@@ -119,7 +159,6 @@ export default function TopQueriesList({
 
   if (error) {
     return (
-      // ÄNDERUNG: shadow-md -> shadow-sm
       <div className={cn("bg-white rounded-lg shadow-sm border border-gray-200 card-glass", className)}>
         <div className="p-4 bg-[#188BDB] rounded-t-lg">
           <div className="flex items-center gap-2 text-white">
@@ -137,7 +176,6 @@ export default function TopQueriesList({
   }
 
   return (
-    // ÄNDERUNG: shadow-md -> shadow-sm (Haupt-Container)
     <div className={cn("bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col card-glass", className)}>
       
       {/* Header */}
@@ -197,23 +235,44 @@ export default function TopQueriesList({
                 </tr>
               </thead>
               <tbody>
-                {displayedQueries.map((query, index) => (
-                  <tr 
-                    key={`${query.query}-${index}`}
-                    className={cn("border-b border-gray-200 hover:bg-blue-50 transition-colors", index % 2 === 0 ? "bg-white" : "bg-gray-50")}
-                  >
-                    <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-200"><div className="break-words max-w-md font-medium">{query.query}</div></td>
-                    <td className="px-4 py-3 text-sm text-gray-900 text-right border-r border-gray-200 whitespace-nowrap">{query.clicks.toLocaleString('de-DE')}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900 text-right border-r border-gray-200 whitespace-nowrap">{query.impressions.toLocaleString('de-DE')}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900 text-right border-r border-gray-200 whitespace-nowrap">{(query.ctr * 100).toFixed(1)}%</td>
-                    
-                    <td className="px-4 py-3 text-right whitespace-nowrap">
-                      <div className="flex justify-end">
-                        {renderRankingBadge(query.position)}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {displayedQueries.map((query, index) => {
+                  const formattedPath = formatUrl(query.url);
+                  
+                  return (
+                    <tr 
+                      key={`${query.query}-${index}`}
+                      className={cn("border-b border-gray-200 hover:bg-blue-50 transition-colors", index % 2 === 0 ? "bg-white" : "bg-gray-50")}
+                    >
+                      <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-200">
+                        <div className="break-words max-w-md">
+                          {/* ✅ Suchanfrage */}
+                          <span className="font-medium">{query.query}</span>
+                          
+                          {/* ✅ NEU: Landingpage subtil darunter */}
+                          {formattedPath && (
+                            <div className="mt-1">
+                              <span 
+                                className="inline-flex items-center text-xs text-rose-400 font-mono px-1.5 py-0.5 bg-gray-900/5 rounded border border-gray-200/50"
+                                title={query.url}
+                              >
+                                {formattedPath}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-900 text-right border-r border-gray-200 whitespace-nowrap">{query.clicks.toLocaleString('de-DE')}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900 text-right border-r border-gray-200 whitespace-nowrap">{query.impressions.toLocaleString('de-DE')}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900 text-right border-r border-gray-200 whitespace-nowrap">{(query.ctr * 100).toFixed(1)}%</td>
+                      
+                      <td className="px-4 py-3 text-right whitespace-nowrap">
+                        <div className="flex justify-end">
+                          {renderRankingBadge(query.position)}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
