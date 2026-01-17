@@ -3,7 +3,7 @@
 
 import React from 'react';
 
-export type DateRangeOption = '30d' | '3m' | '6m' | '12m';
+export type DateRangeOption = '30d' | '3m' | '6m' | '12m' | '18m' | '24m';
 
 interface DateRangeSelectorProps {
   value: DateRangeOption;
@@ -16,6 +16,8 @@ const rangeLabels: Record<DateRangeOption, string> = {
   '3m': 'Letzte 3 Monate',
   '6m': 'Letzte 6 Monate',
   '12m': 'Letzte 12 Monate',
+  '18m': 'Letzte 18 Monate',
+  '24m': 'Letzte 24 Monate',
 };
 
 export function getRangeLabel(range: DateRangeOption): string {
@@ -27,7 +29,7 @@ export default function DateRangeSelector({
   onChange, 
   className = '' 
 }: DateRangeSelectorProps) {
-  const options: DateRangeOption[] = ['30d', '3m', '6m', '12m'];
+  const options: DateRangeOption[] = ['30d', '3m', '6m', '12m', '18m', '24m' ];
 
   return (
     <div className={`inline-flex rounded-lg border border-gray-300 bg-white ${className}`}>
