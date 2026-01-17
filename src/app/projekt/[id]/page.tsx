@@ -14,7 +14,7 @@ import { DashboardSkeleton } from '@/components/skeletons/DashboardSkeleton';
 interface ExtendedUser extends User {
   assigned_admins?: string;
   creator_email?: string;
-  data_max_enabled?: boolean; // NEU: Feld aus DB
+  data_max_enabled?: boolean; 
 }
 
 async function loadData(projectId: string, dateRange: string) {
@@ -58,7 +58,7 @@ async function loadData(projectId: string, dateRange: string) {
 
     const projectUser = rows[0] as ExtendedUser;
     
-    // ✅ KORREKTUR: User-Objekt als ersten Parameter übergeben
+    // User-Objekt korrekt übergeben
     const dashboardData = await getOrFetchGoogleData(projectUser, dateRange);
 
     return { projectUser, dashboardData };
@@ -76,7 +76,6 @@ export default async function ProjectPage({
   searchParams: { range?: string }
 }) {
   const projectId = params.id;
-  // Fallback auf 30 Tage wenn nichts gewählt
   const dateRange = (searchParams.range as DateRangeOption) || '30d';
 
   const session = await auth();
@@ -85,7 +84,6 @@ export default async function ProjectPage({
     redirect('/login');
   }
 
-  // Sicherheitscheck: User darf nur sein eigenes Projekt sehen (oder Admins)
   if (session.user.role === 'BENUTZER' && session.user.id !== projectId) {
     redirect('/');
   }
@@ -102,13 +100,8 @@ export default async function ProjectPage({
 
   const { projectUser, dashboardData } = data;
 
-  // LOGIK: Ermittle die richtige Betreuer-E-Mail
   const supportEmail = projectUser.assigned_admins || projectUser.creator_email || '';
-  
-  // ✅ Sichere Konvertierung zu Boolean
   const timelineActive = projectUser.project_timeline_active === true;
-
-  // ✅ NEU: DataMax Berechtigung prüfen (Default = true, falls null)
   const isDataMaxEnabled = projectUser.data_max_enabled !== false;
 
   return (
@@ -119,9 +112,10 @@ export default async function ProjectPage({
         dateRange={dateRange}
         projectId={projectUser.id}
         domain={projectUser.domain || ''}
-        faviconUrl={projectUser.favicon_url}
-        semrushTrackingId={projectUser.semrush_tracking_id}
-        semrushTrackingId02={projectUser.semrush_tracking_id_02}
+        // KORREKTUR: || undefined wandelt null (aus DB) in undefined (für Props) um
+        faviconUrl={projectUser.favicon_url || undefined}
+        semrushTrackingId={projectUser.semrush_tracking_id || undefined}
+        semrushTrackingId02={projectUser.semrush_tracking_id_02 || undefined}
         projectTimelineActive={timelineActive}
         countryData={dashboardData.countryData}
         channelData={dashboardData.channelData}
@@ -129,7 +123,7 @@ export default async function ProjectPage({
         userRole={session.user.role}
         userEmail={supportEmail}
         showLandingPages={projectUser.settings_show_landingpages !== false}
-        dataMaxEnabled={isDataMaxEnabled} // <-- Neue Prop
+        dataMaxEnabled={isDataMaxEnabled}
       />
     </Suspense>
   );
