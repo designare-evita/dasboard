@@ -121,6 +121,8 @@ if (dateRange === '7d') days = 7;
 if (dateRange === '3m') days = 90;
 if (dateRange === '6m') days = 180;
 if (dateRange === '12m') days = 365;
+if (dateRange === '18m') days = 548;  // ~18 Monate
+if (dateRange === '24m') days = 730;  // ~24 Monate
 start.setDate(end.getDate() - days);
   
   const startDateStr = start.toISOString().split('T')[0];
