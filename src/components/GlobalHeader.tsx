@@ -1,96 +1,237 @@
-// src/components/GlobalHeader.tsx
+// src/components/ProjectDashboard.tsx
 'use client';
 
-import React from 'react';
-import { Globe, ShieldLock } from 'react-bootstrap-icons'; 
-import DateRangeSelector, { type DateRangeOption } from '@/components/DateRangeSelector';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import Image from 'next/image';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
+import { Eye, EyeSlash } from 'react-bootstrap-icons'; 
+import { 
+  ProjectDashboardData, 
+  ActiveKpi, 
+  ChartEntry,
+  KpiDatum
+} from '@/lib/dashboard-shared';
 
-interface GlobalHeaderProps {
-  domain?: string;
-  projectId?: string;
+import TableauKpiGrid from '@/components/TableauKpiGrid';
+import TableauPieChart from '@/components/charts/TableauPieChart';
+import KpiTrendChart from '@/components/charts/KpiTrendChart';
+import AiTrafficCard from '@/components/AiTrafficCard';
+import AiTrafficDetailWidgetV2 from '@/components/AiTrafficDetailWidgetV2';
+import { type DateRangeOption } from '@/components/DateRangeSelector';
+import TopQueriesList from '@/components/TopQueriesList';
+import SemrushTopKeywords from '@/components/SemrushTopKeywords';
+import SemrushTopKeywords02 from '@/components/SemrushTopKeywords02';
+import GlobalHeader from '@/components/GlobalHeader';
+import ProjectTimelineWidget from '@/components/ProjectTimelineWidget'; 
+import AiAnalysisWidget from '@/components/AiAnalysisWidget';
+import LandingPageChart from '@/components/charts/LandingPageChart';
+import { aggregateLandingPages } from '@/lib/utils';
+
+// ✅ NEU: DataMax Chat Import
+import { DataMaxChat } from '@/components/datamax';
+
+interface ProjectDashboardProps {
+  data: ProjectDashboardData;
+  isLoading: boolean;
   dateRange: DateRangeOption;
-  onDateRangeChange: (range: DateRangeOption) => void;
+  onDateRangeChange?: (range: DateRangeOption) => void;
+  projectId: string;
+  domain: string;
+  semrushTrackingId?: string;
+  semrushTrackingId02?: string;
+  projectTimelineActive?: boolean;
+  faviconUrl?: string;
+  
+  countryData?: any[];
+  channelData?: any[];
+  deviceData?: any[];
+  
   userRole?: string;
   userEmail?: string;
+  
+  showLandingPages?: boolean;
+  dataMaxEnabled?: boolean; // ✅ NEU: Steuert Sichtbarkeit
 }
 
-export default function GlobalHeader({
-  domain,
+export default function ProjectDashboard({ 
+  data, 
+  isLoading, 
+  dateRange, 
   projectId,
-  dateRange,
-  onDateRangeChange,
-  userRole = 'USER',
-  userEmail = ''
-}: GlobalHeaderProps) {
+  domain,
+  semrushTrackingId,
+  semrushTrackingId02,
+  projectTimelineActive = false,
+  faviconUrl,
+  userRole,
+  userEmail,
+  showLandingPages = true,
+  dataMaxEnabled = true // ✅ NEU: Default true
+}: ProjectDashboardProps) {
 
-  const isAdmin = userRole === 'ADMIN' || userRole === 'SUPERADMIN';
+  // Sicherstellen dass API Errors existieren, um Crashes zu vermeiden
+  const safeApiErrors = data.apiErrors || {
+    gsc: null,
+    gscCrawl: null,
+    ga4: null,
+    semrush: null,
+    bing: null
+  };
+
+  const hasSemrushConfig = !!semrushTrackingId || !!semrushTrackingId02;
+  const hasKampagne1Config = !!semrushTrackingId;
+  const hasKampagne2Config = !!semrushTrackingId02;
+
+  // Calculate aggregated landing pages data
+const landingPageData = useMemo(() => {
+  if (!data.topConvertingPages || data.topConvertingPages.length === 0) return [];
+  return aggregateLandingPages(data.topConvertingPages);
+}, [data.topConvertingPages]);
 
   return (
-    <div className="relative sm:sticky sm:top-0 z-50 card-glass p-6 mb-6 print:hidden bg-white/95 backdrop-blur-sm transition-all duration-200 border-b border-gray-100">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+    <div className="min-h-screen bg-gray-50/50 pb-20">
+      
+      {/* 1. Global Header (Logo, User Menü, Breadcrumbs) */}
+      <GlobalHeader 
+         domain={domain} 
+         projectId={projectId}
+         dateRange={dateRange}
+         onDateRangeChange={(range) => {
+           window.location.href = `?range=${range}`;
+         }}
+         userRole={userRole}
+         userEmail={userEmail}
+      />
+      
+      <div className="max-w-[1600px] mx-auto p-4 sm:p-6 space-y-6">
         
-        {/* LINKE SEITE (Jetzt kompakter) */}
-        <div className="flex items-center gap-5">
-          <div className="flex items-center gap-2 text-indigo-600 bg-indigo-50/80 p-3 rounded-xl backdrop-blur-sm shadow-sm border border-indigo-100/50">
-             <Globe size={28} />
+        {/* 2. Timeline Widget (Conditional) */}
+        {projectTimelineActive && (
+          <div className="animate-fade-in-up">
+            <ProjectTimelineWidget projectId={projectId} />
           </div>
+        )}
+
+        {/* 3. KPI Grid (Tableau Style) */}
+        <TableauKpiGrid 
+          data={data} 
+          isLoading={isLoading} 
+          previousData={data.previousData} // Für Vergleiche
+          dateRange={dateRange}
+        />
+
+        {/* 4. AI Analysis Widget */}
+         <AiAnalysisWidget 
+          projectId={projectId} 
+          dateRange={dateRange}
+          domain={domain}
+        />
+
+        {/* 5. Main Charts Area */}
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           
-          <div className="h-12 w-px bg-gray-200/60 mx-1 hidden sm:block"></div>
+          {/* Main Trend Chart (2/3 width) */}
+          <div className="xl:col-span-2 card-glass p-1">
+             <KpiTrendChart 
+               data={data.history} 
+               isLoading={isLoading} 
+               dateRange={dateRange}
+               error={safeApiErrors?.gsc}
+             />
+          </div>
 
-          <div>
-             <div className="flex items-center gap-2 mb-1">
-               <h1 className="text-xl font-bold text-gray-900 tracking-tight">{domain || 'Projekt Dashboard'}</h1>
-               {isAdmin && (
-                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-gray-100 text-gray-600 border border-gray-200">
-                   <ShieldLock size={10} />
-                   <span>Admin</span>
-                 </span>
-               )}
-             </div>
-
-             <div className="flex flex-col gap-1">
-               {/* ID und Updates wurden hier entfernt und nach rechts verschoben */}
-               
-               {userEmail && (
-                 <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 mt-1 rounded-full text-[10px] font-bold tracking-wider bg-gradient-to-r from-emerald-50 to-teal-50 text-emerald-700 border border-emerald-100/80 shadow-sm w-fit">
-                    <span className="relative flex h-1.5 w-1.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
-                    </span>
-                    <span className="uppercase">Betreut durch:</span>
-                    <span className="lowercase font-medium">{userEmail}</span>
-                 </div>
-               )}
-             </div>
+          {/* AI Traffic Radar (1/3 width) */}
+          <div className="xl:col-span-1">
+             <AiTrafficDetailWidgetV2 
+               projectId={projectId} 
+               dateRange={dateRange} 
+             />
           </div>
         </div>
 
-        {/* RECHTE SEITE (Mit ID & Updates über dem Picker) */}
-        <div className="w-full sm:w-auto flex flex-col gap-2 sm:items-end">
+        {/* 6. Landing Page Chart (Conditional) */}
+        {showLandingPages && landingPageData.length > 0 && (
+          <div className="card-glass p-1">
+            <LandingPageChart 
+              data={landingPageData}
+              isLoading={isLoading}
+            />
+          </div>
+        )}
+
+        {/* 7. Secondary Details Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
           
-          {/* ✅ NEU: Info Block hier oben platziert */}
-          <div className="flex flex-col sm:items-end gap-0.5">
-            {projectId && (
-               <span className="text-[10px] text-gray-400 font-mono tracking-wide">
-                 ID: {projectId}
-               </span>
-            )}
-            
-            <span className="text-gray-500 text-[10px] flex items-center gap-1">
-              <span>Google Updates: 24h</span>
-              <span className="text-gray-300">•</span>
-              <span>Semrush Updates: 14 Tage</span>
-            </span>
+          {/* Top Keywords */}
+          <div className="card-glass p-0 overflow-hidden h-full">
+            <TopQueriesList 
+              data={data.topQueries} 
+              isLoading={isLoading}
+              error={safeApiErrors?.gsc}
+            />
           </div>
 
-          <DateRangeSelector
-            value={dateRange}
-            onChange={onDateRangeChange}
-            className="w-full sm:w-auto shadow-sm"
+          {/* Charts Grid - jetzt responsive */}
+          <TableauPieChart 
+            data={data.channelData} 
+            title="Zugriffe nach Kanal" 
+            isLoading={isLoading} 
+            error={safeApiErrors?.ga4} 
+            dateRange={dateRange}
+          />
+          <TableauPieChart 
+            data={data.countryData} 
+            title="Zugriffe nach Land" 
+            isLoading={isLoading} 
+            error={safeApiErrors?.ga4} 
+            dateRange={dateRange}
+          />
+          <TableauPieChart 
+            data={data.deviceData} 
+            title="Zugriffe nach Endgerät" 
+            isLoading={isLoading} 
+            error={safeApiErrors?.ga4} 
+            dateRange={dateRange}
           />
         </div>
+        
+        {hasSemrushConfig && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6 print-semrush-grid">
+            {hasKampagne1Config && <div className="card-glass p-4 sm:p-6"><SemrushTopKeywords projectId={projectId} /></div>}
+            {hasKampagne2Config && <div className="card-glass p-4 sm:p-6"><SemrushTopKeywords02 projectId={projectId} /></div>}
+          </div>
+        )}
 
       </div>
+
+      {/* ✅ NEU: DataMax Chat - Floating Button unten rechts (Conditional) */}
+      {dataMaxEnabled && (
+        <DataMaxChat projectId={projectId} dateRange={dateRange} />
+      )}
+
+      {/* Animation Styles */}
+      <style jsx global>{`
+        @keyframes indeterminate-bar {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(300%); }
+        }
+        .animate-indeterminate-bar {
+          animation: indeterminate-bar 1.5s infinite linear;
+        }
+        .card-glass {
+          background: white;
+          border: 1px solid #e2e8f0;
+          border-radius: 12px;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .animate-fade-in-up {
+          animation: fadeInUp 0.5s ease-out forwards;
+        }
+        @keyframes fadeInUp {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
     </div>
   );
 }
