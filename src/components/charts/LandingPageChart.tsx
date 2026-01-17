@@ -3,26 +3,34 @@
 
 import React, { useState } from 'react';
 import { ConvertingPageData } from '@/lib/dashboard-shared';
-import { FileEarmarkText, Search } from 'react-bootstrap-icons';
+import { FileEarmarkText, Search, TagFill, ChevronDown, ChevronUp } from 'react-bootstrap-icons';
 import { format, subDays, subMonths } from 'date-fns';
 import { de } from 'date-fns/locale';
+
+// Typ für die Query-Daten pro Landingpage
+export interface LandingPageQueries {
+  [path: string]: Array<{ query: string; clicks: number; impressions: number }>;
+}
 
 interface Props {
   data?: ConvertingPageData[];
   isLoading?: boolean;
   title?: string;
-  dateRange?: string; 
+  dateRange?: string;
+  // NEU: Optionale Query-Daten pro Landingpage
+  queryData?: LandingPageQueries;
 }
 
 export default function LandingPageChart({ 
   data, 
   isLoading, 
   title = "Top Landingpages",
-  dateRange = '30d' 
+  dateRange = '30d',
+  queryData
 }: Props) {
   
-  // State für das Suchfeld
   const [searchTerm, setSearchTerm] = useState('');
+  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
 
   const getDateRangeString = (range: string) => {
     const end = new Date();
@@ -40,6 +48,33 @@ export default function LandingPageChart({
     return `${format(start, 'dd.MM.yyyy', { locale: de })} - ${format(end, 'dd.MM.yyyy', { locale: de })}`;
   };
 
+  // Toggle expanded state für eine Landingpage
+  const toggleExpanded = (path: string) => {
+    setExpandedPaths(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(path)) {
+        newSet.delete(path);
+      } else {
+        newSet.add(path);
+      }
+      return newSet;
+    });
+  };
+
+  // Hole Queries für einen Pfad
+  const getQueriesForPath = (path: string): Array<{ query: string; clicks: number; impressions: number }> => {
+    if (!queryData) return [];
+    
+    // Versuche exakten Match
+    if (queryData[path]) return queryData[path];
+    
+    // Versuche mit/ohne trailing slash
+    const withSlash = path.endsWith('/') ? path : `${path}/`;
+    const withoutSlash = path.endsWith('/') ? path.slice(0, -1) : path;
+    
+    return queryData[withSlash] || queryData[withoutSlash] || [];
+  };
+
   if (isLoading) {
     return <div className="h-[50vh] w-full bg-gray-50 rounded-xl animate-pulse flex items-center justify-center text-gray-400">Lade Daten...</div>;
   }
@@ -54,14 +89,18 @@ export default function LandingPageChart({
     .filter(item => {
       const path = item.path?.toLowerCase() || '';
       
-      // Standard-Ausschlüsse
       if (path.includes('danke') || path.includes('impressum') || path.includes('datenschutz')) {
         return false;
       }
       
-      // Suchfilter anwenden
-      if (searchTerm && !path.includes(searchTerm.toLowerCase())) {
-        return false;
+      if (searchTerm) {
+        const searchLower = searchTerm.toLowerCase();
+        // Suche auch in Queries
+        const queries = getQueriesForPath(item.path);
+        const queryMatch = queries.some(q => q.query.toLowerCase().includes(searchLower));
+        if (!path.includes(searchLower) && !queryMatch) {
+          return false;
+        }
       }
 
       return true;
@@ -83,7 +122,6 @@ export default function LandingPageChart({
         
         {/* Zeile 1: Titel, Sortierhinweis und Suche */}
         <div className="flex items-center justify-between mb-2">
-          {/* Links: Titel und Sortierhinweis nebeneinander */}
           <div className="flex items-baseline gap-3">
             <h3 className="text-[18px] font-semibold text-gray-900 flex items-center gap-2">
               <FileEarmarkText className="text-indigo-500" size={18} />
@@ -92,53 +130,59 @@ export default function LandingPageChart({
             <span className="text-xs text-gray-400">Sortiert nach Neuen Nutzern</span>
           </div>
           
-          {/* Rechts: Suchfeld */}
           <div className="relative">
             <input 
               type="text" 
-              placeholder="Suchen..." 
+              placeholder="Seite oder Suchbegriff..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8 pr-3 py-1 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 w-48 text-gray-700 placeholder-gray-400"
+              className="pl-8 pr-3 py-1 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 w-56 text-gray-700 placeholder-gray-400"
             />
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" size={12} />
           </div>
         </div>
         
-        {/* Zeile 2: Kombiniert (Links: Quelle, Rechts: Legende) */}
+        {/* Zeile 2: Meta-Info und Legende */}
         <div className="ml-7 flex flex-wrap items-center justify-between gap-4 mt-1">
           
-          {/* Linke Seite: Quelle & Datum */}
           <div className="text-[11px] text-gray-500 flex items-center gap-2">
-            <span className="font-medium bg-gray-100 px-1.5 py-0.5 rounded text-gray-600">Quelle: GA4</span>
+            <span className="font-medium bg-gray-100 px-1.5 py-0.5 rounded text-gray-600">Quelle: GA4 + GSC</span>
             <span className="text-gray-400">•</span>
             <span>{formattedDateRange}</span>
+            {queryData && (
+              <>
+                <span className="text-gray-400">•</span>
+                <span className="text-indigo-500 flex items-center gap-1">
+                  <TagFill size={10} />
+                  Mit Suchbegriffen
+                </span>
+              </>
+            )}
           </div>
 
-          {/* Rechte Seite: Legende */}
           <div className="flex items-center gap-x-4">
             <span className="text-[10px] text-gray-500 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-sky-500"></span>
-              Sessions = Gesamtsitzungen
+              Sessions
             </span>
             <span className="text-[10px] text-gray-500 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-teal-500"></span>
-              Rate = Interaktionsrate
+              Interaktionsrate
             </span>
             <span className="text-[10px] text-gray-500 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-              CTR = Klickrate (GSC)
+              CTR (GSC)
             </span>
             <span className="text-[10px] text-gray-500 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-slate-400"></span>
-              Conv. = Schlüsselereignisse (z.B. Anfrage)
+              Conversions
             </span>
           </div>
           
         </div>
       </div>
 
-      {/* Liste oder Leerer Zustand */}
+      {/* Liste */}
       {sortedData.length === 0 ? (
         <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
           {searchTerm ? 'Keine Landingpages für diese Suche gefunden' : 'Keine validen Daten'}
@@ -157,14 +201,60 @@ export default function LandingPageChart({
                 ? Math.max((newUsers / maxNewUsers) * 60, 2) 
                 : 2;
 
+              // Hole Queries für diese Seite
+              const queries = getQueriesForPath(page.path);
+              const hasQueries = queries.length > 0;
+              const isExpanded = expandedPaths.has(page.path);
+              
+              // Zeige Top 3 Queries inline, Rest bei Expand
+              const inlineQueries = queries.slice(0, 3);
+              const additionalQueries = queries.slice(3);
+
               return (
                 <div key={i} className="group">
-                  <div className="flex items-center gap-3 py-2 hover:bg-gray-50 rounded-lg px-2 transition-colors">
+                  <div 
+                    className={`flex items-center gap-3 py-2 hover:bg-gray-50 rounded-lg px-2 transition-colors ${hasQueries ? 'cursor-pointer' : ''}`}
+                    onClick={() => hasQueries && toggleExpanded(page.path)}
+                  >
                     
                     <div className="flex-1 min-w-0">
-                      <div className="text-[15px] font-medium text-gray-800 truncate mb-1" title={page.path}>
-                        {page.path}
+                      {/* Pfad */}
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="text-[15px] font-medium text-gray-800 truncate" title={page.path}>
+                          {page.path}
+                        </div>
+                        {hasQueries && (
+                          <span className="text-gray-400 flex-shrink-0">
+                            {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                          </span>
+                        )}
                       </div>
+                      
+                      {/* Inline Queries (subtil) */}
+                      {hasQueries && (
+                        <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+                          <TagFill size={10} className="text-indigo-400 flex-shrink-0" />
+                          {inlineQueries.map((q, qi) => (
+                            <span 
+                              key={qi}
+                              className="inline-flex items-center text-[11px] text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded"
+                              title={`${q.clicks} Klicks, ${q.impressions} Impressionen`}
+                            >
+                              {q.query}
+                              {q.clicks > 0 && (
+                                <span className="ml-1 text-[9px] text-indigo-400">({q.clicks})</span>
+                              )}
+                            </span>
+                          ))}
+                          {additionalQueries.length > 0 && !isExpanded && (
+                            <span className="text-[10px] text-gray-400">
+                              +{additionalQueries.length} weitere
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      
+                      {/* Balken */}
                       <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                         <div 
                           className="h-full bg-emerald-500 rounded-full transition-all duration-500"
@@ -173,6 +263,7 @@ export default function LandingPageChart({
                       </div>
                     </div>
 
+                    {/* Metriken */}
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <div className="bg-emerald-500 text-white px-3 py-1.5 rounded-md text-[12px] font-semibold whitespace-nowrap min-w-[140px] text-center shadow-sm">
                         {newUsers.toLocaleString()} Neue Besucher
@@ -191,6 +282,27 @@ export default function LandingPageChart({
                       </div>
                     </div>
                   </div>
+
+                  {/* Expanded: Alle Queries anzeigen */}
+                  {isExpanded && additionalQueries.length > 0 && (
+                    <div className="ml-4 pl-4 border-l-2 border-indigo-100 py-2 mb-2">
+                      <div className="text-[10px] text-gray-500 mb-1.5">Weitere Suchbegriffe:</div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {additionalQueries.map((q, qi) => (
+                          <span 
+                            key={qi}
+                            className="inline-flex items-center text-[11px] text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded"
+                            title={`${q.clicks} Klicks, ${q.impressions} Impressionen`}
+                          >
+                            {q.query}
+                            {q.clicks > 0 && (
+                              <span className="ml-1 text-[9px] text-indigo-400">({q.clicks})</span>
+                            )}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
