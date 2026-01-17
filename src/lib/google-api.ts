@@ -862,3 +862,113 @@ export async function getGscPageCtr(
   
   return result;
 }
+
+// ============================================================================
+// NEUE FUNKTIONEN: Queries nach Landingpage
+// ============================================================================
+
+/**
+ * Holt die Top-Suchbegriffe (Queries) gruppiert nach Landingpage.
+ * Gibt eine Map zurück: URL-Pfad → Array von Queries mit Klicks.
+ */
+export async function getQueriesByLandingPage(
+  siteUrl: string,
+  startDate: string,
+  endDate: string,
+  limit: number = 5 // Max Queries pro Seite
+): Promise<Map<string, Array<{ query: string; clicks: number; impressions: number }>>> {
+  const auth = createAuth();
+  const searchconsole = google.searchconsole({ version: 'v1', auth });
+
+  try {
+    const res = await searchconsole.searchanalytics.query({
+      siteUrl,
+      requestBody: {
+        startDate,
+        endDate,
+        dimensions: ['page', 'query'],
+        rowLimit: 5000, // Mehr Daten abrufen für bessere Abdeckung
+      },
+    });
+
+    const rows = res.data.rows || [];
+    
+    // Gruppiere nach URL (Pfad)
+    const pageQueryMap = new Map<string, Array<{ query: string; clicks: number; impressions: number }>>();
+
+    for (const row of rows) {
+      const fullUrl = row.keys?.[0] || '';
+      const query = row.keys?.[1] || '';
+      const clicks = row.clicks || 0;
+      const impressions = row.impressions || 0;
+
+      // Extrahiere nur den Pfad aus der URL
+      let path = '/';
+      try {
+        const urlObj = new URL(fullUrl);
+        path = urlObj.pathname;
+        // Entferne trailing slash (außer bei root)
+        if (path.length > 1 && path.endsWith('/')) {
+          path = path.slice(0, -1);
+        }
+      } catch {
+        // Falls URL-Parsing fehlschlägt, versuche einfache Extraktion via Regex
+        const match = fullUrl.match(/https?:\/\/[^\/]+(\/[^?#]*)?/);
+        if (match && match[1]) {
+          path = match[1];
+        }
+      }
+
+      // Filtere irrelevante Queries
+      if (!query || query === '(not set)' || query === '(not provided)') continue;
+      // Optional: Filter für sehr irrelevante Daten (z.B. 0 Klicks und wenig Impressions)
+      if (clicks === 0 && impressions < 10) continue; 
+
+      if (!pageQueryMap.has(path)) {
+        pageQueryMap.set(path, []);
+      }
+
+      pageQueryMap.get(path)!.push({ query, clicks, impressions });
+    }
+
+    // Sortiere Queries pro Seite nach Klicks und limitiere die Anzahl
+    for (const [path, queries] of pageQueryMap.entries()) {
+      const sorted = queries
+        .sort((a, b) => b.clicks - a.clicks || b.impressions - a.impressions)
+        .slice(0, limit);
+      pageQueryMap.set(path, sorted);
+    }
+
+    return pageQueryMap;
+
+  } catch (error) {
+    console.error('[GSC] Error in getQueriesByLandingPage:', error);
+    return new Map();
+  }
+}
+
+// ============================================================================
+// ALTERNATIVE: Ausgabe als Object statt Map (besser für JSON-Serialisierung)
+// ============================================================================
+
+export interface LandingPageQueries {
+  [path: string]: Array<{ query: string; clicks: number; impressions: number }>;
+}
+
+export async function getQueriesByLandingPageObject(
+  siteUrl: string,
+  startDate: string,
+  endDate: string,
+  limit: number = 5
+): Promise<LandingPageQueries> {
+  // Ruft die Map-Funktion auf
+  const mapResult = await getQueriesByLandingPage(siteUrl, startDate, endDate, limit);
+  
+  // Konvertiert Map zu Plain Object
+  const result: LandingPageQueries = {};
+  for (const [path, queries] of mapResult.entries()) {
+    result[path] = queries;
+  }
+  
+  return result;
+}
