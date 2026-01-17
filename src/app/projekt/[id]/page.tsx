@@ -14,11 +14,12 @@ import { DashboardSkeleton } from '@/components/skeletons/DashboardSkeleton';
 interface ExtendedUser extends User {
   assigned_admins?: string;
   creator_email?: string;
+  data_max_enabled?: boolean; // NEU: Feld aus DB
 }
 
 async function loadData(projectId: string, dateRange: string) {
   try {
-    // Komplexe Query mit JOINs für Admin-Daten
+    // Komplexe Query mit JOINs für Admin-Daten und NEU: data_max_enabled
     const { rows } = await sql`
       SELECT
         u.id::text as id, 
@@ -35,57 +36,56 @@ async function loadData(projectId: string, dateRange: string) {
         u.project_start_date, 
         u.project_duration_months,
         u.settings_show_landingpages,
+        u.data_max_enabled, 
         
         -- E-Mail des Erstellers holen
         creator.email as creator_email,
         
-        -- Alle zugewiesenen Admins als String zusammenfassen (Komma getrennt)
+        -- Zugeordnete Admins holen (als String Liste)
         (
-          SELECT STRING_AGG(DISTINCT admins.email, ', ')
-          FROM project_assignments pa_sub
-          JOIN users admins ON pa_sub.user_id = admins.id
-          WHERE pa_sub.project_id = u.id
+          SELECT string_agg(a.email, ', ')
+          FROM project_assignments pa
+          JOIN users a ON pa.user_id = a.id
+          WHERE pa.project_id = u.id
         ) as assigned_admins
 
       FROM users u
       LEFT JOIN users creator ON u."createdByAdminId" = creator.id
-      WHERE u.id::text = ${projectId}
+      WHERE u.id = ${projectId}::uuid
     `;
 
     if (rows.length === 0) return null;
 
-    // Typensicherer Cast
-    const projectUser = rows[0] as unknown as ExtendedUser;
+    const projectUser = rows[0] as ExtendedUser;
     
-    // ✅ DEBUG LOG - sicher formatiert
-    console.log('[Debug] Raw DB value - project_timeline_active:', JSON.stringify(projectUser.project_timeline_active));
-    
-    // Daten von Google laden
-    const dashboardData = await getOrFetchGoogleData(projectUser, dateRange);
+    // Daten laden (Cache first)
+    const dashboardData = await getOrFetchGoogleData(projectId, dateRange, projectUser);
 
     return { projectUser, dashboardData };
-  } catch (error) {
-    console.error('[loadData] Fehler:', error);
+  } catch (e) {
+    console.error('Error loading project data:', e);
     return null;
   }
 }
 
-export default async function ProjectPage({
-  params,
-  searchParams
-}: {
+export default async function ProjectPage({ 
+  params, 
+  searchParams 
+}: { 
   params: { id: string },
-  searchParams: { dateRange?: string }
+  searchParams: { range?: string }
 }) {
+  const projectId = params.id;
+  // Fallback auf 30 Tage wenn nichts gewählt
+  const dateRange = (searchParams.range as DateRangeOption) || '30d';
+
   const session = await auth();
 
   if (!session?.user) {
     redirect('/login');
   }
 
-  const projectId = params.id;
-  const dateRange = (searchParams.dateRange as DateRangeOption) || '30d';
-
+  // Sicherheitscheck: User darf nur sein eigenes Projekt sehen (oder Admins)
   if (session.user.role === 'BENUTZER' && session.user.id !== projectId) {
     redirect('/');
   }
@@ -108,6 +108,9 @@ export default async function ProjectPage({
   // ✅ Sichere Konvertierung zu Boolean
   const timelineActive = projectUser.project_timeline_active === true;
 
+  // ✅ NEU: DataMax Berechtigung prüfen (Default = true, falls null)
+  const isDataMaxEnabled = projectUser.data_max_enabled !== false;
+
   return (
     <Suspense fallback={<DashboardSkeleton />}>
       <ProjectDashboard
@@ -125,7 +128,8 @@ export default async function ProjectPage({
         deviceData={dashboardData.deviceData}
         userRole={session.user.role}
         userEmail={supportEmail}
-        showLandingPagesToCustomer={projectUser.settings_show_landingpages ?? false}
+        showLandingPages={projectUser.settings_show_landingpages !== false}
+        dataMaxEnabled={isDataMaxEnabled} // <-- Neue Prop
       />
     </Suspense>
   );
