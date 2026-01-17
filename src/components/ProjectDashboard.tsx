@@ -94,9 +94,13 @@ const landingPageData = useMemo(() => {
       {/* 1. Global Header (Logo, User Menü, Breadcrumbs) */}
       <GlobalHeader 
          domain={domain} 
-         faviconUrl={faviconUrl} 
-         role={userRole}
-         supportEmail={userEmail}
+         projectId={projectId}
+         dateRange={dateRange}
+         onDateRangeChange={(range) => {
+           window.location.href = `?range=${range}`;
+         }}
+         userRole={userRole}
+         userEmail={userEmail}
       />
       
       <div className="max-w-[1600px] mx-auto p-4 sm:p-6 space-y-6">
