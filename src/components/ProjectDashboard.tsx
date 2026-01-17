@@ -113,12 +113,23 @@ const landingPageData = useMemo(() => {
         )}
 
         {/* 3. KPI Grid (Tableau Style) */}
-        <TableauKpiGrid 
-          data={data} 
-          isLoading={isLoading} 
-          previousData={data.previousData} // Für Vergleiche
-          dateRange={dateRange}
-        />
+<TableauKpiGrid 
+  kpis={{
+    clicks: data.kpis?.clicks || { value: 0, change: 0 },
+    impressions: data.kpis?.impressions || { value: 0, change: 0 },
+    sessions: data.kpis?.sessions || { value: 0, change: 0 },
+    totalUsers: data.kpis?.totalUsers || { value: 0, change: 0 },
+    newUsers: data.kpis?.newUsers,
+    conversions: data.kpis?.conversions,
+    engagementRate: data.kpis?.engagementRate,
+    bounceRate: data.kpis?.bounceRate,
+    avgEngagementTime: data.kpis?.avgEngagementTime,
+  }}
+  isLoading={isLoading} 
+  allChartData={data.charts}
+  apiErrors={data.apiErrors}
+  dateRange={dateRange}
+/>
 
         {/* 4. AI Analysis Widget */}
          <AiAnalysisWidget 
