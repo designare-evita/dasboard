@@ -132,7 +132,7 @@ export default function ProjectDashboard({
     if (range === dateRange) return;
     setIsUpdating(true);
     const params = new URLSearchParams(searchParams.toString());
-    params.set('dateRange', range);
+    params.set('range', range);
     router.push(`${pathname}?${params.toString()}`);
     if (onDateRangeChange) onDateRangeChange(range);
   };
