@@ -19,10 +19,12 @@ import {
   PlusCircle,
   CodeSquare,
   Newspaper,
-  FileText // NEU: Icon für Landingpage Generator
+  FileText,
+  Robot // NEU: Icon für KI-Sichtbarkeit
 } from 'react-bootstrap-icons';
 import CtrBooster from '@/components/admin/ki/CtrBooster';
-import LandingpageGenerator from '@/components/admin/ki/LandingpageGenerator'; // NEU
+import LandingpageGenerator from '@/components/admin/ki/LandingpageGenerator';
+import AiVisibilityChecker from '@/components/admin/ki/AiVisibilityChecker'; // NEU
 
 interface Project {
   id: string;
@@ -38,7 +40,7 @@ interface Keyword {
   impressions: number;
 }
 
-type Tab = 'questions' | 'ctr' | 'gap' | 'spy' | 'trends' | 'schema' | 'news' | 'landingpage'; // ERWEITERT
+type Tab = 'questions' | 'ctr' | 'gap' | 'spy' | 'trends' | 'schema' | 'news' | 'landingpage' | 'ai-visibility'; // ERWEITERT
 
 // Länder-Optionen
 const COUNTRIES = [
@@ -444,7 +446,7 @@ export default function KiToolPage() {
             News-Crawler
           </button>
 
-          {/* NEU: Landingpage Generator Tab */}
+          {/* Landingpage Generator Tab */}
           <button
             onClick={() => setActiveTab('landingpage')}
             className={`
@@ -454,6 +456,18 @@ export default function KiToolPage() {
           >
             <FileText size={18} />
             Landingpage
+          </button>
+
+          {/* NEU: AI Visibility Check Tab */}
+          <button
+            onClick={() => setActiveTab('ai-visibility')}
+            className={`
+              flex items-center gap-2 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
+              ${activeTab === 'ai-visibility' ? 'border-purple-500 text-purple-600' : 'border-transparent text-gray-500 hover:text-gray-700'}
+            `}
+          >
+            <Robot size={18} />
+            KI-Sichtbarkeit
             <span className="ml-1 px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-600 text-[10px] font-bold">NEU</span>
           </button>
 
@@ -494,8 +508,8 @@ export default function KiToolPage() {
       ) : (
         <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
           
-          {/* Standard Tools (nicht CTR, nicht Landingpage) */}
-          {(activeTab !== 'ctr' && activeTab !== 'landingpage') && (
+          {/* Standard Tools (nicht CTR, nicht Landingpage, nicht AI-Visibility) */}
+          {(activeTab !== 'ctr' && activeTab !== 'landingpage' && activeTab !== 'ai-visibility') && (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
               
               {/* LINKER BEREICH: INPUTS */}
@@ -828,7 +842,7 @@ export default function KiToolPage() {
             </div>
           )}
 
-          {/* NEU: LANDINGPAGE GENERATOR */}
+          {/* LANDINGPAGE GENERATOR */}
           {activeTab === 'landingpage' && (
             <LandingpageGenerator
               projectId={selectedProjectId}
@@ -837,12 +851,19 @@ export default function KiToolPage() {
               loadingKeywords={loadingData}
             />
           )}
+
+          {/* NEU: AI VISIBILITY CHECKER */}
+          {activeTab === 'ai-visibility' && (
+            <AiVisibilityChecker
+              projectDomain={selectedProject?.domain}
+            />
+          )}
           
         </div>
       )}
 
       {/* --- MODUL INFO-BOXEN (Volle Breite, immer sichtbar) --- */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 pt-10 border-t border-gray-200 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-10 border-t border-gray-200 animate-in fade-in slide-in-from-bottom-4 duration-500">
         
         {/* Box 1: Fragen */}
         <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
@@ -924,7 +945,7 @@ export default function KiToolPage() {
            </div>
         </div>
 
-        {/* Box 6: Landingpage Generator (NEU) */}
+        {/* Box 6: Landingpage Generator */}
         <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
            <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center mb-4 text-purple-600">
               <FileText size={20} />
@@ -939,8 +960,24 @@ export default function KiToolPage() {
               </p>
            </div>
         </div>
+
+        {/* Box 7: KI-Sichtbarkeit (NEU) */}
+        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+           <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center mb-4 text-purple-600">
+              <Robot size={20} />
+           </div>
+           <h3 className="font-bold text-gray-900 mb-2">KI-Sichtbarkeit</h3>
+           <div className="text-sm text-gray-600 space-y-2 leading-relaxed">
+              <p><span className="font-semibold text-gray-800 text-xs uppercase tracking-wide">Aktion:</span> Prüft ob Domain in KI-Antworten erwähnt wird.</p>
+              <p><span className="font-semibold text-gray-800 text-xs uppercase tracking-wide">Ziel:</span> Sichtbarkeit in ChatGPT, Gemini etc. optimieren.</p>
+              
+              <p className="pt-2 text-xs text-gray-500 border-t border-gray-50 mt-2">
+                💡 Testet live mit Gemini API und analysiert Schema.org & E-E-A-T Signale.
+              </p>
+           </div>
+        </div>
         
-        {/* Box 7: Trend Radar */}
+        {/* Box 8: Trend Radar */}
         <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
            <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center mb-4 text-emerald-600">
               <GraphUpArrow size={20} />
@@ -956,7 +993,7 @@ export default function KiToolPage() {
            </div>
         </div>
 
-        {/* Box 8: CTR Booster */}
+        {/* Box 9: CTR Booster */}
         <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
            <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center mb-4 text-indigo-600">
               <RocketTakeoff size={20} />
