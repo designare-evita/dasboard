@@ -83,10 +83,10 @@ export default function ProjectDashboard({
   const hasKampagne2Config = !!semrushTrackingId02;
 
   // Calculate aggregated landing pages data
-  const landingPageData = useMemo(() => {
-    if (!data.landingPages || data.landingPages.length === 0) return [];
-    return aggregateLandingPages(data.landingPages);
-  }, [data.landingPages]);
+const landingPageData = useMemo(() => {
+  if (!data.topConvertingPages || data.topConvertingPages.length === 0) return [];
+  return aggregateLandingPages(data.topConvertingPages);
+}, [data.topConvertingPages]);
 
   return (
     <div className="min-h-screen bg-gray-50/50 pb-20">
