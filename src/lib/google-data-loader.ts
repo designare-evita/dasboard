@@ -26,7 +26,11 @@ import type { TopQueryData, ChartPoint } from '@/types/dashboard';
 // ✅ DEMO-DATEN IMPORT
 import { getDemoAnalyticsData } from '@/lib/demo-data';
 
-const CACHE_DURATION_HOURS = 48; 
+function getCacheDuration(dateRange: string): number {
+  if (dateRange === '18m' || dateRange === '24m') return 72; // 3 Tage
+  if (dateRange === '12m') return 48;
+  return 24; // kürzere Zeiträume öfter aktualisieren
+}
 
 // Interface für interne Datenhaltung - kompatibel mit Ga4ExtendedData
 interface RawApiData {
@@ -98,7 +102,7 @@ export async function getOrFetchGoogleData(
         const cacheEntry = rows[0];
         const lastFetched = new Date(cacheEntry.last_fetched).getTime();
         const now = Date.now();
-        if ((now - lastFetched) / (1000 * 60 * 60) < CACHE_DURATION_HOURS) {
+        if ((now - lastFetched) / (1000 * 60 * 60) < getCacheDuration(dateRange)) {
           console.log(`[Google Cache] ✅ HIT für ${user.email}`);
           return { ...cacheEntry.data, fromCache: true };
         }
