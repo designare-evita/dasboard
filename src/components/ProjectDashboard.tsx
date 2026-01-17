@@ -35,157 +35,277 @@ interface ProjectDashboardProps {
   isLoading: boolean;
   dateRange: DateRangeOption;
   onDateRangeChange?: (range: DateRangeOption) => void;
-  projectId: string;
-  domain: string;
-  semrushTrackingId?: string;
-  semrushTrackingId02?: string;
+  projectId?: string;
+  domain?: string;
+  faviconUrl?: string | null;
+  semrushTrackingId?: string | null;
+  semrushTrackingId02?: string | null;
   projectTimelineActive?: boolean;
-  faviconUrl?: string;
-  
-  countryData?: any[];
-  channelData?: any[];
-  deviceData?: any[];
-  
-  userRole?: string;
-  userEmail?: string;
-  
-  showLandingPages?: boolean;
-  dataMaxEnabled?: boolean; // ✅ NEU: Steuert Sichtbarkeit
+  countryData?: ChartEntry[];
+  channelData?: ChartEntry[];
+  deviceData?: ChartEntry[];
+  bingData?: any[];
+  userRole?: string; 
+  userEmail?: string; 
+  showLandingPages?: boolean; // ✅ NEU: Renamed from showLandingPagesToCustomer
+  dataMaxEnabled?: boolean; // ✅ NEU: Steuert Sichtbarkeit des DataMax Chat
 }
 
-export default function ProjectDashboard({ 
-  data, 
-  isLoading, 
-  dateRange, 
+function safeKpi(kpi?: KpiDatum) {
+  return kpi || { value: 0, change: 0 };
+}
+
+export default function ProjectDashboard({
+  data,
+  isLoading,
+  dateRange,
+  onDateRangeChange, 
   projectId,
   domain,
+  faviconUrl,
   semrushTrackingId,
   semrushTrackingId02,
   projectTimelineActive = false,
-  faviconUrl,
-  userRole,
-  userEmail,
-  showLandingPages = true,
-  dataMaxEnabled = true // ✅ NEU: Default true
+  userRole = 'USER', 
+  userEmail = '', 
+  showLandingPages = false, // ✅ NEU: Renamed
+  dataMaxEnabled = true, // ✅ NEU: Default true
 }: ProjectDashboardProps) {
+  
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
-  // Sicherstellen dass API Errors existieren, um Crashes zu vermeiden
-  const safeApiErrors = data.apiErrors || {
-    gsc: null,
-    gscCrawl: null,
-    ga4: null,
-    semrush: null,
-    bing: null
+  const [activeKpi, setActiveKpi] = useState<ActiveKpi>('clicks');
+  const [isLandingPagesVisible, setIsLandingPagesVisible] = useState(showLandingPages);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [showAiTrafficDetail, setShowAiTrafficDetail] = useState(false);
+  const chartRef = useRef<HTMLDivElement>(null);
+  
+  useEffect(() => {
+    setIsUpdating(false);
+  }, [dateRange, data, isLoading]);
+
+  const apiErrors = data.apiErrors;
+  const kpis = data.kpis;
+
+  const extendedKpis = kpis ? {
+    clicks: safeKpi(kpis.clicks),
+    impressions: safeKpi(kpis.impressions),
+    sessions: safeKpi(kpis.sessions),
+    totalUsers: safeKpi(kpis.totalUsers),
+    conversions: safeKpi(kpis.conversions),
+    engagementRate: safeKpi(kpis.engagementRate),
+    bounceRate: safeKpi(kpis.bounceRate),
+    newUsers: safeKpi(kpis.newUsers),
+    avgEngagementTime: safeKpi(kpis.avgEngagementTime),
+  } : undefined;
+
+  const allChartData = {
+    ...(data.charts || {}),
+    aiTraffic: (data.aiTraffic?.trend ?? []).map(item => ({
+      date: item.date,
+      value: (item as any).value ?? (item as any).sessions ?? 0
+    }))
   };
 
+  const cleanLandingPages = useMemo(() => {
+    return aggregateLandingPages(data.topConvertingPages || []);
+  }, [data.topConvertingPages]);
+
+  const exportKpis = useMemo(() => {
+    if (!extendedKpis) return [];
+    
+    return [
+      { label: 'Impressionen', value: extendedKpis.impressions.value.toLocaleString('de-DE'), change: extendedKpis.impressions.change },
+      { label: 'Klicks', value: extendedKpis.clicks.value.toLocaleString('de-DE'), change: extendedKpis.clicks.change },
+      { label: 'Nutzer', value: extendedKpis.totalUsers.value.toLocaleString('de-DE'), change: extendedKpis.totalUsers.change },
+      { label: 'Sitzungen', value: extendedKpis.sessions.value.toLocaleString('de-DE'), change: extendedKpis.sessions.change },
+      { label: 'Engagement', value: extendedKpis.engagementRate.value.toFixed(1), change: extendedKpis.engagementRate.change, unit: '%' },
+      { label: 'Conversions', value: extendedKpis.conversions.value.toLocaleString('de-DE'), change: extendedKpis.conversions.change },
+      { label: 'KI-Traffic', value: (data.aiTraffic?.totalUsers || 0).toLocaleString('de-DE'), change: data.aiTraffic?.totalUsersChange || 0 }, 
+      { label: 'Ø Zeit', value: extendedKpis.avgEngagementTime.value.toLocaleString('de-DE'), change: extendedKpis.avgEngagementTime.change },
+    ];
+  }, [extendedKpis, data.aiTraffic]);
+
+  const handleDateRangeChange = (range: DateRangeOption) => {
+    if (range === dateRange) return;
+    setIsUpdating(true);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('dateRange', range);
+    router.push(`${pathname}?${params.toString()}`);
+    if (onDateRangeChange) onDateRangeChange(range);
+  };
+
+  const isAdmin = userRole === 'ADMIN' || userRole === 'SUPERADMIN';
+  const shouldRenderChart = isAdmin || isLandingPagesVisible;
   const hasSemrushConfig = !!semrushTrackingId || !!semrushTrackingId02;
   const hasKampagne1Config = !!semrushTrackingId;
   const hasKampagne2Config = !!semrushTrackingId02;
+  const safeApiErrors = (apiErrors as any) || {};
 
-  // Calculate aggregated landing pages data
-const landingPageData = useMemo(() => {
-  if (!data.topConvertingPages || data.topConvertingPages.length === 0) return [];
-  return aggregateLandingPages(data.topConvertingPages);
-}, [data.topConvertingPages]);
+  const hasAiTraffic = (data.aiTraffic?.totalSessions ?? 0) > 0;
 
   return (
-    <div className="min-h-screen bg-gray-50/50 pb-20">
+    <div className="min-h-screen flex flex-col dashboard-gradient relative">
       
-      {/* 1. Global Header (Logo, User Menü, Breadcrumbs) */}
-      <GlobalHeader 
-         domain={domain} 
-         projectId={projectId}
-         dateRange={dateRange}
-         onDateRangeChange={(range) => {
-           window.location.href = `?range=${range}`;
-         }}
-         userRole={userRole}
-         userEmail={userEmail}
-      />
+      {/* Lightbox Spinner */}
+      {isUpdating && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-white/70 backdrop-blur-md transition-all animate-in fade-in duration-300">
+           <div className="bg-white p-8 rounded-3xl shadow-2xl border border-gray-100 flex flex-col items-center gap-6 max-w-md w-full text-center transform scale-100 animate-in zoom-in-95 duration-300">
+              <div className="relative w-full flex justify-center">
+                 <Image 
+                   src="/data-max-arbeitet.webp" 
+                   alt="Data Max arbeitet" 
+                   width={400} 
+                   height={400}
+                   className="h-[200px] w-auto object-contain"
+                   priority
+                 />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-gray-800 mb-1">Daten werden aktualisiert</h3>
+                <p className="text-gray-500 text-sm leading-relaxed">
+                  Rufe aktuelle Metriken von Google & Semrush ab...
+                </p>
+              </div>
+              <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                <div className="h-full bg-indigo-500 w-1/3 rounded-full animate-indeterminate-bar"></div>
+              </div>
+           </div>
+        </div>
+      )}
       
-      <div className="max-w-[1600px] mx-auto p-4 sm:p-6 space-y-6">
+      <div className="flex-grow w-full px-4 sm:px-6 lg:px-8 py-6">
+        <GlobalHeader 
+          domain={domain}
+          projectId={projectId}
+          dateRange={dateRange}
+          onDateRangeChange={handleDateRangeChange}
+          userRole={userRole}
+          userEmail={userEmail}
+        />
         
-        {/* 2. Timeline Widget (Conditional) */}
-        {projectTimelineActive && (
-          <div className="animate-fade-in-up">
+        {projectId && projectTimelineActive && (
+          <div className="mb-6 print-timeline">
             <ProjectTimelineWidget projectId={projectId} />
           </div>
         )}
 
-        {/* 3. KPI Grid (Tableau Style) */}
-<TableauKpiGrid 
-  kpis={{
-    clicks: data.kpis?.clicks || { value: 0, change: 0 },
-    impressions: data.kpis?.impressions || { value: 0, change: 0 },
-    sessions: data.kpis?.sessions || { value: 0, change: 0 },
-    totalUsers: data.kpis?.totalUsers || { value: 0, change: 0 },
-    newUsers: data.kpis?.newUsers,
-    conversions: data.kpis?.conversions,
-    engagementRate: data.kpis?.engagementRate,
-    bounceRate: data.kpis?.bounceRate,
-    avgEngagementTime: data.kpis?.avgEngagementTime,
-  }}
-  isLoading={isLoading} 
-  allChartData={data.charts}
-  apiErrors={data.apiErrors}
-  dateRange={dateRange}
-/>
-
-        {/* 4. AI Analysis Widget */}
-         <AiAnalysisWidget 
-          projectId={projectId} 
-          dateRange={dateRange}
-          domain={domain}
-        />
-
-        {/* 5. Main Charts Area */}
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          
-          {/* Main Trend Chart (2/3 width) */}
-          <div className="xl:col-span-2 card-glass p-1">
-             <KpiTrendChart 
-               data={data.history} 
-               isLoading={isLoading} 
-               dateRange={dateRange}
-               error={safeApiErrors?.gsc}
-             />
-          </div>
-
-          {/* AI Traffic Radar (1/3 width) */}
-          <div className="xl:col-span-1">
-             <AiTrafficDetailWidgetV2 
-               projectId={projectId} 
-               dateRange={dateRange} 
-             />
-          </div>
-        </div>
-
-        {/* 6. Landing Page Chart (Conditional) */}
-        {showLandingPages && landingPageData.length > 0 && (
-          <div className="card-glass p-1">
-            <LandingPageChart 
-              data={landingPageData}
-              isLoading={isLoading}
+        {/* AI WIDGET */}
+        {projectId && (
+          <div className="mt-6 print:hidden">
+            <AiAnalysisWidget 
+              projectId={projectId}
+              domain={domain}
+              dateRange={dateRange}
+              chartRef={chartRef}
+              kpis={exportKpis}
             />
           </div>
         )}
 
-        {/* 7. Secondary Details Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-          
-          {/* Top Keywords */}
-          <div className="card-glass p-0 overflow-hidden h-full">
-            <TopQueriesList 
-              data={data.topQueries} 
+        {/* KPI GRID */}
+        <div className="mt-6 print-kpi-grid">
+          {extendedKpis && (
+            <TableauKpiGrid
+              kpis={extendedKpis}
+              isLoading={isLoading} 
+              allChartData={data.charts as any} 
+              apiErrors={safeApiErrors}
+              dateRange={dateRange} 
+            />
+          )}
+        </div>
+
+        <div className="mt-6 print-trend-chart" ref={chartRef}>
+          <KpiTrendChart 
+            activeKpi={activeKpi}
+            onKpiChange={(kpi) => setActiveKpi(kpi as ActiveKpi)}
+            allChartData={allChartData}
+          />
+        </div>
+        
+        {/* KI-Traffic Sektion mit Toggle für Detail-Ansicht */}
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mt-6 print-traffic-grid">
+          <div className="xl:col-span-1 print-ai-card">
+            <AiTrafficCard 
+              totalSessions={data.aiTraffic?.totalSessions ?? 0}
+              totalUsers={data.aiTraffic?.totalUsers ?? 0}
+              percentage={data.kpis?.sessions?.value ? ((data.aiTraffic?.totalSessions ?? 0) / data.kpis.sessions.value * 100) : 0}
+              totalSessionsChange={data.aiTraffic?.totalSessionsChange}
+              totalUsersChange={data.aiTraffic?.totalUsersChange}
+              trend={(data.aiTraffic?.trend ?? []).map(item => ({
+                date: item.date,
+                value: (item as any).value ?? (item as any).sessions ?? 0
+              }))}
+              topAiSources={data.aiTraffic?.topAiSources ?? []}
+              className="h-full"
               isLoading={isLoading}
+              dateRange={dateRange}
+              error={safeApiErrors?.ga4}
+              onDetailClick={() => setShowAiTrafficDetail(!showAiTrafficDetail)}
+            />
+          </div>
+          
+          <div className="xl:col-span-2 print-queries-list">
+            <TopQueriesList 
+              queries={data.topQueries ?? []} 
+              isLoading={isLoading}
+              className="h-full"
+              dateRange={dateRange}
               error={safeApiErrors?.gsc}
             />
           </div>
+        </div>
 
-          {/* Charts Grid - jetzt responsive */}
+        {/* KI-Traffic Detail-Ansicht (ausklappbar) */}
+        {showAiTrafficDetail && hasAiTraffic && (
+          <div className="mt-6 animate-in slide-in-from-top-4 duration-300 print:hidden">
+            <AiTrafficDetailWidgetV2 
+              projectId={projectId}
+              dateRange={dateRange}
+            />
+          </div>
+        )}
+
+        {shouldRenderChart && (
+          <div className={`mt-6 transition-all duration-300 ${!isLandingPagesVisible && isAdmin ? 'opacity-70 grayscale-[0.5]' : ''}`}>
+            {isAdmin && (
+               <div className="flex items-center justify-end mb-2 print:hidden">
+                 <button 
+                    onClick={() => setIsLandingPagesVisible(!isLandingPagesVisible)}
+                    className="flex items-center gap-2 text-xs font-medium text-gray-500 hover:text-gray-800 transition-colors"
+                 >
+                    {isLandingPagesVisible ? <EyeSlash size={14}/> : <Eye size={14}/>}
+                    {isLandingPagesVisible ? 'Für Kunden verbergen' : 'Für Kunden sichtbar machen'}
+                 </button>
+               </div>
+            )}
+            <div className="print-landing-chart relative">
+               <LandingPageChart 
+                 data={cleanLandingPages} 
+                 isLoading={isLoading}
+                 title="Top Landingpages"
+                 dateRange={dateRange}
+                 queryData={data.landingPageQueries}
+               />
+               {!isLandingPagesVisible && isAdmin && (
+                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                   <div className="bg-gray-900/10 backdrop-blur-[1px] px-4 py-2 rounded-lg border border-gray-900/20 text-gray-800 text-xs font-semibold shadow-sm">
+                     🚫 Für Kunden ausgeblendet
+                   </div>
+                 </div>
+               )}
+            </div>
+          </div>
+        )}
+
+        {/* PIE CHARTS */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6 print-pie-grid">
           <TableauPieChart 
             data={data.channelData} 
-            title="Zugriffe nach Kanal" 
+            title="Zugriffe nach Channel" 
             isLoading={isLoading} 
             error={safeApiErrors?.ga4} 
             dateRange={dateRange}
@@ -228,19 +348,6 @@ const landingPageData = useMemo(() => {
         }
         .animate-indeterminate-bar {
           animation: indeterminate-bar 1.5s infinite linear;
-        }
-        .card-glass {
-          background: white;
-          border: 1px solid #e2e8f0;
-          border-radius: 12px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-        }
-        .animate-fade-in-up {
-          animation: fadeInUp 0.5s ease-out forwards;
-        }
-        @keyframes fadeInUp {
-          from { opacity: 0; transform: translateY(10px); }
-          to { opacity: 1; transform: translateY(0); }
         }
       `}</style>
     </div>
