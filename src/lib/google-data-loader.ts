@@ -9,6 +9,7 @@ import {
   getGa4DimensionReport,
   getTopConvertingPages,
   getGscPageCtr, 
+  getQueriesByLandingPageObject, // ✅ NEU IMPORT
   type AiTrafficData,
   type Ga4ExtendedData
 } from '@/lib/google-api';
@@ -17,7 +18,8 @@ import {
   ProjectDashboardData, 
   ChartEntry, 
   ApiErrorStatus,
-  ConvertingPageData 
+  ConvertingPageData,
+  LandingPageQueries // ✅ NEU IMPORT
 } from '@/lib/dashboard-shared';
 import type { TopQueryData, ChartPoint } from '@/types/dashboard';
 
@@ -143,6 +145,7 @@ start.setDate(end.getDate() - days);
   let deviceData: ChartEntry[] = [];
   let bingData: any[] = [];
   let apiErrors: ApiErrorStatus = {};
+  let landingPageQueries: LandingPageQueries = {}; // ✅ NEU
 
   // --- GSC FETCH ---
   if (user.gsc_site_url) {
@@ -168,6 +171,10 @@ start.setDate(end.getDate() - days);
       };
 
       topQueries = await getTopQueries(user.gsc_site_url, startDateStr, endDateStr);
+      
+      // ✅ NEU: Landing Page Queries abrufen
+      landingPageQueries = await getQueriesByLandingPageObject(user.gsc_site_url, startDateStr, endDateStr, 5);
+      
     } catch (e: any) {
       console.error('[GSC Error]', e);
       apiErrors.gsc = e.message || 'GSC Fehler';
@@ -313,6 +320,7 @@ start.setDate(end.getDate() - days);
       paidSearch: currentData.paidSearch.daily || []
     },
     topQueries,
+    landingPageQueries, // ✅ NEU
     topConvertingPages,
     aiTraffic,
     countryData,
