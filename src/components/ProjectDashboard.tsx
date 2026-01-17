@@ -286,6 +286,7 @@ export default function ProjectDashboard({
                  isLoading={isLoading}
                  title="Top Landingpages"
                  dateRange={dateRange}
+                 queryData={data.landingPageQueries} // ✅ NEU
                />
                {!isLandingPagesVisible && isAdmin && (
                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
