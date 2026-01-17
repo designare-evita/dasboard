@@ -1,24 +1,25 @@
-// src/app/admin/system/page.tsx
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { 
   DatabaseCheck, ShieldLock, ArrowRepeat, Trash,
   CheckCircleFill, XCircleFill, ExclamationTriangleFill,
-  HddNetwork, ClockHistory, Search, BarChartLine,
+  HddNetwork, Search, BarChartLine,
   ConeStriped, PersonFillLock, Magic,
-  ToggleOn, ToggleOff, PersonCheck
+  ToggleOn, ToggleOff, PersonCheck,
+  Robot, ChatQuoteFill // Neue Icons für DataMax
 } from 'react-bootstrap-icons';
 import LoginLogbook from '@/app/admin/LoginLogbook';
 
-// Typen definiert
+// Typen erweitert
 type UserStatus = {
   id: string;
   email: string;
   role: string;
   domain: string | null;
-  maintenance_mode: boolean;   // Für Wartung
-  ki_tool_enabled?: boolean;   // Für KI
+  maintenance_mode: boolean;
+  ki_tool_enabled?: boolean;
+  data_max_enabled?: boolean; // NEU: DataMax Status
 };
 
 export default function SystemHealthPage() {
@@ -40,6 +41,13 @@ export default function SystemHealthPage() {
   const [togglingKiId, setTogglingKiId] = useState<string | null>(null);
   const [kiToolSearchTerm, setKiToolSearchTerm] = useState('');
 
+  // --- DATAMAX CHAT STATE (NEU) ---
+  const [dataMaxUsers, setDataMaxUsers] = useState<UserStatus[]>([]);
+  const [dataMaxDisabledCount, setDataMaxDisabledCount] = useState(0);
+  const [isLoadingDataMax, setIsLoadingDataMax] = useState(false);
+  const [togglingDataMaxId, setTogglingDataMaxId] = useState<string | null>(null);
+  const [dataMaxSearchTerm, setDataMaxSearchTerm] = useState('');
+
   // --- FETCHERS ---
   const fetchStatus = async () => {
     setIsLoading(true);
@@ -54,14 +62,9 @@ export default function SystemHealthPage() {
     try {
       const res = await fetch('/api/admin/maintenance');
       const data = await res.json();
-      // API gibt jetzt { users: [], count: number } zurück
       setMaintenanceUsers(data.users || []);
       setMaintenanceCount(data.count || 0);
-    } catch (e) {
-      console.error('Failed to fetch maintenance status', e);
-    } finally {
-      setIsLoadingMaintenance(false);
-    }
+    } catch (e) { console.error(e); } finally { setIsLoadingMaintenance(false); }
   }, []);
 
   const fetchKiToolStatus = useCallback(async () => {
@@ -74,22 +77,29 @@ export default function SystemHealthPage() {
     } catch (e) { console.error(e); } finally { setIsLoadingKiTool(false); }
   }, []);
 
+  // NEU: DataMax Fetcher
+  const fetchDataMaxStatus = useCallback(async () => {
+    setIsLoadingDataMax(true);
+    try {
+      const res = await fetch('/api/admin/datamax-settings');
+      const data = await res.json();
+      setDataMaxUsers(data.users || []);
+      setDataMaxDisabledCount(data.disabledCount || 0);
+    } catch (e) { console.error(e); } finally { setIsLoadingDataMax(false); }
+  }, []);
+
   useEffect(() => {
     fetchStatus();
     fetchMaintenanceStatus();
     fetchKiToolStatus();
-  }, [fetchMaintenanceStatus, fetchKiToolStatus]);
+    fetchDataMaxStatus();
+  }, [fetchMaintenanceStatus, fetchKiToolStatus, fetchDataMaxStatus]);
 
   // --- ACTIONS ---
 
-  // Wartungsmodus umschalten
   const toggleMaintenance = async (userId: string, currentMode: boolean) => {
     const shouldActivate = !currentMode;
-    // Sicherheitsabfrage beim Aktivieren
-    if (shouldActivate && !confirm('Benutzer wirklich sperren (Wartungsmodus)? Er kann sich dann nicht mehr einloggen.')) {
-      return;
-    }
-
+    if (shouldActivate && !confirm('Benutzer wirklich sperren (Wartungsmodus)?')) return;
     setTogglingMaintId(userId);
     try {
       const res = await fetch('/api/admin/maintenance', {
@@ -102,16 +112,8 @@ export default function SystemHealthPage() {
     } catch (e) { alert('Verbindungsfehler'); } finally { setTogglingMaintId(null); }
   };
 
-  // KI-Tool umschalten
   const toggleKiTool = async (userId: string, currentEnabled: boolean) => {
-    // currentEnabled ist true, wenn enabled. newState = !currentEnabled
-    // Aber Achtung: DB Logic in toggleKiTool API erwartet "isEnabled".
-    // Wenn User es hat (true), wollen wir deaktivieren (false).
-    
-    // Die existierende API erwartet { isEnabled: boolean }
-    // User object hat "ki_tool_enabled"
-    const newState = currentEnabled === false ? true : false; // Wenn undefined/true -> false. Wenn false -> true.
-
+    const newState = currentEnabled === false ? true : false; 
     setTogglingKiId(userId);
     try {
       const res = await fetch('/api/admin/ki-tool-settings', {
@@ -122,6 +124,24 @@ export default function SystemHealthPage() {
       if (res.ok) await fetchKiToolStatus();
       else alert((await res.json()).message || 'Fehler');
     } catch (e) { alert('Verbindungsfehler'); } finally { setTogglingKiId(null); }
+  };
+
+  // NEU: DataMax Toggle
+  const toggleDataMax = async (userId: string, currentEnabled?: boolean) => {
+    // Default ist true (wenn undefined). Also togglen wir basierend darauf.
+    const isCurrentlyEnabled = currentEnabled !== false;
+    const newState = !isCurrentlyEnabled;
+
+    setTogglingDataMaxId(userId);
+    try {
+      const res = await fetch('/api/admin/datamax-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, isEnabled: newState })
+      });
+      if (res.ok) await fetchDataMaxStatus();
+      else alert((await res.json()).message || 'Fehler');
+    } catch (e) { alert('Verbindungsfehler'); } finally { setTogglingDataMaxId(null); }
   };
 
   const handleClearCache = async () => {
@@ -150,6 +170,11 @@ export default function SystemHealthPage() {
     (u.domain && u.domain.toLowerCase().includes(maintSearchTerm.toLowerCase()))
   );
 
+  const filteredDataMaxUsers = dataMaxUsers.filter(u => 
+    u.email.toLowerCase().includes(dataMaxSearchTerm.toLowerCase()) || 
+    (u.domain && u.domain.toLowerCase().includes(dataMaxSearchTerm.toLowerCase()))
+  );
+
   if (isLoading) return <div className="p-10 text-center animate-pulse">Lade System-Status...</div>;
   if (!status) return <div className="p-10 text-center text-red-500">Fehler beim Laden.</div>;
 
@@ -170,7 +195,12 @@ export default function SystemHealthPage() {
           )}
           {kiToolDisabledCount > 0 && (
             <div className="bg-purple-100 text-purple-800 px-4 py-2 rounded-lg flex items-center gap-2 font-bold border border-purple-200">
-              <Magic /> {kiToolDisabledCount} KI deaktiviert
+              <Magic /> {kiToolDisabledCount} KI aus
+            </div>
+          )}
+          {dataMaxDisabledCount > 0 && (
+            <div className="bg-sky-100 text-sky-800 px-4 py-2 rounded-lg flex items-center gap-2 font-bold border border-sky-200">
+              <Robot /> {dataMaxDisabledCount} Chat aus
             </div>
           )}
         </div>
@@ -181,7 +211,7 @@ export default function SystemHealthPage() {
         {/* LINKER BEREICH: VERWALTUNG */}
         <div className="xl:col-span-2 space-y-6">
 
-          {/* 1. WARTUNGSMODUS VERWALTUNG (Neu strukturiert) */}
+          {/* 1. WARTUNGSMODUS VERWALTUNG */}
           <div className={`p-6 rounded-xl border shadow-sm transition-colors ${maintenanceCount > 0 ? 'bg-red-50 border-red-200' : 'bg-white border-gray-100'}`}>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
@@ -192,7 +222,7 @@ export default function SystemHealthPage() {
                   <h3 className="font-bold text-gray-900">Wartungsmodus & Zugangssperre</h3>
                   <p className="text-sm text-gray-500">
                     {maintenanceCount > 0 
-                      ? `${maintenanceCount} Benutzer sind aktuell gesperrt (Wartungsseite).`
+                      ? `${maintenanceCount} Benutzer gesperrt.`
                       : 'Alle Benutzer haben freien Zugang.'}
                   </p>
                 </div>
@@ -202,7 +232,6 @@ export default function SystemHealthPage() {
               </button>
             </div>
             
-            {/* Suche */}
             <div className="mb-4 relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
               <input
@@ -214,7 +243,6 @@ export default function SystemHealthPage() {
               />
             </div>
 
-            {/* Liste */}
             <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
               {filteredMaintUsers.length === 0 ? (
                 <div className="text-center py-4 text-gray-400 text-sm">Keine Benutzer gefunden</div>
@@ -222,13 +250,9 @@ export default function SystemHealthPage() {
                 filteredMaintUsers.map((user) => (
                   <div key={user.id} className={`flex items-center justify-between p-3 rounded-lg border transition-all ${user.maintenance_mode ? 'bg-red-100 border-red-200' : 'bg-white border-gray-100 hover:border-gray-200'}`}>
                     <div className="flex items-center gap-3 min-w-0 flex-1">
-                      {/* Status Dot */}
                       <div className={`w-2.5 h-2.5 rounded-full ${user.maintenance_mode ? 'bg-red-500 animate-pulse' : 'bg-emerald-500'}`} />
-                      
                       <div className="min-w-0 flex-1">
-                        <span className={`font-medium truncate block ${user.maintenance_mode ? 'text-red-900' : 'text-gray-900'}`}>
-                          {user.email}
-                        </span>
+                        <span className={`font-medium truncate block ${user.maintenance_mode ? 'text-red-900' : 'text-gray-900'}`}>{user.email}</span>
                         <div className="flex items-center gap-2 text-xs text-gray-500">
                           {user.domain && <span>{user.domain}</span>}
                           <span className={`px-1.5 py-0.5 rounded ${user.role === 'ADMIN' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>{user.role}</span>
@@ -236,14 +260,11 @@ export default function SystemHealthPage() {
                         </div>
                       </div>
                     </div>
-                    
                     <button
                       onClick={() => toggleMaintenance(user.id, user.maintenance_mode)}
                       disabled={togglingMaintId === user.id}
                       className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-50 ${
-                        user.maintenance_mode
-                          ? 'bg-emerald-100 hover:bg-emerald-200 text-emerald-700' // Button zum Entsperren
-                          : 'bg-red-100 hover:bg-red-200 text-red-700' // Button zum Sperren
+                        user.maintenance_mode ? 'bg-emerald-100 hover:bg-emerald-200 text-emerald-700' : 'bg-red-100 hover:bg-red-200 text-red-700'
                       }`}
                     >
                       {togglingMaintId === user.id ? <ArrowRepeat className="animate-spin" size={14} /> : (
@@ -254,10 +275,6 @@ export default function SystemHealthPage() {
                 ))
               )}
             </div>
-            {/* Legende / Info */}
-             <div className="mt-3 text-[10px] text-gray-400 text-right">
-                Superadmins werden aus Sicherheitsgründen hier nicht gelistet.
-             </div>
           </div>
 
           {/* 2. KI-TOOL VERWALTUNG */}
@@ -317,6 +334,68 @@ export default function SystemHealthPage() {
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* 3. NEU: DATAMAX CHAT VERWALTUNG */}
+          <div className={`p-6 rounded-xl border shadow-sm transition-colors ${dataMaxDisabledCount > 0 ? 'bg-sky-50 border-sky-200' : 'bg-white border-gray-100'}`}>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className={`p-3 rounded-lg ${dataMaxDisabledCount > 0 ? 'bg-sky-100' : 'bg-gray-100'}`}>
+                  <Robot className={`text-xl ${dataMaxDisabledCount > 0 ? 'text-sky-600' : 'text-gray-600'}`} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-900">DataMax Chat Berechtigung</h3>
+                  <p className="text-sm text-gray-500">
+                    {dataMaxDisabledCount > 0 ? `${dataMaxDisabledCount} User ohne Chat Zugriff.` : 'Alle User dürfen DataMax nutzen.'}
+                  </p>
+                </div>
+              </div>
+              <button onClick={fetchDataMaxStatus} disabled={isLoadingDataMax} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm transition-all">
+                <ArrowRepeat className={isLoadingDataMax ? 'animate-spin' : ''} /> Aktualisieren
+              </button>
+            </div>
+            
+            <div className="mb-4 relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+              <input
+                type="text"
+                placeholder="Benutzer für DataMax suchen..."
+                value={dataMaxSearchTerm}
+                onChange={(e) => setDataMaxSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+              />
+            </div>
+
+            <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+              {filteredDataMaxUsers.length === 0 ? <div className="text-center py-4 text-gray-400 text-sm">Nichts gefunden</div> : filteredDataMaxUsers.map((user) => (
+                <div key={user.id} className={`flex items-center justify-between p-3 rounded-lg border transition-all ${user.data_max_enabled === false ? 'bg-sky-50 border-sky-200' : 'bg-white border-gray-100 hover:border-gray-200'}`}>
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className={`w-2 h-2 rounded-full ${user.data_max_enabled === false ? 'bg-gray-300' : 'bg-sky-500'}`} />
+                    <div className="min-w-0 flex-1">
+                      <span className="font-medium text-gray-900 truncate block">{user.email}</span>
+                      <div className="flex items-center gap-2 text-xs text-gray-500">
+                        {user.domain && <span>{user.domain}</span>}
+                        <span className={`px-1.5 py-0.5 rounded ${user.role === 'ADMIN' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>{user.role}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => toggleDataMax(user.id, user.data_max_enabled)}
+                    disabled={togglingDataMaxId === user.id}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-50 ${
+                      user.data_max_enabled === false ? 'bg-green-100 hover:bg-green-200 text-green-700' : 'bg-gray-100 hover:bg-gray-200 text-gray-600'
+                    }`}
+                  >
+                    {togglingDataMaxId === user.id ? <ArrowRepeat className="animate-spin" size={14} /> : (
+                      user.data_max_enabled === false ? <><ToggleOn size={16} /> Aktivieren</> : <><ToggleOff size={16} /> Deaktivieren</>
+                    )}
+                  </button>
+                </div>
+              ))}
+            </div>
+             <div className="mt-3 text-[10px] text-gray-400 text-right">
+                Standardmäßig haben alle User Zugriff (Default: Aktiv).
+             </div>
           </div>
 
           {/* STATUS GRID */}
