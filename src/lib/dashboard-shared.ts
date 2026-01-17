@@ -54,6 +54,17 @@ export interface ApiErrorStatus {
   bing?: string; // Optional: Auch Bing-Fehler tracken
 }
 
+// ✅ NEU: Landing Page Query Interfaces
+export interface LandingPageQueryData {
+  query: string;
+  clicks: number;
+  impressions: number;
+}
+
+export interface LandingPageQueries {
+  [path: string]: LandingPageQueryData[];
+}
+
 export interface ConvertingPageData {
   path: string;
   conversions: number;
@@ -96,6 +107,9 @@ export interface ProjectDashboardData {
   
   // ✅ NEU: Bing Daten im Dashboard-Objekt
   bingData?: BingDataPoint[];
+  
+  // ✅ NEU: Queries pro Landing Page
+  landingPageQueries?: LandingPageQueries;
 
   countryData?: ChartEntry[];
   channelData?: ChartEntry[];
