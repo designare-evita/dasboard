@@ -58,8 +58,8 @@ async function loadData(projectId: string, dateRange: string) {
 
     const projectUser = rows[0] as ExtendedUser;
     
-    // Daten laden (Cache first)
-    const dashboardData = await getOrFetchGoogleData(projectId, dateRange, projectUser);
+    // ✅ KORREKTUR: User-Objekt als ersten Parameter übergeben
+    const dashboardData = await getOrFetchGoogleData(projectUser, dateRange);
 
     return { projectUser, dashboardData };
   } catch (e) {
