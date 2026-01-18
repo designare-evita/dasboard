@@ -205,7 +205,7 @@ async function callGeminiWithGrounding(prompt: string): Promise<string> {
     }],
     generationConfig: {
       temperature: 0.3,
-      maxOutputTokens: 1024
+      maxOutputTokens: 2048  // Erhöht für vollständige Antworten
     }
   };
 
@@ -215,7 +215,7 @@ async function callGeminiWithGrounding(prompt: string): Promise<string> {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(requestBody),
-    signal: AbortSignal.timeout(30000),
+    signal: AbortSignal.timeout(45000), // 45 Sekunden Timeout
   });
 
   if (!response.ok) {
@@ -226,9 +226,23 @@ async function callGeminiWithGrounding(prompt: string): Promise<string> {
 
   const data = await response.json();
   
-  // Text aus der Response extrahieren
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-  return text;
+  // ALLE Parts aus der Response extrahieren und zusammenfügen
+  const candidate = data.candidates?.[0];
+  if (!candidate?.content?.parts) {
+    console.warn('[AI Visibility] Keine Parts in Response:', JSON.stringify(data).substring(0, 500));
+    return '';
+  }
+  
+  // Alle Text-Parts zusammenfügen
+  const allText = candidate.content.parts
+    .filter((part: any) => part.text)
+    .map((part: any) => part.text)
+    .join('\n');
+  
+  // Debug: Zeige wie viele Parts und Finish-Reason
+  console.log(`[AI Visibility] Response: ${candidate.content.parts.length} parts, finish: ${candidate.finishReason}`);
+  
+  return allText;
 }
 
 /**
