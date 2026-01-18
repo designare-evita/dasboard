@@ -1,18 +1,20 @@
 // src/app/api/ai/ai-visibility-check/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import { STYLES, getCompactStyleGuide } from '@/lib/ai-styles';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { STYLES } from '@/lib/ai-styles';
+import { AI_CONFIG } from '@/lib/ai-config';
 import * as cheerio from 'cheerio';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120; // 2 Minuten für mehrere API-Calls
 
 // ============================================================================
-// GOOGLE GENERATIVE AI MIT GROUNDING
+// KONFIGURATION - Nutzt ai-config.ts
 // ============================================================================
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
+// Grounding funktioniert mit gemini-2.0-flash und höher
+const GROUNDING_MODEL = AI_CONFIG.lastResortModel; // gemini-2.0-flash - stabil für Grounding
 
 // ============================================================================
 // TYPEN
@@ -157,7 +159,6 @@ async function analyzeDomainForAI(url: string): Promise<DomainAnalysis> {
 
     // Content-Qualität schätzen
     const textLength = $('body').text().replace(/\s+/g, ' ').trim().length;
-    const h1Count = $('h1').length;
     const h2Count = $('h2').length;
     const imgCount = $('img').length;
 
@@ -189,6 +190,48 @@ async function analyzeDomainForAI(url: string): Promise<DomainAnalysis> {
 }
 
 /**
+ * Ruft Gemini API DIREKT mit Google Search Grounding auf (REST API)
+ */
+async function callGeminiWithGrounding(prompt: string): Promise<string> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GROUNDING_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+  
+  const requestBody = {
+    contents: [{
+      role: "user",
+      parts: [{ text: prompt }]
+    }],
+    tools: [{
+      google_search: {}  // REST API Syntax für Grounding!
+    }],
+    generationConfig: {
+      temperature: 0.3,
+      maxOutputTokens: 1024
+    }
+  };
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(requestBody),
+    signal: AbortSignal.timeout(30000),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('[AI Visibility] Gemini API Error:', response.status, errorText);
+    throw new Error(`Gemini API Error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  
+  // Text aus der Response extrahieren
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  return text;
+}
+
+/**
  * Führt einen KI-Sichtbarkeitstest MIT GOOGLE SEARCH GROUNDING durch
  */
 async function testVisibilityWithGrounding(
@@ -206,22 +249,8 @@ async function testVisibilityWithGrounding(
   };
 
   try {
-    // Modell mit Grounding konfigurieren
-    const model = genAI.getGenerativeModel({ 
-      model: "gemini-2.0-flash",
-      generationConfig: { 
-        temperature: 0.3,
-        maxOutputTokens: 1024
-      }
-    });
-
-    // MIT Google Search Grounding!
-    const response = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      tools: [{ googleSearch: {} }]  // 🔑 DAS IST DER SCHLÜSSEL!
-    });
-
-    const text = response.response.text();
+    // Gemini mit Grounding aufrufen
+    const text = await callGeminiWithGrounding(prompt);
     const formattedText = formatResponseText(text);
     const textLower = text.toLowerCase();
     const domainLower = domain.toLowerCase();
@@ -418,7 +447,7 @@ Antworte auf Deutsch.`,
       scoreCategory = { label: 'Kaum sichtbar', color: 'text-rose-600', icon: 'bi-x-circle-fill', bgColor: 'bg-rose-50 border-rose-200' };
     }
 
-    // 6. Report HTML generieren (direkt, ohne weiteren AI-Call)
+    // 6. Report HTML generieren
     const reportDate = new Date().toLocaleDateString('de-DE', {
       day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
     });
@@ -551,7 +580,7 @@ Antworte auf Deutsch.`,
 <!-- TEST-ERGEBNISSE -->
 <div class="${STYLES.card}">
   <h4 class="${STYLES.h4}"><i class="bi bi-search ${STYLES.iconIndigo}"></i> Gemini Live-Tests (mit Web-Suche)</h4>
-  <p class="text-xs text-gray-500 mb-3">Echte Web-Suchen mit Google Search Grounding – keine Halluzinationen</p>
+  <p class="text-xs text-gray-500 mb-3">Echte Web-Suchen mit Google Search Grounding</p>
   ${testResultsHTML}
 </div>
 
@@ -561,7 +590,7 @@ Antworte auf Deutsch.`,
   ${schemaHTML}
   ${!domainAnalysis.hasSchema ? `
   <div class="${STYLES.warningBox} mt-3">
-    <p class="${STYLES.pSmall}"><i class="bi bi-exclamation-triangle"></i> <strong>Wichtig:</strong> Ohne Schema.org Markup ist es für KI-Systeme schwerer, den Inhalt zu verstehen und zu zitieren.</p>
+    <p class="${STYLES.pSmall}"><i class="bi bi-exclamation-triangle"></i> <strong>Wichtig:</strong> Ohne Schema.org Markup ist es für KI-Systeme schwerer, den Inhalt zu verstehen.</p>
   </div>
   ` : ''}
 </div>
