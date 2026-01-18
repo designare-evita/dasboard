@@ -1,13 +1,18 @@
 // src/app/api/ai/ai-visibility-check/route.ts
-import { streamText } from 'ai';
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { STYLES, getCompactStyleGuide } from '@/lib/ai-styles';
-import { google, AI_CONFIG } from '@/lib/ai-config';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import * as cheerio from 'cheerio';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120; // 2 Minuten für mehrere API-Calls
+
+// ============================================================================
+// GOOGLE GENERATIVE AI MIT GROUNDING
+// ============================================================================
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 // ============================================================================
 // TYPEN
@@ -15,6 +20,7 @@ export const maxDuration = 120; // 2 Minuten für mehrere API-Calls
 
 interface VisibilityTestResult {
   query: string;
+  description: string;
   mentioned: boolean;
   sentiment: 'positive' | 'neutral' | 'negative' | 'not_found';
   excerpt: string;
@@ -28,16 +34,15 @@ interface DomainAnalysis {
   hasContactPage: boolean;
   hasAuthorInfo: boolean;
   contentQuality: 'high' | 'medium' | 'low';
-  estimatedAuthority: number; // 0-100
+  estimatedAuthority: number;
+  title: string;
+  description: string;
 }
 
 // ============================================================================
 // HILFSFUNKTIONEN
 // ============================================================================
 
-/**
- * Extrahiert die Domain aus einer URL
- */
 function extractDomain(url: string): string {
   try {
     let cleanUrl = url.trim();
@@ -52,6 +57,28 @@ function extractDomain(url: string): string {
 }
 
 /**
+ * Formatiert Markdown zu lesbarem Text (für HTML-Output)
+ */
+function formatResponseText(text: string): string {
+  let formatted = text
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '<em>$1</em>')
+    .replace(/^[-•]\s+(.+)$/gm, '• $1');
+  
+  // Zeilenumbrüche nach/vor strong-Tags entfernen
+  formatted = formatted.replace(/<\/strong>\s*\n+/g, '</strong> ');
+  formatted = formatted.replace(/\n+\s*<strong>/g, ' <strong>');
+  formatted = formatted.replace(/\n{3,}/g, '\n\n');
+  formatted = formatted.replace(/\n\n/g, '<br><br>');
+  formatted = formatted.replace(/\n(•)/g, '<br>$1');
+  formatted = formatted.replace(/\n/g, ' ');
+  formatted = formatted.replace(/\s{2,}/g, ' ');
+  formatted = formatted.replace(/\s+([.,!?:;])/g, '$1');
+  
+  return formatted.trim();
+}
+
+/**
  * Crawlt die Website und analysiert KI-relevante Faktoren
  */
 async function analyzeDomainForAI(url: string): Promise<DomainAnalysis> {
@@ -63,6 +90,8 @@ async function analyzeDomainForAI(url: string): Promise<DomainAnalysis> {
     hasAuthorInfo: false,
     contentQuality: 'medium',
     estimatedAuthority: 50,
+    title: '',
+    description: '',
   };
 
   try {
@@ -84,13 +113,16 @@ async function analyzeDomainForAI(url: string): Promise<DomainAnalysis> {
     const html = await res.text();
     const $ = cheerio.load(html);
 
+    // Title & Description
+    result.title = $('title').text().trim();
+    result.description = $('meta[name="description"]').attr('content') || '';
+
     // Schema.org JSON-LD prüfen
     $('script[type="application/ld+json"]').each((_, el) => {
       try {
         const json = JSON.parse($(el).html() || '');
         result.hasSchema = true;
         
-        // Schema-Typen extrahieren
         if (json['@type']) {
           result.schemaTypes.push(json['@type']);
         }
@@ -107,7 +139,8 @@ async function analyzeDomainForAI(url: string): Promise<DomainAnalysis> {
     // Links auf About/Kontakt Seiten prüfen
     const links = $('a').map((_, el) => $(el).attr('href')?.toLowerCase() || '').get();
     result.hasAboutPage = links.some(l => 
-      l.includes('/about') || l.includes('/ueber-uns') || l.includes('/unternehmen') || l.includes('/team')
+      l.includes('/about') || l.includes('/ueber-uns') || l.includes('/über-uns') || 
+      l.includes('/unternehmen') || l.includes('/team') || l.includes('/wir')
     );
     result.hasContactPage = links.some(l => 
       l.includes('/contact') || l.includes('/kontakt') || l.includes('/impressum')
@@ -119,9 +152,10 @@ async function analyzeDomainForAI(url: string): Promise<DomainAnalysis> {
       $('[class*="author"]').length > 0 ||
       $('[itemprop="author"]').length > 0 ||
       result.schemaTypes.includes('Person') ||
-      result.schemaTypes.includes('Author');
+      html.toLowerCase().includes('geschäftsführer') ||
+      html.toLowerCase().includes('inhaber');
 
-    // Content-Qualität schätzen (vereinfacht)
+    // Content-Qualität schätzen
     const textLength = $('body').text().replace(/\s+/g, ' ').trim().length;
     const h1Count = $('h1').length;
     const h2Count = $('h2').length;
@@ -135,7 +169,7 @@ async function analyzeDomainForAI(url: string): Promise<DomainAnalysis> {
       result.contentQuality = 'low';
     }
 
-    // Authority Score berechnen (vereinfacht)
+    // Authority Score berechnen
     let score = 50;
     if (result.hasSchema) score += 15;
     if (result.schemaTypes.length >= 3) score += 10;
@@ -155,15 +189,16 @@ async function analyzeDomainForAI(url: string): Promise<DomainAnalysis> {
 }
 
 /**
- * Führt einen einzelnen KI-Sichtbarkeitstest durch
+ * Führt einen KI-Sichtbarkeitstest MIT GOOGLE SEARCH GROUNDING durch
  */
-async function testVisibilityWithGemini(
+async function testVisibilityWithGrounding(
   domain: string, 
-  query: string,
-  branche: string
+  prompt: string,
+  description: string
 ): Promise<VisibilityTestResult> {
   const result: VisibilityTestResult = {
-    query,
+    query: prompt.split('\n')[0].substring(0, 100),
+    description,
     mentioned: false,
     sentiment: 'not_found',
     excerpt: '',
@@ -171,57 +206,73 @@ async function testVisibilityWithGemini(
   };
 
   try {
-    // Gemini API direkt aufrufen für strukturierte Antwort
-    const { generateText } = await import('ai');
-    
-    const response = await generateText({
-      model: google(AI_CONFIG.fallbackModel),
-      prompt: `${query}
-
-WICHTIG: Antworte natürlich und hilfreich auf die Frage. Wenn du konkrete Empfehlungen oder Webseiten kennst, nenne sie.`,
-      temperature: 0.3,
+    // Modell mit Grounding konfigurieren
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-2.0-flash",
+      generationConfig: { 
+        temperature: 0.3,
+        maxOutputTokens: 1024
+      }
     });
 
-    const text = response.text.toLowerCase();
+    // MIT Google Search Grounding!
+    const response = await model.generateContent({
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      tools: [{ googleSearch: {} }]  // 🔑 DAS IST DER SCHLÜSSEL!
+    });
+
+    const text = response.response.text();
+    const formattedText = formatResponseText(text);
+    const textLower = text.toLowerCase();
     const domainLower = domain.toLowerCase();
+    const domainBase = domain.split('.')[0].toLowerCase();
 
     // Prüfen ob Domain erwähnt wird
-    result.mentioned = text.includes(domainLower) || 
-                       text.includes(domainLower.replace('.', ' ')) ||
-                       text.includes(domainLower.split('.')[0]);
+    result.mentioned = textLower.includes(domainLower) || textLower.includes(domainBase);
 
     if (result.mentioned) {
       // Sentiment analysieren
-      const positiveWords = ['empfehle', 'gut', 'vertrauenswürdig', 'seriös', 'qualität', 'erfahren', 'professionell'];
-      const negativeWords = ['vorsicht', 'warnung', 'unseriös', 'schlecht', 'negativ', 'kritik'];
+      const positiveWords = ['empfehlenswert', 'qualität', 'professionell', 'zuverlässig', 
+        'gute bewertungen', 'positive', 'zufrieden', 'top', 'ausgezeichnet',
+        'spezialist', 'experte', 'erfahren', 'hochwertig', 'vertrauenswürdig', 'sterne'];
+      const negativeWords = ['keine informationen', 'nicht gefunden', 'keine ergebnisse', 
+        'keine bewertungen', 'nicht bekannt', 'keine erwähnungen', 'vorsicht', 'warnung'];
       
-      const hasPositive = positiveWords.some(w => text.includes(w));
-      const hasNegative = negativeWords.some(w => text.includes(w));
+      const positiveScore = positiveWords.filter(w => textLower.includes(w)).length;
+      const negativeScore = negativeWords.filter(w => textLower.includes(w)).length;
       
-      if (hasPositive && !hasNegative) result.sentiment = 'positive';
-      else if (hasNegative) result.sentiment = 'negative';
+      if (positiveScore > negativeScore) result.sentiment = 'positive';
+      else if (negativeScore > positiveScore) result.sentiment = 'negative';
       else result.sentiment = 'neutral';
       
-      // Excerpt extrahieren
-      const domainIndex = text.indexOf(domainLower);
-      if (domainIndex !== -1) {
-        const start = Math.max(0, domainIndex - 50);
-        const end = Math.min(text.length, domainIndex + domainLower.length + 100);
-        result.excerpt = '...' + response.text.substring(start, end) + '...';
-      }
+      // Excerpt (formatiert)
+      result.excerpt = formattedText.length > 500 
+        ? formattedText.substring(0, 500) + '...' 
+        : formattedText;
+    } else {
+      result.excerpt = formattedText.length > 300 
+        ? formattedText.substring(0, 300) + '...' 
+        : formattedText;
     }
 
-    // Konkurrenten extrahieren (URLs/Domains in der Antwort)
-    const urlRegex = /(?:https?:\/\/)?(?:www\.)?([a-zA-Z0-9-]+\.[a-zA-Z]{2,})(?:\/[^\s]*)?/g;
-    const matches = response.text.match(urlRegex) || [];
-    result.competitors = matches
-      .map(m => m.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0])
-      .filter(d => d !== domain && d.length > 3)
+    // Konkurrenten extrahieren
+    const urlRegex = /(?:https?:\/\/)?(?:www\.)?([a-zA-Z0-9][-a-zA-Z0-9]{2,}\.[a-zA-Z]{2,}(?:\.[a-zA-Z]{2,})?)/gi;
+    const matches = text.match(urlRegex) || [];
+    result.competitors = [...new Set(matches)]
+      .map(m => m.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0].toLowerCase())
+      .filter(d => 
+        !d.includes(domainBase) && 
+        !d.includes('google') && 
+        !d.includes('schema.org') &&
+        !d.includes('facebook') &&
+        !d.includes('instagram') &&
+        d.length > 5
+      )
       .slice(0, 5);
 
   } catch (error) {
-    console.error('[AI Visibility] Gemini Test Error:', error);
-    result.excerpt = 'Fehler bei der Abfrage';
+    console.error('[AI Visibility] Grounding Test Error:', error);
+    result.excerpt = 'Test fehlgeschlagen: ' + (error as Error).message;
   }
 
   return result;
@@ -257,109 +308,196 @@ export async function POST(req: NextRequest) {
 
     // 1. Domain-Analyse (Crawling)
     const domainAnalysis = await analyzeDomainForAI(domain);
-    console.log('[AI Visibility] Domain Analysis:', domainAnalysis);
+    console.log('[AI Visibility] Domain Analysis:', {
+      hasSchema: domainAnalysis.hasSchema,
+      schemaTypes: domainAnalysis.schemaTypes.length,
+      title: domainAnalysis.title?.substring(0, 50)
+    });
 
-    // 2. Test-Queries generieren
+    // 2. Test-Queries MIT GROUNDING
     const testQueries = [
-      `Was weißt du über ${cleanDomain}?`,
-      `Welche Anbieter für ${brancheText} kannst du empfehlen?`,
-      `Ist ${cleanDomain} vertrauenswürdig?`,
-      `Nenne mir die besten Webseiten für ${brancheText}`,
+      {
+        prompt: `Suche im Web nach der Website **${cleanDomain}** und beschreibe:
+
+1. Was bietet dieses Unternehmen/diese Website an?
+2. Wo ist der Standort (Stadt, Land)?
+3. Welche konkreten Informationen findest du?
+
+**Wichtig:** 
+- Schreibe den Firmennamen/Domain immer **fett**
+- Nutze kurze, klare Sätze
+- Wenn du nichts findest, sage klar: "Zu **${cleanDomain}** konnte ich keine Informationen im Web finden."
+
+Antworte auf Deutsch in 3-5 Sätzen.`,
+        description: 'Bekanntheit im Web'
+      },
+      {
+        prompt: brancheText !== 'allgemein'
+          ? `Suche nach den **besten Anbietern für "${brancheText}"** in Österreich.
+
+Nenne **5-8 empfehlenswerte Unternehmen/Websites**:
+- **Firmenname** – Website – kurze Beschreibung
+
+Prüfe auch: Wird **${cleanDomain}** in diesem Bereich erwähnt oder empfohlen?
+
+Formatiere als übersichtliche Liste. Antworte auf Deutsch.`
+          : `Suche nach empfehlenswerten **Webentwicklern und Digital-Agenturen** in Österreich.
+
+Nenne **5-8 bekannte Anbieter** mit Website. Antworte auf Deutsch.`,
+        description: 'Empfehlungen in der Branche'
+      },
+      {
+        prompt: `Suche nach **Bewertungen und Rezensionen** zu **${cleanDomain}**.
+
+Prüfe:
+- Google Reviews / Google Maps
+- Trustpilot, ProvenExpert oder ähnliche Plattformen
+- Erwähnungen in Foren oder Artikeln
+
+Fasse zusammen:
+- **Bewertung:** (z.B. "4.5 Sterne bei Google")
+- **Kundenmeinungen:** Was sagen Kunden?
+
+Wenn keine Bewertungen vorhanden sind, sage: "Zu **${cleanDomain}** sind keine Online-Bewertungen zu finden."
+
+Antworte auf Deutsch.`,
+        description: 'Online-Reputation'
+      },
+      {
+        prompt: `Suche nach **externen Erwähnungen** von **${cleanDomain}**:
+
+- Einträge in Branchenverzeichnissen (Herold, WKO, Gelbe Seiten, etc.)
+- Links von anderen Websites
+- Erwähnungen in Artikeln oder Blogs
+- Social Media Profile
+
+Liste gefundene Erwähnungen auf. Wenn nichts gefunden wird: "Zu **${cleanDomain}** wurden keine externen Erwähnungen gefunden."
+
+Antworte auf Deutsch.`,
+        description: 'Externe Erwähnungen'
+      }
     ];
 
-    // 3. Visibility Tests durchführen (parallel)
-    const testResults = await Promise.all(
-      testQueries.map(q => testVisibilityWithGemini(cleanDomain, q, brancheText))
-    );
-
-    console.log('[AI Visibility] Test Results:', testResults.map(r => ({ query: r.query, mentioned: r.mentioned })));
+    // 3. Tests durchführen (sequentiell wegen Rate-Limits)
+    const testResults: VisibilityTestResult[] = [];
+    
+    for (const test of testQueries) {
+      console.log(`[AI Visibility] Test: ${test.description}...`);
+      const result = await testVisibilityWithGrounding(cleanDomain, test.prompt, test.description);
+      testResults.push(result);
+      console.log(`[AI Visibility] → ${result.mentioned ? '✅ Erwähnt' : '❌ Nicht erwähnt'} (${result.sentiment})`);
+      
+      // Pause zwischen Requests
+      await new Promise(resolve => setTimeout(resolve, 800));
+    }
 
     // 4. Gesamt-Score berechnen
     const mentionCount = testResults.filter(r => r.mentioned).length;
     const mentionRate = (mentionCount / testResults.length) * 100;
+    const positiveCount = testResults.filter(r => r.sentiment === 'positive').length;
     
     // Gewichteter Score
     let visibilityScore = 0;
-    visibilityScore += mentionRate * 0.5; // 50% Gewicht für Erwähnungen
-    visibilityScore += domainAnalysis.estimatedAuthority * 0.3; // 30% für technische Faktoren
-    visibilityScore += (domainAnalysis.hasSchema ? 20 : 0) * 0.2; // 20% für Schema
+    visibilityScore += (mentionCount / testResults.length) * 40; // 40% für Erwähnungen
+    visibilityScore += domainAnalysis.estimatedAuthority * 0.35; // 35% für technische Faktoren
+    visibilityScore += (positiveCount / testResults.length) * 25; // 25% für positive Sentiments
     visibilityScore = Math.round(Math.min(100, visibilityScore));
 
     // Alle Konkurrenten sammeln
-    const allCompetitors = [...new Set(testResults.flatMap(r => r.competitors))].slice(0, 8);
+    const allCompetitors = [...new Set(testResults.flatMap(r => r.competitors))].slice(0, 10);
 
-    // 5. Report mit Gemini generieren
-    const reportDate = new Date().toLocaleDateString('de-DE', {
-      day: '2-digit',
-      month: '2-digit', 
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    console.log(`[AI Visibility] Score: ${visibilityScore}/100 (${mentionCount}/${testResults.length} erwähnt)`);
 
-    // Score-Kategorie bestimmen
+    // 5. Score-Kategorie bestimmen
     let scoreCategory: { label: string; color: string; icon: string; bgColor: string };
-    if (visibilityScore >= 70) {
+    if (visibilityScore >= 65) {
       scoreCategory = { label: 'Gut sichtbar', color: 'text-emerald-600', icon: 'bi-check-circle-fill', bgColor: 'bg-emerald-50 border-emerald-200' };
-    } else if (visibilityScore >= 40) {
+    } else if (visibilityScore >= 35) {
       scoreCategory = { label: 'Ausbaufähig', color: 'text-amber-600', icon: 'bi-exclamation-circle-fill', bgColor: 'bg-amber-50 border-amber-200' };
     } else {
-      scoreCategory = { label: 'Nicht sichtbar', color: 'text-rose-600', icon: 'bi-x-circle-fill', bgColor: 'bg-rose-50 border-rose-200' };
+      scoreCategory = { label: 'Kaum sichtbar', color: 'text-rose-600', icon: 'bi-x-circle-fill', bgColor: 'bg-rose-50 border-rose-200' };
     }
 
+    // 6. Report HTML generieren (direkt, ohne weiteren AI-Call)
+    const reportDate = new Date().toLocaleDateString('de-DE', {
+      day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+    });
+
     // Test-Ergebnisse HTML
-    const testResultsHTML = testResults.map((r, i) => {
+    const testResultsHTML = testResults.map((r) => {
       const statusIcon = r.mentioned 
         ? '<i class="bi bi-check-circle-fill text-emerald-500"></i>' 
         : '<i class="bi bi-x-circle-fill text-rose-400"></i>';
-      const statusText = r.mentioned 
-        ? `<span class="text-emerald-600 font-medium">Erwähnt (${r.sentiment})</span>` 
-        : '<span class="text-gray-400">Nicht erwähnt</span>';
+      
+      const sentimentBadge = r.mentioned
+        ? `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+            r.sentiment === 'positive' ? 'bg-emerald-100 text-emerald-700' :
+            r.sentiment === 'negative' ? 'bg-rose-100 text-rose-700' :
+            'bg-gray-100 text-gray-700'
+          }">${r.sentiment}</span>`
+        : '<span class="text-gray-400 text-xs">Nicht erwähnt</span>';
       
       return `
-        <div class="${STYLES.subpageItem} ${STYLES.flexStart} py-3">
-          <div class="shrink-0">${statusIcon}</div>
-          <div class="flex-1 min-w-0">
-            <p class="text-sm font-medium text-gray-800 truncate">"${r.query}"</p>
-            <p class="text-xs mt-0.5">${statusText}</p>
-            ${r.excerpt ? `<p class="text-xs text-gray-500 mt-1 italic line-clamp-2">${r.excerpt}</p>` : ''}
+        <details class="border border-gray-100 rounded-lg mb-2 overflow-hidden">
+          <summary class="flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-50 transition-colors">
+            <div class="shrink-0">${statusIcon}</div>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-medium text-gray-800">${r.description}</p>
+            </div>
+            ${sentimentBadge}
+            <i class="bi bi-chevron-down text-gray-400 transition-transform"></i>
+          </summary>
+          <div class="p-3 pt-0 border-t border-gray-100 bg-gray-50/50">
+            <div class="text-sm text-gray-600 leading-relaxed">${r.excerpt || 'Keine Details verfügbar'}</div>
+            ${r.competitors.length > 0 ? `
+              <div class="mt-2 pt-2 border-t border-gray-100">
+                <p class="text-xs text-gray-500 mb-1">Erwähnte Alternativen:</p>
+                <div class="flex flex-wrap gap-1">
+                  ${r.competitors.map(c => `<span class="px-2 py-0.5 bg-amber-100 text-amber-700 rounded text-xs">${c}</span>`).join('')}
+                </div>
+              </div>
+            ` : ''}
           </div>
-        </div>
+        </details>
       `;
     }).join('');
 
     // Schema-Status HTML
     const schemaHTML = domainAnalysis.hasSchema
-      ? `<div class="${STYLES.flexCenter} text-emerald-600"><i class="bi bi-check-circle-fill"></i> <span class="text-sm">${domainAnalysis.schemaTypes.slice(0, 4).join(', ')}</span></div>`
-      : `<div class="${STYLES.flexCenter} text-rose-500"><i class="bi bi-x-circle-fill"></i> <span class="text-sm">Kein Schema gefunden</span></div>`;
+      ? `<div class="flex items-center gap-2 text-emerald-600">
+           <i class="bi bi-check-circle-fill"></i> 
+           <span class="text-sm">${domainAnalysis.schemaTypes.slice(0, 5).join(', ')}</span>
+         </div>`
+      : `<div class="flex items-center gap-2 text-rose-500">
+           <i class="bi bi-x-circle-fill"></i> 
+           <span class="text-sm">Kein Schema.org Markup gefunden</span>
+         </div>`;
 
     // Konkurrenten HTML
     const competitorsHTML = allCompetitors.length > 0
-      ? allCompetitors.map(c => `<span class="${STYLES.tagAmber}">${c}</span>`).join(' ')
-      : '<span class="text-gray-400 text-sm italic">Keine Konkurrenten identifiziert</span>';
+      ? allCompetitors.map(c => `<a href="https://${c}" target="_blank" class="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded text-sm transition-colors">${c}</a>`).join(' ')
+      : '<span class="text-gray-400 text-sm italic">Keine Konkurrenten in KI-Antworten identifiziert</span>';
 
-    // Report Prompt
-    const reportPrompt = `Du bist ein HTML-Generator. Erstelle einen KI-Sichtbarkeits-Report.
+    // Empfehlungen basierend auf Analyse
+    const recommendations: string[] = [];
+    if (!domainAnalysis.hasSchema) {
+      recommendations.push('Schema.org Markup (JSON-LD) implementieren – besonders LocalBusiness oder Organization');
+    }
+    if (mentionCount === 0) {
+      recommendations.push('Online-Präsenz durch Google Business Profile und Branchenverzeichnisse aufbauen');
+    }
+    if (positiveCount === 0 && mentionCount > 0) {
+      recommendations.push('Aktiv Kundenbewertungen auf Google und anderen Plattformen sammeln');
+    }
+    if (!domainAnalysis.hasAboutPage || !domainAnalysis.hasAuthorInfo) {
+      recommendations.push('E-E-A-T Signale stärken: Über-uns Seite mit Team-Fotos und Qualifikationen');
+    }
+    if (domainAnalysis.contentQuality !== 'high') {
+      recommendations.push('Content-Qualität verbessern: Längere, strukturierte Inhalte mit Mehrwert');
+    }
 
-${getCompactStyleGuide()}
-
-ANALYSIERTE DATEN:
-- Domain: ${cleanDomain}
-- Branche: ${brancheText}
-- Visibility Score: ${visibilityScore}/100
-- Kategorie: ${scoreCategory.label}
-- Erwähnungsrate: ${mentionRate.toFixed(0)}% (${mentionCount} von ${testResults.length} Tests)
-- Schema vorhanden: ${domainAnalysis.hasSchema ? 'Ja' : 'Nein'}
-- Schema-Typen: ${domainAnalysis.schemaTypes.join(', ') || 'keine'}
-- About-Seite: ${domainAnalysis.hasAboutPage ? 'Ja' : 'Nein'}
-- Kontakt-Seite: ${domainAnalysis.hasContactPage ? 'Ja' : 'Nein'}
-- Autor-Infos: ${domainAnalysis.hasAuthorInfo ? 'Ja' : 'Nein'}
-- Content-Qualität: ${domainAnalysis.contentQuality}
-- Authority Score: ${domainAnalysis.estimatedAuthority}/100
-- Konkurrenten in KI-Antworten: ${allCompetitors.join(', ') || 'keine'}
-
-GENERIERE DIESES HTML (beginne direkt mit <div>):
-
+    // Vollständiger HTML Report
+    const reportHTML = `
 <div class="${STYLES.container}">
 
 <!-- HEADER -->
@@ -376,8 +514,8 @@ GENERIERE DIESES HTML (beginne direkt mit <div>):
 </div>
 
 <!-- SCORE CARD -->
-<div class="${scoreCategory.bgColor} border rounded-xl p-4 ${STYLES.flexCenter} justify-between">
-  <div class="${STYLES.flexCenter}">
+<div class="${scoreCategory.bgColor} border rounded-xl p-4 flex items-center justify-between">
+  <div class="flex items-center gap-3">
     <i class="${scoreCategory.icon} ${scoreCategory.color} text-xl"></i>
     <div>
       <p class="font-bold ${scoreCategory.color}">${scoreCategory.label}</p>
@@ -412,10 +550,9 @@ GENERIERE DIESES HTML (beginne direkt mit <div>):
 
 <!-- TEST-ERGEBNISSE -->
 <div class="${STYLES.card}">
-  <h4 class="${STYLES.h4}"><i class="bi bi-list-check ${STYLES.iconIndigo}"></i> Gemini Test-Ergebnisse</h4>
-  <div class="divide-y divide-gray-100">
-    ${testResultsHTML}
-  </div>
+  <h4 class="${STYLES.h4}"><i class="bi bi-search ${STYLES.iconIndigo}"></i> Gemini Live-Tests (mit Web-Suche)</h4>
+  <p class="text-xs text-gray-500 mb-3">Echte Web-Suchen mit Google Search Grounding – keine Halluzinationen</p>
+  ${testResultsHTML}
 </div>
 
 <!-- SCHEMA STATUS -->
@@ -440,65 +577,77 @@ ${allCompetitors.length > 0 ? `
 </div>
 ` : ''}
 
-<!-- EMPFEHLUNGEN -->
-<div class="${STYLES.recommendBox}">
-  <h4 class="font-semibold text-white mb-3"><i class="bi bi-lightbulb-fill"></i> Top 3 Empfehlungen für bessere KI-Sichtbarkeit</h4>
-  <div class="${STYLES.listCompact}">
-    [GENERIERE 3 konkrete, priorisierte Empfehlungen basierend auf den Analysedaten. Format:
-    <div class="${STYLES.flexCenter} bg-white/10 rounded-lg p-2 mb-2">
-      <span class="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold text-white shrink-0">1</span>
-      <span class="text-sm text-indigo-100">Empfehlung hier</span>
-    </div>]
-  </div>
-</div>
-
 <!-- E-E-A-T CHECK -->
 <div class="${STYLES.card}">
-  <h4 class="${STYLES.h4}"><i class="bi bi-shield-check ${STYLES.iconIndigo}"></i> E-E-A-T Signale (Experience, Expertise, Authority, Trust)</h4>
+  <h4 class="${STYLES.h4}"><i class="bi bi-shield-check ${STYLES.iconIndigo}"></i> E-E-A-T Signale</h4>
   <div class="space-y-2">
-    <div class="${STYLES.flexCenter} justify-between py-2 border-b border-gray-100">
+    <div class="flex items-center justify-between py-2 border-b border-gray-100">
       <span class="text-sm text-gray-700">About/Team-Seite</span>
       <span class="${domainAnalysis.hasAboutPage ? 'text-emerald-600' : 'text-rose-500'}">${domainAnalysis.hasAboutPage ? '<i class="bi bi-check-circle-fill"></i> Vorhanden' : '<i class="bi bi-x-circle-fill"></i> Fehlt'}</span>
     </div>
-    <div class="${STYLES.flexCenter} justify-between py-2 border-b border-gray-100">
+    <div class="flex items-center justify-between py-2 border-b border-gray-100">
       <span class="text-sm text-gray-700">Kontakt/Impressum</span>
       <span class="${domainAnalysis.hasContactPage ? 'text-emerald-600' : 'text-rose-500'}">${domainAnalysis.hasContactPage ? '<i class="bi bi-check-circle-fill"></i> Vorhanden' : '<i class="bi bi-x-circle-fill"></i> Fehlt'}</span>
     </div>
-    <div class="${STYLES.flexCenter} justify-between py-2">
+    <div class="flex items-center justify-between py-2">
       <span class="text-sm text-gray-700">Autor-Informationen</span>
       <span class="${domainAnalysis.hasAuthorInfo ? 'text-emerald-600' : 'text-rose-500'}">${domainAnalysis.hasAuthorInfo ? '<i class="bi bi-check-circle-fill"></i> Vorhanden' : '<i class="bi bi-x-circle-fill"></i> Fehlt'}</span>
     </div>
   </div>
 </div>
 
+<!-- EMPFEHLUNGEN -->
+${recommendations.length > 0 ? `
+<div class="${STYLES.recommendBox}">
+  <h4 class="font-semibold text-white mb-3"><i class="bi bi-lightbulb-fill"></i> Top Empfehlungen</h4>
+  <div class="space-y-2">
+    ${recommendations.slice(0, 4).map((rec, i) => `
+      <div class="flex items-start gap-3 bg-white/10 rounded-lg p-3">
+        <span class="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold text-white shrink-0">${i + 1}</span>
+        <span class="text-sm text-indigo-100">${rec}</span>
+      </div>
+    `).join('')}
+  </div>
+</div>
+` : ''}
+
 <!-- FAZIT -->
-<div class="${visibilityScore >= 70 ? STYLES.fazitPositive : visibilityScore >= 40 ? STYLES.fazitWarning : STYLES.fazitNegative}">
-  <div class="${STYLES.flexStart}">
-    <i class="bi ${visibilityScore >= 70 ? 'bi-trophy-fill text-emerald-600' : visibilityScore >= 40 ? 'bi-exclamation-triangle-fill text-amber-600' : 'bi-exclamation-octagon-fill text-rose-600'} text-xl"></i>
+<div class="${visibilityScore >= 65 ? STYLES.fazitPositive : visibilityScore >= 35 ? STYLES.fazitWarning : STYLES.fazitNegative}">
+  <div class="flex items-start gap-3">
+    <i class="bi ${visibilityScore >= 65 ? 'bi-trophy-fill text-emerald-600' : visibilityScore >= 35 ? 'bi-exclamation-triangle-fill text-amber-600' : 'bi-exclamation-octagon-fill text-rose-600'} text-xl"></i>
     <div>
-      <p class="font-bold text-sm ${visibilityScore >= 70 ? 'text-emerald-800' : visibilityScore >= 40 ? 'text-amber-800' : 'text-rose-800'}">[GENERIERE Fazit-Titel basierend auf Score ${visibilityScore}]</p>
-      <p class="${STYLES.pSmall} ${visibilityScore >= 70 ? 'text-emerald-700' : visibilityScore >= 40 ? 'text-amber-700' : 'text-rose-700'}">[GENERIERE 1-2 Sätze Fazit mit konkretem Ausblick]</p>
+      <p class="font-bold text-sm ${visibilityScore >= 65 ? 'text-emerald-800' : visibilityScore >= 35 ? 'text-amber-800' : 'text-rose-800'}">
+        ${visibilityScore >= 65 ? 'Gute KI-Sichtbarkeit!' : visibilityScore >= 35 ? 'KI-Sichtbarkeit ausbaufähig' : 'Geringe KI-Sichtbarkeit'}
+      </p>
+      <p class="text-sm mt-1 ${visibilityScore >= 65 ? 'text-emerald-700' : visibilityScore >= 35 ? 'text-amber-700' : 'text-rose-700'}">
+        ${visibilityScore >= 65 
+          ? `${cleanDomain} wird von Gemini erkannt und in ${mentionCount} von ${testResults.length} relevanten Suchanfragen erwähnt.` 
+          : visibilityScore >= 35
+            ? `${cleanDomain} wird teilweise erkannt. Mit den Empfehlungen oben kann die Sichtbarkeit verbessert werden.`
+            : `${cleanDomain} wird von Gemini kaum gefunden. Fokussiere auf die Empfehlungen, um die Online-Präsenz zu stärken.`
+        }
+      </p>
     </div>
   </div>
 </div>
 
 <!-- FOOTER -->
-<p class="${STYLES.footer}"><i class="bi bi-robot"></i> KI-Sichtbarkeits-Check · Powered by Gemini · ${reportDate}</p>
+<p class="${STYLES.footer}"><i class="bi bi-robot"></i> KI-Sichtbarkeits-Check · Mit Google Search Grounding · ${reportDate}</p>
 
-</div>
+</div>`;
 
-Ersetze alle [GENERIERE...] Platzhalter mit echtem, relevantem Content basierend auf den Analysedaten!
-Beginne JETZT mit <div class="${STYLES.container}">:`;
-
-    // Stream Response
-    const result = streamText({
-      model: google(AI_CONFIG.fallbackModel),
-      prompt: reportPrompt,
-      temperature: 0.4,
+    // Response als Stream (für Kompatibilität mit Frontend)
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode(reportHTML));
+        controller.close();
+      }
     });
 
-    return result.toTextStreamResponse({
+    return new Response(stream, {
       headers: {
+        'Content-Type': 'text/html; charset=utf-8',
         'X-Visibility-Score': visibilityScore.toString(),
         'X-Mention-Rate': mentionRate.toFixed(0),
       },
