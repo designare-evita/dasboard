@@ -59,15 +59,21 @@ function extractDomain(url: string): string {
 }
 
 /**
- * Formatiert Markdown zu lesbarem Text (für HTML-Output)
+ * Formatiert Markdown zu lesbarem Text und entfernt "Such-Gedanken" der KI
  */
 function formatResponseText(text: string): string {
-  let formatted = text
+  // Entfernt typische Grounding-Einleitungen am Anfang der Antwort
+  let cleaned = text.replace(/^(Okay,|Ich habe|Ich werde|Lass mich|Sicher|Natürlich)\s.*?(suchen|finden|nachschauen|prüfen|hier sind|hier ist).*?(\n|\:|\. )/i, '');
+  
+  // Falls nach der Bereinigung noch "Okay, " am Anfang steht
+  cleaned = cleaned.replace(/^Okay,?\s*/i, '');
+
+  let formatted = cleaned
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '<em>$1</em>')
     .replace(/^[-•]\s+(.+)$/gm, '• $1');
   
-  // Zeilenumbrüche nach/vor strong-Tags entfernen
+  // Zeilenumbrüche und Abstände optimieren
   formatted = formatted.replace(/<\/strong>\s*\n+/g, '</strong> ');
   formatted = formatted.replace(/\n+\s*<strong>/g, ' <strong>');
   formatted = formatted.replace(/\n{3,}/g, '\n\n');
