@@ -15,7 +15,7 @@ export const AI_CONFIG = {
   ] as const,
   
   // Shortcuts für direkten Zugriff (Rückwärtskompatibilität)
-  primaryModel: 'gemini-3-flash-preview' as const,
+  primaryModel: 'gemini-flash-latest' as const,
   fallbackModel: 'gemini-2.5-flash' as const,
   lastResortModel: 'gemini-2.0-flash' as const,
   
