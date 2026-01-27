@@ -172,6 +172,14 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
 
   const chartData = Array.from(chartDataMap.values()).sort((a, b) => a.date - b.date);
 
+  // X-Achsen-Domain aus tatsächlichen Daten berechnen
+  const dataMinDate = chartData.length > 0 
+    ? Math.min(...chartData.map(d => d.date)) 
+    : startDate.getTime();
+  const dataMaxDate = chartData.length > 0 
+    ? Math.max(...chartData.map(d => d.date)) 
+    : endDate.getTime();
+
   // Trends berechnen
   const gscTrend = calculateTrendDirection(gscImpressionTrend);
   const aiTrend = calculateTrendDirection(aiTrafficTrend || []);
@@ -379,7 +387,7 @@ export default function ProjectTimelineWidget({ projectId }: ProjectTimelineWidg
                       dataKey="date"
                       tickFormatter={(t) => format(new Date(t), 'd.MM', { locale: de })}
                       type="number"
-                      domain={[startDate.getTime(), endDate.getTime()]}
+                      domain={[dataMinDate, dataMaxDate]}
                       tick={{ fontSize: 9, fill: '#6b7280' }}
                       tickMargin={5}
                       minTickGap={30}
