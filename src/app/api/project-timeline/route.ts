@@ -32,10 +32,14 @@ export async function GET(req: NextRequest) {
     if (isDemo) {
       console.log('[Project Timeline] Demo-User erkannt. Sende Demo-Daten...');
       
+      // Demo: Projektstart vor 60 Tagen, 6 Monate Laufzeit
+      const demoStartDate = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
+      const demoDurationMonths = 6;
+      
       const demoData = {
         project: {
-          startDate: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
-          durationMonths: 6
+          startDate: demoStartDate.toISOString(),
+          durationMonths: demoDurationMonths
         },
         progress: {
           counts: {
@@ -47,8 +51,8 @@ export async function GET(req: NextRequest) {
           },
           percentage: 70
         },
-        gscImpressionTrend: generateTrendData(90, 800, 1200),
-        aiTrafficTrend: generateTrendData(90, 50, 180),
+        gscImpressionTrend: generateTrendData(demoStartDate, demoDurationMonths, 800, 1200),
+        aiTrafficTrend: generateTrendData(demoStartDate, demoDurationMonths, 50, 180),
         topMovers: [
           {
             url: 'https://demo-shop.de/produkte/sneaker-collection',
@@ -104,6 +108,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ message: 'Timeline nicht aktiviert' }, { status: 404 });
     }
 
+    // Projekt-Zeitraum berechnen
+    const projectStartDate = project.project_start_date 
+      ? new Date(project.project_start_date) 
+      : new Date();
+    const durationMonths = project.project_duration_months || 6;
+
     // 2. Landingpage-Status zählen
     const { rows: statusRows } = await sql`
       SELECT 
@@ -131,7 +141,7 @@ export async function GET(req: NextRequest) {
 
     const percentage = total > 0 ? Math.round((counts['Freigegeben'] / total) * 100) : 0;
 
-    // 3. GSC Impression Trend (letzte 90 Tage)
+    // 3. GSC Impression Trend (ab Projektstart)
     let gscImpressionTrend: { date: string; value: number }[] = [];
     
     if (project.gsc_site_url) {
@@ -142,7 +152,7 @@ export async function GET(req: NextRequest) {
             impressions as value
           FROM gsc_daily_data
           WHERE site_url = ${project.gsc_site_url}
-            AND date >= CURRENT_DATE - INTERVAL '90 days'
+            AND date >= ${projectStartDate.toISOString().split('T')[0]}
           ORDER BY date ASC
         `;
         
@@ -162,10 +172,12 @@ export async function GET(req: NextRequest) {
           `;
           
           if (cacheRows.length > 0 && cacheRows[0].data?.charts?.impressions) {
-            gscImpressionTrend = cacheRows[0].data.charts.impressions.map((point: any) => ({
-              date: new Date(point.date).toISOString().split('T')[0],
-              value: point.value || 0
-            }));
+            gscImpressionTrend = cacheRows[0].data.charts.impressions
+              .filter((point: any) => new Date(point.date) >= projectStartDate)
+              .map((point: any) => ({
+                date: new Date(point.date).toISOString().split('T')[0],
+                value: point.value || 0
+              }));
           }
         } catch (cacheError) {
           console.warn('[Project Timeline] Cache Fallback fehlgeschlagen:', cacheError);
@@ -173,7 +185,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 4. AI Traffic Trend (letzte 90 Tage) - aus Cache
+    // 4. AI Traffic Trend (ab Projektstart) - aus Cache
     let aiTrafficTrend: { date: string; value: number }[] = [];
     
     try {
@@ -185,10 +197,12 @@ export async function GET(req: NextRequest) {
       `;
       
       if (cacheRows.length > 0 && cacheRows[0].data?.aiTraffic?.trend) {
-        aiTrafficTrend = cacheRows[0].data.aiTraffic.trend.map((point: any) => ({
-          date: new Date(point.date).toISOString().split('T')[0],
-          value: point.sessions || point.value || 0
-        }));
+        aiTrafficTrend = cacheRows[0].data.aiTraffic.trend
+          .filter((point: any) => new Date(point.date) >= projectStartDate)
+          .map((point: any) => ({
+            date: new Date(point.date).toISOString().split('T')[0],
+            value: point.sessions || point.value || 0
+          }));
       }
     } catch (e) {
       console.warn('[Project Timeline] AI Traffic Trend nicht verfügbar:', e);
@@ -220,10 +234,8 @@ export async function GET(req: NextRequest) {
     // Response zusammenbauen
     const responseData = {
       project: {
-        startDate: project.project_start_date 
-          ? new Date(project.project_start_date).toISOString() 
-          : new Date().toISOString(),
-        durationMonths: project.project_duration_months || 6
+        startDate: projectStartDate.toISOString(),
+        durationMonths: durationMonths
       },
       progress: {
         counts,
@@ -244,14 +256,19 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// Helper: Generiert Trend-Daten mit aufsteigender Tendenz (nur für Demo)
-function generateTrendData(days: number, minValue: number, maxValue: number) {
+// Helper: Generiert Trend-Daten ab Projektstart bis heute (nur für Demo)
+function generateTrendData(startDate: Date, durationMonths: number, minValue: number, maxValue: number) {
   const data = [];
   const now = new Date();
+  const start = new Date(startDate);
   
-  for (let i = days - 1; i >= 0; i--) {
-    const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
-    const progress = (days - i) / days;
+  // Nur bis heute generieren, nicht bis Projektende
+  const daysSinceStart = Math.floor((now.getTime() - start.getTime()) / (24 * 60 * 60 * 1000));
+  const daysToGenerate = Math.max(0, daysSinceStart);
+  
+  for (let i = 0; i <= daysToGenerate; i++) {
+    const date = new Date(start.getTime() + i * 24 * 60 * 60 * 1000);
+    const progress = i / Math.max(1, daysToGenerate);
     const value = Math.floor(minValue + (maxValue - minValue) * progress + (Math.random() - 0.5) * 100);
     
     data.push({
