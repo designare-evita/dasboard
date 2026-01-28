@@ -190,7 +190,7 @@ export default function LandingPageChart({
   const formattedDateRange = getDateRangeString(dateRange);
 
   return (
-    <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex flex-col">
+    <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex flex-col max-h-[65vh]">
       
       {/* Header Bereich */}
       <div className="mb-4 flex-shrink-0 border-b border-gray-50 pb-2">
@@ -259,11 +259,11 @@ export default function LandingPageChart({
 
       {/* Liste */}
       {sortedData.length === 0 ? (
-        <div className="flex-1 flex items-center justify-center text-gray-400 text-sm h-[40vh]">
+        <div className="flex-1 flex items-center justify-center text-gray-400 text-sm min-h-[200px]">
           {searchTerm ? 'Keine Landingpages für diese Suche gefunden' : 'Keine validen Daten'}
         </div>
       ) : (
-        <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar h-[40vh]">
+        <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar min-h-0">
           <div className="space-y-1">
             {sortedData.map((page, i) => {
               const newUsers = page.newUsers || 0;
@@ -400,7 +400,7 @@ export default function LandingPageChart({
 
       {/* ✅ NEU: Folgepfade Detail-Ansicht (ausklappbar) */}
       {showFollowUpDetail && (
-        <div className="mt-4 pt-4 border-t border-gray-200 animate-in slide-in-from-top-4 duration-300">
+        <div className="mt-4 pt-4 border-t border-gray-200 animate-in slide-in-from-top-4 duration-300 flex-shrink-0 max-h-[50vh] flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <Diagram3Fill className="text-violet-500" size={18} />
@@ -476,7 +476,7 @@ export default function LandingPageChart({
                   Keine Folgepfade gefunden. Möglicherweise verlassen die meisten Nutzer die Seite direkt.
                 </div>
               ) : (
-                <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
+                <div className="space-y-2 flex-1 overflow-y-auto pr-2 min-h-0">
                   {followUpData.followUpPaths.map((fp, idx) => {
                     const maxSessions = followUpData.followUpPaths[0]?.sessions || 1;
                     const barWidth = Math.max((fp.sessions / maxSessions) * 100, 5);
