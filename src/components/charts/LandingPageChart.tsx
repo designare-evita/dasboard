@@ -1,9 +1,19 @@
 // src/components/charts/LandingPageChart.tsx
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { ConvertingPageData } from '@/lib/dashboard-shared';
-import { FileEarmarkText, Search, TagFill, ChevronDown, ChevronUp } from 'react-bootstrap-icons';
+import { 
+  FileEarmarkText, 
+  Search, 
+  TagFill, 
+  ChevronDown, 
+  ChevronUp, 
+  ArrowRight,
+  XLg,
+  ArrowRepeat,
+  Diagram3Fill
+} from 'react-bootstrap-icons';
 import { format, subDays, subMonths } from 'date-fns';
 import { de } from 'date-fns/locale';
 
@@ -12,13 +22,26 @@ export interface LandingPageQueries {
   [path: string]: Array<{ query: string; clicks: number; impressions: number }>;
 }
 
+// ✅ NEU: Typ für Folgepfade
+export interface FollowUpPath {
+  path: string;
+  sessions: number;
+  percentage: number;
+}
+
+export interface FollowUpData {
+  landingPage: string;
+  totalSessions: number;
+  followUpPaths: FollowUpPath[];
+}
+
 interface Props {
   data?: ConvertingPageData[];
   isLoading?: boolean;
   title?: string;
   dateRange?: string;
-  // NEU: Optionale Query-Daten pro Landingpage
   queryData?: LandingPageQueries;
+  projectId?: string; // ✅ NEU: Für API-Aufrufe
 }
 
 export default function LandingPageChart({ 
@@ -26,11 +49,19 @@ export default function LandingPageChart({
   isLoading, 
   title = "Top Landingpages",
   dateRange = '30d',
-  queryData
+  queryData,
+  projectId
 }: Props) {
   
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
+  
+  // ✅ NEU: State für Folgepfade-Detail-Ansicht
+  const [showFollowUpDetail, setShowFollowUpDetail] = useState(false);
+  const [selectedLandingPage, setSelectedLandingPage] = useState<string | null>(null);
+  const [followUpData, setFollowUpData] = useState<FollowUpData | null>(null);
+  const [isLoadingFollowUp, setIsLoadingFollowUp] = useState(false);
+  const [followUpError, setFollowUpError] = useState<string | null>(null);
 
   const getDateRangeString = (range: string) => {
     const end = new Date();
@@ -75,6 +106,51 @@ export default function LandingPageChart({
     return queryData[withSlash] || queryData[withoutSlash] || [];
   };
 
+  // ✅ NEU: Folgepfade laden
+  const loadFollowUpPaths = useCallback(async (landingPage: string) => {
+    if (!projectId) {
+      setFollowUpError('Projekt-ID fehlt');
+      return;
+    }
+    
+    setIsLoadingFollowUp(true);
+    setFollowUpError(null);
+    setSelectedLandingPage(landingPage);
+    setShowFollowUpDetail(true);
+    
+    try {
+      const params = new URLSearchParams({
+        projectId,
+        dateRange,
+        landingPage
+      });
+      
+      const response = await fetch(`/api/landing-page-followup?${params.toString()}`);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+      
+      const result = await response.json();
+      setFollowUpData(result.data);
+      
+    } catch (err) {
+      console.error('[LandingPageChart] Folgepfade Fehler:', err);
+      setFollowUpError(err instanceof Error ? err.message : 'Unbekannter Fehler');
+    } finally {
+      setIsLoadingFollowUp(false);
+    }
+  }, [projectId, dateRange]);
+
+  // ✅ NEU: Detail-Ansicht schließen
+  const closeFollowUpDetail = () => {
+    setShowFollowUpDetail(false);
+    setSelectedLandingPage(null);
+    setFollowUpData(null);
+    setFollowUpError(null);
+  };
+
   if (isLoading) {
     return <div className="h-[50vh] w-full bg-gray-50 rounded-xl animate-pulse flex items-center justify-center text-gray-400">Lade Daten...</div>;
   }
@@ -95,7 +171,6 @@ export default function LandingPageChart({
       
       if (searchTerm) {
         const searchLower = searchTerm.toLowerCase();
-        // Suche auch in Queries
         const queries = getQueriesForPath(item.path);
         const queryMatch = queries.some(q => q.query.toLowerCase().includes(searchLower));
         if (!path.includes(searchLower) && !queryMatch) {
@@ -115,7 +190,7 @@ export default function LandingPageChart({
   const formattedDateRange = getDateRangeString(dateRange);
 
   return (
-    <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex flex-col h-[50vh]">
+    <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex flex-col">
       
       {/* Header Bereich */}
       <div className="mb-4 flex-shrink-0 border-b border-gray-50 pb-2">
@@ -184,11 +259,11 @@ export default function LandingPageChart({
 
       {/* Liste */}
       {sortedData.length === 0 ? (
-        <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
+        <div className="flex-1 flex items-center justify-center text-gray-400 text-sm h-[40vh]">
           {searchTerm ? 'Keine Landingpages für diese Suche gefunden' : 'Keine validen Daten'}
         </div>
       ) : (
-        <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar h-[40vh]">
           <div className="space-y-1">
             {sortedData.map((page, i) => {
               const newUsers = page.newUsers || 0;
@@ -201,12 +276,10 @@ export default function LandingPageChart({
                 ? Math.max((newUsers / maxNewUsers) * 60, 2) 
                 : 2;
 
-              // Hole Queries für diese Seite
               const queries = getQueriesForPath(page.path);
               const hasQueries = queries.length > 0;
               const isExpanded = expandedPaths.has(page.path);
               
-              // Zeige Top 3 Queries inline, Rest bei Expand
               const inlineQueries = queries.slice(0, 3);
               const additionalQueries = queries.slice(3);
 
@@ -280,6 +353,21 @@ export default function LandingPageChart({
                       <div className="bg-slate-400 text-white px-2 py-1.5 rounded-md text-[11px] font-medium whitespace-nowrap min-w-[65px] text-center shadow-sm">
                         {conversions} Conv.
                       </div>
+                      
+                      {/* ✅ NEU: Details Button */}
+                      {projectId && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            loadFollowUpPaths(page.path);
+                          }}
+                          className="bg-violet-500 hover:bg-violet-600 text-white px-2 py-1.5 rounded-md text-[11px] font-medium whitespace-nowrap flex items-center gap-1 shadow-sm transition-colors"
+                          title="Folgepfade anzeigen"
+                        >
+                          <Diagram3Fill size={12} />
+                          Details
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -307,6 +395,139 @@ export default function LandingPageChart({
               );
             })}
           </div>
+        </div>
+      )}
+
+      {/* ✅ NEU: Folgepfade Detail-Ansicht (ausklappbar) */}
+      {showFollowUpDetail && (
+        <div className="mt-4 pt-4 border-t border-gray-200 animate-in slide-in-from-top-4 duration-300">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Diagram3Fill className="text-violet-500" size={18} />
+              <h4 className="text-[16px] font-semibold text-gray-800">
+                Folgepfade der Einstiegsseite
+              </h4>
+              {selectedLandingPage && (
+                <span className="text-sm text-violet-600 bg-violet-50 px-2 py-0.5 rounded font-medium truncate max-w-[300px]" title={selectedLandingPage}>
+                  {selectedLandingPage}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {followUpData && (
+                <button
+                  onClick={() => selectedLandingPage && loadFollowUpPaths(selectedLandingPage)}
+                  className="text-gray-400 hover:text-gray-600 p-1 rounded transition-colors"
+                  title="Aktualisieren"
+                >
+                  <ArrowRepeat size={16} />
+                </button>
+              )}
+              <button
+                onClick={closeFollowUpDetail}
+                className="text-gray-400 hover:text-gray-600 p-1 rounded transition-colors"
+                title="Schließen"
+              >
+                <XLg size={16} />
+              </button>
+            </div>
+          </div>
+
+          {/* Loading State */}
+          {isLoadingFollowUp && (
+            <div className="flex items-center justify-center py-8">
+              <div className="flex items-center gap-3 text-gray-500">
+                <div className="w-5 h-5 border-2 border-violet-500 border-t-transparent rounded-full animate-spin"></div>
+                <span className="text-sm">Lade Folgepfade...</span>
+              </div>
+            </div>
+          )}
+
+          {/* Error State */}
+          {followUpError && !isLoadingFollowUp && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
+              <p className="text-red-600 text-sm">{followUpError}</p>
+              <button
+                onClick={() => selectedLandingPage && loadFollowUpPaths(selectedLandingPage)}
+                className="mt-2 text-xs text-red-500 hover:text-red-700 underline"
+              >
+                Erneut versuchen
+              </button>
+            </div>
+          )}
+
+          {/* Folgepfade Daten */}
+          {followUpData && !isLoadingFollowUp && !followUpError && (
+            <div className="space-y-3">
+              {/* Summary */}
+              <div className="flex items-center gap-4 text-sm text-gray-600 mb-3">
+                <span>
+                  <strong className="text-gray-800">{followUpData.totalSessions.toLocaleString()}</strong> Sessions mit Folgeseiten
+                </span>
+                <span className="text-gray-300">|</span>
+                <span>
+                  <strong className="text-gray-800">{followUpData.followUpPaths.length}</strong> verschiedene Folgepfade
+                </span>
+              </div>
+
+              {/* Folgepfade Liste */}
+              {followUpData.followUpPaths.length === 0 ? (
+                <div className="text-center py-6 text-gray-400 text-sm">
+                  Keine Folgepfade gefunden. Möglicherweise verlassen die meisten Nutzer die Seite direkt.
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
+                  {followUpData.followUpPaths.map((fp, idx) => {
+                    const maxSessions = followUpData.followUpPaths[0]?.sessions || 1;
+                    const barWidth = Math.max((fp.sessions / maxSessions) * 100, 5);
+                    
+                    return (
+                      <div 
+                        key={idx} 
+                        className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                      >
+                        {/* Rang */}
+                        <div className="w-6 h-6 bg-violet-100 text-violet-600 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0">
+                          {idx + 1}
+                        </div>
+                        
+                        {/* Pfeil */}
+                        <ArrowRight className="text-gray-300 flex-shrink-0" size={14} />
+                        
+                        {/* Pfad mit Balken */}
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-gray-800 truncate mb-1" title={fp.path}>
+                            {fp.path}
+                          </div>
+                          <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-gradient-to-r from-violet-400 to-violet-600 rounded-full transition-all duration-500"
+                              style={{ width: `${barWidth}%` }}
+                            />
+                          </div>
+                        </div>
+                        
+                        {/* Metriken */}
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <div className="bg-violet-500 text-white px-2.5 py-1 rounded text-[11px] font-semibold min-w-[80px] text-center">
+                            {fp.sessions.toLocaleString()} Sess.
+                          </div>
+                          <div className="bg-gray-200 text-gray-700 px-2 py-1 rounded text-[11px] font-medium min-w-[55px] text-center">
+                            {fp.percentage.toFixed(1)}%
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Info-Hinweis */}
+              <div className="text-[10px] text-gray-400 mt-3 pt-3 border-t border-gray-100">
+                💡 Zeigt die häufigsten Seiten, die Nutzer nach dem Einstieg über diese Landingpage besucht haben.
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
