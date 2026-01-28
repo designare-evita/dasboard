@@ -283,12 +283,14 @@ export default function ProjectDashboard({
                </div>
             )}
             <div className="print-landing-chart relative">
+               {/* ✅ GEÄNDERT: projectId wird jetzt übergeben für Folgepfade-Feature */}
                <LandingPageChart 
                  data={cleanLandingPages} 
                  isLoading={isLoading}
                  title="Top Landingpages"
                  dateRange={dateRange}
                  queryData={data.landingPageQueries}
+                 projectId={projectId} // ✅ NEU: Ermöglicht Folgepfade-Abfragen
                />
                {!isLandingPagesVisible && isAdmin && (
                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
