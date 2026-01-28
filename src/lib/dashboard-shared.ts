@@ -65,6 +65,19 @@ export interface LandingPageQueries {
   [path: string]: LandingPageQueryData[];
 }
 
+// ✅ NEU: Folgepfade Interfaces
+export interface FollowUpPath {
+  path: string;
+  sessions: number;
+  percentage: number;
+}
+
+export interface LandingPageFollowUpData {
+  landingPage: string;
+  totalSessions: number;
+  followUpPaths: FollowUpPath[];
+}
+
 export interface ConvertingPageData {
   path: string;
   conversions: number;
