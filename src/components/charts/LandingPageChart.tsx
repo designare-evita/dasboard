@@ -32,6 +32,7 @@ export interface FollowUpPath {
 export interface FollowUpData {
   landingPage: string;
   totalSessions: number;
+  landingPageSessions: number; // ✅ NEU: Besucher der Landingpage selbst
   followUpPaths: FollowUpPath[];
 }
 
@@ -462,7 +463,7 @@ export default function LandingPageChart({
               {/* Summary */}
               <div className="flex items-center gap-4 text-sm text-gray-600 mb-3">
                 <span>
-                  <strong className="text-gray-800">{followUpData.totalSessions.toLocaleString()}</strong> Sessions mit Folgeseiten
+                  <strong className="text-gray-800">{followUpData.landingPageSessions.toLocaleString()}</strong> Besucher auf der Einstiegsseite
                 </span>
                 <span className="text-gray-300">|</span>
                 <span>
@@ -480,6 +481,11 @@ export default function LandingPageChart({
                   {followUpData.followUpPaths.map((fp, idx) => {
                     const maxSessions = followUpData.followUpPaths[0]?.sessions || 1;
                     const barWidth = Math.max((fp.sessions / maxSessions) * 100, 5);
+                    
+                    // ✅ NEU: Prozent relativ zur Landingpage-Besucher berechnen
+                    const percentOfLandingPage = followUpData.landingPageSessions > 0
+                      ? (fp.sessions / followUpData.landingPageSessions) * 100
+                      : 0;
                     
                     return (
                       <div 
@@ -512,8 +518,8 @@ export default function LandingPageChart({
                           <div className="bg-violet-500 text-white px-2.5 py-1 rounded text-[11px] font-semibold min-w-[80px] text-center">
                             {fp.sessions.toLocaleString()} Sess.
                           </div>
-                          <div className="bg-gray-200 text-gray-700 px-2 py-1 rounded text-[11px] font-medium min-w-[55px] text-center">
-                            {fp.percentage.toFixed(1)}%
+                          <div className="bg-gray-200 text-gray-700 px-2 py-1 rounded text-[11px] font-medium min-w-[55px] text-center" title="Anteil der Landingpage-Besucher">
+                            {percentOfLandingPage.toFixed(1)}%
                           </div>
                         </div>
                       </div>
@@ -524,7 +530,7 @@ export default function LandingPageChart({
 
               {/* Info-Hinweis */}
               <div className="text-[10px] text-gray-400 mt-3 pt-3 border-t border-gray-100">
-                💡 Zeigt die häufigsten Seiten, die Nutzer nach dem Einstieg über diese Landingpage besucht haben.
+                💡 Prozentangabe = Anteil der Landingpage-Besucher, die diese Folgeseite besucht haben.
               </div>
             </div>
           )}
