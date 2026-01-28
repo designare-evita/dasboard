@@ -972,3 +972,308 @@ export async function getQueriesByLandingPageObject(
   
   return result;
 }
+
+// ============================================================================
+// NEUE FUNKTION: Folgepfade der Einstiegsseiten (für google-api.ts)
+// Diese Funktion am Ende der google-api.ts Datei hinzufügen
+// ============================================================================
+
+export interface FollowUpPath {
+  path: string;
+  sessions: number;
+  percentage: number;
+}
+
+export interface LandingPageFollowUpData {
+  landingPage: string;
+  totalSessions: number;
+  followUpPaths: FollowUpPath[];
+}
+
+/**
+ * Holt die Folgepfade (nächste besuchte Seiten) für eine spezifische Einstiegsseite.
+ * 
+ * Da GA4 Data API keine direkte "nextPagePath" Dimension hat, 
+ * nutzen wir einen Workaround:
+ * - Wir filtern auf Sessions, die mit der Landingpage starten
+ * - Und holen alle besuchten Seiten in diesen Sessions (außer der Landingpage selbst)
+ * 
+ * @param propertyId GA4 Property ID
+ * @param landingPage Der Pfad der Landingpage (z.B. "/produkte/schuhe")
+ * @param startDate Startdatum (YYYY-MM-DD)
+ * @param endDate Enddatum (YYYY-MM-DD)
+ * @param siteUrl Optional: Site URL für URL-Normalisierung
+ */
+export async function getLandingPageFollowUpPaths(
+  propertyId: string,
+  landingPage: string,
+  startDate: string,
+  endDate: string,
+  siteUrl?: string
+): Promise<LandingPageFollowUpData> {
+  const formattedPropertyId = propertyId.startsWith('properties/') 
+    ? propertyId 
+    : `properties/${propertyId}`;
+  
+  const auth = createAuth();
+  const analytics = google.analyticsdata({ version: 'v1beta', auth });
+
+  // Normalisiere den Landingpage-Pfad
+  let normalizedLandingPage = landingPage;
+  
+  // Entferne Domain falls vorhanden
+  if (landingPage.startsWith('http')) {
+    try {
+      const url = new URL(landingPage);
+      normalizedLandingPage = url.pathname;
+    } catch {
+      // Fallback: Behalte Original
+    }
+  }
+  
+  // Entferne Query-Parameter für den Filter
+  const landingPageBase = normalizedLandingPage.split('?')[0];
+
+  try {
+    // Report: Alle Seiten in Sessions, die mit dieser Landingpage starten
+    // Wir nutzen einen Filter auf landingPage und holen dann alle pagePaths
+    const response = await analytics.properties.runReport({
+      property: formattedPropertyId,
+      requestBody: {
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [
+          { name: 'pagePath' }
+        ],
+        metrics: [
+          { name: 'sessions' }
+        ],
+        dimensionFilter: {
+          filter: {
+            fieldName: 'landingPage',
+            stringFilter: {
+              matchType: 'EXACT',
+              value: landingPageBase,
+              caseSensitive: false
+            }
+          }
+        },
+        orderBys: [
+          { metric: { metricName: 'sessions' }, desc: true }
+        ],
+        limit: '50' // Top 50 Folgepfade
+      }
+    });
+
+    const rows = response.data.rows || [];
+    
+    // Filtere die Landingpage selbst heraus und berechne Prozentsätze
+    const followUpPaths: FollowUpPath[] = [];
+    let totalFollowUpSessions = 0;
+    
+    // Erst alle Sessions zählen (ohne die Landingpage selbst)
+    for (const row of rows) {
+      const pagePath = row.dimensionValues?.[0]?.value || '';
+      const sessions = parseInt(row.metricValues?.[0]?.value || '0', 10);
+      
+      // Skip die Landingpage selbst
+      if (pagePath === landingPageBase || 
+          pagePath === normalizedLandingPage ||
+          pagePath === `${landingPageBase}/` ||
+          pagePath === landingPageBase.replace(/\/$/, '')) {
+        continue;
+      }
+      
+      // Skip leere oder (not set) Pfade
+      if (!pagePath || pagePath === '(not set)' || pagePath === '(not provided)') {
+        continue;
+      }
+      
+      totalFollowUpSessions += sessions;
+      followUpPaths.push({
+        path: pagePath,
+        sessions,
+        percentage: 0 // Wird später berechnet
+      });
+    }
+    
+    // Prozentsätze berechnen
+    for (const fp of followUpPaths) {
+      fp.percentage = totalFollowUpSessions > 0 
+        ? (fp.sessions / totalFollowUpSessions) * 100 
+        : 0;
+    }
+    
+    // Sortieren nach Sessions (absteigend) und limitieren
+    const sortedPaths = followUpPaths
+      .sort((a, b) => b.sessions - a.sessions)
+      .slice(0, 20); // Top 20 zurückgeben
+
+    return {
+      landingPage: normalizedLandingPage,
+      totalSessions: totalFollowUpSessions,
+      followUpPaths: sortedPaths
+    };
+
+  } catch (error) {
+    console.error('[GA4] Error in getLandingPageFollowUpPaths:', error);
+    
+    // Bei Fehler: Leere Daten zurückgeben statt zu crashen
+    return {
+      landingPage: normalizedLandingPage,
+      totalSessions: 0,
+      followUpPaths: []
+    };
+  }
+}
+
+// Alternative Implementierung mit pagePathPlusQueryString für genauere Matches
+export async function getLandingPageFollowUpPathsDetailed(
+  propertyId: string,
+  landingPage: string,
+  startDate: string,
+  endDate: string
+): Promise<LandingPageFollowUpData> {
+  const formattedPropertyId = propertyId.startsWith('properties/') 
+    ? propertyId 
+    : `properties/${propertyId}`;
+  
+  const auth = createAuth();
+  const analytics = google.analyticsdata({ version: 'v1beta', auth });
+
+  // Normalisiere den Landingpage-Pfad
+  let normalizedLandingPage = landingPage;
+  if (landingPage.startsWith('http')) {
+    try {
+      const url = new URL(landingPage);
+      normalizedLandingPage = url.pathname;
+    } catch {}
+  }
+  
+  const landingPageBase = normalizedLandingPage.split('?')[0];
+
+  try {
+    // Zwei Reports: Einmal für Landing Sessions, einmal für Folgeseiten
+    
+    // 1. Hole Gesamt-Sessions für diese Landingpage
+    const landingResponse = await analytics.properties.runReport({
+      property: formattedPropertyId,
+      requestBody: {
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: 'landingPagePlusQueryString' }],
+        metrics: [{ name: 'sessions' }],
+        dimensionFilter: {
+          filter: {
+            fieldName: 'landingPagePlusQueryString',
+            stringFilter: {
+              matchType: 'BEGINS_WITH',
+              value: landingPageBase,
+              caseSensitive: false
+            }
+          }
+        }
+      }
+    });
+    
+    const landingSessions = landingResponse.data.rows?.reduce((sum, row) => {
+      return sum + parseInt(row.metricValues?.[0]?.value || '0', 10);
+    }, 0) || 0;
+
+    // 2. Hole alle Seiten, die von dieser Landingpage aus besucht wurden
+    const followUpResponse = await analytics.properties.runReport({
+      property: formattedPropertyId,
+      requestBody: {
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: 'pagePathPlusQueryString' }],
+        metrics: [
+          { name: 'screenPageViews' },
+          { name: 'engagementRate' }
+        ],
+        dimensionFilter: {
+          andGroup: {
+            expressions: [
+              {
+                filter: {
+                  fieldName: 'landingPagePlusQueryString',
+                  stringFilter: {
+                    matchType: 'BEGINS_WITH',
+                    value: landingPageBase,
+                    caseSensitive: false
+                  }
+                }
+              },
+              {
+                notExpression: {
+                  filter: {
+                    fieldName: 'pagePathPlusQueryString',
+                    stringFilter: {
+                      matchType: 'BEGINS_WITH',
+                      value: landingPageBase,
+                      caseSensitive: false
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        },
+        orderBys: [
+          { metric: { metricName: 'screenPageViews' }, desc: true }
+        ],
+        limit: '30'
+      }
+    });
+
+    const rows = followUpResponse.data.rows || [];
+    const followUpPaths: FollowUpPath[] = [];
+    let totalViews = 0;
+
+    for (const row of rows) {
+      const pagePath = row.dimensionValues?.[0]?.value || '';
+      const views = parseInt(row.metricValues?.[0]?.value || '0', 10);
+      
+      if (!pagePath || pagePath === '(not set)') continue;
+      
+      // Extrahiere nur den Pfad ohne Query-Parameter für die Anzeige
+      const cleanPath = pagePath.split('?')[0];
+      
+      totalViews += views;
+      
+      // Prüfe ob der Pfad bereits existiert (aggregiere gleiche Pfade)
+      const existing = followUpPaths.find(fp => fp.path === cleanPath);
+      if (existing) {
+        existing.sessions += views;
+      } else {
+        followUpPaths.push({
+          path: cleanPath,
+          sessions: views,
+          percentage: 0
+        });
+      }
+    }
+
+    // Prozentsätze berechnen
+    for (const fp of followUpPaths) {
+      fp.percentage = totalViews > 0 ? (fp.sessions / totalViews) * 100 : 0;
+    }
+
+    // Sortieren und limitieren
+    const sortedPaths = followUpPaths
+      .sort((a, b) => b.sessions - a.sessions)
+      .slice(0, 20);
+
+    return {
+      landingPage: normalizedLandingPage,
+      totalSessions: landingSessions,
+      followUpPaths: sortedPaths
+    };
+
+  } catch (error) {
+    console.error('[GA4] Error in getLandingPageFollowUpPathsDetailed:', error);
+    return {
+      landingPage: normalizedLandingPage,
+      totalSessions: 0,
+      followUpPaths: []
+    };
+  }
+}
+
