@@ -1,7 +1,7 @@
 // src/app/api/landing-page-followup/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/auth'; // ✅ NextAuth v5 - importiere auth aus deiner auth.ts
+import { auth } from '@/lib/auth'; // ✅ NextAuth v5 aus deiner auth.ts
 import { sql } from '@vercel/postgres';
 import { getLandingPageFollowUpPaths } from '@/lib/google-api';
 
@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
-    // ✅ Auth Check für NextAuth v5
+    // ✅ Auth Check
     const session = await auth();
     if (!session?.user?.email) {
       return NextResponse.json({ error: 'Nicht autorisiert' }, { status: 401 });
@@ -25,37 +25,26 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'landingPage Parameter fehlt' }, { status: 400 });
     }
 
+    if (!projectId) {
+      return NextResponse.json({ error: 'projectId Parameter fehlt' }, { status: 400 });
+    }
+
     // GA4 Property ID ermitteln
     let ga4PropertyId: string | null = null;
     let siteUrl: string | null = null;
 
-    if (projectId) {
-      // Projekt-basiert
-      const { rows } = await sql`
-        SELECT u.ga4_property_id, u.gsc_site_url, u.domain
-        FROM projects p
-        JOIN users u ON p.user_id = u.id
-        WHERE p.id = ${projectId}::uuid
-        LIMIT 1
-      `;
-      
-      if (rows.length > 0) {
-        ga4PropertyId = rows[0].ga4_property_id;
-        siteUrl = rows[0].gsc_site_url || rows[0].domain;
-      }
-    } else {
-      // User-basiert (Fallback)
-      const { rows } = await sql`
-        SELECT ga4_property_id, gsc_site_url, domain
-        FROM users
-        WHERE email = ${session.user.email}
-        LIMIT 1
-      `;
-      
-      if (rows.length > 0) {
-        ga4PropertyId = rows[0].ga4_property_id;
-        siteUrl = rows[0].gsc_site_url || rows[0].domain;
-      }
+    // Projekt-basiert
+    const { rows } = await sql`
+      SELECT u.ga4_property_id, u.gsc_site_url, u.domain
+      FROM projects p
+      JOIN users u ON p.user_id = u.id
+      WHERE p.id = ${projectId}::uuid
+      LIMIT 1
+    `;
+    
+    if (rows.length > 0) {
+      ga4PropertyId = rows[0].ga4_property_id;
+      siteUrl = rows[0].gsc_site_url || rows[0].domain;
     }
 
     if (!ga4PropertyId) {
