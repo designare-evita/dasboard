@@ -987,6 +987,7 @@ export interface FollowUpPath {
 export interface LandingPageFollowUpData {
   landingPage: string;
   totalSessions: number;
+  landingPageSessions: number; // ✅ NEU: Besucher der Landingpage selbst
   followUpPaths: FollowUpPath[];
 }
 
@@ -1114,10 +1115,10 @@ export async function getLandingPageFollowUpPaths(
     console.log(`[GA4 Followup] Follow-up page views: ${totalPageViews}`);
     console.log(`[GA4 Followup] Unique follow-up paths: ${followUpPaths.length}`);
 
-    // Prozentsätze berechnen (basierend auf Gesamt-Folgeseiten-Views)
+    // Prozentsätze berechnen (basierend auf Landingpage-Besucher)
     for (const fp of followUpPaths) {
-      fp.percentage = totalPageViews > 0 
-        ? (fp.sessions / totalPageViews) * 100 
+      fp.percentage = landingPageViews > 0 
+        ? (fp.sessions / landingPageViews) * 100 
         : 0;
     }
     
@@ -1129,6 +1130,7 @@ export async function getLandingPageFollowUpPaths(
     return {
       landingPage: cleanLandingPage,
       totalSessions: landingPageViews + totalPageViews, // Gesamt-Seitenaufrufe in diesen Sessions
+      landingPageSessions: landingPageViews, // ✅ NEU: Besucher der Landingpage
       followUpPaths: sortedPaths
     };
 
@@ -1139,6 +1141,7 @@ export async function getLandingPageFollowUpPaths(
     return {
       landingPage: cleanLandingPage,
       totalSessions: 0,
+      landingPageSessions: 0,
       followUpPaths: []
     };
   }
